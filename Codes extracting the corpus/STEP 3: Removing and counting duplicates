@@ -1,0 +1,38 @@
+import os
+import pandas as pd
+
+def remove_duplicates_with_count(file_path):
+    # Read Excel file
+    df = pd.read_excel(file_path, header=None)  # No header as the list is in the first column
+
+    # Count duplicates
+    duplicate_counts = df[0].value_counts()
+
+    # Add a column to store counts of duplicates
+    df['Duplicate_Counts'] = df[0].map(duplicate_counts)
+
+    # Remove duplicates and keep track of counts
+    df_unique = df.drop_duplicates(subset=[0], keep='first')
+
+    # Get directory to save the file
+    output_dir = os.path.dirname(file_path)
+
+    # Create the directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Save unique data back to Excel file
+    output_file_path = os.path.join(output_dir, "unique_" + os.path.basename(file_path))
+    df_unique.to_excel(output_file_path, index=False, header=False)  # No header
+
+    return output_file_path, duplicate_counts
+
+if __name__ == "__main__":
+    # Example usage
+    file_path = "Excel/file/path"  # Replace with the path to your Excel file
+
+    new_file_path, duplicate_counts = remove_duplicates_with_count(file_path)
+
+    # Print counts of duplicates
+    print("Counts of duplicates:")
+    print(duplicate_counts)
+    print("Adjusted file saved at:", new_file_path)
