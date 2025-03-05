@@ -1,0 +1,266 @@
+WILL GPT-4 RUN DOOM?
+
+
+Introduction
+
+
+Large language models (LLMs) such as GPT-4 *REF* are able to parse input text (prompts) as instructions, and execute them to remarkable accuracy. No training or fine-tuning is required for this: instead, a few exemplars (shots) in the prompt suffice. This capability has led the community to actively research LLM problem-solving capabilities, Of interest to us are planning and reasoning skills in complex environments, namely, video games.
+
+
+In this paper, we aim to push and evaluate these capabilities by playing a 1993 first-person shooter (FPS) developed by id Software: Doom. Although it has become a running meme to determine whether a device is able to run a port of its code (&quot;will it run Doom?&quot;), this exploration has scientific value. For starters, the source code is open-source; and has been ported into Python, a common scripting language in machine learning research. Doom is also a relatively simple, non-deterministic game, so LLM memorisation *REF* *REF* *REF* of benchmarks is not a concern. Hence, the game can serve as an informal, communityled benchmark on computational capabilities, and, as proposed here, on LLM planning abilities.
+
+
+We show that, although GPT-4 has technical limitations on its ability to run Doom directly, it can still act as a proxy for the engine -- not unlike some existing &quot;will it run (display) Doom?&quot; implementations, such as Windows Notepad *REF* E. Coli *REF* or Minecraft *REF*. We also demonstrate that using two GPT-4 models, the game can be played by the LLM to a reasonable degree: it is capable of open doors, fight enemies, and fire weapons. It is also capable of executing a broader instruction set (a level walkthrough) to improve its own performance.
+A critical evaluation of its reasoning capabilities shows that the model is able to execute short-term planning, but it has shallow reasoning depth and low memory recall: for example, if an enemy goes out of view, the model will forget about it.
+
+
+This paper adds to the growing body of work informing the application and development of LLM-based intelligent agents in video games, for example, to develop playtesters *REF* that do not require pretraining. To our knowledge, our work is the first to deploy LLMs in FPS games, and the first to use visual input from the game instead of descriptions. It is also the first to measure the performance of LLMs in single-player FPS. We open source the code used on this work.
+
+
+Related Work
+
+
+The focus of our paper is on LLM-based intelligent agents in video games. However, the idea of employing machine learning to play video games, and Doom in particular, is not new. For example, Alvernaz and Togelius *REF* used autoencoders for simple pathing under a sandbox environment; and Lample and Chaplot *REF* employed reinforcement learning (RL) to outmatch humans in various FPS, Doom included. Further work applied and refined deep RL approaches by providing environmental signals *REF*; and by including previous history *REF*. Extensions to other genres *REF* and multiple agents *REF* also have been proposed.
+
+
+Reasoning and Planning in LLMs
+
+
+It is well-known that the models are very sensitive to the prompt&apos;s phrasing and exemplars *REF* *REF*. Although chain-of-thought approaches are robust to this pathology *REF* *REF* *REF* research has shown that this approach fails in inductive reasoning tasks *REF* *REF* especially under fictional worlds *REF* symbolic reasoning *REF* and deeper reasoning paths *REF* *REF*.
+
+
+Since generalised planning involves an arbitrary reasoning depth, there have been efforts to benchmark LLM capabilities around formal reasoning and planning *REF* *REF* *REF*. Pallagani et al. *REF* evaluated the performance of LLMs in planning, and generalised planning in particular. They found that the models evaluated were acceptable, but not effective, at generalised planning.
+
+
+That said, carefully-designed approaches such as PEARL *REF* RAP *REF* and k-level reasoning *REF* have shown to improve over the standard reasoning approaches such as zero-shot and chain-of-thought, when baselined against GPT-4, as well as other LLMs *REF* *REF*. Moreover, it is known that adding multimodal knowledge to problem solving improved performance in spatial reasoning *REF* and even text-only tasks *REF* *REF* *REF* and planning *REF* *REF*.
+
+
+LLMs in video games
+
+
+LLMs have been used with varying degrees of success to play video games accross various genres, such as Minecraft *REF* Pokémon Battles *REF* and Starcraft II *REF* The last two have been proposed as benchmarks for evaluating the LLM&apos;s ability to play video games *REF* *REF* due to the finite nature of the game: each session is a single match with a clear winner. To our knowledge, our work is the first to deploy LLMs to work in FPS, and the first to utilise images from the video game as opposed to textual descriptions. It is also the first to measure the performance of LLMs in single-player FPS.
+
+
+Background and Setup
+
+
+GPT-4
+
+
+GPT-4 is a LLM developed by OpenAI with several variants. Relevant to this work are the GPT-4 with Vision (or GPT-4V) and the text-to-text (GPT-4) variants.
+
+
+GPT-4V accepts images and textual input, and returns text. Input images may be up to 20MB, with the option of a behind-the-scenes resizing step. All our images are 640x400, the original resolution of Doom. We left the resizing as automated, yet noticed no drop in quality from the model&apos;s output.
+
+
+The version of GPT-4 we used accepts and returns text, with a maximum combined input-output limit of 32K tokens. This large token limit was desirable so we could fit a short history of the model&apos;s actions in previous turns. The authors claim that the reasoning capabilities of this model are state-of-the-art *REF*.
+
+
+No details have been released around architecture, training algorithms, or data. We, however, assume that this model has not been trained to play Doom.
+
+
+Doom
+
+
+Doom is a 2.5D FPS mostly developed in C. The player must traverse a level fighting enemies and avoiding environmental hazards. Power ups (health, armour, ammo, invulnerability, etc.) and additional weapons are scattered through the map. The player UI has health, armour, and ammo counters. See Figure [2] for an in-game screenshot.
+
+
+Since the game is 2.5D, there is no aiming on the y-axis (i.e., looking up/down) and all is needed from the user is to align the centre of the screen to the enemy or item to be acted upon. Its low complexity in terms of playability, portability, and graphics makes it an ideal candidate for our evaluation.
+
+
+From a computational perspective, Doom falls into the (large) category of games in PSPACE *REF*. That is, given enough memory -- polynomial on the size of the game state -- a Turing machine could solve (play) this game. Given that the engine running the game must be able to handle the game itself, this suggests a loose bound on the ability of an automated player to solve it. In the case of GPT-4, the memory available (token limit) is equivalent to the description of about 16 640x400 screenshots. Hence, it cannot retain sufficient information to simulate the full game, and it must rely on heuristics.
+
+
+Experimental Setup
+
+
+Our experimental setup consists of two main components: a Vision component (calling GPT-4V) that takes in screenshots from the running engine, and returns structured descriptions of the game state; and an Agent model (calling GPT-4) that makes decisions based on Vision&apos;s output and the previous history. Vision and Agent&apos;s prompts has been tuned to return parseable outputs that can be used with the engine. In particular, Agent&apos;s outputs are only from actions taken from to the allowed set of keystrokes.
+
+
+For the more complex prompts, we also use a GPT-4 model to perform either finer-level planning (Planner) or provide expert advice (Experts). The Planner is a different prompt designed to take in the current state and the walkthrough, and output a finer-grained, step-by-step natural language plan. We opted against using common planning languages, such as PDDL, to better lean on GPT-4&apos;s linguistic capabilities. The Experts in our setup are simply extra, separate calls to a different version of Agent.
+
+
+FIGURE 
+
+
+See Figure [2] for a sample screenshot and Vision model output, and Figure [1] for a diagram of our setup including Planner and Experts. All model calls are done through the Azure Open AI API.
+
+
+The underlying engine is an open-source Python binding to the C Doom engine running on Matplotlib. We modify this binding to allow for calls to Vision and Agent, as well as to skip the start and quit sequences of commands. It is worth noting that, in earlier tests, Agent was able to select a level and difficulty in the startup screen, but for the sake of consistency on level and difficulty setting we hard-coded the commands.
+
+
+Prompts
+
+
+For all levels we tested a naïve prompt that solely took the previous output history and output the current action and reasons as to why that output was chosen, analogous to Wang et al. *REF* and three planning prompts, all variations on the naïve prompt:
+
+
+1. A walkthrough prompt that takes a broad, stepby-step description of the level and what to do (&quot;Step 1: cross the room, kill the enemies, go to the next room&quot;, e.g.). Following Huang et al. *REF* we separate the walkthrough in steps for easier parsing and planning.
+
+
+2. A plan-generating prompt, where an extra component (the Planner) takes in the walkthrough and the history; and outputs a more granular plan to be executed by the walkthrough prompt.
+
+
+3. A k-levels prompt *REF* which behaves like the plan prompt, but also takes in the moves of three Experts (all calls to the plan prompt) and outputs its own move based on this input.
+This prompt style has been shown to improve reasoning in dynamic contexts. In this paper we only do k = 2.
+
+
+All prompts are symbolic chain-of-thought, which was shown to provide good results in complex scenarios with multiple referents and long-term dependencies *REF*. This type of prompting requires the model to fill out a set of variables (as opposed to reasoning steps) in a multiturn setting before making its decision. We also include a request for an explanation, as it is known to increase performance in out-of-distribution observations *REF*. Sample prompts and the walkthrough are available in the Appendix. Ahead of the experiments we tuned the prompts to ensure consistent performance.
+
+
+Optimisations
+
+
+We reduced the frame rate by half (i.e., we only call the model every two frames) similar to other approaches *REF*. This has the advantage to save a call in the case of pressed keys. For example, if Agent says &quot;LEFT&quot;, the input to the engine would be a sequence of actions analogous to pressing and depressing the left arrow key. For motion actions, we &quot;press&quot; the key 3 times before releasing it, and once otherwise. We tested the frame rate with and without halving and found no noticeable changes in performance. The game itself ran at an average of 8 frames per second under normal (in-engine, Python binding, non-GPT-4) play.
+
+
+GPT-4 is relatively reliable when following the prompt&apos;s output format and desired output set. However, parsing errors do occur. To mitigate this, we introduced an extra action (&quot;WAIT&quot;) to skip that pair of frames&apos; desired actions. &quot;WAIT&quot; is within the allowable output set of the model, but also the default action whenever Agent&apos;s output is not within that set.
+
+
+Ahead of time we tuned the temperature and token limits and settled on temperatures of 0.1 and 0.9; and maximum tokens of 2880 and 25 for Vision and Agent, respectively. High randomness and a low token output was desirable for Agent, but the opposite for Vision. We retain the same parameters for Agent when calling each Expert, but the
+
+
+FIGURE
+
+
+In the screenshot, we see a first−person view of a player holding a pistol mid−fire, with a small muzzle flash visible. The player appears to be in a room with green floors and brown walls that have a metallic texture. There is a pool of green liquid, which could be toxic, on the floor. In the distance, there is a red−colored enemy, which resembles a demon, and it appears to be either injured or in an attack animation, as there is a splash of red pixels around its midsection, possibly indicating blood or damage.
+
+
+The HUD (Heads−Up Display) at the bottom of the screen shows various information:
+
+
+− On the left, there is an ammo count displaying &quot;51&quot; for the current weapon.
+− In the center, there is a health percentage indicator showing &quot;100%
+− To the right of the health indicator, there are four grayed−out weapon icons, suggesting that those weapons are not currently in the player&apos;s possession.
+− Further to the right, there is an armor percentage indicator showing &quot;4%
+− At the very bottom right, there are numerical counts for different types of ammunition: &quot;BULL&quot; (bullets) at 50, &quot;SHEL&quot; (shells) at 0, &quot;ROCK&quot; (rockets) at 0, and &quot;CELL&quot; (energy cells) at 200.
+
+
+Planner was set at temperature 0.1 and 150 tokens. To improve throughput, Planner and Expert calls occur only once every 30 and 60 frames, respectively.
+
+
+For our design of the walkthrough, we skip all shortcuts and secrets.
+
+
+Play Settings
+
+
+We evaluated the first map (&quot;Hangar&quot;) of the first episode (&quot;Knee Deep in the Dead&quot;); under the same difficulty (&quot;Hurt Me Plenty&quot;; the third, out of five, difficulty ranks). This map is referred to as E1M1, and can be seen in Figure [4] along with a typical human traversal without secrets.
+
+
+The walkthrough we wrote (in the Appendix) instructs the model to traverse sections of the map in sequence: the first room (A in Figure [4]); the computer room (r. B); the zigzag bridge room (r. C); and the end sequence (r. D). It ignores secret areas and indicates the location of enemies and environmental hazards.
+
+
+We ran each prompt ten times on the same level, and left the model to play the game uninterrupted. We only intervened (terminated the game) when the model had been stuck for more than 1,000 frames on the same location.
+
+
+Metrics
+
+
+In a single-player FPS involving traversing a level, metrics are somewhat imprecise: a match can span multiple savefiles and deaths, and, arguably, the winning condition is to successfully finish the game (or level); and it may not be necessary to kill all enemies in the level.
+
+
+We modify slightly the Passed Maps&apos; Average Time (PMAT) metric by Song et al. *REF*. Similar to PMAT, we measured the time (in frames) that a player took to play the game, but we segment it by the frames spent in each of the rooms (A, B, C, D in Figure [4]). We also separately measure PMAT by weighing deaths, and call this metric Death-Weighted PMAT, or D-PMAT.
+
+
+FIGURE
+
+
+FIGURE
+
+
+Namely, suppose there is a set of trials (runs) T = {t1, t2,... tn}, where ti is a collection of time-sorted frames corresponding to a specific trial. Let T [p: q] ⊂ T be the subset of time-continuous frames spent in a stage delimited by sections p and q. Then: it got stuck behind barrels or corners, but after a few hundred frames it could re-plot a trajectory.
+
+
+We observed that pathing was noticeably better under the walkthrough-enabled prompts (walkthrough, plan, k-levels). The re-plotting mentioned earlier was noticeably better and faster with k-levels, as long as the call frequency was about three times that of Planner (60 frames versus 30).
+When the frequencies were the same, Experts would hallucinate and introduce too much noise in the call. Agent was not be able to get out of room A in this scenario. 
+
+
+FORMULA where Rt(death) is an indicator function (zero if no deaths in triaL t, one otherwise), and λ is a constant, set in our case to λ = 1, 000 (i.e., the timeout from Section [3.6]). For a segment X that the model never visited in any t ∈ T, PMATX is undefined (∞). If the player backtracks, it is counted as the last room entered. We compare these to average human runs collected under the same setup (i.e., no shortcuts).
+
+
+Experiment Results
+
+
+Our D-PMAT and PMAT results are shown in Table [1]. Given that our metrics only capture play time, we also record paths commonly followed by the model and show them in Figure [5]. Every trial was manually examined to determine the frames where the model entered each area (delimited by the door threshold) and whether timeouts or deaths had occurred.
+
+
+Play Performance
+
+
+The model was unable to finish the map under any of the prompts.
+However, it came close twice: once in the plan prompt, entering room D and immediately dying at the hands of the imp awaiting there; and once with k-levels, where it got to the door of room D, backtracked, and opened a secret door leading to the courtyard, where it timed out. In all prompts, Agent performed motions and actions in line with the instructions. It could open doors (even when backtracking), return fire, and in more advanced versions of the prompts (plan and k-levels) it was even able to get unstuck from corners. K-levels was particularly effective at this.
+
+
+However, Agent frequently overlooked enemies, had poor aim, and ignored environmental hazards. In a few limited instances, it shot point blank walls, or worse, explosive barrels.
+
+
+Pathing Performance
+
+
+The model usually hugged the walls when traversing the map, facing them and walking at an angle. In some cases
+
+
+Discussion
+
+
+To understand the performance of our system we analysed the call logs, and, in particular, the explanations given by the model. We observed that GPT-4 generally output the correct actions in context, but the rationale behind these was poor and fraught with hallucinations: for example, Planner tended to indicate incorrect steps from the walkthrough; or the Experts justified an action based on a counterfactual statement (e.g., &quot;activating the switch requires moving UP&quot;).
+
+
+This suggests that the model is not able to understand its position in the world, yet somehow be able to play the game to an acceptable degree, returning fire, dodging, and operating doors, as long as these actions did not require planning spanning more than a few frames. That is, it is capable of some level of contextual inference but not long-term planning or reasoning. Indeed, this also could explain why Agent tended to run in circles, overlooking enemies and eventually dying at their hands.
+
+
+The high variability in the trajectories may be attributed to the observations above, but also to prompt sensitivity -- a well-known problem of LLMs *REF* to the high temperatures used on Experts and Agent.
+
+
+That said, walkthrough-enabled prompts were noticeably better at traversing the map, and the addition of exemplars to improve traversal (e.g. to avoid getting stuck in corners) was effective at forcing Agent to output new trajectories after a few frames. These prompts were also much more effective at fighting enemies, as long as the enemies were within sight. This suggests that the model&apos;s planning capabilities are enhanced by as many contextual clues as possible, in-line with similar findings around reasoning in tasks like argument mining *REF*. Further work could develop significantly more detailed prompts to explore this observation.
+
+
+Limitations
+
+
+Real-Time Play The Agent-Vision combination, let alone with the addition of Planner or Experts, is not ready for real-time play: each inference step (per frame) for the naïve prompt alone takes approximately a minute to run.
+
+
+FIGURE
+
+
+Even with our optimisations, this process places it outside of the realm of practical applications.
+
+
+Metrics Our evaluation focused on the ability of the model to play the game, and found satisfactory results. However, it is likely that under other metrics, such as human-like play *REF* *REF* the model would not fare well, especially due to its tendency to hug, and sometimes shoot, the walls. The prompt&apos;s planning efficiency (as opposed to success) could be measured using either Success weighted by Path Length (SPL) *REF* or Distance to Success (DTS) *REF* both measured by map size.
+
+
+Reward Model All our approaches involved prompting and rewarding based on in-context learning. Approaches that require back-propagation, such as RAP, were not considered given the current feasibility of fine-tuning GPT-4. Smaller models that are more approachable could be a better fit for this task, given that it is known that fine-tuning does improve planning performance *REF*.
+
+
+Prompting Our testing was limited to four different types of prompting strategies. Given the model&apos;s sensitivity to the prompt and the dynamicity of the environment, it is probable that other prompts could provide different results.
+Moreover, it is probable that exemplars taken from actual in-game performances of the model will yield better performance than our handcrafted exemplars. Our exploration also suggested that planning may be enhanced by multiple contextual clues. We leave these observations for further work.
+
+
+Ethical Implications
+
+
+In this work, GPT-4 showed remarkable capabilities given its setup: with only a simple depiction of the world and its rules, it could operate doors, follow simple objectives, and identify enemies and fire weapons at them.
+
+
+Although LLMs have been applied for good (take, for example, automated rewriting for dyslexic users *REF*) the relative ease at which this model was able to pick up the rules in a first-person shooter, added to the simplicity of the code and approaches, should at least raise some alarms around possible misuse.
+Indeed, this calls for a much more careful evaluation and regulation of this technology.
+
+
+The work presented here has technical limitations, as discussed on the previous section. However, with how rapid the field is progressing, we expect some, if not all, of these limitations to be lifted. To paraphrase Jurassic Park, we as scientists should be more preoccupied now on whether we should, as opposed to whether we could.
+
+
+TABLE
+
+
+Conclusion
+
+
+In this paper we evaluated whether GPT-4 was able to run Doom, and whether it was able to play the game. We found that, although the model was not entirely successful at finishing the map, it displayed remarkable agency throughout the game, with more complex prompting strategies delivering consistently better results. That said, this illusion of agency was lost somehow when looking at the rationale behind some of the model&apos;s decisions, which showcased a lack of understanding of the task. This suggests that this model&apos;s reasoning depth is shallow, as it is only reliable within a few frames.
+
+
+Further work could improve upon the planning portions of our work; or create standardised benchmarks for LLMs beyond using the single-player mode. This can be achieved by using open-source libraries such as VizDoom *REF* Also, it is known that fine-tuning improves LLM planning capabilities *REF* Although this is not currently possible for GPT-4 -- the focus of our work -- other smaller models, such as Llama 2 *REF* have come close to this LLM&apos;s capabilities and could be better candidates for finetuning-based strategies.
+
+
+One surprising finding of our paper was this model&apos;s level of agency, along with the ease of access and simplicity of the code. This suggests a high potential for misuse. We release the code to contribute to the development of better video game agents, but we call for a more thorough regulation effort for this technology.

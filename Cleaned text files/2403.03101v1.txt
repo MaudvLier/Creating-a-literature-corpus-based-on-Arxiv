@@ -1,0 +1,202 @@
+KnowAgent: Knowledge-Augmented Planning for LLM-Based Agents
+
+
+Introduction
+
+
+As artificial intelligence (AI) advances, language agents are becoming increasingly vital for solving complex problems ([Zhang et al., 2023]; [Sumers et al., 2024]; [Yang et al., 2024]). These agents, built around Large Language Models (LLMs), enhance their task planning capabilities through a variety of strategies including task decomposition ([Wei et al., 2022]; [Yao et al., 2023a]; [Wang et al., 2023a]; [Team, 2023]), reflection ([Shinn et al., 2023]; [Sun et al., 2023a]), collaborative division of labor ([Hong et al., 2023]; [Chen et al., 2023c]; [Yin et al., 2023]; [Qiao et al., 2024]), and the utilization of external tools ([Schick et al., 2023]; [Qiao et al., 2023a]). Despite the effectiveness of current prompting techniques in providing good planning abilities for some closed-source language models, these methods are often limited by the model&apos;s intrinsic understanding capabilities and the scope of knowledge it was trained on. To meet the demands for broad application and customization in different areas such as question-answering ([Yao et al., 2023c]; [Yin et al., 2023]), web browsing ([Yao et al., 2022]; [Deng et al., 2023]; [Zhou et al., 2023a]), robotics ([Ichter et al., 2022]; [Ding et al., 2023]) and so on, researchers are exploring Agent Tuning as a means to augment model capabilities ([Chen et al., 2023a]; [Zeng et al., 2023]; [Pan et al., 2023]). This involves fine-tuning models through the synthesis of task-specific trajectories, enabling them to undertake a series of effective actions to complete tasks, thereby enhancing their ability to handle complex situations.
+
+
+FIGURE 1
+
+
+However, when it comes to executing planning tasks, especially in open-source models, there remain issues ([Liu et al., 2023a]; [Valmeekam et al., 2023]; [Guan et al., 2023]). Frequently, models generate plans that violate established knowledge rules or commonsense ([Ding et al., 2023]), a phenomenon we name as planning hallucination. This term describes scenarios where models might generate unnecessary or conflicting action sequences, such as &quot;attempting to look up information without performing a search operation&quot; or &quot;trying to pick an apple from a table without verifying the presence of both the table and the apple&quot;.
+
+
+To address these issues, we propose KnowAgent that focuses on leveraging external action knowledge to enhance synthetic trajectories with the goal of resolving planning hallucination (see Figure [1]). Our development is grounded on several key steps: Initially, we create an extensive action knowledge base, which amalgamates action planning knowledge pertinent to specific tasks. This database acts as an external reservoir of information, steering the model&apos;s action generation process. Subsequently, by converting action knowledge into text, we enable the model to deeply understand and utilize this knowledge in creating action trajectories. Finally, through a knowledgeable self-learning phase, we use trajectories developed from the model&apos;s iterative processes to continually improve its understanding and application of action knowledge. This process not only strengthens the agents&apos; planning abilities but also enhances their potential for application in complex situations.
+
+
+Experimental results on HotpotQA ([Yang et al., 2018]) and ALFWorld ([Shridhar et al., 2021]) based on various backbone models demonstrate that KnowAgent can achieve comparable or superior performance to existing baselines. Further analysis validates the effectiveness of incorporating action knowledge for planning purposes. We also showcase the possibility of employing manually refined action knowledge from LLMs, thereby reducing human labor and enhancing performance.
+
+
+Background
+
+
+Language agents observe the external world primarily by generating inner thoughts and executable actions. In this paper, we follow and further enhance the planning trajectory format proposed in [Yao et al.] ([2023b]) to train and evaluate our KNOWAGENT. Traditionally, a planning trajectory τ can be represented by a triplet of Thought-Action-Observation (T, A, O), where T indicates the inner thoughts of the language agent, A signifies executable actions, and O represents the feedback information from the environment. In terms of this, the trajectory history H at time t can be defined as follows:
+
+
+FORMULA
+
+
+Then, the language agent is reinforced to generate Tt and At based on the history. Given a parameterized probabilistic language agent π with parameters θ, the process of generating the next step&apos;s thought based on Ht can be represented as:
+
+
+FORMULA where T ^i^ and |Tt| are the i-th token and the length of Tt respectively. Subsequently, the action At will be determined based on Tt and Ht: FORMULA sis indicates the effectiveness of KnowAgent in terms of planning hallucinations mitigation. We summarize our contributions as follows:
+
+
+- We introduce KNOWAGENT that employs knowledgeable self-learning to incorporate external action knowledge into models. This advancement presents an innovative method for incorporating external knowledge to refine and augment the intrinsic planning abilities of language agents.
+- We conduct comprehensive experiments that demonstrate KNOWAGENT can match or surpass other benchmark models on the Hot-potQA and ALFWorld datasets.
+
+
+Similarly, A^j^ and |At| denote the j-th token and the length of At respectively. Lastly, the feedback result of the action At will be treated as the observation Ot and added to the trajectory, generating a new round of trajectory Ht+1. It&apos;s important to note that Ai here specifically means the actions in the trajectory, which is identical to the action ai in the discussion of the action set Ea later on.
+
+
+KnowAgent
+
+
+In this section, we offer a detailed introduction to KNOWAGENT (See Figure [2]), focusing on three §[3.1]. Next, we describe how action knowledge is utilized to generate planning paths (§[3.2]). Lastly, we detail the refinement of the paths through a knowledgeable self-learning mechanism (§[3.3]).
+
+
+FIGURE 2
+
+
+Definition of Action Knowledge
+
+
+Action. Ea = {a1, ..., aN−1} signifies a set of actions, which encompasses the discrete action that LLMs must undertake to accomplish specific tasks.
+
+
+Action Rules. R = {r1, ..., rN−1} outlines the rules that determine the logic and sequence of action transitions within the model. These rules directly dictate permissible action transitions rk: ai → aj, based on the inherent relationships among actions or task-specific requirements.
+
+
+Action Knowledge. Action Knowledge, represented as (Ea, R), comprises a defined set of actions Ea and the rules R governing their transitions. The combination of action knowledge for different tasks forms an action knowledge base, also known as Action KB.
+The knowledge base will then serve as essential guidance for generating actions and formulating decisions, essential for reducing potential plan hallucination problems.
+
+
+Strategies for Extracting Action Knowledge. Given the diverse action knowledge involved in various tasks, fully manual construction is both time-consuming and labor-intensive. To address this challenge, considering the strong performance of LLMs on such tasks ([Liu et al., 2023a]; [Ouyang and Li, 2023]), we utilize GPT-4 ([OpenAI, 2023]) for initial construction, followed by manual refinement. In § [4.3], we provide a detailed comparison of the effectiveness of these two approaches.
+
+
+Planning Path Generation with Action Knowledge
+
+
+1. Action Knowledge to Text
+
+
+Figure [3] illustrates the conversion process from action knowledge to text. Initially, we establish the action knowledge base by identifying actions pertinent to the task&apos;s specific needs, utilizing previous dataset analyses and the inherent knowledge of LLMs. This information is then converted into text format to facilitate subsequent operations. As an illustration, we reference one action rule in Hot-potQA ([Yang et al., 2018]) - Search: (Search, Retrieve, Lookup, Finish).
+This rule signifies that from Search, several pathways are viable: an action may continue as Search, evolve into Retrieve or Lookup, or advance towards Finish.
+
+
+Path Generation
+
+
+Harnessing action knowledge, the model utilizes this insight to streamline the task&apos;s planning process. It achieves this by formulating a coherent planning path, guided by the application of action rules R1 ∧ R2 ∧... ⇒ P. To facilitate path generation, we develop specialized prompts that extend beyond basic Task Description, integrating segments as illustrated in Figure [3].
+
+
+FIGURE 3
+
+
+Our approach is thoroughly grounded in action knowledge and unfolds across four key segments:
+
+
+(1) It starts with an Overview of Action Knowledge to set the foundational concepts and rules. (2) This is followed by the Definition of Each Action Step, detailing the operational aspects and significance of each action. (3) Following this, the Principle of Planning Path Generation delves into the constraints on output generation. (4) And finally, Demonstrations of Planning Paths provide practical examples, acting as a beacon of inspiration for adapting these strategies across various contexts.
+Each of these segments plays an essential role in expressing action knowledge, specifying actions, and clarifying the process of leveraging action knowledge for planning path generation. It&apos;s essential to understand the distinction between path and trajectory in this context. The path exclusively represents the series of actions undertaken by the agent, while the trajectory includes the model&apos;s complete output during the problem-solving process, incorporating the path as part of its structure.
+
+
+Here we briefly outline the process of trajectory synthesis.
+This trajectory, denoted as τ, is composed of many planned quadruples. Each quadruple (P, T, A, O), encapsulates the action path P, the agent&apos;s internal thoughts processes T, executable actions A, and environmental feedback O. The historical trajectory is reformulated as: Ht = (P0, T0, A0, O0,..., Pi−1, Tt−1, At−1, Ot−1) (4)
+
+
+Based on this historical trajectory, the agent is poised to generate a new action path, thought process, and action. Considering a parameterized probabilistic language agent π with parameters θ, the mechanism for generating the subsequent action path, contingent on Pt, is expressed as:
+
+
+FORMULA 
+
+
+Here P^k^ and |Pt| represent the k-th token and the total length of Pt. And then we extend the approach used in Equation [2] and [3]. The process of deriving t thoughts and actions can be reformulated as:
+
+
+ALGORITHM 1
+
+
+Synthesize initial trajectories.
+
+
+Planning Path Refinement via Knowledgeable Self-Learning
+
+
+In this phase, we introduce knowledgeable self-learning. Our goal is to help the model understand the action knowledge more deeply through iterative fine-tuning. As shown in Algorithm [1], our approach begins with an initial training set D0 and an untrained model M0, leading to the synthesis of initial trajectories T0 = {τ1, τ2,..., τn}.
+After filtering, these initial outcomes inform further training, producing a preliminary model version, M1. Subsequently, M1 undergoes re-evaluation on D0 to create new trajectories T1 = {τ^′^, τ ^′^,..., τ ^′^ }.
+
+
+FIGURE 
+
+
+These trajectories, alongside T0, undergo a filtering and merging process based on action knowledge This refined set of trajectories is then utilized to fine-tune the model, resulting in an improved version, M2. We continue iterating until the performance improvement on Mtest becomes small, at which point we halt the iteration process.
+
+
+Knowledge-Based Trajectory Filtering and Merging. Our knowledgeable self-learning approach enhances trajectory quality through two key phases: (1) Filtering: We start by selecting correct trajectories, Tcorrect, based on their outcomes. Specifically for task HotpotQA, we apply action knowledge to further refine these trajectories. This refinement involves removing any trajectories that do not align with the provided AKm, particularly those with invalid actions or disordered action sequences. (2) Merging: We then merge trajectories generated by models across different iterations. For trajectories addressing the same task, We refine them based on efficiency, specifically retaining the more efficient (shorter path) trajectories ensuring optimal problem-solving effectiveness.
+
+
+Experiments
+
+
+Settings
+
+
+We evaluate KNOWAGENT on HotpotQA ([Yang et al., 2018]) and ALFWorld ([Shridhar et al., 2021]).
+
+
+We employ Llama-2-{7,13,70}b-chat ([Touvron et al., 2023]) as the backbone models, and also apply KNOWAGENT to Vicuna ([Zheng et al., 2023]) and Mistral ([Jiang et al., 2023]). We compare KNOWAGENT with various baselines including CoT ([Wei et al., 2022]), ReAct ([Yao et al., 2023b]), Reflexion ([Shinn et al., 2023]) and FiReAct ([Chen et al., 2023a]). More details about the datasets, evaluation metrics, baselines, and training hyper-parameters can be seen in Appendix [A].
+
+
+Main Results
+
+
+KNOWAGENT vs. Prompt-based Methods. In Table [1], we present the F1 scores and success rates for KNOWAGENT and various prompt-based methods evaluated on HotpotQA and ALFWorld. Across both datasets, KNOWAGENT on 7b, 13b, and 70b models consistently outperforms the prompt-based baselines. Notably, the 13b model achieves a performance increase of ↑15.09% and ↑37.81% over ReAct on the two dataset. Additionally, disparities in effectiveness among different prompt methods are observed, which aligns with current research efforts that focus on enhancing models&apos; capabilities to handle complex tasks through diverse strategies such as multi-agent specialization.
+Specifically, our investigation is particularly geared towards leveraging external action knowledge bases to facilitate models in more accurately completing complex tasks. This is achieved by minimizing invalid actions (on HotpotQA) and promoting action sequences that better reflect realworld situations (on ALFWorld), thereby improving model efficiency. Further analysis, especially in relation to invalid actions in HotpotQA, will be discussed later in §[4.3].
+
+
+TABLE 1
+
+
+KNOWAGENT vs. Fine-tuning Methods. Our comparison here focuses on the fine-tuning results of KNOWAGENT versus FiReAct. A significant difference is that FiReAct&apos;s fine-tuning data is synthesized by GPT-4, whereas KNOWAGENT used its self-synthesized data. For instance, on HotpotQA, FiReAct employs 500 correct trajectories generated by GPT-4, while KNOWAGENT also uses a 500 training trajectory volume, but only selects the correct quantity of them, approximately 100 to 200 in 13b. The strategy also mirrors in ALFWorld. The outcomes suggest that model-synthesized data, infused with prior knowledge, can achieve results comparable to those produced by more advanced models like GPT-4. Additionally, the study also indicates that iterative fine-tuning enables the model to comprehensively grasp the action knowledge, leading to superior planning performance.
+
+
+Analysis
+
+
+The role of action knowledge grows with the increase of iterations in self-learning. Figure [4] shows the ablation results about action knowledge on HotpotQA with Llama series models.
+Regardless of the number of iterations, the effect of using action knowledge (w/ action KB) is superior to that without action knowledge (w/o action KB), indicating that the introduction of action knowledge can effectively enhance the quality of agent planning. Another interesting finding is that as the number of iterations increases, the performance gap between w/o action KB and w/ action KB becomes more significant, indicating that the advantages of introducing action knowledge become more apparent. We consider that this can be attributed to the virtuous cycle between action knowledge and selflearning. Under the constraints of action knowledge, the model synthesizes high-quality trajectories for iterative training. In turn, training on more high-quality trajectories allows the model to better learn action knowledge, leading to the generation of even more high-quality trajectories.
+
+
+Iterative training enhances model proficiency. Figure [5] presents a comparative analysis of the effects of iterative training across different base models. (1) The number of iterations. Notably, elevating iterations from 1 to 2 results in a substantial optimization of performance. Further increasing iterations to 4 leads to an even more pronounced improvement. Consistent with previous work ([Li et al., 2023b]; [Wu et al., 2023]), these findings corroborate the efficacy of iterative self-learning in bolstering the model&apos;s comprehension of the training data, paralleling the human learning principle of &quot;Reviewing the old as a means of realizing the new&quot;. (2) Different base models. We also explore other backbone models except for Llama with a 7B parameter scale, such as Vicuna-7B and Mistral-7B. The result suggests that our method is effective and generalizable across different pre-trained and fine-tuned models.
+However, the performance discrepancies among them also indicate a variance in the ability of different models to absorb and utilize such structured external knowledge.
+
+
+FIGURE 4
+
+
+FIGURE 5
+
+
+TABLE 3
+
+
+Action knowledge effectively mitigates planning hallucinations. We show the statistical rates of invalid and misordered actions generated by different methods in Table [2]. Here invalid refers to actions that do not meet the action rule, while misordered means discrepancies in the logical sequence of actions. Given that only the Search and Finish actions are involved in FiReAct, it is omitted from our analysis here. The results in Table [2] demonstrate that incorporating Action Knowledge significantly reduces the frequency of erroneous actions and the likelihood of invalid action paths, thereby increasing the precision of the models on the specific task. To further substantiate this claim, we refer to the experimental outcomes from KNOWAGENT and ReAct within HotpotQA, as demonstrated in Appendix [6]. For a given question, ReAct&apos;s action sequence follows a Lookup-&gt;Search-&gt;Search pattern, which is problematic due to the dependency of the Lookup action on the subsequent Search step. However, with constraints, KNOWAGENT avoids such faulty sequences, enhancing task accuracy.
+
+
+Distilled Knowledge vs. Manually Designed Knowledge. To investigate whether utilizing advanced LLMs can supplant manual efforts in constructing task-specific action knowledge, we compare distilled outcomes from gpt-4-0613 with manual-designed ones. For HotpotQA, we observe that the action knowledge distilled by GPT-4 is more concise, with fewer cyclical actions than those set by humans. This efficiency holds for simpler tasks where performance parallels humandefined tasks, while underperformance is found on more complex tasks where longer action sequences are required. For ALFWorld, the GPT-distilled action knowledge closely mirrors that crafted by humans, underscoring the model&apos;s capacity to comprehend real-world constraints. Aligning with prior research ([Ding et al., 2023]; [Zhou et al., 2024]), this distilled knowledge aids the model in understanding real-world limitations, showing little difference in effectiveness compared to human-created one.
+
+
+TABLE 3
+
+
+Error Analysis. Upon analyzing the capabilities of KNOWAGENT, we identify its limitations, particularly in processing complex queries and summarizing extensive textual data. KNOWAGENT struggle to distill key information effectively, often failing to deliver accurate responses. The core issue lies in their insufficient reasoning and memory capacities for handling long contexts.
+Consequently, the generated responses may be incorrect or even misaligned with the posed questions, such as providing a simple yes/no when a specific entity is required. Future enhancements should focus on strengthening the long-text processing, information retention, and reasoning abilities of our work.
+
+
+Related Work
+
+
+LLM-Based Agents. LLM-based agents ([Wang et al., 2023b]; [Xi et al., 2023]; [Durante et al., 2024]) have emerged as one of the most prevalent AI systems after the rise of LLMs ([Zhao et al., 2023]; [Qiao et al., 2023b]; [Zhu et al., 2023]; [Li et al., 2024a]; [Jiang et al., 2024]). They learn to interact with the external world through action-observation pairs expressed by natural language.
+Previous works primarily focus on unlocking the potential of LLMs as the core of language agents by leveraging human-crafted ([Yao et al., 2023b]; [Li et al., 2023a]; [Talebirad and Nadiri, 2023]; [Qian et al., 2023]) or machine-generated ([Zhou et al., 2023b]; [Chen et al., 2023c, b]) prompts.
+Recently, there has been a growing emphasis on endowing open-source LLMs with agent capabilities through fine-tuning ([Yin et al., 2023]; [Qiao et al., 2024]; [Shen et al., 2024]). However, the training trajectory data for existing language agent fine-tuning methods largely rely on annotations from LLMs. This can result in the inclusion of trajectories that violate some action knowledge rules and are difficult to identify, leading to an unstable action performance of the trained language agents. Recently, [Guan et al. 2024] introduce AMOR, an agent framework that constructs its reasoning capabilities on a Finite State Machine (FSM). [Li et al.M 2024b] introduce a &quot;Formal-LLM&quot; framework for agents, combining the expressiveness of natural language with the precision of formal language to enhance agent capabilities. Different from those approaches, we propose knowledge-augmented language agents that incorporate action-related knowledge rules to constrain the trajectory generation, reducing the occurrence of unreasonable action logic in the generated trajectories.
+
+
+Knowledge Augmented LLMs. Previous works ([Guu et al., 2020]; [Lewis et al., 2020]; [Izacard et al., 2023]) concentrate on knowledge augmentation in LLMs through retrieval. Due to the rich parameterized knowledge within LLMs ([Chen, 2023]; [Feng et al., 2023]), some other works ([Liu et al., 2022]; [Yu et al., 2023]; [Sun et al., 2023b]) advocate for knowledge generation rather than retrieval. With the emergence of Augmented Language Models (ALMs), many studies ([Trivedi et al., 2023]; [Li et al., 2023c]; [Vu et al., 2023]; [Qiao et al., 2023a]) have enhanced the reasoning capabilities of LLMs by incorporating knowledge from external tools such as search engines, knowledge bases, and Wikipedia documents. Recent research ([Zhou et al., 2023b]; [Ye et al., 2023]) has introduced structured knowledge to regulate the workflow of LLM-based multi-agents, but none of these works has focused on restricting the action space of individual agents. To the best of our knowledge, we are the first to introduce structured action knowledge to enhance the planning capability of LLM-based agents, specifically aiming at reducing instances of planning errors caused by invalid actions during the planning process.
+
+
+Conclusion
+
+
+In this study, we introduce KNOWAGENT, a framework designed to mitigate planning hallucinations by incorporating external action knowledge into synthetic trajectories. Our method involves utilizing action knowledge to guide the model&apos;s action generation, translating this knowledge into text for deeper model comprehension, and employing a knowledgeable self-learning phase for continuous improvement. This multifaceted approach not only enhances the planning capabilities of agents but also proves effective in complex scenarios. Our experiments across various models demonstrate that KNOWAGENT effectively competes with or surpasses other baselines, showcasing the benefits of integrating external action knowledge to streamline planning processes and improve performance.

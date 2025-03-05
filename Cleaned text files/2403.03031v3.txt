@@ -1,0 +1,218 @@
+Learning to Use Tools via Cooperative and Interactive Agents
+
+
+Introduction 
+
+
+Although achieving remarkable performance in a broad range of natural language processing tasks [*REF*; *REF*], large language models (LLMs) still encounter inherent limitations such as out-of-date information [*REF*; *REF*]. To improve their proficiency in tackling concrete complex tasks, tool learning is proposed to equip LLMs with various auxiliary resources, e.g., a search engine [*REF*; *REF*] or a calculator [*REF*; *REF*].
+Previous studies empower LLMs as tool-use agents by training on a tool-use dataset [*REF*; *REF*; *REF*] or using in-context demonstrations to prompt the LLMs to execute tools [*REF*; *REF*; *REF*]. As shown in Figure [1](a), both methods employ the agents to interleave multiple actions in a pre-defined order, where the agents iteratively select a proper tool, pass arguments for execution, and incorporate the execution results into the next action prediction until they derive the answer.
+
+
+FIGURE 
+
+
+Despite the advancement, existing tool learning methods with a single agent typically encounter two challenges when tackling complex tasks: On the one hand, solving a task involves varied actions with significant differences [*REF*; *REF*]. As shown in Figure [1], the selection requires the commonsense reasoning of agents to match the most relevant tool with the input task while execution requires the agent to complete appreciate arguments following the intricate tool documentation. However, a single agent typically suffers from the limited inherent capability to acquire all required actions [*REF*; *REF*; *REF*]. On the other hand, most prior work tackles a task with a fixed pre-defined order [*REF*; *REF*], where they directly shift to the next step though the current step fails. This mechanism cannot support adaptively calibrating the exceptional errors that frequently occurred during the tool-use workflows [*REF*; *REF*]. For example, when failing to invoke tools, we should enable agents to revise the arguments used to call the tool based on exception information instead of directly shifting to the next step with the error response of previous steps.
+
+
+To address the above problems, we propose the ConAgents, an LLM-based Cooperative and interative Agents framework for tool learning tasks. ConAgents has two objectives to address the limitations of previous work: (1) modularize the workflow with different agents and enable agents&apos; cooperation to solve a complex task; (2) enable agents to interact with tool environments, calibrating themselves adaptively.
+
+
+For the first objective, ConAgents decomposes the overall workflow into three modules including: Grounding, Execution, and Observing.
+As shown in Figure [1](b), each module is managed by an independent LLM-based agent. The grounding agent reasons the input task of the user and ground it into a tool-use instruction, specifying which tool to use and the target output. The generated instruction guides the execution agent to complete the required arguments for the selected tools and request data from tool servers. The observing agent addresses the problem of how to effectively incorporate the lengthy execution results into the task-solving trajectory. Different from current solutions which rely on a pre-defined schema of tool response to filter irrelevant information [*REF*], we propose a schema-free method. This method enables the observing agent to dynamically generate a function adaptive to extracting target values, which is then sent to the grounding agent to generate an instruction for the next iteration. When solving a complex task, our framework operates in an iterative manner.
+
+
+For the second objective, considering that exceptional errors frequently occur when the agents execute tools or extract target values by programming, we introduce the Iterative Calibration (IterCali) method to enable the agents to interact with tool environment and iteratively calibrate themselves. Specifically, when failing to execute the tools, IterCali appends the response from tool servers into the context of execution agent, prompting execution agent to calibrate the generated arguments following the error messages in the response. In addition, IterCali enables the observing agent to revise the generated function used to extract target values based on the programming error raised by the interpreter. Our proposed method IterCali enables the agents to interact with the environment, e.g., tool servers and interpreters, learning from external feedback to calibrate themselves.
+
+
+Experiments on three datasets demonstrate that our ConAgents outperforms the state-of-the-art baseline (6% point improvement in Success Rate metric on average).
+
+
+Our contributions are summarized as follows: (1) We propose ConAgents, a cooperative and interactive agents framework, for the tool learning tasks. ConAgents consists of the Grounding, Execution, and Observing agents, synergizing specialized agents to solve a complex task. (2) We propose an Iterative Calibration (IterCali) method, enabling agents to calibrate themselves utilizing the feedback from the tool environment when they fail to complete their actions. (3) Both automatic and human evaluation conducted on three datasets indicates the superiority of ConAgents over strong baselines.
+
+
+Related Work 
+
+
+LLMs for tool learning.
+
+
+Enhancing LLMs with external tools has been proven a promising method for solving practical tasks [*REF*; *REF*; *REF*]. Previous works empower a tool-learning agent typically by supervised fine-tuning [*REF*; *REF*; *REF*] or prompt learning [*REF*; *REF*]. Specifically, the former trains LLMs with specialized tool-use dataset [*REF*; *REF*; *REF*], teaching LLMs how to use tools from the data [*REF*]. The latter leverages the inherent in-context learning capability of LLMs to use various tools, where the demonstration and usage are taken as the prompt [*REF*; *REF*].
+However, solving complex tasks with tools typically involve various actions, e.g., deciding which tools to use, what arguments to pass, and how to utilize the results [*REF*; *REF*].
+Therefore, compelling one single agent to learn all abilities places even greater pressure on them [*REF*; *REF*]. In addition, as the tasks become complex, LLMs-based agents struggle to incorporate the lengthy task-solving trajectory to predict a correct action for the next step [*REF*; *REF*]. Our proposed ConAgents aims to modularize the overall workflow, synergizing specialized agents to solve a complex task.
+
+
+Multi-agent cooperation.
+
+
+Synergizing multiple agents has demonstrated strong performance on a variety of tasks [*REF*; *REF*; *REF*] and has emerged as a promising approach to enhance the capabilities of individual agents [*REF*; *REF*]. Recent studies take multiple agents instances into a debate for a fixed number of rounds [*REF*; *REF*] so that boosting their factuality [*REF*] and reasoning capacities [*REF*; *REF*]. However, they neglect to decompose a complex task and reduce the workload for each agents [*REF*]. Other work aims to address complex mathematical problems and code generation [*REF*; *REF*] but cannot adaptively correct the actions of agents when tasks fail. In our work, we enable the agents to adapt themselves by interacting with the tool environment with external feedback.
+
+
+Methodology 
+
+
+FIGURE
+
+
+Overall Framework 
+
+
+Our cooperative and interactive framework ConAgents is proposed with two objectives: (1) enabling the cooperation of agents to solve complex tasks; and (2) enabling the agents to adapt their actions when encountering errors. To achieve the first objective, ConAgents modularizes the workflow of tool learning tasks into a grounding agent *MATH*, execution agent *MATH*, and observing agent *MATH*. As shown in Figure , ConAgents alternates these three agents for multiple iterations to solve a complex task *MATH*. Specifically, the *MATH* is first employed to decompose the task *MATH* into a simpler sub-task and generate a tool-use instruction *MATH*. Then, *MATH* paired with the tool documentation *MATH* instructs *MATH* to execute the selected tool. Since the execution results *MATH* could be lengthy, the observing agent is designed to extract the relevant value *MATH* from *MATH*. The *MATH* is then incorporated into the context of the grounding agent *MATH* to predict the instruction in the next iteration. For the second objective, we introduce an Iterative Calibration (IterCali) method. IterCali enables these agents to utilize the feedback from the tool environment, calibrating themselves when they fail to complete their tasks assigned.
+
+
+Grounding Agent 
+
+
+The grounding agent is designed to resolve the input task to a series of sub-steps and ground each step into a tool-use instruction.
+Specifically, at *MATH* th iteration, the grounding agent generates the instruction *MATH* on the condition of task *MATH* and current trajectory *MATH*, which consists of the accumulation of previous instruction *MATH* and results *MATH*. It can be formulated as: *MATH* *MATH*, *MATH* where the *MATH* indicates the toolset, which consists of various tools. The *MATH* specifies which tool to use and the target output to be extracted. For example, given a task like What is the movie released on Dec 24, 2023, the instruction can be Use the tool \&lt;search_tv\&gt; to find a movie shown on Dec 24, 2023. The generated instruction is then used to instruct the execution agent to execute the selected tool.
+
+
+Execution Agent 
+
+
+Following the generated instruction, the execution agent *MATH* executes the selected tool by completing the required arguments and requesting data from tool servers.
+Specifically, for *MATH* th step, the instruction *MATH* paired with the documentation of the selected tool *MATH* is taken as input by *MATH* to generate appreciate arguments *MATH*, which can be formulated as: *MATH* *MATH* *MATH*.
+
+
+The arguments *MATH* are used to invoke the tool: *MATH* *MATH* *MATH* where the *MATH* indicates requesting the data from backend servers of tools, and *MATH* indicates the execution results. When the tool fails to be executed successfully, the *MATH* indicates an error message as a failure signal. When the tool is executed successfully, the result *MATH* contains the targeted information in response to the instruction *MATH*. However, since the results *MATH* can be lengthy, directly inserting *MATH* into the context of the agents may lead to hallucination [*REF*] and typically out of the context length. Thus observing agent *MATH* is proposed to extract relevant values.
+
+
+Observing Agent 
+
+
+The observing agent is employed to process the lengthy results. Most existing methods truncate or summarize [*REF*; *REF*] the results to fit the context length, which potentially loses the required information to solve the task in subsequent steps. Recent work simplifies the lengthy results using the pre-created schema [*REF*], which is a documentation that elaborates on the examples, format, and possible error. However, these methods are limited when dealing with unrecorded tools in general scenarios, such as newly emerged or updated tools.
+Therefore, we propose a schema-free method, enabling the observing agent to dynamically generate a function adaptive to extracting the target output following the instruction *MATH*. Specifically, we first construct a pseudo schema by recursively decomposing each element in *MATH*, representing the hierarchical structure of *MATH*, and listing the type of the corresponding value as the schema *MATH*. The pseudo schema *MATH* instructs the observing agent *MATH* to generate code *MATH* and utilize an interpreter to extract the relevant values *MATH* : *MATH* *MATH*.
+*MATH* The *MATH* indicates invoking the code to obtain the result. We provide an example and the pseudo algorithm for our schema construction in Appendix [8.5].
+
+
+When the code *MATH* is invoked successfully, the obtained value *MATH* is incorporated into the context of grounding agent to generate the instruction *MATH* for the next iteration. Otherwise, the *MATH* indicates a programming error, which instructs the observing agent to calibrate adaptively (Section [3.5]).
+
+
+FIGURE 
+
+
+Iterative Calibration 
+
+
+Previous studies solve a complex task in a pre-defined order. This mechanism tends to directly shift to the next iteration when the agents fail to complete actions, limiting their ability to adaptively correct exceptional errors [*REF*]. As shown in Figure [2], we propose an iterative calibration method (IterCali), to mitigate this problem. IterCali enables the execution agent and the observing agent to interact with tool servers and code interpreters, calibrating themselves following the error messages in feedback.
+
+
+Iterative calibration with tools. 
+
+
+The agents suffer from calling the tool with wrong arguments due to the complex tool documentation and argument specifications [*REF*; *REF*]. Our proposed IterCali mitigates this problem by enabling the execution agent *MATH* to iteratively calibrate the misaligned arguments following the feedback from tool servers. Specifically, when the wrong argument *MATH* generated by the execution agent is used to request the data from tool servers, the execution result *MATH* presents the error messages, showing a failure to execute the tool (shown in Equation). We then iteratively append the *MATH* into the calibration history of execution agent *MATH*, explicitly prompting the *MATH* to calibrate the generated arguments, which can be formulated as: *MATH* *MATH*, *MATH* where *MATH* and *MATH* indicate the tool documentation and instruction. The *MATH* indicates the calibration history, containing the arguments *MATH* and response *MATH* from tool servers. The above calibration is operated until the tool is executed successfully or up to the maximum iteration *MATH*.
+
+
+Iterative calibration with code interpreter. 
+
+
+Our IterCali enables the observing agent to calibrate the generated code. Specifically, when failing to invoke the code *MATH*, the interpreter raises an exception, e.g.,Type error or Exception for out of List range as *MATH*. The *MATH* is then used to prompt the observing agent *MATH* to adapt the generated content in an iterative manner, which is formulated as: *MATH* *MATH*, *MATH* where *MATH* is the synthetic schema in Section [3.4], and *MATH* indicates the iteration time.
+*MATH* indicates the calibration history which consists of the generated code *MATH* and programming results *MATH* from the code interpreter. The above calibration is operated until the code is invoked successfully or up to the maximum iteration *MATH*.
+
+
+Experimental Setup 
+
+
+TABLE
+
+
+Datasets and Evaluation Metrics
+
+
+Datasets. We conduct experiments on three datasets with tool learning tasks, including: (1) RestBench-TMDB [*REF*], a high-quality human annotated dataset consisting of 54 tools about movie scenarios; (2) RestBench-Spotify [*REF*], a dataset with 40 tools for music scenarios. (3) ToolBench [*REF*], a dataset containing diverse real-world tools across various applications.
+
+
+Evaluation metrics. We use two evaluation metrics following [*REF*; *REF*]: (1) Success Rate (Success%) measuring the proportion of successful query completions, and (2) Correct Path Rate (Path%) calculating F1 score between the generated tool sequence and ground-truth tool sequence. We also conduct the human evaluation, where three well-educated volunteers are invited to evaluate 30 randomly sampled cases with a three-scale rating in two aspects: (1) Executability (Exec): whether multiple tools are invoked in a correct logical order (2) Correct Rate of Parsing (Parsing): whether the agents can extract the relevant value from lengthy results and incorporate it to predict the next action. Since existing datasets lack the ground truth for extracting relevant values, we extend the TMDB and Spotify datasets by manually annotating the fine-granularity task-solving trajectory to provide the reference for our human evaluation. More details can be found in Appendix.
+
+
+TABLE
+
+
+Baselines
+
+
+We mainly compare our method with agent-based tool learning methods, including: (1) DEPS [*REF*], an interactive planning approach empowered by LLMs to improve the long-term planning ability; (2) Chameleon [*REF*], an LLM-based agent that directly generates multi-step plans for tool use and then sequentially executes the plan; (3) ReAct [*REF*], which prompts LLM to generate the chain-of-thought and actions in an interleaved manner. (4) ToolLLM [DFSDT, *REF*], which enhances LLMs with the Depth First Search-based Decision Tree (DFSDT) to select tools to solve a task. Since our ConAgents synergizes three specialized agents, we also establish a ReAct *REF* baseline for further comparison, which conducts multiple times of ReAct until the input task is completed successfully or up to the maximum iteration number N. We set the N from 1 to 5 in our experiment. We also consider the baseline with multi-agent architecture, i.e., RestGPT, which includes a coarse-to-fine planning module and a tool executor [*REF*].
+
+
+Implementation Details
+
+
+We employ gpt-3.5-turbo from OpenAI as the LLM backbone for each agent in our method and all baselines. We instruct the three agents to perform specific actions with different system prompts shown in Appendix [8.4]. The decoding temperature is set to 0 for the most deterministic generation. We also repeat the experiment with an open-source model Mistral-8x7B for further comparison. In our iterative calibration method (Section [3.5]), we set the maximum number of iterations *MATH* and *MATH*, respectively. The maximum step for DEPS and the maximum depth for ToolLLM (DFSDT) are set to 10. For each sample in the test set, we provide all the baselines with the same candidate toolset for a fair comparison, which contains the required tools and ten randomly sampled tools. We also add a special tool named Finish, which is used to indicate the task is solved.
+
+
+Results and Analysis 
+
+
+Experimental Results
+
+
+Overall performance. 
+
+
+Table demonstrates experimental performances of all methods. We find that our proposed ConAgents outperforms all the baselines in three datasets in terms of all metrics. A reason here is that our cooperative framework design enables each agent to perform specialized actions instead of grasping all required capabilities, thereby reducing the workload encountered by a single agent. The significant improvement over ReAct *REF* baselines can further validate the effectiveness of our method. In addition, unlike RestGPT, ConAgents achieves 12% improvement in Success Rate and 8.76% absolute improvement in Correct Path Rate, respectively. This result suggests that our proposed IterCali method can enable the agents to adaptively calibrate themselves when they fail to complete their tasks, improving the performance of the overall workflow.
+
+
+Performance with the open-souce LLM.
+
+
+We alternate the backbone LLMs with the open-source model, i.e., Mistral-8x7B, and repeat the experiment in the same setting for further comparison. Shown in Table [1], we find Mistral-8x7B can be directly adopted in ConAgents with better performance, e.g., pushing the Success Rate from 34.00 to 41.00 in the TMDB dataset. These results further prove the effectiveness of our cooperative framework.
+
+
+Human Evaluation 
+
+
+Table [2] shows the results of the human evaluation. We find that ConAgents achieves the best in the Executability aspect with 0.20\0.31 absolute improvement compared with the strong baseline RestGPT. We also observe our method achieves comparable and even better performance in Correct Rate of Parsing compared with RestGPT which uses pre-defined schema.
+This result illustrates that our observing agent can efficiently extract relevant value by programming with synthetic schema. The Kappa statistics for Executability and Correct Rate of Parsing are *MATH* and *MATH* on TMDB dataset, while *MATH* and *MATH* on Spotify dataset, illustrating agreement among the annotators.
+
+
+Ablation Study 
+
+
+To better understand the impact of different components of our method, we employ the following modifications to the architecture.
+
+
+- w/o *MATH*. We replace the observing agent in our cooperative agent framework with directly truncating. We observe a 9.60 average decrease in the Success Rate on three datasets, e.g., dropping from 77.00 to 61.00 on the TMDB dataset. The same trend is also observed in the Correct Path Rate, e.g., a 9.45 absolute decrease on the Spotify dataset. These results indicate the necessity of the observing agent in solving complex tasks.
+- w/o IterCali *MATH* Server. We remove the iterative calibration when executing the tools (Section [3.5.0.1]). As shown in Table, the Success Rate has a 5.27 average decline, while the Correct Path Rate has a 5.08 average decline on three datasets. These results indicate that the execution agent can refine generated arguments following the error messages from tool servers, improving the performance of the overall framework.
+- w/o IterCali *MATH* Code. We remove the iterative calibration when programming to extract the relevant values (Section [3.5.0.2]). As shown in Table, both Success Rate and Correct Path Rate have a significant decrease, which indicates that the observing agent can revise the programming error in the generated code following the feedback from the interpreter and extract the relevant values.
+
+
+Case Study
+
+
+We conduct the case studies and find that our proposed framework is more effective at executing various tools and incorporating the results to solve a complex task. We also provide concrete examples to intuitively explain the detailed calibration process. The details can be found in Appendix [8.2].
+
+
+Discussions 
+
+
+TABLE 
+
+
+Qualitative analysis for the maximum number of iterations.
+
+
+The IterCali method prompts the execution agent and observing agent to iteratively calibrate themselves based on feedback from the tool environment. To further explore the impact of the maximum iteration number on the performance of the overall framework, we conduct the qualitative analysis for the hyper-parameters *MATH* and *MATH*.
+Specifically, we alternate the *MATH* and *MATH* from 1 to 5, respectively. Then we evaluate our method using the RestBench-TMDB dataset with the same setting as Table  and show the results for each iteration number in Figure [3]. We observe an increasing Success Rate when the maximum iteration number shifts from 1 to 3, which indicates that the agents can adapt their actions to complete the tasks. We also find a relatively stable trend when the *MATH* and *MATH* keep increasing (from 3 to 5), which indicates the agents can calibrate most of the errors in 3 iterations. We also dive into the non-calibrated cases where we find that when the grounding agent generate an inappropriate instruction, e.g., lacking required arguments, the agents struggle to correct themselves only with the feedback from the environment.
+
+
+Qualitative analysis for the efficiency of inference.
+
+
+Due to the intensive inference cost of LLMs-based agents, we further explore the efficiency of our ConAgents. To explain more intuitively, We compare the token consumption for the ConAgents and ReAct *REF* using the RestBench-TMDB dataset with the same setting in Table , where the N is set from 1 to 3. We show the frequency histogram for the number of consumed tokens of different methods in Figure [4]. We find that our framework spends fewer tokens compared with strong baselines ReAct *REF* with almost the same consumption as vanilla ReAct. The reason is that the modularized framework ConAgents enables each agent to perform specific tasks more efficiently, reducing the long exploration trajectory by the single agent.
+
+
+We further compute the *MATH* Path Len for each method as previous works   *REF* and   *REF* in Table [3], which evaluates the mean number of extra tools involved to solve a task. We find that our method solves a task using fewer steps than strong baselines ReAct *REF* (N=2 or 3). The decrease in the *MATH* Path Len further proves the effectiveness of our cooperative agent framework.
+
+
+FIGURE
+
+
+The runtime consistency of our method.
+
+
+Considering the non-deterministic generation of LLMs in nature, we further explore the consistency of our method. Specifically, we repeat our method with the same setting as Table . The statistical significance of differences observed between the performance of two runs is tested using a two-tailed paired t-test. We found no significant difference between the results of two randomly conducted experiments (significance level *MATH* = 0.05).
+
+
+Conclusions 
+
+
+We present a cooperative and interactive agents framework (ConAgents) for tool learning tasks with two objectives: (1) enable the cooperation between agents to solve complex tasks; and (2) enable the agents to calibrate themselves when they fail their tasks. To achieve the first objective, our ConAgents modularize the workflow into the grounding agent, execution agent, and observing agent. Then, instruct the three agents to generate a tool-use instruction, execute the tools, and extract the key values, respectively, solving a complex task via cooperation. For the second objective, the ConAgents also enables the agents to interact with the tool environment, utilizing the external feedback to adaptively calibrate themselves. Extensive experiments conducted on three benchmarks demonstrate the superiority of our ConAgents, e.g., pushing the success rate to 77.00 (13.2% relative improvement).

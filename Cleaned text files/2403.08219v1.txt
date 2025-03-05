@@ -1,0 +1,223 @@
+SpaceOctopus: An Octopus-inspired Motion Planning Framework for Multi-arm Space Robot
+
+
+INTRODUCTION
+
+
+Space robots are usually applied to capture space debris, repair faulty satellites, and refuel other spacecraft to ensure the long-term stable operation of satellites and space stations [*REF*]. Beyond capturing debris and failed satellites, the maintenance and reorientation of the base of space robots are crucial for uninterrupted communication with the ground and for maintaining the optimal angle between the solar panel and the sun [*REF*]. Since traditional base reorientation methods expend high-pressure gas from the satellite, which is a limited and valuable resource in outer space [*REF*], the exploration of using robotic arms to adjust the posture of space robots has become a topic of interest. Recent work [*REF*] studies the attitude control of a base based on a quadruped robot with four 2-DoF limbs, but it does not extend to the more general field of space robots with multiple 6-DoF arms.
+
+
+Observing the similarities between the low-gravity conditions of outer space and the underwater environment, we seek inspiration from the hunting behaviors of intelligent underwater organisms for our control algorithm for the arms of space robots. The octopus, one of the most intelligent underwater creatures, has distributed brains, with each tentacle containing numerous neurons capable of independent thought [*REF*]. This distributed control architecture improves their computational efficiency when hunting. As illustrated in Fig. [1], through coordination among its brains, an octopus can grasp prey with some tentacles while others adjust its position and posture -- precisely the functionality desired for the target capture process of space robots.
+
+
+FIGURE 
+
+
+Inspired by octopuses, we design a hierarchical and distributed motion planning framework enabling the multi-arm space robot to perform diverse tasks including trajectory planning and base reorientation. The octopus-inspired planning method significantly reduces the difficulty of optimization by decomposing the original problem into multiple sub-problems. First, the multi-level framework determines the sub-goal of each joint according to the whole task. Secondly, distributed learning trains the planning strategies to control each joint.
+Considering the complexity of model design and the singularity problem in traditional planning methods [*REF*; *REF*; *REF*], we adopt the model-free reinforcement learning (RL) method to obtain the planning strategies. Particularly, multi-agent RL makes our framework achieve decentralized learning of agents naturally.
+
+
+Our contribution can be summarized as follows:
+
+
+- Inspired by octopuses we devise a hierarchical and distributed framework for the motion planning problem of a multi-arm space robot. In contrast to centralized learning, it alleviates the difficulty of optimization when decomposing into multiple sub-problems.
+- We design two basic tasks for multi-arm space robots, including trajectory planning and base reorientation. Due to the advantage of the MARL training paradigm, the trained policies outperform baseline methods in terms of precision and robustness.
+- Leveraging the flexibility of decentralized control, we reassemble policies trained for different tasks onto the same space robot.
+Through coordination between agents, the space robot can complete the trajectory planning task while adjusting its base attitude without the need for further learning.
+
+
+RELATED WORK
+
+
+The challenge of precisely controlling the base and robotic arms of space robots in low-gravity environments has been a subject of extensive study [*REF*; *REF*]. Umetani and Yoshida [*REF*] developed an inverse kinematics solution using the Generalized Jacobian Matrix (GJM), although it was demonstrated in [*REF*] that this solution encounters the singularity problem at some configurations. Efforts were also made in [*REF*], where the Virtual Manipulator (VM) concept was introduced. However, a VM represents an idealized, massless kinematic chain, which cannot be physically built. Recently, researchers parameterize the joint trajectory using the sine polynomial function and formulate the planning problem as the non-linear optimization problem [*REF*]. Nonetheless, most of these studies focus on trajectory planning with fixed initial and final points and require precise model of the kinematic and dynamic of the space robot. In terms of base attitude control, Kristiansen et al. [*REF*] presented results on attitude control of a microsatellite by integrator backstepping, and Huang et al. [*REF*] discussed adaptive control of a space robot system with an attitude-controlled base. Traditional methods consume precious gas, prompting authors in [*REF*] to utilize the limbs of a quadruped robot for attitude control, a concept partially aligned with our work. However, their task is simpler, as the limb only has 2-DoF, whereas our work seeks to complete trajectory planning tasks while adjusting the base&apos;s attitude.
+
+
+Recently, reinforcement learning (RL) based methods have proven effective and robust in robotic control tasks [*REF*] and have been applied to space robot control tasks [*REF*; *REF*; *REF*]. For example, Du et al. [*REF*] proposed a controller for a free-floating space robot to capture targets without the kinematic and dynamic equations. However, these methods mainly focus on single-target trajectory planning, and often fail when the target position changes.
+Wang et al. presented a multi-target trajectory planning method via reinforcement learning [*REF*; *REF*]. The aforementioned works widely demonstrate the effectiveness and robustness of model-free reinforcement learning algorithms for solving motion planning problems of space robots. Nevertheless, as the number of robotic arms increases, the exploration space of the agent grows exponentially, and to our knowledge, there has yet to be a successful application of RL-based methods on space robots with more than two arms.
+To address the large exploration space issue, a decentralized motor skill learning paradigm was proposed in [*REF*], where different sets of joints are designed to learn distinct policies for better robustness and generalization. However, without a centralized training with decentralized execution paradigm, it is challenging for the agents to coordinate their actions.
+
+
+PRELIMINARY
+
+
+Simulation Environment
+
+
+FIGURE
+
+
+We utilize the dynamic simulation environment, MuJoCo [*REF*], to construct the environment of a four-arm free-floating space robot, as illustrated in Fig.
+[2]. Four 6-degree-of-freedom (6-DoF) UR5 robotic arms are rigidly attached to the base of the space robot, with parameters identical to those of the actual robot. In the trajectory planning task, the goal for each end-effector is to reach a target randomly selected from an area within a 0.3 *MATH* 0.3 *MATH* 0.3 *MATH* cube positioned in front of each arm, along with a randomly sampled desired orientation. For the base reorientation task, the desired base attitude is randomly determined, ranging from *MATH* 0.2 rad to 0.2 rad along every axis. The mass of the base is 400 kg with its size 0.8726 *MATH* 0.8726 *MATH* 0.8726 *MATH*. Assuming the gripper of the robotic arm is insensitive to the shape of the object, we disregard the shape of grippers. Additionally, we omit the modeling of solar panels due to their negligible impact on the base, and the entire system is unaffected by gravity.
+
+
+Multi-Agent Reinforcement Learning
+
+
+To enable a distributed control strategy, we model the control procedure of the multi-arm space robot as a Decentralized Partially-Observable Markov Decision Process (DEC-POMDP), consisting of a tuple *MATH*. Here, *MATH* represents the true state of the environment, and *MATH* denotes the individual action space. At each time step, each agent *MATH* selects an individual action *MATH* , forming a joint action *MATH* , where *MATH* indicates the number of agents. The state transition function *MATH* determines the next state of the environment, and each agent gets an individual reward *MATH* based on the global state and their joint action. Note that in the base reorientation task the agents share the same reward, whereas in the trajectory planning task different agents are assigned diverse rewards.
+The partial observability is described by the observation function *MATH* , where *MATH* is the individual observation space.
+In most MARL settings, the policy function and value function of each agent depends on an action-observation history *MATH* , and use RNN [*REF*] instead of MLP as the policy network. However, we find that in robot control tasks, providing the agent with real-time joint angle and velocity observations renders the use of RNN layers unnecessary.
+Therefore, we employ an MLP for the structure of the policy and value networks.
+
+
+Methodology
+
+
+In this section, we formulate the trajectory planning and base reorientation problems of the multi-arm space robot. Inspired by the hierarchical and decentralized movement of octopus tentacles, we model the optimization problems as multi-agent RL problems. To effectively partition the tasks among multiple agents, we establish a three-level structure comprising the single-arm level, multi-arm level, and task level. By leveraging the hierarchical and decentralized framework, we are able to simplify the optimization process and enhance scalability and robustness for multiple robotic arms.
+
+
+Key Insight from Octopus
+
+
+We propose a method to mitigate the training challenges posed by the high dimensionality of the action space and the unclear rewards in controlling multi-arm space robots. Our inspiration comes from octopuses, which possess not only a central brain but also numerous neurons distributed across each tentacle, enabling independent thought and the execution of specific tasks. This distribution of \&quot;brains\&quot; simplifies the learning process, enhances reaction speed and efficiency, and allows for the simultaneous completion of diverse tasks by different tentacles. Taking inspiration from this, we transform the control problem of multi-arm space robots into a multi-agent reinforcement learning problem, wherein different arms learn and train under the CTDE [*REF*] paradigm. We further utilize the structural characteristics of the robotic arm to divide the learning objectives of the agent. Through distributed training, we significantly reduce the action space for each agent, decrease exploration complexity, and provide more direct reward guidance to individual agents, thereby increasing learning speed and efficiency. Similarly to octopuses, distributed training enables each agent to operate independently and complete tasks using varied strategies without the need for retraining.
+
+
+Problem Formulation 
+
+
+As the trajectory planning and base reorientation problems are modeled as DEC-POMDP, each distributed controller is implemented by a policy network, which consists of a multi-layer perceptron (MLP) with two hidden layers and a driver layer. The driver layer is realized by a PD controller with fixed parameters for velocity tracking, and the reinforcement learning algorithm updates only the parameters of the policy layer. At each time step during the control process, each policy layer first maps the current individual observation to the expected velocities of specific motor joints, with the driver layer then maps these desired velocities to joint torques *MATH*. The torques are finally applied to control the four-arm space robot in simulation.
+
+
+Trajectory Planning
+
+
+The goal of trajectory planning is to minimize the position and orientation error between each end-effector and its target, defined as: *MATH* and *MATH* respectively, where *MATH* and *MATH* denotes the desired position and Euler angle of the end-effector, and *MATH* represents the arm index. Moreover, to ensure smooth control of the arms and reduce energy consumption during the capture process, the reward function is generalized as *MATH* , where *MATH* and *MATH* stands for the joint output of policy networks at current and last time step, and *MATH* for the output of the driver layer. *MATH* and *MATH* represent the position and orientation error for all arms. To avoid collision and constraint the maximum value of joint motion, the mathematical description of optimization in trajectory planning is defined in Eq.: *MATH* *MATH* where *MATH* denotes the maximum episode length and *MATH* is the upper bounds of the joint parameters. Furthermore, *MATH* represents the space occupied by the space robot, *MATH* represents the space occupied by other objects, indicating the robot&apos;s capability to avoid collisions.
+
+
+Base Reorientation
+
+
+FIGURE
+
+
+Unlike the trajectory planning task, the goal of the base reorientation task is to minimize the error between the desired and current attitude: *MATH* , where the superscript *MATH* denotes the base of the space robot, and the subscript *MATH* denotes the desired attitude. Note that in this work we represent the attitude of the base or the orientation of the end-effector using Euler angles. Similarly, we can write out the mathematical description of the base attitude adjustment task: *MATH* *MATH*.
+
+
+Division of Agents
+
+
+To enable distributed control, we hierarchically divide the motor joints of the multi-arm space robot into different groups and leave them to different agents to control. The division of agents is mainly in accordance with three levels, which is illustrard in Fig.
+.
+
+
+Single Arm Level
+
+
+We assign the motor joints of a single robotic arm to two individual controllers, viewing them as two distinct agents with diverse optimization goals. A key insight is that most robotic arms exhibit a clear structural characteristic: the first few links connected to the base are usually long, providing a larger operation space for the arm, while latter links are relatively short to enable agile operation of the end-effector.
+
+
+Leveraging this structural feature, we divide the motor joints on a single robotic arm into two sets, each controlled by a separate agent.
+Specifically, for the UR5 robotic arm used in our simulation environment, we assign the first three joints connected to the base to the first agent and the remaining three wrist joints to the second. The first agent focuses on learning how to control the end-effector to reach the target position, while the second concentrates on achieving the desired orientation. Consequently, the reward function in Eq.
+can be rewritten as: *MATH* and *MATH* for a single arm&apos;s position and orientation, respectively. It is important to note that the two agents do not share the same reward, and since any individual action of the joints will influence both the position and orientation of the end-effector, the agents on the same arm musr learn to cooperate to achieve high rewards of both.
+
+
+Multi-Arm Level
+
+
+The robotic arms on the four-arm space robot are mounted in different positions and are in different postures. Consequently, even if the arms are identical, the same actions at the joints will result in different outcomes for the end-effector, depending on its installation pose. To this end, we equip the four arms with distinct control strategies, and for each arm we further divide the joints into two sets using the division method described in the previous section. As a result, the four-arm space robot system comprises a total of eight agents, with each agent controlling three motor joints. The reward function can be rewritten as *MATH* and *MATH* , where *MATH* denotes the arm index. While it may seem that the individual reward is solely related to the controlled joints, the action of any joint can affect the base&apos;s position and orientation, thereby influencing the end-effector error of each agent. Thus, the two agents on the same arm have to cooperate to achieve high position and orientation precision, while agents on different arms also have to coordinate their actions as the movement of one arm can affect the base and, consequently, the performance of the other arms.
+
+
+Task Level
+
+
+The aforementioned division methods are primarily designed for the trajectory planning task, in which the arms are controlled to reach the desired position and orientation of the end-effector. For the base reorientation task, we similarly assign the control task of the four arms to eight agents, considering the structural characteristics of a single arm and the distinct poses of the four arms.
+
+
+Our key insight is that different sets of links also have varying impact on the base attitude: the first few links attached to the base being long and heavy with large inertia, significantly influence the base&apos;s attitude over a long duration and are suitable for broad-range attitude adjustments. In contrast, the shorter wrist links, with their smaller inertia, are ideal for fine-tuning the base&apos;s attitude. Besides, the task-level division also offers another benefit: it allows different arms to perform different tasks such as reaching targets or the reorientation of the base. It extremely improves the execution of mixed tasks by offering different tasks for multiple arms. Therefore, despite the difference in tasks we adopt the eight-agent division paradigm, while we train different policies to complete trajectory planning and base reorientation tasks.
+
+
+OPTIMIZATION ALGORITHM AND TRAINING DETAILS
+
+
+In this section, we describe the training algorithm for the aforementioned MARL problem.
+
+
+Optimization Algorithm
+
+
+The goal of MARL is to find an optimal joint policy *MATH*. Here we denote the joint policy *MATH* and the discount sum of return *MATH* , and we use the following standard definitions of the individual state-action value function *MATH* , the state value function *MATH* , and the advantage function *MATH*: *MATH* *MATH* Note that for tasks that all agents share the same reward, the discount sum of reward *MATH* remains unchanged for all agents, and the aforementioned equations should also be the same among the agents. The objective of the MARL problem is to find an optimal joint policy *MATH* that maximize the value of the initial state: *MATH* *MATH* where *MATH* is the distribution of the initial state. Note that under the base reorientation scenario where agents share the same reward, the agents will optimize the same function *MATH*. However, for reward-unshared tasks such as trajectory planning, the distributed agents optimize different functions *MATH* , which is dependent on others&apos; policies.
+
+
+To train the individual agents to learn the optimal policy, we adopt the Centralized Training with Decentralized Execution (CTDE) structure [*REF*], and use Multi-Agent Proximal Policy Optimization (MAPPO) [*REF*; *REF*] as the training algotithm. In detail, for each agent *MATH* we use an individual neural network to parameterize its policy *MATH* with *MATH* , which takes the current observation as input and outputs the action of joints under control.
+Meanwhile, we device a critic network *MATH* for each agent with parameters *MATH* , which takes the global state as input and outputs the state value. For simplicity, we denote the actor and critic for agent *MATH* as *MATH* and *MATH* , respectively. The critic is updated to minimize the TD error [*REF*]:
+
+
+*MATH* *MATH* where *MATH* , and *MATH* is the target state-value function with the parameters *MATH* periodically updated with the most recent *MATH* to stabilize learning process. Note that the critic takes true state *MATH* instead of individual observation *MATH* as input, thus can gather global knowledge and other agents&apos; information to guide the training process of the actor. The actor of each agent is updated according to the clipped policy gradient: *MATH* *MATH* where the clip function *MATH* restricts *MATH* into the interval *MATH* , and *MATH* is the probability ratio. The advantage term in Eq. is estimated by General Advantage Estimation (GAE) [*REF*] with the learned state value function in Eq.
+
+
+Training Details
+
+
+State And Action
+
+
+As mentioned earlier, we divide the joints of the four-arm space robot into eight agents despite the different tasks of trajectory planning or base orientation. For the agents who control the first three links of the arm, their observation consists of a 28-dimensional vector and can be written as Eq.: *MATH* *MATH* where *MATH* and *MATH* stand for the current position and orientation of the base, *MATH* for the corresponding velocity and angular velocity. *MATH* and *MATH* denote the joint angle and angular velocity under control, and the current position of the end-effector and the corresponding desired position is denoted by *MATH* and *MATH* respectively. *MATH* denotes the index of the agent responsible for the posision of the end-effector.
+
+
+For agents who take control of the wrist joints, the observation can be written as: *MATH* is the agent index, and the current orientation of the end-effector and the corresponding target attitude is denoted by *MATH* and *MATH* respectively. The three-dimensional output of the agent&apos;s policy determines the desired velocity of the three joints under its control.
+
+
+Reward Function
+
+
+For the trajectory planning task, in order to achieve the requirements of capture precision, we design a reward function including the distance error or attitude error between the end-effector and the target.
+Furthermore, to achieve smooth control and reduce energy consumption, the reward function is also dependent on the joint velocity at time *MATH* and *MATH*. The following formula is the reward function: *MATH* *MATH* The error *MATH* is defined in Section [4.2] where the subscript *MATH* denotes the position *MATH* or orientation *MATH*. The middle part *MATH* encourages smaller error *MATH* to get higher reward, and the last two parts is designed to make the control process smooth and low energy consumption, respectively. In the experiments, we set *MATH*.
+
+
+For the base orientation task, all the agents share the same reward, which can be written as: *MATH* *MATH* where in the base reorientation task we need to ensure that the arms are collision-free with the base, so we add the term *MATH* , and *MATH* equals to 1 if collision happens else 0. The parameter *MATH* is set to 0.50, and the detailed value of the hyperparameters during training are illustrated in Table [1].
+
+
+TABLE 
+
+
+EXPERIMENTS
+
+
+In this section, we carry out a series of experiments to illustrate the precision, robustness and adaptability of the proposed multi-agent training paradigm. There are four objectives of the experiments:
+
+
+- compare the performance of our multi-agent decentralized training paradigm with that of single-agent centralized training to verify the rationality of agent division methodology;
+- conduct ablation studies, including comparison with other baseline algorithms;
+- evaluate the robustness of the learned strategies, including scenarios involving varying base mass, single arm failure and disturbance torques at the joints;
+- recombine different strategies onto the same space robot so that it can adjust the posture of the base while completing grasping tasks.
+
+
+Comparison with Centralized Training
+
+
+FIGURE
+
+
+To demonstrate the effectiveness of our proposed multi-agent decentralized training paradigm, we begin by comparing our algorithm with the single-agent RL algorithm which controls the arms in a centralized manner. The training curves of different algorithms, along with the corresponding test errors, and shown in Fig.
+[5] and Fig. [6], respectively. The results indicate that the training process becomes faster and more stable with higher rewards under the MARL paradigm. The mean position error of the end-effector is below 0.025 m with the mean orientation error below 0.04 rad (2.3 *MATH* ) in the trajectory planning task, which is significantly less than that of the PPO algorithm (0.05 m / 0.08 rad). Similar improvements are observed in the base reorientation task. Furthermore, the smaller error variance of the MAPPO algorithm further demonstrates its superior generalization ability across different objectives. It can be inferred that the large exploration space due to the large number of joints to be controlled and the mixed single reward in the trajectory planning task increase the difficulty of exploration and learning. By adopting the MARL training paradigm, the control task is assigned to multiple agents, with each agent learns its own policy in a smaller exploration space, maximizes its individual reward or learns its own action&apos;s effect on the shared reward.
+
+
+Ablation Experiments
+
+
+FIGURE
+
+
+In this section, we compare the performance of MAPPO algorithm with other baseline methods. Note that he continuous control feature and the unshared rewards make a large class of MARL algorithms inappropriate.
+Considering these constraints, we adopt MADDPG [*REF*] as the baseline methods. From Fig. [5] and Fig. [6], we can see that MADDPG achieves lower rewards and presision with higher variance in contrast with MAPPO. We hypothesize that the state-action value *MATH* learne by MADDPG has much higher input dimensions and is harder to learn its precise value compare to *MATH*. Moreover, MAPPO is an on-policy RL algorithm, which improves the policy based on the latest policy and has been shown to be competitive and even better compared to off-policy methods including MADDPG while using a comparable number of samples [*REF*].
+As a result, we adopt MAPPO instead of MADDPG as our training algorithm.
+
+
+Evaluation of anti-disturbance ability
+
+
+FIGURE
+
+
+To assess the robustness and anti-disturbance ability of the learned policy, we introduce disturbance torques at the joints to test the policy&apos;s resilience. Specifically, in the trajectory planning task we apply an external force to the end-effector at 7.5 s. The position and orientation errors along the x, y and z axes are shown in Fig. [7]. It is observed that the errors along all axes converge to below 0.015 m / 0.02 rad, demonstrating the learned policy&apos;s superior robustness and its ability to replan the trajectory when faced with disturbances. In the base reorientation task, we additionally evaluate the policy&apos;s performance when one arm fails, with the error curves displayed in Fig. [8]. The errors converge to below 0.03 rad regardless of the scenario, indicating that the trained policy possesses significant anti-disturbance capabilities and remains robust even with the failure of one robotic arm. Furthermore, we change the mass of the base satellite and check the performance of the base reorientation task. The success rates under different criterions are depicted in Fig. [9], illustrating that the trained policies are still effective with different satellite masses, achieving a 90% success rate in most cases under the threshold error of 0.05 radians. However, when there is a substantial change in mass, additional training may be necessary to enable the agent to learn how to adjust the posture of a heavier base.
+
+
+Reassembly of policies
+
+
+After completing the training for trajectory planning and base reorientation tasks, we sought to determine whether these two strategies could be recombined, thereby enabling some robotic arms to execute the trajectory planning task while others adjust the posture of the base, akin to an octopus during hunting. Note that centralized control would require retraining a new policy to accomplish this mixed task. However, the MARL training paradigm allows us to take advantage of the flexibility of decentralized training properties since each agent maintains its individual policy and can be replaced as needed. To verify the feasibility of the approach, we reassemble the previously trained strategies, assigning the base reorientation strategy to three robotic arms and the trajectory planning task to the remaining one. The adjustment process and the errors of the end-effectot and base attitude are illustrated in Fig. [10]. The results indicate that through strategy restructuring, space robots can use some arms to maintain or adjust the base posture while others execute trajectory planning, with the end-effector position error below 0.04 m, orientation error below 0.045 rad, and the base orientation error below 0.035 rad. This outcome lends significant value to our research, demonstrating that the training paradigm of multi-agent systems allows for the flexible combination of different strategies to accomplish specific composite tasks without the necessity of retraining.
+
+
+CONCLUSIONS
+
+
+This paper proposes a decentralized multi-agent reinforcement learning paradigm for trajectory planning and base reorientation tasks for multi-arm space robots. Inspired by the hunting behaviors of octopuses, we move away from the traditional centralized control strategy and hierarchically assign the control task of the robotic arms to different agents across three levels. The ablation studies demonstrate that, with a smaller exploration space and clearer reward signals, the individual agents can more easily and effectively find the control policies. We demonstrate the robustness of the learned policies under standard conditions, including the joint disturbances, varying masses of the base satellite, and the failure of one arm. Furthermore, by leveraging the flexibility of the multi-agent training paradigm, we can reassemble various policies trained for different tasks, enabling the space robot to execute trajectory planning with certain arms while reorienting its base with the others.

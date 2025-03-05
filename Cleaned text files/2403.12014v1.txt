@@ -1,0 +1,268 @@
+EnvGen: Generating and Adapting Environments via LLMs for Training Embodied Agents
+
+
+Introduction 
+
+
+There has been growing interest in embodied AI, where agents learn through interactions with environments instead of static datasets [*REF*; *REF*; *REF*; *REF*; *REF*].
+Open-world games such as Minecraft [*REF*] and Crafter [*REF*] have been widely used as research environments for embodied agents, where the agents visually perceive their surroundings, traverse large terrains, and learn to unlock various achievements (e.g., collecting resources, building tools, defeating monsters, etc.). Some achievements can be easily unlocked within a few steps, whereas others are more challenging as they only become accessible after the agent completes a series of prerequisite achievements, requiring hundreds of steps (i.e., long-horizon tasks). As illustrated in [1] (a), traditional embodied agents are based on reinforcement learning (RL) [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+However, these RL agents usually struggle when learning such long-horizon tasks since the reward is sparsely given only after the correct execution of successive actions, and it is very expensive to automatically find many action sequences which lead to the reward [*REF*; *REF*; *REF*], even after long pretraining with curiosity-driven intrinsic reward [*REF*].
+
+
+FIGURE
+
+
+As large language models (LLMs) have shown remarkable progress in various tasks that require complex reasoning [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*], recent works study implementing embodied agents based on LLMs. As illustrated in [1] (b), these methods leverage LLMs&apos; world knowledge with chain-of-thought reasoning [*REF*; *REF*; *REF*] by creating action plans, giving feedback, and obtaining rewards throughout the episode [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+While these LLM-based agents that verbalize their knowledge in reasoning steps have seen success in achieving better performance over previous approaches, iteratively calling LLMs throughout the episode is prohibitively slow and expensive (e.g., SPRING [*REF*] calls GPT-4 [*REF*] 9 times to take any action step, which results in $270 USD to complete an episode). [*REF*] use LLMs to create rewards to train smaller agents, but the training is still costly, as it requires many interactions between the LLMs and student agents. This begs the question: Instead of directly employing LLMs as embodied agents, can we use LLMs&apos; reasoning capability to adaptively create training environments to help smaller embodied RL agents learn useful skills that they are weak at?
+
+
+To address this question, we propose EnvGen, a novel framework where an LLM adaptively generates training environments to teach smaller embodied RL agents. We aim to generate environments that can create various conditions (e.g., have different terrains or some subgoals are already achieved) so that agents can learn different skills in parallel and obtain more frequent rewards for challenging long-horizon tasks than in the original environment. As shown in [1] (c), EnvGen iterates over multiple training cycles, each consisting of the following four steps.
+- Step 1: We generate configurations for custom training environments (i.e., specifically created to train an RL agent on certain skills) by providing an LLM with a prompt including task description, controllable simulator settings, and simulator constraints (see [2] and [2] for details). Then we use the generated configurations to create different custom environments (e.g., different terrains, items initially given to agents, and chance of finding certain objects) that can teach multiple skills in parallel.
+- Step 2: We train the RL agent in multiple LLM-generated environments (i.e., LLM environments), so that it can learn different useful skills in parallel.
+- Step 3: We first train the RL agent in the original environment to mitigate overfitting to the LLM environments. Then we measure the current RL agent&apos;s performance in different tasks in the original environment to check which skills/tasks the agent is still weak at.
+- Step 4: We provide the RL agent&apos;s successes/failures in different tasks (from step 3) as feedback to the LLM, so that the LLM can adapt the custom training environments to focus on progressively improving the skills that the agent is weak at.
+
+
+Note that EnvGen only requires a few LLM calls (e.g., 4) for environment generation/updating during the entire RL agent training process, whereas other works based on LLM agents query an LLM once or multiple times every step (resulting in thousands of LLM calls for a single episode).
+
+
+We study the usefulness of EnvGen in different game environments: Crafter [*REF*] and Heist [*REF*]. In the Crafter environment, a simple PPO-based [*REF*] lightweight ( *MATH* M parameters) RL agent trained with our LLM-generated environments outperforms strong baselines including a GPT-4 based agent that queries an LLM multiple times at every step, and RL agents that use extensive pretraining (e.g., 150M steps vs. less than 1M steps for us). When compared to just training longer in the original Crafter environment, an RL agent trained with EnvGen achieves significant improvements on the overall score and long-horizon tasks. In Heist, we also show that our LLM-generated environments can improve overall agent performance and training stability. We also show a qualitative study on how the LLM adapts training environments to help improve RL agents&apos; weaker skills over time. Finally, we provide comprehensive analysis and ablation studies of the design choices of EnvGen, including EnvGen vs. longer training in the original environment, adaptively updating LLM-generated environments vs. a fixed environment, different LLMs for generating environments, frequency of environment updates, the number of LLM-generated environments, and the mixture ratio between the original and LLM environment during training.
+
+
+EnvGen: Generating and Adapting Environments via LLMs for Training Embodied Agents 
+
+
+We propose EnvGen, a novel framework where an LLM adaptively generates training environments to train smaller embodied RL agents, enabling them to accomplish various tasks within an environment, particularly long-horizon tasks. During the training process, the LLM is given feedback (in the form of the agent&apos;s performance) and can adaptively update the training environments to progressively focus on improving the tasks that the agent is weak at. In the following, we first explain why it is challenging to explore long-horizon tasks in open-world games ([2.1]). Then we explain our method details, including how we generate environments and how agents are trained in the generated and original environments ([2.2]).
+
+
+FIGURE
+
+
+Preliminary: Exploration is Hard for Long-Horizon Tasks 
+
+
+In the RL framework, agents explore various states along a trajectory and amplify policies based on the rewards received from those trajectories. However, exploration for long-horizon tasks is slow and computationally expensive, as rewards for such tasks are sparsely given only after a sequence of successful actions that often involve achieving multiple subgoals. For example, the goal in Crafter [*REF*] is to unlock 22 achievements, where some achievements can be unlocked quickly through several simple actions and others require long chains of prerequisites (e.g., collect iron requires make stone pickaxe, which must be preceded by collect stone, ... etc.); see [3.1] for details. As shown in [*REF*], existing agents in Crafter spend most exploration steps learning low-level achievements but fail to unlock high-order achievements with many prerequisites.
+
+
+EnvGen Method Details 
+
+
+We introduce EnvGen, where we train an embodied RL agent in multiple LLM-generated environments (we refer to these as &apos;LLM environments&apos; in the paper) that progressively adapt to improve agent performance in multiple skills. The generated environments can provide various conditions (e.g., different terrains, or some subgoals are already achieved) so that agents can learn different skills in parallel and obtain more frequent rewards for long-horizon tasks. As shown in [2], EnvGen iterates *MATH* training cycles, each consisting of the following four steps:
+
+
+Step 1: Generate training environments with an LLM.
+
+
+As illustrated in step 1 of [2], we use an LLM (e.g., GPT-4 [*REF*]) to first generate *MATH* custom training environment configurations that can cover various objectives and skills that are required in the original environment. The following describes the LLM input prompt components used to create environment configurations.
+
+
+1. Task description: We provide a brief description of the environment and what the LLM should do (e.g., &quot;generate a set of training environments...&quot;).
+
+
+2. Game/simulator details: We provide a list of objectives that need to be achieved in the environment (e.g., &quot;collect coal, collect iron, etc.&quot; for Crafter); a list of which simulator settings can be controlled (e.g., terrain, agent inventory); and a list of constraints/rules that the simulator has (e.g., &quot;skeletons only spawn in mountains; cows only spawn in grass; ...&quot; for Crafter).
+
+
+3. Output environment configuration template: We provide a blank output configuration template (i.e., a JSON object where the environment settings are empty) to the LLM, and request it to fill in the values, creating *MATH* environment configurations. Along with filling the templates, we also ask the LLM to verbally explain the purpose for each environment (e.g., what the environment would teach the agent); this would help users easily understand the environment generation process.
+
+
+4. Adaptation feedback based on the RL agent&apos;s performance: We provide the LLM with the performance of the RL agent from the original environment (measured in step 3 and summarized in step 4), as feedback for adapting LLM environments to focus on skills that the RL agent is weak at. The feedback is given at the end of each cycle, so it is only provided to LLM from the second cycle onwards.
+
+
+The obtained environment configurations are then rendered in the game&apos;s simulator. [2] presents the summary of input prompt and output environments from the GPT-4 model. We provide more prompt details in the appendix.
+
+
+Step 2: Train a small RL agent in the LLM-generated environments.
+
+
+As shown in step 2 of [2], we first train the small RL agent in the LLM-generated environments. Concretely, we train the agent in the *MATH* LLM environments for *MATH* total steps in parallel.
+
+
+Step 3: Train and measure the RL agent&apos;s performance in the original environment.
+
+
+It is important to note that the goal of EnvGen is to improve the RL agent&apos;s performance in the original environment, instead of the performance only in the LLM environments. To help the RL agent effectively adapt to the original environment and provide the LLM with the current agent&apos;s performance as feedback, we train the agent and measure its performance in the original environment, as shown in step 3 of [2].
+First, to mitigate the overfitting to LLM environments, we train the agent in the original environment for *MATH* steps. Next, to find the skills that the RL agent needs to improve at, we test the agent in the original environment, without any parameter updates.
+Concretely, we measure individual success rates for each environment task (e.g., Crafter achievements). The agent performance is summarized (in step 4) and is provided to LLM as feedback (in step 1) to adapt training environments in the next cycle. Moreover, importantly, to obtain a more calibrated estimation of agent performance, we calculate the average and variance of the task-specific scores by testing agents with multiple random seeds (i.e., 12). Note this performance measuring takes minimal time and computation compared to the actual training steps (e.g., 30x faster in our experiments) as it does not involve backpropagation.
+
+
+Step 4: Send feedback to LLM to adapt environments (to focus on weak skills).
+
+
+We provide the LLM with the agent&apos;s performance from the original environment (measured in step 3), as feedback for updating LLM environments. Concretely, we list the agent&apos;s average task-specific success rate in percentages along with one standard deviation (e.g., &quot; *MATH* collect coal: 38% *MATH* 6%, defeat skeleton: 10% *MATH* 4% *MATH* &quot;), as shown in step 4 of [2]. In step 1 of the next cycle, the LLM can adaptively generate new environments (by using the agent&apos;s performance as feedback) to better help the RL agent learn the skills it is weak at (e.g., defeat skeleton). EnvGen iterates this four-step training cycle *MATH* times.
+
+
+Experimental Setup 
+
+
+In the following subsections, we present the benchmarks in which we evaluate EnvGen framework on ([3.1]) and the agent architectures that we use for experiments ([3.2]).
+
+
+Evaluated Benchmarks and Training Details 
+
+
+FIGURE
+
+
+Crafter.
+
+
+Crafter [*REF*] is an open-world 2D survival game focused on evaluating a broad range of agent capabilities (see [3]). Crafter features 22 achievements that an agent can unlock during an episode of play. Some achievements can be unlocked in a few steps (e.g., collect wood, collect sapling, etc.), but other achievements, such as make iron pickaxe or collect diamond, require many training/exploration steps and several prerequisite achievements to be unlocked (see [3] b). For example, to make a stone pickaxe, an agent must first collect enough wood to make a table and a wooden pickaxe, then go collect stone and return to the table (or collect more wood to make a new one) and then construct the stone pickaxe. As an agent progresses, these prerequisite achievements become increasingly compounded (e.g., an iron pickaxe requires a table + a stone pickaxe + a furnace + some coal + some wood), making it incredibly difficult to complete all achievements. The score for Crafter is computed as the geometric mean of individual success rates of each achievement for each episode it is completed within 1M training steps: *MATH*, where *MATH* is the average success rate of the *MATH* th achievement across all episodes that occurred during training.
+
+
+For EnvGen setup, we use *MATH* training cycles during agent training (see for ablation of having a different number of cycles). Each cycle uses 0.12M LLM-generated environment steps (i.e., Crafter *MATH* steps, see step 2 in [2]) and 0.12M Crafter steps ( step 3 in [2]) and then we train for 1M steps in Crafter. In total, we train for 1.96M steps ((0.12M + 0.12M) *MATH* 4 + 1M). Note that in order to maintain a fair score comparison to baselines, we do not count any achievement during our training cycle for score calculation since the training scores derived from LLM environments and the original environment are not directly comparable. Instead, we only take into account the achievements from the last 1M training steps in Crafter for the score calculation. We also experiment with giving the baseline model additional original environment steps to match the number of EnvGen steps (i.e., an additional 0.96M steps) to ensure that EnvGen is not better simply because of more steps. We report the average performance with 30 runs (= 3 different initial LLM-generated Crafter *MATH* environments *MATH* 10 different random seeds).
+
+
+FIGURE 
+
+
+Heist.
+
+
+Heist is part of the OpenAI Procgen [*REF*] benchmark. In this environment, agents must successfully &apos;steal&apos; the gem after navigating a maze and opening all locks (see FIGURE). The gem is behind three layers of color-coded locks, each requiring that the previous lock be unlocked first (e.g., to unlock the green lock, the blue lock must first be unlocked). Following [*REF*], the final score is calculated as the average success of the agent in stealing the gem in 100 test episodes in 10 different seeds (i.e., 1,000 runs in total).
+For agent training, we use a total of 5M steps in the LLM-generated environments (i.e., 5M Heist *MATH* steps) and a total of 20M in the actual Heist environment. As the game only provides scores on the final objective (&apos;steal gem&apos;) and the game is simple enough for the LLM-generated environments to cover all scenarios with one generation, we only use *MATH* training cycle.
+
+
+Agent Architectures 
+
+
+Our base RL agent.
+
+
+For both Crafter and Heist, we test the EnvGen framework with a simple (CNN + linear layer) and lightweight *MATH* agent used in [*REF*], which is slightly modified from the agent architecture used in IMPALA [*REF*]. Following [*REF*], we train the agent with a PPO [*REF*] objective. At every step, the agent takes an RGB image (surroundings for Crafter, entire maze for Heist) as input and outputs the value estimates and policy (action probability). See [3] (a) for example visual inputs for agents. We provide additional model implementation details in the appendix.
+
+
+Baseline methods.
+
+
+For Crafter, we compare our method to two groups of recent baselines -- (1) methods that use frequent (i.e., more than thousands of) LLM calls during training or inference: SPRING [*REF*] (based on GPT-4 [*REF*]) and ELLM [*REF*] (based on Codex [*REF*]) and (2) methods that do not use an LLM during training or inference: DreamerV3 [*REF*], MuZero + SPR [*REF*], LSTM-SPCNN [*REF*], PPO [*REF*], and Achievement Distillation (AD) [*REF*]. For Heist, we compare against the PPO agent. For the PPO and AD agents, we follow the implementation of [*REF*]. See appendix for the PPO/AD agent details.
+
+
+Results and Analysis 
+
+
+We demonstrate the usefulness of the EnvGen method with comprehensive experiments and analysis. We first compare RL agents trained with EnvGen to different baseline methods on Crafter, an open-world game with 22 hierarchical achievements ([4.1]). Next, we present a detailed analysis of the improvements that training with EnvGen environments can give RL agents on long-horizon tasks ([4.2]). Then, we analyze how the LLM-based environment adaptation can help an RL agent progressively improve the skills that the agent is weak at ([4.3]). Moreover, we also compare an RL agent&apos;s performance on Heist (a maze navigation game), with and without EnvGen environments ([4.4]). Lastly, we present various ablation studies on EnvGen design choices ([4.5]).
+
+
+Comparison with State-of-the-art Methods on Crafter Environment 
+
+
+Small RL agent trained with EnvGen outperforms state-of-the-art baselines.
+
+
+On the Crafter environment (described in [3.1]), we compare a small PPO agent trained in Crafter *MATH* (i.e., Crafter environments generated with EnvGen) to state-of-the-art baseline methods. As shown in TABLE, we find that a small (4M parameters) PPO agent with EnvGen achieves an average score of 32.2% and significantly outperforms the baselines (and also in terms of the average reward). Note that some baseline agents have many more parameters or pretraining steps such as SPRING (27.3%) that directly employs GPT-4 as agent, and MuZero + SPR (16.4%) that uses 150M pretraining steps. Also, note that our method only uses orders of magnitude fewer LLM calls (only 4) than works like SPRING (2.7K on average) and ELLM (5M). Due to the large number of LLM calls, SPRING costs around $270 USD to run an agent in a single episode, whereas EnvGen only costs a couple of cents total for any number of episodes (see appendix for cost details). Moreover, we find that EnvGen can help train another small RL agent -- Achievement Distillation (AD) [*REF*] -- to achieve an even higher score (35.3%).
+
+
+Detailed Achievement Analysis on Crafter Environment 
+
+
+Next, we analyze where EnvGen improves the overall score by checking individual achievement success rates in detail. For this, we compare the same PPO agent architecture trained with different setups: (1) an agent trained on Crafter for 1.96M steps and (2) an agent trained on Crafter *MATH* for 0.96M steps (0.24M steps *MATH* 4 training cycles, see [2.2]) and then trained on Crafter for 1M steps. We measure the success rate ([4]) of each achievement and unlocking speed ([5]) of iron tools in the last 1M training steps, and discuss the results below.
+
+
+FIGURE
+
+
+EnvGen helps RL agents to tackle challenging long-horizon achievements.
+
+
+[4] shows that training in Crafter *MATH* improves scores of several achievements.
+Notably, training in Crafter *MATH* significantly improves the scores of long-horizon achievements (with many prerequisites; see [3]) such as &apos;make stone pickaxe&apos;, &apos;make iron pickaxe&apos;, and &apos;make iron sword&apos;.
+[5] shows that after unlocking the stone pickaxe, the RL agent trained in Crafter *MATH* is significantly faster in unlocking iron tools compared to the RL agent trained only in Crafter -- 40K vs. 135K steps for &apos;make iron pickaxe&apos; and 192K vs. 925K steps for &apos;make iron sword&apos;. In the appendix, we additionally show the comparison between two AD [*REF*] agents, where the agent trained in Crafter *MATH* can also improve the success rate of another challenging long-horizon achievement -- &apos;collect diamond&apos;.
+
+
+FIGURE
+
+
+FIGURE 
+
+
+Adaptation of Training Environments Helps the Agent Improve Weaker Skills 
+
+
+[6] shows how the LLM adaptively generates new training environments based on the intermediate performance of our PPO-based RL agent. In the intermediate performance plots, we compare the [baseline agent] trained only in Crafter and [our RL agent] trained in Crafter *MATH*. In the cycle 2, given the feedback that the current RL agent is not good at collecting coal, the LLM could generate an environment to help the agent focus on the skill, improving the agent performance in &apos;collect coal&apos;. Likewise, in the cycle 3, given the feedback that the agent is weak at making stone pickaxe, the LLM could generate an environment to help the agent more easily craft the stone pickaxe, helping the agent improving the score in &apos;make stone pickaxe&apos;. Powered by the adaptive LLM environment generation of EnvGen, our agent learns to unlock these two achievements significantly faster than the baseline agent.
+
+
+Evaluation on Heist Environment 
+
+
+EnvGen can generalize to Heist.
+
+
+We also evaluate the effectiveness of EnvGen framework with another game environment -- Heist, a maze navigation game described in [3.1]. We compare the PPO-based agent trained with and without EnvGen (i.e., Heist *MATH* environments).
+TABLE shows that training an agent with Heist *MATH* environments is effective in improving performance by increasing average scores (25.9% *MATH* 37.7%) and rewards (4.1% *MATH* 5.5%), while also stabilizing training by reducing the score variance (i.e., standard deviation goes down 13.2% *MATH* 7.5%).
+
+
+Additional Analysis and Ablation Studies 
+
+
+In the following, we show comprehensive ablation studies of EnvGen method: EnvGen vs. longer training in the original environment, dynamically updating LLM environments (i.e., using adaptive environments) vs. using a fixed LLM environment, different LLMs for generating environments, frequency of environment updates, the number of LLM environments, and the ratio of training steps in the LLM environments to the original environment. Unless otherwise noted, we use the PPO-based agent [*REF*] (described in [3.2]) on the Crafter [*REF*] benchmark (described in [3.1]) with 0.96M steps in Crafter *MATH* and average results for 30 runs (10 different seeds, 3 different initial environments).
+
+
+EnvGen vs. longer training in the original environment.
+
+
+TABLE shows that when given an equivalent  of total training steps, the agents trained with Crafter *MATH* environments outperform the agents only trained with Crafter (e.g., 22.3% vs. 21.1% for 1.24M total steps). Although the agent performances tend to improve with longer training steps in both settings, training with EnvGen shows stronger performance gains than only training longer in Crafter (e.g., 32.2% vs. 26.4% for 1.96M total steps).
+
+
+Adaptive environments: Fixed. vs. Updated based on RL agent performance.
+
+
+TABLE shows that using LLM environments that are adaptively updated based on intermediate agent performance to improve weaker skills results in overall higher scoring agents than just using the initial LLM environments for the whole training (32.2% vs. 29.9%). These results indicate the effectiveness of the agent feedback and environment updating (step 4 described in [2]).
+
+
+Different LLMs to generate environments.
+
+
+To figure out which LLM can generate more useful training environments, we experiment with three different LLMs (GPT-4-Turbo, GPT-3.5-Turbo [*REF*], and Deepseek Coder 33B Instruct [*REF*]) and use *MATH* (i.e., fixed environment).
+TABLE shows that environments generated by GPT-4-Turbo outperform that of other LLMs including GPT-3.5-Turbo and Deepseek Coder 33B Instruct. We see that GPT-3.5-Turbo performs the worst with only a score of 21.5%, while Deepseek 33B Instruct is able to get several points higher (26.3%) and GPT-4-Turbo, our default LLM, gets a few extra points (29.9%).
+
+
+Frequency of LLM feedback / environment updates.
+
+
+TABLE shows that updating the LLM environments at every 0.12M steps results in the best agent performance.
+While increasing the cycles of environment feedback beyond 4 does not improve further, we find that updating environments with feedback always helps improve the RL agent&apos;s performance compared to training only with the original Crafter environment (26.4%) or the fixed LLM environment (29.9%).
+
+
+Number of LLM environments.
+
+
+TABLE shows that changing the number of environments generated by the LLM at each cycle (i.e., 1, 2, 4, and 8) can slightly affect agent performance. While training with four environments produces the highest result, training with environments generated with any of the tested configurations improves performance over training only with the original Crafter environment (26.4%).
+
+
+Ratio of training steps: LLM environments vs. original environment.
+
+
+As mentioned in [2.2], in EnvGen, we train the RL agent in LLM environments (step 2) and then in the original environment (step 3) to mitigate the agent from overfitting to the LLM environments. We experiment with different ratios of training steps in LLM environments (i.e., Crafter *MATH* ) compared to training steps in the original Crafter environment (e.g., 2:1 indicates that for every two training steps in Crafter *MATH*, the RL agent gets one training step in Crafter). As shown in TABLE, while different ratios do not result in big differences, the default 1:1 ratio provides the highest scores.
+
+
+Related Works 
+
+
+LLMs as open-world game agents.
+
+
+As LLMs have shown rapid progress in various domains [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*], recent works study using LLMs to create action plans (i.e., a list of subgoals or skills to target) for embodied agents in open-world games like Minecraft and Crafter [*REF*]. Most of these methods require calling LLMs frequently (e.g., at every step) for planning the next steps [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Other methods, such as [*REF*; *REF*; *REF*; *REF*], have used LLMs to create/adjust rewards to train agents. Although these works show initial promising results leveraging the world knowledge of LLMs to tackle long-horizon tasks, iteratively calling LLMs throughout episodes is prohibitively slow and expensive (e.g., running a single episode in the Crafter environment with SPRING [*REF*] costs around $270 USD as they have 2.7K LLM calls on average). EnvGen framework proposes an alternative: calling LLMs only a few times (e.g., 4) throughout the learning process to create training environments that focus on helping the RL agent progressively improve the skills that the agent is weak at.
+
+
+Reward designs in reinforcement learning.
+
+
+Finding good action trajectories is critical in reinforcement learning (RL) [*REF*]. While classic random exploration algorithms such as epsilon-greedy [*REF*] work well in simple settings such as multi-armed bandit, it is not the case for hard exploration problems where the environment gives very sparse rewards [*REF*].
+A line of work studies how to augment the original (extrinsic) rewards from the environment with intrinsic rewards that encourage exploration [*REF*; *REF*].
+While such intrinsic rewards can help RL agents discover novel states and improve their knowledge about the environment, it often requires long pretraining and does not guarantee that the intrinsic reward can help the target task. Another recent line of work studies using LLMs to adjust reward functions to help RL agents progressively learn certain tasks [*REF*; *REF*; *REF*; *REF*].
+Instead of designing new rewards, in EnvGen, an LLM adaptively generates training environments that can help the RL agent learn multiple skills it is weak at with fewer training steps than in the original environment; reward design could be complementary to our method.
+
+
+Deep learning-based game/simulator content generation.
+
+
+Procedural content generation (PCG) for games is about the automatic generation of levels, landscapes, items, rules, quests, or other types of game contents [*REF*]. While traditional PCG methods are based on search/solver/rule/grammar-based methods, recent works study applying deep learning methods such as GAN [*REF*] for PCG [*REF*; *REF*; *REF*].
+Several works have recently explored using LLMs to generate game content such as difficulty levels [*REF*; *REF*] and scenes/environments [*REF*; *REF*; *REF*].
+While these works study how to help developers create extra/new game content in simulators, generated environments may not be good for teaching agents how to play/be better in the original environment. Our work studies using LLMs to adaptively generate training environments that teach multiple useful skills to produce better-performing embodied RL agents. Beyond game content generation, several recent works investigate visually augmenting vision-and-language navigation (VLN) simulators (e.g., rendering the environments with different styles) using image generation models [*REF*; *REF*; *REF*]. Such works could complement our LLM-based environment generation (e.g., rendering our LLM-generated environments with diverse colors and textures).
+
+
+Conclusion 
+
+
+We propose EnvGen, a novel framework to improve embodied agent performance by utilizing the world knowledge of LLMs to adaptively generate customized training environments that progressively teach agents different skills more effectively. In EnvGen, we give an LLM a prompt describing a game/simulator and ask the LLM to generate the configurations to create new environments that can teach different skills. Next, we train the agents in the LLM-generated environments and give feedback to the LLM by testing the agent performance in the original environments, and then ask the LLM to update the environments to teach agents skills they are weaker at. We experiment with two different games, Crafter and Heist, and find that our EnvGen framework effectively can increase agent performance. We also demonstrate that training in LLM-generated environments can be more effective than just training longer in the original environments when learning long-horizon tasks. Moreover, we show that a lightweight model ( *MATH* 5M parameters) trained with LLM-generated environments can even outperform an LLM agent, with significantly fewer LLM calls. We also show comprehensive analyses of our results and ablation studies validating the design choices of EnvGen framework. We hope our work can guide future works in leveraging LLMs for training embodied agents.

@@ -1,0 +1,204 @@
+OPEx: A Component-Wise Analysis of LLM-Centric Agents in Embodied Instruction Following
+
+
+Introduction
+
+
+Embodied learning, particularly through tasks like Embodied Instruction Following (EIF) [*REF*], stands at the forefront of artificial intelligence research. EIF, where agents must interpret natural language instructions to navigate and act within their environment using egocentric observations, epitomizes the challenge of integrating cognitive understanding with physical action. This intersection is crucial for developing autonomous agents capable of nuanced interaction with complex, real-world environments, marking a significant stride towards more advanced and versatile AI systems. As the research community harnesses advancements in deep learning, we edge closer to this ambition [*REF*; *REF*; *REF*; *REF*].
+
+
+Traditional approaches to Embodied Instruction Following (EIF) often rely on expert-generated annotations, a process that can be both expensive and challenging to scale for real-world applications. In contrast, Large Language Models (LLMs), such as those cited in recent studies [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*], have emerged as a potent alternative, showcasing exceptional capabilities in natural language understanding and generation. These models, enriched by extensive textual datasets, demonstrate significant common-sense reasoning abilities. As a result, there&apos;s a growing trend towards leveraging LLM-centric architectures for embodied learning tasks including EIF, which promise to simplify planning and execution tasks through a few-shot learning paradigm. However, despite their potential, the implementations of EIF systems introduce a variety of designs and components across different studies [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+There remains a notable gap in systematically understanding how these disparate elements influence overall task performance, underscoring the need for a thorough analysis of LLM-centric methods within the context of EIF.
+
+
+In addressing the complexities of Embodied Instruction Following (EIF), we introduce OPEx, a novel framework designed to systematically outline the essential components for mastering embodied learning tasks. OPEx is segmented into three core parts: Observer, Planner, and Executor. The Observer component is tasked with processing and interpreting sensory inputs, primarily visual, to construct an actionable understanding of the agent&apos;s immediate environment. The Planner dynamically devises strategic plans as subtasks to complete the tasks based on perceptual inputs, effectively bridging the gap between perception and action.
+Lastly, the Executor is responsible for implementing these plans with a skill library, which translates several re-useable skills into precise, context-aware actions within the environment, ensuring the agent&apos;s interactions are both relevant and goal-oriented. This tripartite structure provides a clear delineation of roles within the system, facilitating a granular analysis of how each contributes to the overarching performance of EIF tasks.
+
+
+To understand the impact of each OPEx component on performance in EIF tasks, we conducted an in-depth analysis. By experimenting with different versions of the Observer, Planner, and Executor components, we assessed how each contributes to and influences overall success. This approach allowed us to identify the key attributes and design choices that enhance the system&apos;s ability to tackle complex embodied tasks, providing clear insights into optimizing embodied learning agents.
+
+
+To further unlock the potential of LLMs in embodied learning, we eliminate the influence of visual perception and low-level action execution of the system utilizing a pure-text counterpart environment [*REF*] and further adopt a multi-agent dialogue strategy, splitting the instruction-following challenge into distinct reasoning and grounding roles handled by a reasoner agent and an actor agent, respectively. This dialogue-driven approach simplifies the task into decision-making processes, where both agents utilize world knowledge obtained from an explorer. This explorer gathers insights either through direct interaction with the environment or from human contributions, thereby enriching the collaborative problem-solving capabilities of the reasoner and actor with more grounded and informed decision-making.
+
+
+Our experimental evaluation was conducted using the ALFRED [*REF*] and ALFWorld [*REF*] benchmarks, providing a comprehensive testing ground for our extensive evaluation. The core analysis of our experiments underscores significant advancements: the LLM-centric approach notably enhances performance in EIF tasks. We pinpoint visual perception and low-level action execution as pivotal bottlenecks. Moreover, our results affirm that incorporating a multi-agent dialogue strategy into an LLM-centric task solver significantly boosts overall task performance on AFLWorld, showcasing the effectiveness of our proposed methodology in addressing the complexities of embodied learning tasks.
+
+
+Task Formulation 
+
+
+We benchmark our method with ALFRED [*REF*] and its TextWorld counterpart ALFWorld [*REF*]. Both contain a set of environments associated with long-horizon household tasks specified by natural language instructions. The language instruction *MATH* consists of instructions at two different levels: a high-level instruction goal *MATH* that summarizes the task and a sequence of low-level instructions *MATH* that depict the specific actions required. At the time step *MATH*, ALFRED also provides a visual egocentric observation *MATH* (text observation *MATH* if on ALFWorld) represents the world state *MATH*.
+
+
+Given the language instruction *MATH* and an initial observation *MATH* (*MATH* if on ALFWorld), the agent&apos;s objective is to generate an execution trajectory *MATH*, where *MATH* is the action taken by the agent at time step *MATH*, and *MATH* is the observation of the world state *MATH* caused by that action. The action space *MATH* can be categorized into two classes: navigation actions *MATH* and interaction actions *MATH*, respectively. In practice, we follow the setting of FILM [*REF*], where the navigation actions *MATH* are constrained to discrete values, and a pixel-wise interaction mask of the target object must be specified for interaction actions *MATH*. There are seven types of household tasks, of which each episode is terminated either if an agent meets the goal conditions specified in *MATH* (success) or reaches the maximum number of steps (fail). See Appendix. [7] for a task example in ALFRED.
+
+
+FIGURE
+
+
+Methodology
+
+
+We first provide an overview of the proposed LLM-centric framework (OPEx) in Figure [1]. OPEx consists of six components: (1) A semantic mapping module to transform the egocentric visual observation into a semantic map; (2) An LLM-based planner to decompose the specified language task instruction *MATH* into subtasks *MATH*; (3) An LLM-based observer to gather information from the environment and depict the partially observed world state *MATH* at the current time step *MATH* as natural language description *MATH*; (4) An LLM-based executor to receive the world state description *MATH* and select skill from a set of pre-defined skills to complete the current subtask *MATH*; (5) A skill library *MATH* to store the skills manipulating the agent in the simulated environment (e.g, NavigateTo, LookAround, and Explore); (6) A deterministic action policy to convert the skills into low-level actions (e.g., RotateRight).
+
+
+Semantic Mapping Module
+
+
+The goal of the semantic mapping module is to create a 2D semantic map *MATH* from a top-down perspective (i.e., a map of explored areas, obstacles, and detected objects). At each time step *MATH*, this module receives the egocentric visual observation *MATH* of the world state *MATH* as input, which is then processed into a depth map and instance segmentation using a UNet [*REF*] and a MaskRCNN [*REF*] (or ZoeDepth [*REF*] and SOLQ [*REF*] as stronger perception models). Following FILM [*REF*], we use the implementation from [*REF*] for UNet-based depth estimation and [*REF*] for MaskRCNN-based instance segmentation. Then, a point cloud is constructed from the depth prediction and instance segmentation. Finally, the point cloud is binned into a voxel representation and then transformed into the 2D semantic map *MATH* by summing over the height of the voxel representation, which is updated and aggregated over time steps. Due to the inherent difficulty in achieving a flawless perceptual model, the resulting semantic map *MATH* often includes noise. This noise has the potential to exacerbate the challenges associated with locating navigational targets and subsequently affect the performance. To address such kind of issues, we introduce a supplementary semantic map denoted as *MATH*, which aggregates the information from *MATH* over successive time steps. The intuition resembles a form of majority voting: when an object is recognized as a fridge across more viewpoints than as a wall, its likelihood of being a fridge over a wall should be proportionally increased. The two semantic maps work in a cascading manner: when the agent tries to identify an object from the maps, the initial search is conducted within *MATH*. *MATH* is only utilized if the object cannot be located within *MATH*.
+
+
+LLM-based Planner
+
+
+The goal of the LLM-based planner is to decompose a specified language instruction *MATH* into a sequence of subtasks *MATH*. In practice, we utilize Chain-of-Though (CoT) [*REF*] to prompt GPT-4 [*REF*] with in-context learning. The corresponding prompt examples are demonstrated in the Appendix.
+
+
+Example Selector
+
+
+We have collected a set of prompt examples from 10 episodes within the training split for each of the 7 task types, amounting to a total of 70 episodes. As shown in [*REF*], choosing which in-context examples to add to the prompt can impact the overall performance. Therefore, we further apply an example selector to provide the LLM-based planner with the most relevant examples by ranking the examples based on the similarity of the input test case and the examples. In practice, we employ the example selector from LangChain [*REF*], which first ranks the examples based on the corresponding embeddings that have the greatest cosine similarity with the inputs, then select top- *MATH* examples for in-context learning.
+
+
+LLM-based Observer
+
+
+The goal of the LLM-based observer is to extract information from the environment feedback and the agent state, and present it in the form of a natural language description *MATH* in a zero-shot manner. The rationale behind the design of the LLM-based observer is twofold: (1) to gather and render the state of the environment, enabling the tracking of environment dynamics across time steps and facilitating dynamic planning and acting; and (2) to summarize the information into a task-centric description, thereby safeguarding the LLM-based executor against distractions and hallucinations. The LLM-based observer is querying GPT-3.5-turbo with the prompt format shown in the Appendix.
+
+
+LLM-based Executor
+
+
+Given the current subtask *MATH*, the language description of the world state *MATH* at time step *MATH*, the goal of the LLM-based executor is to complete the subtask *MATH* by iteratively manipulating the agent in the environment with a set of pre-defined skills from a skill library *MATH*. In contrast to the LLM-based planner, which predominantly depends on the reasoning prowess of LLMs, the LLM-based executor is tasked with active engagement within the environment and acquiring an understanding of the environment dynamics (for instance, in ALFRED, objects can be cleaned by placing them into a sink basin and toggling on the faucet) from the feedback. To this end, inspired by ReAct [*REF*], we prompt the LLM-based executor (a GPT-4 model) to generate both reasoning traces and action plans (composed of skills in *MATH*), allowing for greater synergy between the two: reasoning traces help the model induce, track, and update action plans as well as handle exceptions, while actions allow it to interface with and gather additional information from the environment. The input for LLM-based Executor&apos;s prompt template is generally composed of the language-based observation *MATH*, found objects, objects detected in the current view, short-term memory of the action plan for the current subtask, which is cleared once the current subtask is finished, and the current subtask *MATH*. The LLM-based executor is required to generate both the reasoning traces (the &quot;Thought&quot; part in the Executor&apos;s output) and the action plans. The action space of the LLM-based executor is {Play, Finish}, where the action Play is utilized to interact with the environment or request re-planning of the current plan *MATH*, and the action Finish is used for finishing the action planning for the current subtask *MATH*. The action Play receives two arguments as the inputs: [*MATH*, *MATH*] (e.g., Play[NavigateToObject,Table]), where *MATH* is the pre-defined skills in the skill library, and *MATH* is the target argument of the corresponding skill action *MATH*.
+
+
+Skill Library
+
+
+We design a skill library to empower the LLM-based executor with the following capabilities: (1) reasoning over language to track progress, handle exceptions or adjust the plan according to the situation; (2) acting to support the reasoning and collect information about the environment dynamics by controlling the agent. Apart from all the interaction actions *MATH*, we have designed several additional skills, including NavigateToObject, Explore, LookAround, and RequireReplan. The NavigateToObject skill empowers the LLM-based executor with the capability to set the landmark-based navigation goal, it takes a found object in the room as the skill action target *MATH*. The Explore skill enhances the LLM-based executor&apos;s ability to guide the agent in room exploration by sampling navigation goals from traversable areas, and it requires no skill action target. It is worth noting that we have an initial exploration heuristic for the first four calls of the Explore skill, we set the four corners of the room with a higher exploration priority. The RequireReplan provides the LLM-based executor with the capability to dynamically adjust the plan, improving the robustness to exceptions and producing more probability for it to learn from the environment dynamics. The LookAround skill enables the LLM-based executor to manipulate the agent to look around the environment to get a more comprehensive observation of the room.
+
+
+Deterministic Action Policy
+
+
+Given the current instruction specified by the action plan [*MATH*  *MATH*] from the LLM-based executor, the deterministic action policy of OPEx outputs a navigation or interaction action based on a set of heuristics, which is quite similar to that of FILM. Both policies generally follow the following procedure: if the target object is observed in the semantic map, the closest instance is selected as the final navigation goal. Otherwise, the final navigation goal is set as the exploration navigation goal. After goal determination, the agent employs the Fast Marching Method [*REF*] to navigate towards the navigation goal.
+Additionally, when the target object is within the agent&apos;s egocentric visual range, the policy will try to conduct the interaction or adjust the position to prepare for the interaction action. The deterministic action policy of OPEx mainly differs from that of FILM in three aspects.
+Firstly, the deterministic action policy of OPEx is equipped with a slice replay heuristic, which tracks the location of successful execution of SliceObject for easier going back. Secondly, instead of directly setting the location of the target object as the navigation goal, we sample a traversable location based on the distance to the target object as the navigation goal (noted as &quot;traversable goal heuristic&quot;). Thirdly, instead of directly utilizing the semantic map *MATH* to determine whether the target object is found and get the navigation goal for that object, we adopt the additional semantic map *MATH* to achieve this in the first place. If the target is not found in *MATH*, the original semantic map *MATH* is then utilized. We prioritize *MATH* as it is supposed to be more robust to the errors from the perception models.
+
+
+Prior Knowledge Integration
+
+
+Due to the lack of prior knowledge of the specific environment, OPEx frequently fails even on ALFWorld where the impact of perception and action modules are ablated. For instance, OPEx may continuously fail for trying to pick up objects across various episodes due to the lack of the knowledge that agent can not directly hold more than 1 object in ALFRED.
+Furthermore, a system with a single agent trying to handle planning and grounding simultaneously often struggles to learn the optimal timing for switching between planning and grounding. To bridge the gap, we propose improving OPEx by splitting the reasoning and grounding issues with a multi-agent dialogue strategy and marrying it with the world knowledge, which is obtained from an explorer by interacting with the environment or collecting human contributions. Specifically, we first deploy the agent to explore the ALFWorld environment and collect action-observation sequences *MATH*, where *MATH*.
+Then an LLM-based module or human is required to observe the action-observation sequences and summarize the world knowledge learned from *MATH* as prior knowledge candidates *MATH*.
+After that, an LLM-based filter is applied on *MATH* to eliminate contradictory and duplicated world knowledge, which results in the final set of world knowledge *MATH*. Finally, the world knowledge *MATH* is integrated into the prompt templates of the multi-agent dialogue strategy, where a reasoner depicts general plans solving the task and the actor ground the plans as executable actions in the environment.
+
+
+Experiments and Discussion
+
+
+Experiment Setup
+
+
+Evaluation Splits
+
+
+The ALFRED benchmark consists of training, valid, and test sets. Both valid and test sets are composed of seen and unseen splits, where the unseen splits consist of rooms that do not appear in the training set.
+Following [*REF*], we evaluate our methods on 134 unseen evaluation games for the ALFWorld benchmark.
+
+
+Evaluation Metrics
+
+
+Following [*REF*; *REF*], we report four evaluation metrics on AFLRED: (1) Success Rate (SR); (2) Goal Condition (GC), the ratio of goal conditions completed at the end of an episode; (3) path length weighted SR (PLWSR), the SR weighted by (path length of the expert trajectory)/(path length taken by the agent); (4) path length weighted GC (PLWGC), the GC weighted by the same factor.
+Following [*REF*], we report SR on ALFWorld.
+
+
+TABLE
+
+
+Compared Methods
+
+
+The compared methods on ALFRED include LAV [*REF*], where the raw language and visual inputs are transformed into structured forms, with a separate &quot;action prediction module&quot; predicting the low-level actions; HLSM [*REF*], a hierarchical approach that uses semantic voxel map state representation as a long-term memory to solve long-horizon tasks; LGS-RPA [*REF*], which utilizes a Djikstra-based deterministic planner for navigation action generation and introduces landmark-guided search along with the reinforced pose adjustment for navigation goal searching and interaction action preparation respectively; EPA [*REF*], a neural-symbolic approach with symbolic planning; LLM-Planner [*REF*], which simply prompts LLMs for task decomposition; FILM [*REF*], which builds 2D semantic map and performs exploration with a semantic search policy. It is worth noting that there are also several works on the leaderboard reporting high performance that are not included in the comparison [*REF*; *REF*; *REF*], this is mainly because we focus on systematically outlining and evaluating the essential components for mastering EIF tasks, while we cannot find the description or available open-source resources of these works when we conduct the experiments. On the ALFWorld benchmark, apart from the variants of OPEx, we also introduce ReAct [*REF*] for comparison to demonstrate the effectiveness of the proposed method.
+
+
+Experimental Results
+
+
+The main results are illustrated in Table . When contrasting OPEx with the baseline FILM, it becomes evident that OPEx exhibits substantial improvement across two distinct environmental settings, encompassing both the goal condition (GC) and the success rate (SR). Notably, OPEx utilizes in-context learning on less than 10% data used for FILMs&apos; planner (Language Processor) training, while OPEx still significantly outperforms FILM. The observation that OPEx achieves 17.74% and 16.78% absolute gain in SR on test seen and unseen split respectively empirically demonstrates the effectiveness of the OPEx framework.
+However, it is also worth noting that the OPEx is inferior to FILM concerning the path length weighted metrics. This phenomenon could potentially be attributed to the deliberate choice of assigning a higher maximum number of failures to OPEx as compared to FILM. This choice typically leads to the average length of the resulting episodes. The rationale behind this decision was to encourage OPEx to undertake a more extensive exploration, thereby fostering the acquisition of skills in handling a broader range of exceptions arising from both uncommon scenarios and failures. On the other hand, the FILM utilizes two BERT models trained on the whole training set with the template assumption to conduct the task decomposition, while the LLM-based planner can achieve this goal with only a bunch of examples. This phenomenon shows that OPEx works with a much lower demand for in-domain data, making it more feasible in real-world scenarios, where the data collection could be more time-consuming and expensive. Furthermore, the FILM outputs low-level navigation and interaction actions solely with a deterministic policy, while OPEx introduces an LLM-based executor accompanying the deterministic policy to release LLMs&apos; potential for robust language grounding and exception handling in the embodiment environment. Overall, the main results empirically demonstrate that it could be feasible to develop embodied experts with low demand for in-domain data by mining LLMs&apos; potential for grounded planning and acting.
+
+
+Ablation Study and Analysis
+
+
+To further investigate the bottleneck of the system and the influence of different modules, we conduct several additional ablation studies.
+
+
+Influence of perception models
+
+
+We first conduct controlled experiments on the valid unseen split of the AFLRED dataset to study the influence of perception models. The corresponding results are illustrated in the first section of Table [1], where OPEx-S denotes the OPEx with stronger perception models (fine-tuned ZoeDepth [*REF*] for depth prediction and SOLQ [*REF*] for instance segmentation), OPEx-P denotes the OPEx with perfect ground-truth depth prediction and instance segmentation. The performance gain from the improvement of perception models is very significant, indicating there is much room for improvement regarding the perception models in ALFRED.
+
+
+Influence of action policies
+
+
+As shown in the second section of Table [1], we design and conduct another set of controlled experiments to study the influence of distinct deterministic action heuristics introduced. It can be seen from the table that setting the navigation goal inside the traversable area brings the most significant performance improvement, while slice replay brings marginal improvement. Besides, introducing the additional semantic map for robust landmark-based navigation goal searching brings moderate performance gain.
+
+
+Influence of LLM-based modules
+
+
+We first conduct controlled experiments on the validation unseen split of the dataset to study the influence of different modules. The corresponding results are illustrated in Table [1]. Significant performance degradation can be observed when the LLM-based planner is removed from the OPEx. This is probably attributed to the fact that the LLM-based executor is required to solely perform implicit long-term planning and grounded interaction simultaneously under this setting. The LLM-based observer is designed to gather information and help the LLM-based executor to focus on task-relevant information by summarizing collected information and filtering out the task-irrelevant counterparts. However, the ablation study shows that the performance gain brought by the LLM-based observer is marginal. This observation can be caused by several possible reasons, including (1) GPT-4&apos;s strong long text processing capability mitigates the needs of such kind of LLM-based observer; (2) the collected information from ALFRED is typically not too large/complex to cause severe distraction or hallucination of the LLM-based executor; (3) the observer utilizes zero-shot prompt, better prompts may need to be designed.
+
+
+Influence of prior knowledge
+
+
+To further investigate the role of decision-making modules in EIF agents, we conduct experiments on ALFWorld to eliminate the impact of perception models and action policies. The corresponding results are illustrated in the fourth section of Tabel [1], where OPEx-L denotes the OPEx with prior knowledge learned from the environment and OPEx-H denotes the OPEx with prior knowledge provided by humans. With the observation that the system performance grows as the quality of the prior knowledge increases, this can be empirically explained by the intuition that decomposing EIF tasks via a collaborative multi-agent dialogue strategy helps intra-agent specialization and inter-agent cooperation. Besides, the intuition that the grounded prior knowledge prevents the agents from repetitive errors and facilitates grounded exception handling might also contribute to the results. Furthermore, the performance improvement of ReAct also empirically demonstrates the effectiveness of the proposed method.
+
+
+TABLE
+
+
+Low demand for in-domain data
+
+
+To assess the efficiency of in-domain data usage, we conducted experiments comparing OPEx with the baseline FILM. The FILM is trained on identical data used for in-context learning of OPEx. The corresponding results are presented in Table [2]. Our findings indicate that OPEx markedly outperforms FILM across all evaluation metrics in the unseen validation split. Empirically, this suggests that OPEx requires significantly less in-domain data compared to FILM. This controlled study underscores the potential of addressing embodied tasks through an LLM-based framework. This framework achieves low in-domain data demand EIF by integrating feedback mechanisms, closed-loop grounded planning, and action, harmonized with the reasoning and common sense capabilities of Large Language Models (LLMs). Moreover, it also prompts our further exploration into the trade-off between in-domain data efficiency and inference overhead, inspiring future directions, such as devising agents that adeptly integrate both common sense and in-domain knowledge in a data-efficient manner.
+
+
+Error mode analysis
+
+
+We conduct the error mode analysis of OPEx on the valid unseen split.
+The corresponding statics are shown in Table [3]. While our approach to calculate the statistics may vary from that of FILM, we have also incorporated FILM&apos;s statistics from the original paper [*REF*] for reference. Since we conduct the task decomposition with the LLM-based planner, which does not follow the template assumption, we don&apos;t have statistics on language processing errors. As shown in the table, the goal object not found error typically account for a great ratio of all kinds of error, indicating both FILM and OPEx suffer from imperfect perception models.
+Besides, the interactive exploration of the LLM-based executor and the deterministic heuristics probably brings a lower error rate of collisions and the error caused by the target object in a closed receptacle.
+
+
+TABLE
+
+
+Related Work
+
+
+LLM-based Agents
+
+
+Significant progress has been made for LLM-based agents, which mainly focus on the following three aspects. LLM-centric Planning utilizes LLMs to generate plans in dynamic environments. It can be further categorized into methods planning without feedback [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*] and approaches planning with feedback from environment, human, and model [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+LLM-oriented Memory stores information from the environment and boosts agents&apos; capabilities of experience accumulation and self-evolving to facilitate future actions. [*REF* ; *REF*; *REF*; *REF*; *REF*] LLM-centric Action Policy grounds the plans made by the agent into feasible action space [*REF*; *REF*] Notably, our LLM-centric agent differs from Voyager [*REF*] and GITM [*REF*] by mitigating the instruction grounding problem with dynamically adjusted plans from various granularity based on task-centric feedback from the environment.
+
+
+Instruction Following in Embodied Environment
+
+
+Prior work on EIF in embodied environments can be categorized into two classes: Supervisely trained end-to-end or modular-based methods that are eager for supervision signals from training data and hard to generalize due to the lack of abstraction and reasoning abilities [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*], and LLM-based methods that utilizes LLMs&apos; reasoning capability [*REF*; *REF*]. Different from Prompter [*REF*] and LLM-Planner [*REF*], which introduce LLMs only for target location finding and dynamic task decomposition, our method is an LLM-centric framework and decouples reasoning tasks for decision masking problem with multiple LLM-based roles, where the LLMs build the plan, adjust the plan, and ground the plan into structured action spaces. Besides, our method evolves based on the feedback, providing promising future research directions, including human-in-the-loop learning, multi-source feedback mixing and refining, etc.
+
+
+Conclusion
+
+
+We introduce OPEx, an LLM-centric framework tailored for Embodied Instruction Following (EIF), and undertake extensive evaluations to dissect the influence of its distinct components. Building on this foundation, we further improve OPEx by integrating world knowledge with a multi-agent dialogue strategy to further harness LLMs&apos; potential in addressing EIF challenges. Our comprehensive analysis reveals that an LLM-centric design significantly enhances EIF performance, pinpointing visual perception and low-level action execution as crucial bottlenecks.
+Additionally, our findings demonstrate that integrating a multi-agent dialogue mechanism within LLMs markedly boosts their effectiveness, offering promising directions for future research in embodied learning.

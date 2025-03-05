@@ -1,0 +1,121 @@
+TINA: Think, Interaction, and Action Framework for Zero-Shot Vision Language Navigation
+
+
+Introduction 
+
+
+The advancement of computer vision and natural language processing has facilitated research in vision-language fusion, such as Visual Question Answering [*REF*] (VQA), Image Caption [*REF*], and Vision-Language Navigation [*REF*] (VLN). In VLN tasks, agents must navigate through diverse environments based on natural language instructions, necessitating multifaceted expertise in linguistic semantics, visual perception, and dynamic decision-making (Figure [1]). While supervised deep learning has propelled the development of VLN models, existing models exhibit limitations in generalization and decision-making transparency [*REF*; *REF*; *REF*; *REF*; *REF*].
+They still lack the zero-shot ability [*REF*] to interpret unfamiliar instructions and navigate unseen environments, which limits the development of these models for broader applications.
+
+
+FIGURE 
+
+
+Large Language Models (LLMs) have recently received considerable attention due to their remarkable language generation capabilities and extensive knowledge [*REF*; *REF*]. Research indicates that as LLMs scale, they demonstrate emergent abilities that expand their applicability across various domains, including reasoning and decision-making tasks [*REF*]. Recent research has revealed that, despite being trained, current VLN models still encounter difficulties when dealing with diverse instructions [*REF*]. For the VLN task, LLMs hold promise for enabling the zero-shot capability [*REF*; *REF*; *REF*]. They can leverage their extensive knowledge and common sense reasoning to interpret and decompose new instructions and reason according to the environment, thus enabling navigation agents to adapt to unseen environments without prior training. However, a challenge arises in developing LLM-based VLN systems due to LLMs&apos; limited visual perceptual capabilities [*REF*], primarily trained on textual data.
+Some efforts introduced visual perceptual modules, converting visual information into textual descriptions for analysis by LLMs [*REF*; *REF*; *REF*]. While these approaches give LLM-based agents a rudimentary understanding of visual content, descriptions often remain generalized and lack specificity. In cases where visual perception needs to align with specific instructions, these visual descriptions might omit crucial information.
+
+
+FIGURE
+
+
+To enhance the perceptual capabilities of LLMs for specific targets, we propose the TINA framework --- Think, Interaction, and Action --- which endows agents with the ability to scrutinize perceptual outcomes and autonomously query specific clues. Our framework comprises the core LLM agent and three additional modules: the Visual Perception (VP) module, the Question-Answer Interaction (QAI) module, and the Trajectory Memorizer (TM) module. The VP module generates rough environmental descriptions, prompting the agent to reason based on these descriptions in response to specific perceptual demands in instructions. The framework enables the agent to review the outputs of the VP and make targeted queries through the QAI module to supplement missing perceptual information. TINA extends the agent&apos;s perception through the QAI module, aligning instructions with the environment. Additionally, our framework includes a memory bank that stores the agent&apos;s actions in each round, enhancing its dynamic adaptation capabilities while filtering out redundant historical information. In the subsequent sections, we will provide a detailed description of our TINA framework for zero-shot VLN, along with insights from our experimental results and findings.
+
+
+Method 
+
+
+Preliminaries
+
+
+For a specific environment, there exists a navigation graph *MATH*, comprised of a viewpoint set *MATH* and a path set *MATH*. The VLN task requires the agent to move from an initial viewpoint to a designated target viewpoint based on a navigation instruction *MATH*. The agent&apos;s action at each step is to choose the next viewpoint. The viewpoints visited during navigation are sequentially constructed into a trajectory *MATH*, also representing the sequence of agent actions. When the agent arrives at a specific viewpoint *MATH*, it can access the panoramic observation *MATH* and a navigable viewpoint set *MATH*. The panoramic observation *MATH* encompasses local information obtained from diverse directions, where *MATH* and *MATH* represent the heading angle and elevation angle relative to the agent, *MATH* denotes the local view in that direction. Set *MATH* encompasses adjacent viewpoints *MATH*, *MATH* is the local view in the direction of *MATH*. At step *MATH*, the agent selects a viewpoint from *MATH* as the action *MATH*, and then adjusts its orientation and position to update its status from *MATH* to *MATH*, where *MATH* and *MATH* indicate the orientation of the agent itself. The agent can be regarded as a policy function for computing the probability *MATH*, wherein *MATH* is the function&apos;s parameters. In supervised learning, the parameters *MATH* are optimized by calculating the loss between the ground truth and predicted trajectory. This study uses a pre-trained LLM with frozen parameters to explore the agent&apos;s performance in a zero-shot setting.
+Figure [1] illustrates these two approaches&apos; differences.
+
+
+Framework Overview
+
+
+We propose an innovative agent framework for VLN agents, comprising a core LLM and three auxiliary modules: Visual Perception (*MATH*), Question-Answering Interaction (*MATH*), and Trajectory Memorizer (*MATH*). The LLM-based agent is the central component of our framework, responsible for high-level reasoning and predicting the final actions.
+
+
+At each step *MATH* in the trajectory, the agent can obtain panoramic visual images from the environment. The Visual Perception module transforms the incoming panoramic visual data into initial textual descriptions denoted as *MATH*. The LLM-based agent conducts reasoning based on global instruction and the visual description *MATH*, generating intermediate reasoning results represented as Thought *MATH*. The core of this framework lies in the Question-Answering Interaction module, which plays a critical role in assessing the compatibility between potential candidate viewpoints and the agent&apos;s Thoughts. It queries the local views of the candidate viewpoints through a question-and-answer interaction, searching for crucial clues aligned with the reasoning. The query results are integrated into the descriptions of the candidate viewpoints, supplementing the information overlooked by the VP module.
+Subsequently, the agent selects one viewpoint from the enhanced set of candidate viewpoints as action *MATH*. *MATH*.
+
+
+To ensure the agent understands the task requirements, we provide a detailed description in the prompt, including task setup, module introductions, and input-output formats. Following the task description, we also offer a global instruction for each navigation case. As the agent moves through the environment, the execution history of its trajectory impacts its decision-making [*REF*]. Therefore, we establish a textual memory bank *MATH* to record the agent&apos;s historical actions and input it into the agent as a prompt. These three components together form the preliminary prompt, which is conveyed to the agent at the beginning of each step before it receives new observations, as illustrated in Figure.
+
+
+Observation Snapshot
+
+
+The Visual Perception (VP) module translates visual information from the environment into textual descriptions that LLMs can understand. To enable the agent to perceive information from different directions, we ask the agent to gather visual images from 24 different directions, forming a panoramic observation (eight directions horizontally, with images captured at intervals of 45 degrees, and three directions vertically, covering upward / downward 30 degrees, and straight ahead at 0 degrees). Initially, we employ the BLIP-2 image captioning model [*REF*] to generate textual descriptions for each of the 24 directions. We have observed that in most cases, the agent primarily relies on information from the straight-ahead view for navigation.
+Therefore, we use another LLM to consolidate the content of the three descriptions in the vertical direction, resulting in eight distinct descriptions for navigation in different directions.
+
+
+FIGURE
+
+
+We use IOU to match the results of DETR object detection [*REF*] and Mask2Former segmentation [*REF*] to enhance the agent&apos;s perception of distance to surrounding objects. We obtain the pixels of object *MATH* in the RGB image by intersecting the bounding box *MATH* and the mask *MATH*, then map them to the depth map, as shown in Figure [2]. We calculate the average value of the pixels in the depth map as the distance *MATH* between object *MATH* and the agent: *MATH* where *MATH* is the value of the coordinate *MATH* in the depth map. We filter objects within a 3-meter range and incorporate their distance information into the corresponding directional descriptions.
+
+
+Interaction for Candidates Investigation
+
+
+The VP module provides the agent with environmental awareness by analyzing images from multiple discrete directions. However, this approach poses two problems for VLN. First, candidates may be located in arbitrary directions relative to the agent, leading to the segmentation of images in that direction by the VP module. To address this, we can generate descriptions again by invoking the VP module specifically for the candidate&apos;s direction. Second, the VP module provides generic descriptions and does not dynamically generate relevant information based on the agent&apos;s reasoning state, which results in incomplete environmental perception by the agent and limits the practical significance of its reasoning. This is also a challenge faced by existing LLM-based agents [*REF*].
+
+
+Therefore, we propose the Question Answering Interaction (QAI) module.
+Inspired by ReAct [*REF*], our approach adopts a pattern of interleaved reasoning and action execution, allowing the agent to dynamically create, maintain, and adjust high-level action plans presented as Thought. This approach enhances the model&apos;s interpretability and distinguishes between the model&apos;s internal knowledge and external environmental information in scenarios involving interaction with the external environment, thus revealing the agent&apos;s need for external information during navigation. We input the agent&apos;s generated thoughts into the QAI module, which analyzes and summarizes visual cues related to these thoughts, constructing corresponding visual questions. Answers to these questions are obtained through a Visual Question Answering model from different candidate image views, as shown in Figure [3]. The question-answer pairs are organized and added as supplementary content to the descriptions of the corresponding candidates. Ultimately, the agent selects an appropriate viewpoint from the optimized candidates set as current round action.
+
+
+The QAI module makes full use of the agent&apos;s Thoughts, acquiring directional perceptual information and enhancing the coupling between visual perception and LLM reasoning.
+
+
+Trajectory Memorizer
+
+
+In VLN tasks, agents need to adjust their navigation strategies based on historical data dynamically. However, directly inputting all historical data into an LLM is impractical. In the later stages of navigation, the accumulated data from historical observations, reasoning, and actions can exceed the length limitations of the LLM. Additionally, a significant amount of redundant information can reduce the efficiency and accuracy of the agent&apos;s access to helpful information. To enable efficient access to the agent&apos;s historical trajectories, we introduce a memory bank *MATH*. After each round of reasoning, interaction, and action execution, we use a trajectory memorizer to compress and summarize the proceedings and store this new memory *MATH* in the memory bank.
+
+
+Although the memory bank grows as the trajectories accumulate, it is far smaller than the storage requirements for the entire dataset. It also filters out irrelevant information from history, retaining only key points.
+
+
+Experiment
+
+
+The TINA framework is implemented based on gpt-4 [*REF*] model.
+We conducted experiments on the R2R dataset [*REF*], comparing the model&apos;s performance on the validation unseen split with previous methods. We also randomly sampled a portion of the entire dataset to create a dev split for analyzing the framework&apos;s modules. We adopt the following navigation metrics for evaluation: Trajectory Length (TL): average path length in meters; Navigation Error (NE): average distance in meters between the final and target location; Success Rate (SR): the ratio of paths with NE less than 3 meters; Oracle SR (OSR): SR given oracle stop policy; SR penalized by Path Length (SPL). The Results are shown in Table [1] and Table [2].
+
+
+FIGURE
+
+
+TABLE 
+
+
+Table [1] compares TINA with several existing methods, including supervised learning baselines and the latest zero-shot work. The &quot;ZS&quot; in the table indicates whether the method is zero-shot. The experimental results show that TINA has surpassed some supervised learning methods and outperformed the latest zero-shot methods, demonstrating its potential in zero-shot navigation. We also conducted several ablation experiments to investigate the roles of different components in the TINA framework.
+We randomly sampled a small subset of the entire dataset to create a dev split for the ablation experiments, and the results are presented in Table [2].
+
+
+First, we investigated the functionality of the QAI module. In this setting (&quot;*MATH*&quot;), the agent does not ask questions about the image content and relies solely on the VP&apos;s glancing descriptions for navigation. It can be observed that without the QAI module, the agent may lose crucial information, leading to a decline in navigation performance, which highlights the importance of expanding the visual perception capabilities of LLM-based agents.
+
+
+TABLE 
+
+
+To explore the impact of distance perception on agent navigation, we attempted to turn off the agent&apos;s perception of distance, shown as &quot;*MATH*&quot;. It can be seen that the absence of distance information results in a significant performance drop. When the VP stops providing distance information between objects, the scene depicted by the environment description will have greater randomness, and the agent also struggles to estimate the distance between itself and the target point.
+We further tested the performance gain using instance segmentation in the VP (see &quot; *MATH* &quot;). In this experiment, we only obtained depth information through the center points of bounding boxes, decreasing the agent&apos;s navigation success rate. We attribute this to the irregular shapes of objects, which can cause the center point of the bounding box to fall outside the object pixels, resulting in inaccurate distance calculations. Segmentation allows for a more precise alignment of RGB and depth pixels.
+
+
+Through the ablation experiments, we have demonstrated that environmental perception is the most crucial factor limiting the zero-shot navigation of LLM-based agents. We propose TINA to enhance the agent&apos;s environmental perception capabilities, and the experiments indeed confirm the effectiveness of TINA. Additionally, we have found that LLM-based agents require cognitive and modeling capabilities in 3D space to adapt to a broader range of tasks. Despite some enhancements we have made to improve the agent&apos;s accuracy in obtaining distance information, the transition from 2D perception to 3D perception remains an important future research direction for LLM-based agents.
+
+
+We also conducted a case study on the agent&apos;s and QAI&apos;s interactions, and some of the results are shown in Figure [4]. It can be observed that the QAI module can generate descriptions closely related to Thoughts, enabling the agent to make more accurate selections for the next viewpoint, which also enhances the explainability of the navigation process.
+
+
+Conclusion
+
+
+In this paper, we explore the zero-shot navigation problem based on LLMs and propose the TINA framework, enabling the agent to scrutinize perceptual information and autonomously query key clues, thereby enhancing the agent&apos;s perceptual capabilities. Experimental results validate the effectiveness of our approach, which surpasses existing zero-shot navigation models and some supervised learning-based methods without the need for additional training. We also discuss the roles of each module and present examples of explainability brought about by the QAI module.
+
+
+FIGURE

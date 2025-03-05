@@ -1,0 +1,280 @@
+Advancing Object Goal Navigation Through LLM-enhanced Object
+
+
+Introduction
+
+
+Object goal navigation is a significant area of study that focuses on enabling intelligent agents to navigate to a specified target object within a scene given category names. The objective is not only to successfully navigate to the object but also to minimize the navigation path. To make the searching process successful and more efficient, researchers have explored how to leverage object semantic relationships in household environment to assist in information filtering for more efficient navigation.
+
+
+FIGURE
+
+
+Some researchers [*REF*] explore non-training methods to discern these relationships, calculating Euclidean distances between object categories as a proxy for semantic proximity. However, this approach falls short in accurately reflecting navigable path lengths, especially in complex layouts like multi-room settings. In such scenarios, objects that are geographically close in Euclidean terms might be practically separated by barriers such as walls, misleading the navigation process.
+
+
+Deep learning methods offer alternative strategies for modeling object relationships. Zhang et al. introduce the hierarchical object-to-zone (HOZ) [*REF*] graph for coarse-to-fine navigation guidance. Dang et al. propose the directed object attention (DOA) graph [*REF*], explicitly modeling attention relationships. Li et al. develop the Class-Independent Relationship Network (CIRN) [*REF*], decoupling navigation from target features by not relying on environmental cues. However, these graph-based approaches, which represent categories as nodes and their correlations as edges, struggle with generalizing due to inherent biases from training environments and fail to cope with unseen targets due to fixed nodes.
+
+
+Models relying solely on training experiences tend to overfit and underperform in new environments or with unseen objects. To cope with that, some scholars are leveraging large models for richer object contextual insights from large models to improve navigation system generalization. For instance, Zhou et. al [*REF*] employs a pre-trained vision-language model (VLN) for open-world prompt-based positioning and a large language model to score object relevance numerically. Nonetheless, this method may face challenges like inconsistent inference scores and variable object priorities with paraphrased prompts, which could affect system stability. Empirical studies reveal that while LLMs may not deliver consistent scores across diverse prompts, they reliably identify relevant objects in a stable manner, affirming their role as a dependable source of generalized knowledge.
+
+
+Explorations into directly leveraging large models (LLMs or VLMs) as navigation agents like SayNav [*REF*] and NavGPT [*REF*], despite promising results, the approach&apos;s reliance on frequent and computationally intensive queries for each navigation step, limiting its practicality and application due to high time and resource demands. Moreover, while these models are adept at general reasoning, their broad knowledge base might lack the specificity required for certain navigation contexts, such as culturally specific household layouts, potentially leading to less than optimal navigational outcomes.
+
+
+In this study, we present the LLM-enhanced Object Affinities Transfer (LOAT) framework (shown in Fig.), designed to augment robots&apos; adaptability and navigational capabilities in novel environments by integrating large language models&apos; (LLM) commonsense reasoning with historical experiences. The essence of LOAT is leveraging LLMs&apos; semantic understandings of object relationships to overcome the limitations of historical experiences in new settings while still keep the overall system cost effective.
+
+
+This integration is realized by mathematically modeling the semantic relationships of objects through an attention mechanism, which is then utilized to activate the semantic maps. The framework comprises two pivotal submodules: the experiential affinities module for identifying past environmental patterns and a generalized affinities module focusing on LLM-identified relevant objects for enhanced generalization in new environments. A Dynamic Fusion Module carefully balances two sources of object affinities based on temporal contexts. The obtained weights are then applyed to activate semantic maps for downstream policy. By utilizing experiential object affinities and the extensive semantic knowledge from LLMs, this approach integrates a context-aware navigation strategy by instructing models to concentrate on objects that are semantically related with the target, therefore heightening decision-making precision.
+
+
+The LOAT framework boasts three key advantages:
+
+
+1. Integrates LLM&apos;s commonsense reasoning with historical experiences in a dual-module framework, enhancing efficiency and generalization.
+Commonsense knowledge is accessible at the start of each episode or stored offline for specific tasks, offering cost-effectiveness without compromising generalization.
+2. Showcases performance enhancements across all semantic map-based navigation policies, from metric to topological maps, within Habitat [*REF*] and AI2-THOR [*REF*] simulations, demonstrating its utility and applicability.
+3. Utilizes pretrained text embeddings for target representations, decoupling target identification both from traditional one-hot encodings and environmental visuals, ensuring adaptability to unseen objects and enhancing generalization beyond specific visual features.
+
+
+Related Work
+
+
+Maps for Navigation
+
+
+The field of mobile robot navigation has significantly benefited from advancements in Simultaneous Localization and Mapping (SLAM) [*REF*], a technique essential for creating maps of unknown environments while concurrently determining the sensor system&apos;s location. This dual capability is foundational for enabling autonomous navigation within these spaces.
+
+
+Within SLAM research, two predominant mapping paradigms have emerged: metric based mapping and topological mapping. Metric based mapping methods [*REF*] [*REF*] [*REF*], known for producing detailed maps by merging neighboring pixels into a grid, might face challenges related to computational complexity, particularly in extensive indoor settings [*REF* -slam]. These maps, while accurate, can impede efficient planning and problem-solving due to their dense representation of the environment.
+
+
+Conversely, topological mapping offers a more streamlined approach by depicting the environment through interconnected nodes, representing distinct landmarks or areas [*REF* -slam] [*REF*]. This representation simplifies navigation and planning by abstracting the environment into a series of relationships between key locations. However, achieving accurate and consistent topological maps remains a challenge, especially in complex environments where sensor data may not always provide clear distinctions.
+
+
+In this context, our study investigates the LOAT module&apos;s efficacy in leveraging both metric and topological maps for navigation, showcasing its versatility across varying environmental representations.
+
+
+Navigation with Large Models Integrated
+
+
+Incorporating large models into navigation systems unfolds across three principal methodologies:
+
+
+Object Relevance Scoring with Scripted Strategies: This approach leverages large models to evaluate object relevance, utilizing scripted search strategies such as frontier-based searching methods [*REF*]. For instance, ESC [*REF*] employs LLMs for direct candidate scoring, while L3MVN [*REF*] and Prompter [*REF*] derive collocation probabilities from masked language models with prompts like &quot;Something you find at &apos;[MASK]&apos; is &apos;[TARGET]&apos;,&quot; scoring candidates based on their placement in the &quot;&apos;[MASK]&apos;&quot; token. However, the sensitivity of these models to the nuances of language can lead to significant score variability for slight prompt modifications, affecting the consistency of object relevance assessments.
+
+
+High-Level Planning with Large Models: Useful in long-horizon navigation tasks, this method involves using large models for strategic planning and task decomposition. For example, LLM-Planner [*REF*] utilizes LLMs to break down tasks and identify key landmarks from instructions, establishing subgoals for navigation and initiating replanning upon failure. This strategy faces limitations in scenarios lacking explicit high-level instructions for targeting objects.
+
+
+Direct Navigation Agent Utilization: Techniques like SayNav [*REF*] and NavGPT [*REF*] directly engage language models as navigational agents, necessitating frequent prompts at every step. While conceptually appealing for its dynamic adaptability, the practicality of this method is constrained by the associated computational and time costs, making it less feasible for wide-scale application.
+
+
+Methods
+
+
+The LLM-enhanced Object Affinities Transfer (LOAT) framework, as depicted in Fig., innovatively merges LLM-derived commonsense insights with experiential navigation data to empower navigation models with object affinities augmented semantic maps. It features a generalized affinities module to harness the expansive semantic understandings of LLMs, an experiential affinities module to utilize past object relationship patterns and a dynamic fusion module to balance the combination of the two source of information given temporary contexts, significantly enhancing model adaptability and decision-making in new environments. The fused affinities are then applied for node-wise or channel-wise activation based on map categories before feeding to downstream policy.
+
+
+FIGURE
+
+
+Experiential Affinities Module
+
+
+This module aims at extracting object affinities from training time. It employs scaled dot-product attention to determine the relevance of each environmental object to the target object, leveraging pre-trained text embeddings. The set of objects in maps is represented as *MATH*, where *MATH* is the total category number in maps and *MATH* is the target object. The embedding for any object *MATH* obtained through a pre-trained text embedder is *MATH*.
+
+
+To compute the attention scores, we first transform the embeddings into queries *MATH* and keys *MATH* using separate linear transformations for the target object and all other objects, respectively: *MATH* *MATH* where *MATH* and *MATH* are weight matrices for queries and keys.
+
+
+The experiential attention score *MATH* for each object *MATH* is then calculated using the scaled dot-product of queries and keys: *MATH* *MATH* where *MATH* is the dimensionality of the key vectors, serving to scale the dot product such that it leads to more stable gradients, with *MATH* being the key corresponding to the *MATH* object in the environment.
+
+
+This mechanism effectively captures the semantic relationship between the target object and every other object in the map by prioritizing objects based on the scaled similarity of their embeddings to the target. The resultant attention scores guide the module to emphasize features from objects more closely related to the target in training experiences, thus enhancing pattern recognition and facilitating more informed navigation decisions within known contexts.
+
+
+Generalized Affinities Module
+
+
+The generalized affinities module leverages semantic relations derived from Large Language Models (LLMs) to enhance the model&apos;s focus on objects semantically related to a specified target. The semantic relevance of each object *MATH* in the map to the target *MATH* is determined by a binary value *MATH*, indicated by an LLM.
+This setup ensures that all objects deemed semantically related to the target are assigned a non-zero attention weight. By employing this uniform attention mechanism, the module guarantees that the agent considers all potentially relevant objects, thus improving its adaptability and performance in unfamiliar settings.
+
+
+The generalized attention weight *MATH* for each object *MATH* is calculated as: *MATH* *MATH*.
+
+
+The final output of the generalized affinities module is a normalized vector, which directs the agent&apos;s focus towards objects of interest specified by LLM for better generalization.
+
+
+Dynamic Fusion Module
+
+
+The dynamic fusion module synergizes the outputs from the generalized affinities module (*MATH*) and the experiential affinities module (*MATH*), finely tuning the balance between learned patterns and semantic guidance for optimal navigation performance. Specifically, it adjusts the contributions of *MATH* and *MATH*, the attention scores for an object *MATH* from the respective modules, ensuring an adaptive final attention mechanism.
+
+
+The key to this adaptation is the guidance ratio *MATH*, dynamically modulated based on the temporal context *MATH* and additional environmental factors *MATH* if available. For architectures utilizing RNNs to encode current states, *MATH* comprises the RNN&apos;s hidden states, whereas for non-RNN architectures, it includes the agent&apos;s past trajectory and relevant environmental data such as explored regions and observed layouts. *MATH* further enriches this context with external environmental cues, aiding in precise adjustment of *MATH*.
+
+
+This adjustment of *MATH* is governed by a learned function *MATH*, designed to decrease *MATH* when experiential patterns are reliable, such as in familiar environments, and increase it in favor of generalized affinities where semantic guidance from LLMs offers superior navigational cues, typically in novel or complex settings. The fusion of affinity scores, therefore, dynamically shifts to harness the most effective navigation strategy: *MATH* *MATH*.
+
+
+Through this mechanism, the dynamic fusion module ensures that the final affinity scores (*MATH*) for each object *MATH* are flexibly adapted to the navigation task&apos;s specific needs. By leveraging both experiential patterns and semantic guidance, the module enhances the agent&apos;s ability to efficiently navigate across diverse environmental contexts, capitalizing on the strengths of both submodules.
+
+
+Integration with Downstream Policy
+
+
+The LOAT framework&apos;s affinity scores are systematically integrated into downstream policies to intensify the focus on objects pertinent to the navigation goal. This integration applies slightly different strategies for map-based and graph-based policies, optimizing the agent&apos;s navigational efficacy.
+
+
+Map-based Policy: Let *MATH* represent a metric map, with each channel assigned to pre-selected object categories, typically large and easily identifiable objects within the environment. The affinity score for each channel *MATH*, derived from the dynamic fusion in equation, is represented by *MATH*. The activation of channel *MATH* in response to the affinity is computed as: *MATH* *MATH* This channel-wise activation accentuates the channels (object categories) deemed crucial for reaching the goal, enabling a more focused allocation of attention to these areas within the semantic map, thereby facilitating informed navigational decisions.
+
+
+Graph-based Policy: For a topological graph *MATH*, with node *MATH* representing a distinct area or a set of objects, let *MATH* denote the averaged affinity scores for objects within node *MATH*, which is given by: *MATH* *MATH* where *MATH* is the object set within node *MATH* and *MATH* is the affinity score for object *MATH*.
+
+
+Let *MATH* denotes the embedding for node *MATH*. The node activation *MATH* is given by: *MATH* *MATH*.
+
+
+This node-wise activation process highlights nodes with high relevance to the target object, guiding the policy to prioritize exploration of these strategically important nodes.
+
+
+By employing these strategies, the LOAT framework significantly refines the decision-making process, enhancing the model&apos;s adaptability and generalization capabilities across diverse environments. Through targeted activation within downstream policies, the approach leverages both learned environmental patterns and generalized semantic insights derived from large language models, culminating in a robust framework for efficient and focused navigation.
+
+
+Experiments
+
+
+Setup
+
+
+Benchmarks:
+
+
+Our methodological evaluation spans across Habitat [*REF*] and AI2-THOR [*REF*] simulators, including three benchmarks emphasizing object goal navigation: Habitat ObjectNav [*REF*], ALFRED [*REF*], and SAVN-NAV. Habitat ObjectNav tests agents&apos; navigation to specified objects in unfamiliar environments using Habitat-Matterport3D scenes [*REF*]. ALFRED blends navigation with task execution in indoor settings, based on AI2-THOR, focusing on agents&apos; ability to interpret instructions, navigate to and interact with objects. SAVN-NAV utilizes AI2-THOR for navigation towards 22 target objects within 4 different room types, evaluating inference over 1000 episodes.
+
+
+Evaluation Metrics:
+
+
+To rigorously assess our method&apos;s performance across benchmarks, we employ several key metrics: SR (Success Rate): Measures the percentage of episodes where the agent successfully completes the task by reaching the target object. Specifically in ALFRED, it assesses the agent&apos;s effectiveness in both navigating to and engaging with targets to achieve task completion; PLWSR (Path Length Weighted Success Rate): Accounts for the efficiency of the agent&apos;s path towards the target, penalizing longer paths even in successful episodes; GC (Goal Completion): A binary metric indicating whether the agent achieved the task&apos;s objective within the given constraints; PLWGC (Path Length Weighted Goal Completion): Similar to PLWSR, this metric weights the goal completion against the optimality of the path taken; GFR (Goal Found Rate): Specifically introduced for ALFRED to capture instances where the agent locates the target object. It evaluates the method&apos;s precision in guiding the agent to deduce the target&apos;s location from high-level instructions, focusing on navigation success separate from interaction execution.
+
+
+Implementation Details:
+
+
+We leverage paraphrase-MiniLM-L6-v2 to compute text embeddings of category names. This BERT-based model excels in semantic similarity tasks, producing 384-dimensional dense vectors from sentences and phrases, ideal for representing object categories that may extend beyond single words.
+
+
+To determine object affinities, we consult GPT-4, pre-storing semantic scores for expedited navigation. In cases of open-vocabulary navigation, this process can be executed online at each episode&apos;s onset. This approach is feasible because the maps already have predefined and recognizable large objects to save, with the navigation target being the sole changing factor.
+
+
+For Habitat ObjectNav, we adopt a model inspired by PEANUT [*REF*] which takes metric maps as inputs and then attempts to predict the locations of target object from incomplete semantic maps and navigating through scripted exploration. This model is trained with the LOAT framework, utilizing pre-generated semantic maps and target distributions. In evaluation of PEANUT enhanced with LOAT, we benchmark against with original PEANUT system and a baseline DD-PPO [*REF*] trained with Behavior Cloning on 20k human demonstrations.
+
+
+In ALFRED, we enhance the FILM [*REF*] system with LOAT for semantic map activation, replacing MaskRCNN with a fine-tuned DINO [*REF*] model for superior segmentation, and adjusting exploration strategy inspired by Prompter [*REF*] for more efficient navigation. This enhanced system, termed LOAT-P, showcases an integrated approach for improved navigation and object interaction within AI2-THOR environments. LOAT-P system is contrasted with HLSM [*REF*], which models the environment in a spatial-semantic voxel map, FILM [*REF*], known for its spatial memory and semantic search, LGS-RPA [*REF* -rpa] with its landmark-based guided search, EPA [*REF*]&apos;s neural-symbolic planning, Prompter [*REF*]&apos;s template-based planning, and CAPEAM [*REF*]&apos;s spatial and state-change integration.
+
+
+Additionally, we test the LOAT framework on a graph-based model from the HOZ [*REF*] system in the SAVN-NAV navigation tasks [*REF*], following the original HOZ setup. HOZ models the scene hierarchically with three layers: objects, zones, and scene layers, where each node in the object layer represents a single object, and nodes in subsequent layers encompass object subsets. Node activation scores are calculated as shown in Equation. The activated hierarchical graphs are then input into an A3C [*REF*] policy network and trained via reinforcement learning. LOAT-enhanced HOZ is compared to naive A3C navigation policy with a simple visual embedding layer and other graph-centric methods such as ORG [*REF*], and SP [*REF*] that build object semantic relationships.
+
+
+Results
+
+
+The experiment results in ALFRED are shown in Table. LOAT-P achieves SOTA performance across all metrics, increasing SR by around 10%. Notably, the SR discrepancy between familiar and unfamiliar environments is markedly reduced, showcasing LOAT&apos;s efficacy in applying generalized object affinities from LLM in novel settings. This demonstrates our system&apos;s robust adaptability and effectiveness in diverse scenarios.
+
+
+TABLE
+
+
+The assessment methodology for SAVN-NAV navigation tasks [*REF*], similar to the HOZ study [*REF*], involves random selection of the agent&apos;s initial position and goal item, with five trials per scenario. Table [1] displays results for all targets and a subset with optimal path lengths above five steps. Upon integrating the LOAT framework into the HOZ system, we observed improvements in both SPL and SR metrics, surpassing previously reproduced results. This underscores LOAT&apos;s effectiveness within graph-based policy networks.
+
+
+TABLE
+
+
+Results in val spilt of Habitat ObjectNav are shown in Table [2].
+LOAT improves initial SR of PEANUT. We also analyzed the categorical success rates, as shown in Table [3]. The SR for navigating to hard-to-locate small objects (&quot;plant&quot;) has greatly improved.
+
+
+TABLE
+
+
+After analyzing the outcomes from three benchmarks, the LOAT framework demonstrates advantages in three key aspects:
+
+
+1. Improves the effectiveness and adaptability of navigation systems.
+Systems that leverage LOAT combine experienced object affinities with LLM&apos;s semantic understandings to improve efficiency and generalization, leading to higher success rates, reduced navigation pathways, and improved adaptability to new environments.
+2. Compatible with various policies. LOAT enhances performance in various navigation contexts by working well with both graph-based and map-based policies, improving performance regardless of the downstream policy mechanism.
+3. Offers targeted guidance for navigating towards small, hard-to-locate objects. By leveraging object affinities from both training experiences and LLM insights, it is particularly efficient for detecting objects that are difficult to identify without context from relevant easier-to-find objects.
+
+
+Ablation Studies
+
+
+Impact of the LOAT Framework in ALFRED [*REF*]:
+
+
+The LOAT-P system dramatically increased ALFRED&apos;s performance in previous experiments. To differentiate the impact of the LOAT framework from other improvements, such as advanced segmentation methods, LOAT is rigorously evaluated by integrating it into the Prompter [*REF*] and FILM [*REF*] systems within the ALFRED benchmark, while keeping all other variables constant. The outcomes, detailed in Table [4], unequivocally show enhancements across all measured metrics upon incorporating the LOAT framework.
+Notably, the improvement in goal-found rates is a testament to LOAT&apos;s ability to significantly enhance the agent&apos;s proficiency in identifying target objects. This underscores the framework&apos;s effectiveness in augmenting navigational and object-identification capabilities with insights from both LLM-derived object affinities and training-time preferences, thereby contributing to the overall performance uplift.
+
+
+FIGURE 
+
+
+Impact of LOAT Submodules:
+
+
+The LOAT framework&apos;s integration of Generalized Affinities (G.A.) and Experiential Affinities (E.A.) modules plays a pivotal role in enhancing navigation and task execution, as evidenced by the ablation study in Table [5]. The G.A. module slightly improves success rates, leveraging general knowledge to guide decision-making, but its impact is more nuanced in complex scenarios, suggesting its limitations without learned experience from training environments. Conversely, the E.A. module manages to improve the outcomes in both short and long trials by applying specific past experiences.
+
+
+The integration of both modules of LOAT framework yields the highest performance improvements. This synergy suggests that while the G.A.
+module provides a broad knowledge base, the E.A. module extracts targted knowledge from training time, optimizing the application of both general principles and specific experiences. The comprehensive approach of combining these modules allows the LOAT framework to navigate complex environments more effectively, demonstrating the critical importance of integrating diverse knowledge and experience sources for advanced decision-making and problem-solving capabilities.
+
+
+FIGURE
+
+
+In addition to leveraging commonsense from LLMs and experiential object affinities in a parallel manner, we further explore integrating LLM commonsense by employing it as a constraint. Further details can be found in supplementary materials.
+
+
+Attention Visualization 
+
+
+We employ Grad-Cam [*REF*] to visualize attention within ALFRED&apos;s semantic observations. By treating policy model outputs as classification targets, we compute gradients against inputted semantic maps, flatten these gradients channel-wise, and visualize them using heat maps overlayed onto flattened semantic maps.
+
+
+We begin by examining the appropriateness of the attention distribution of different models. As depicted in Fig. , the attention distribution in the FILM model is relatively even, highlighting no particular preference for objects.
+For models incorporating solely the experiential affinities module but no generalized affinities module, as shown in Fig.  (b), there&apos;s a notable risk of misdirected attention towards objects commonly encountered in training scenes rather than those with semantic relevance to the target. For example, in Fig. , while searching for a piece of cloth, the model inappropriately fixates on a garbage can, prevalent in the training data. However, models guided by generalized object affinities from LLMs successfully realign their focus towards more relevant entities, like a shelf in the given instance, effectively minimizing focus on less pertinent details.
+
+
+FIGURE
+
+
+We also investigate the attention transition of models across time steps. As shown in Fig., model with only experiential affinities module tends to focus on fixed areas while model with full integration with LOAT is able to adjust focus areas over time. Initially honed in on specific features, the attention gradually broadens to incorporate additional relevant features as dictated by LLM guidance when initial attempts fail to locate the target, showcasing adaptive attention refinement over time.
+
+
+FIGURE
+
+
+Evaluation on Out-of-Domain Objects
+
+
+The effectiveness of our model in recognizing out-of-domain objects was assessed using 300 pre-collected semantic maps from AI2-THOR environments. We aimed to predict potential locations for unseen target objects based on their category names, involving &quot;Umbrella&quot;, &quot;HairDrier&quot;, &quot;Scissors&quot;, &quot;Toothbrush&quot;, &quot;Comb&quot;, &quot;Peach&quot;, &quot;CanOpener&quot;, &quot;Whisk&quot;, &quot;Magazine&quot;, &quot;Eyeglasses&quot;. The model attempts to identify the nearest objects stored in the map to these targets, applying a distance threshold set at one-fifteenth of the map&apos;s total resolution for this experiment. Our primary focus was on assessing the semantic logic behind these probability distributions to determine if the predicted locations for the target objects were plausible within a domestic context. Fig.
+shows that models relying solely on the experience transfer module may predict a uniform distribution, resulting in semantically incongruous predictions (associating a can opener with a bathtub basin, which lacks semantic plausibility). LOAT-integrated models better incorporate commonsense reasoning from large language models, resulting in more logically coherent probability distributions (placing a can opener near cabinets or coffee tables) reflecting intuitive home placement expectations.
+
+
+FIGURE
+
+
+Conclusions
+
+
+This study introduces the LOAT framework, a novel approach that integrates LLM-derived object semantics with historical experiential object affinities to enhance robotic navigation. LOAT significantly improves navigation in environments like AI2-THOR and Habitat across three benchmarks, showing proficiency with unseen objects. It adapts to both metric-map-based and topological-graph-based policies, demonstrating its broad applicability. Visualizations confirm LOAT&apos;s effectiveness in directing policies to focus on semantically relevant objects and its innovative capacity for dynamic focus adjustment, thereby boosting navigational adaptability and efficiency.
+
+
+Future research could extend LOAT&apos;s dual-module strategy to open vocabulary navigation, exploring its potential to dynamically adapt to an even broader range of environments and tasks, further pushing the boundaries of autonomous navigation.
+
+
+The supplementary material includes an extended ablation study on the dynamic fusion module (Section [6]), an exploration of using LLM commonsense knowledge as a constraint instead of a parallel information source (Section [7]), additional examples of attention visualization (Section [8]), and detailed descriptions of the semantic map formats used in our experiments (Section [9]).

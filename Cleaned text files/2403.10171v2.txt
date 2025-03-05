@@ -1,0 +1,348 @@
+AUTONODE: A Neuro-Graphic Self-Learnable Engine for Cognitive GUI Automation
+
+
+I.Introduction
+
+
+The advent of Artificial General Intelligence (AGI) heralds a paradigm shift in computational agency, wherein agents are envisaged to possess the capacity for cognition, comprehension, execution, and goal attainment akin to human intelligence. In this context, robotics has made significant strides, demonstrating the ability to perceive and make decisions autonomously. Extending this capability to agents for visualizing and acting upon tasks could revolutionize the automation of redundant tasks on computer systems. A cognitive approach to Robotic Process Automation (RPA) represents a pivotal advancement in the quest for an optimal agent. In this paper, we introduce AUTONODE, a system designed to address RPA challenges through cognitive methodologies. AUTONODE employs a multi-expert architecture to facilitate efficient decision-making for subsequent actions. Through extensive experimentation, we identified limitations in Vision-based Large Language Models (LLMs) concerning accurate grounding. To overcome this, we adopted a hybrid approach leveraging Yolo-V8 and Optical Character Recognition
+
+
+(OCR) technologies, enhancing both efficiency and robustness in grounding. A notable challenge encountered was the presence of spurious content, which could impede the identification of the most appropriate next action. AUTONODE incorporates Discovery and mapping Operation for graph Retrieval Agent (DoRA), a mechanism that trains the system to concentrate on the principal elements of the screen, enabling the LLM to make more informed decisions. DoRA also integrates human feedback in a neuro-symbolic manner, enhancing the system&apos;s focus on relevant screen areas and mitigating the issue of spurious content. AUTONODE&apos;s architecture is heavily influenced by human imitation, aiming to replicate the way a human would interact with a website. The engine also supports a RAG based memory retrieval system which aims at delivering faster Turn Around Time (TAT) for the tasks already done. The system has been validated for scalability with minimal infrastructure requirements.
+Empirical results demonstrate that AUTONODE&apos;s accuracy surpasses that of many existing self-operating computer architectures, with a precision rate exceeding 85%, thereby providing users with a reliable autonomous decision-making tool. The paper is structured as follows: Section 2 delves into related work, followed by a discussion on methodology and system architecture in subsequent sections. Section 4 elaborates on DoRA and its architectural framework. The paper concludes with a presentation of experimental results, comparative analyses, and final remarks.
+
+
+II. Related Work
+
+
+Recent advancements in the integration of large language models (LLMs) and multimodal models with robotic and computer agents have shown promising results across various applications. Research has demonstrated the potential of using pretrained skills to ground LLMs in real-world robotic tasks, enabling robots to complete complex instructions [1]. In the realm of smartphone applications, a multimodal agent framework called App-Agent has been introduced, which operates apps through simplified actions and learns from human demonstrations [2]. The use of multimodal large language models (MLLMs) has also been explored in instruction-based image editing, resulting in notable improvements in automatic metrics and human evaluation [3]. Additionally, the &quot;OS-COPILOT&quot; framework has been proposed for building generalist computer agents, demonstrating strong generalization and self-improvement capabilities. These studies highlight the potential of LLMs and multimodal models in enhancing agent capabilities across various domains, suggesting a promising direction for future research [4].
+
+
+III. Methodology
+
+
+The principal objective of our research was directed towards addressing the challenges inherent in Robotic Process Automation (RPA) through a cognitive approach. The ambition was to develop an engine characterized both by robustness and the capacity to undertake intelligent subsequent actions to fulfill its designated tasks.
+Initially, our endeavors embarked from a simplistic paradigm, progressively advancing our architecture through iterative refinement, primarily driven by the array of issues we encountered during the evaluation phase. This process of evolution in our methodology was critical, as it allowed for the identification and rectification of any deficiencies, thereby enhancing the cognitive capabilities of the system.
+
+
+In our journey towards achieving this, various open-source projects served as invaluable resources, shedding light on the multitude of challenges that our basic approach was susceptible to. These insights were instrumental in guiding our architectural enhancements, ensuring that our approach remained congruent with the overarching goal of cognitive RPA. Fig. 1 in our paper delineates the foundational architecture of AUTONODE, which has been designated as Version-1. This initial architectural framework laid the groundwork for what would later evolve into a more advanced, cognitive RPA solution. The design philosophy behind Version-1 was grounded in the establishment of a foundational set of capabilities that could be iteratively built upon.
+By doing so, we aimed to incrementally inject a higher degree of cognitive functionality, enabling AUTONODE to not only interpret and navigate web interfaces autonomously but also to execute a wide array of tasks with increasing sophistication. Central to this architectural evolution was the cognizance of the limitations inherent in our initial model. These limitations served as focal points for continued research and development, guiding the systematic enhancement of AUTONODE&apos;s capabilities. The iterative refinement process, underscored by a commitment to both scalable and intelligent automation, ultimately contributed to the emergence of an advanced RPA solution capable of autonomously navigating and operating within dynamic web environments.
+This evolution from a basic to a more intricate architecture reflects our overarching research trajectory, aiming to bridge the gap between conventional RPA and cognitive automation through the amalgamation of neurographic operations and deep exploration techniques. Through this approach, AUTONODE was transformed into a more adaptive, efficient, and intelligent engine capable of executing complex workflows and adapting to new challenges with minimal human intervention.
+
+
+FIGURE 1
+
+
+Within the architectural framework of AUTONODE, the system leverages the capabilities of the GPT4-V API to deduce the subsequent optimal action based on visual inputs. This mechanism involves the engine capturing a screenshot of the current state of the computer interface, which serves as the basis for decision-making processes aligned with predefined objectives. Initially, AUTONODE incorporated the PyAutoGUI library to execute actions within the graphical user interface (GUI) environment based on the predictive analytics of the model. Let 𝑆! represent the state of the GUI at time 𝑡, derived from a screenshot and precoesed into a structured input vector. 𝑆! includes all visual elements currently displayed to the user. The GPT4-V takes 𝑆! as an input with the prompt being 𝑃! produces a decision vector 𝐷!, representing the optimal action(s) to be executed at time 𝑡. This response is passed through parser denoted as *MATH*. The flow of the architecture is discussed in (1) and (2).
+*MATH* Here,*MATH* denotes the mapping function realized as vision model to be GPT-4V that transforms current state 𝑆! into the decision vector 𝐷! and eventually to a more parsable output of*MATH*. These actions are enabled through PyAutoGUI library, facilitating the interaction with the GUI. The execution of an action, 𝐴!, can be observed in the equation (3).
+
+*MATH* where 𝑥, 𝑦 represents coordinates for the mouse options and 𝑡𝑒𝑥𝑡 representing text to type. Here, 𝐴! represents the action taken by AUTONODE from the action space conditioned on the value of*MATH*to be taken at time 𝑡. The actions specified in*MATH* can be a part of the action 𝐴! directly influences the GUI, leading to a transition into a new state 𝑆!,-, which is subsequently evaluated for further actions, creating a feedback loop for continuous task execution as represented in (4).
+*MATH* with 𝑔 symbolizing the transition function that encapsulates the effect of action 𝐴! on the current state 𝑆! to yield the next state 𝑆!.
+
+
+The basic architecture had several shortcomings which needed to be fixed in order to achieve to the best architecture for AUTONODE. The shortcomings are given as follows:
+
+
+- Vision Model gave irrelevant/wrong location to click.
+- There were series of hallucinations recorded in the model. Like going on the wrong element for a particular action. For example: clicking on the search bar rather on the compose email for composing an email.
+- Problem of spurious content in the prompt was observed. In this architecture we are passing the whole clickable element&apos;s list to the LLM which is making it hallucinate.
+- Model was unable to generate the next best action, hence was unable to complete the given task.
+
+
+E. Algorithm Selection
+
+
+The process of algorithmic optimization necessitates continuous iterations to rectify discovered deficiencies. Within the foundational architecture, a prominent issue identified was the erroneous selection of click locations, significantly exacerbating the system&apos;s propensity for inaccuracies. This realization led to the conclusion that existing Visual Model lacked the requisite capability to accurately identify the appropriate areas for interaction. Consequently, it became imperative to integrate specialized models dedicated to this aspect of the task, ensuring a more precise and reliable system performance.
+
+
+Process A
+
+
+Fixing the problem with the unpredictable clicking was very important because it was causing delays for other parts of our system. The attainment of comprehensive cognitive automation necessitated prioritizing the rectification of this issue. The foundational approach to resolving the challenge of discerning accurate coordinates for textual elements on web interfaces hinges on the application of Optical Character Recognition (OCR) technology. In conjunction with this technology, we integrated a fine-tuned YOLO (You Only Look Once) model, specifically tailored for the detection of web-based elements.
+For this purpose, the YOLO-v8-m version was selected for fine-tuning tasks, reflecting our commitment to leveraging advanced models for improved performance. Figure 2 elucidates the initial evolutionary phase of AUTONODE&apos;s architecture, illustrating the integration of OCR capabilities. This enhancement marks a pivotal advancement in AUTONODE&apos;s ability to navigate and interact with web interfaces autonomously, thereby significantly mitigating previous limitations encountered in identifying and interacting with textual elements.
+
+
+FIGURE 2
+
+
+Let 𝑆! represent the state of the GUI at time 𝑡, derived from a screenshot and precoesed into a structured input vector. Unlike the last process the image this time passes through the several pre-processing to extract the relevant information. 𝑆! is passed to function 𝑓./0/ to receive multiple cropped web element&apos;s images. Hence we can say those images are subset of 𝑆! as referred in (5).
+
+
+*MATH*(5) Where, 𝐶! is the set of cropped images detected from 𝑆! using the function of YOLO-v8. 𝐿1! is the location of the bounding box also called bbox, this location will be used in the future when AUTONODE decides to click on that element. Now as there are several images as represented in (6). OCR is ran on each of these images to retrieve the text written inside the element, this helps the Vision Model to take a better decision on which element to choose.
+
+
+Where, 𝐶 is the set of cropped images detected from 𝑆using the function of YOLO-v8. 𝐿 is the location of the bounding box also called bbox, this location will be used in the future when AUTONODE decides to click on that element. Now as there are several images as represented in (6). OCR is ran on each of these images to retrieve the text written inside the element, this helps the Vision Model to take a better decision on which element to choose. 
+
+
+FORMULA 
+
+
+Here, 𝑇 is the textual data extracted from the images 𝐶 using the OCR function 𝑓. Now, all textual data with their respective locations are passed to vision model function𝑓 to produce the decision vector 𝐷 as represented in (9). 
+
+
+FORMULA 
+
+
+Now, as represented in (2), (3) and (4) decision vector 𝐷! is used to take the action 𝐴! which in turn changes the state of GUI from 𝑆! to 𝑆!,-. An enhancement introduced involves the documentation of actions undertaken thus far, which are subsequently relayed to the vision model. Given the formidable capability of Large Language Models (LLMs) to discern the extent of task completion, they adeptly select the most optimal subsequent action. This process not only leverages the inherent understanding and processing power of LLMs but also contributes to a more efficient and informed decision-making mechanism within the system. By integrating this continuity of action recognition and selection, the model significantly improves in task execution efficiency, enabling a more seamless progression towards goal attainment. Hence a variable 𝐻! (History) is initailised which concatentates all the actions taken from the beginning of the automation as shown in (10).
+
+
+FORMULA
+
+
+Consequently, we can reformulate equation (9) to represent the final structural composition of Process A, as depicted in equation (11).
+
+
+FORMULA
+
+
+Comprehensive evaluations across diverse scenarios have revealed that the enhancements introduced in AUTONODE, while substantially beneficial, are not without their challenges. A notable anomaly identified is the incidence of action hallucination, a phenomenon where the Large Language Model (LLM) within the Vision Model component inaccurately predicts the subsequent operational step. This discrepancy arises from the model&apos;s limited contextual awareness regarding the intricacies of navigating web interfaces. Given the substantial volume of data presented on a typical web screen, the LLM is predisposed to &apos;hallucinate&apos; or erroneously identify an incorrect course of action. For instance, when tasked with filtering unread emails within a Gmail interface, the model lacks the explicit knowledge required to interact with the search bar and input the specific command &quot;unread: label&quot; to filter unread messages.
+Consequently, in complex scenarios as described, the model&apos;s performance is observed to deviate from expected accuracies, underscoring a critical area for further refinement. This leads to the next iteration of AUTONODE.
+
+
+FORMULA
+
+
+Process B
+
+
+Addressing the challenge of determining the subsequent optimal action can be systematically approached by provisioning Large Language Models (LLMs) with explicit knowledge concerning the requisite steps for task completion. To this end, our experimentation involved imparting contextual information as guidance to the LLM, a strategy that substantively enhanced the engine&apos;s operational effectiveness. The architectural framework underpinning this approach, designated as Process B, is elucidated in Fig. 3. This methodology underlies our efforts to refine the decision-making capabilities of LLMs, thereby optimizing their performance in executing designated tasks with greater precision and efficiency.
+
+
+FIGURE 
+
+
+In this process the basic processing steps are same in YOLO and OCR what changes is giving the instruction steps to the LLM for it to take a valid next action. Hence we can rewrite (11) with the new iteration as shown in (12). Let&apos;s assume 𝐼! is the Instruction set at time 𝑡.
+
+
+In this way we have observed a significant reduction in hallucination and wrong next action prediction. Another update in this version was a verification module 𝑓:&amp;$9;&lt; which can assist the engine from taking any wrong decisions, as wrong actions in this environment can be very costly. The verification module takes everything with the updated screenshot with a mark on the area of clicking represented as 𝑆!,8/= and action to be taken shown as 𝐴! action.
+
+
+FORMULA
+
+
+If *MATH* returns a positive result the engine moves ahead otherwise it loops on completing the current action correctly by re-iterating on getting an update action. These updates had improvements yet added issues in the User Experience (UX) as the person using the engine won&apos;t be comfortable enough to give the whole set of instructions. Also, the issue of spurious content was still intact where the model hallucinates while choosing which element to click. Solving these problems lead us to develop our final iteration Process C.
+
+
+Process C
+
+
+In the course of interacting with digital interfaces, human users inherently prioritize attention to specific regions of the screen, effectively filtering out extraneous information. This behavioral pattern suggests a strategic approach to refining the input provided to Large Language Models (LLMs) within the context of cognitive Robotic Process Automation (RPA). By analyzing data derived from numerous workflow instances, it is feasible to discern and delineate key areas or Regions of Interest (ROI) on the interface that warrant focused engagement. An advanced methodology can be established by cataloging these ROIs in relation to the preceding interactive element. Consequently, this facilitates the construction of a hierarchical data structure, wherein a parent node signifies the element requiring activation, and its child nodes represent subsequent ROIs of relevance.
+
+
+FIGURE 4
+
+
+Such a paradigm shift significantly mitigates the incidence of inaccuracies and the generation of irrelevant actions by the LLM, attributable to the deliberate exclusion of non-essential content from the processing spectrum. Furthermore, navigating this structured graph ostensibly obviates the need for a Vision Model, thereby markedly decreasing the overall operational expenses associated with the system. This innovative approach, whose architecture is shown in Fig.
+4 underscores a pivotal enhancement in the efficiency and reliability of cognitive automation tasks, paving the way for more effective utilization of LLM capabilities in RPA solutions.
+
+
+FIGURE
+
+
+The concept of Neuro-Graphic site architecture embodies a graph-based framework for cataloging information pertinent to any website&apos;s structure. To elucidate this concept, consider the operation of sending an email via Gmail, starting from the Google homepage.
+Initially, the user or an automated agent must select the &apos;Gmail&apos; option located on the top right corner, thereby navigating to the Gmail interface. Within this context, it is critical for a bot (designed to send and reply to emails) to prioritize regions of interest (ROIs) on the webpage, which, in this scenario, include the &apos;Compose&apos; button, the &apos;Search in mail&apos; bar, and the visible emails. Subsequently, upon selecting &apos;Compose,&apos; the focus narrows to a newly opened dialog within which the ensuing ROIs are sequentially the &apos;To&apos; text field, followed by &apos;Subject&apos; and &apos;Body&apos; fields, culminating in the
+
+
+&apos;Send&apos; button. This linear progression through singular child nodes mirrors human navigation patterns, enhancing the system&apos;s decision-making robustness. Illustrated in Figure 5 is a neuro-graphic representation tailored for the use case of automating email composition and responses. Displayed within are nodes representing emails labeled as Mail1, Mail2, and Mail3, indicative of emails visible on the interface under a hypothetical scenario. The presence of multiple singular child nodes throughout this representation serves to streamline the focus onto individual nodes, thereby eschewing the need to scan the entire screen. This neurographic tree employs a greedy Depth First Search (DFS) approach for traversal, with the Large Language Model (LLM) serving as the arbiter at each juncture. This integration of neuro-graphic site architecture and LLM decision-making mechanisms underscores an innovative approach towards enhancing the efficiency and robustness of performing web-based tasks, such as email management, through automated systems.
+
+
+FIGURE 4
+
+
+The process of YOLO and OCR is similar as it is being done in the earlier versions. The additional step is to parse throught the site tree to find the children nodes and then use the LLM to traverse to the next node. Let&apos;s say 𝑓! *MATH* %&amp; is the function which gives the children nodes. These children nodes are then passed to 𝑓00 for it to decide on the which node to traverse to. Action is then taken on the node selected. There is also a verification loop which helps in deciding whether the node selected is the correct element to select or not. In (14) 𝑃𝑟𝑒𝑣𝑁𝑜𝑑𝑒! is the previous nodes of the graph at time t.
+In (15) 𝑁𝑜𝑑𝑒𝑠! represents all the children nodes which have to be taken in consideration for taking the actions. These nodes with the History and the Objectives is passed to the LLM to find the node selected as shown in (16).
+
+
+FORMULA
+
+
+The Node Selected contains some meta-data about various parameters related to the element which has to be clicked. The location of the element is still calculated using YOLO and OCR hence using (8) we retrieve 𝑇! and 𝐿1! of the elements present in the screenshot 𝑆!. The metadata of Node selected contains the reference location with the name of element to be clicked, a semantic similarity index is calculated using jaro similarity as presented in (17). The equation shown in (18) gives a similarity score on which the highest scored element is picked.
+
+
+IV. DORA
+
+
+In the realm of cognitive process automation, the development of self-training modules that can autonomously explore, learn, and adapt mapping to complex and unchartered environments in the interface via exploiting the vision capabilities of multimodal models is of paramount importance. The DoRA (Discovery and mapping Operation for graph Retrieval Agent) framework is a new way to use different types of data, networked data structures, and learning through trial and error to create a flexible exploration agent.
+
+
+Here, m is A character from one string is considered matching with a character from the second string only if the characters are the same and their positions do not differ by more than*MATH* lengths of the string. And t is transposition which is, After the matching characters are identified, transpositions are counted. A transposition is considered for each pair of matching characters that are in a different order in the two strings. The total number of transpositions is divided by 2 because this way each transposed character is counted only once.
+
+
+FORMULA
+
+
+At the end of (18) AUTONODE receives the accurate location to take the action 𝐴&quot;. Similar steps of taking actions are performed as discussed in (3).
+
+
+E. Validation &amp; Selection
+
+
+To ascertain the efficacy and optimize the solution architecture for AUTONODE, a rigorous methodology encompassing testing and iterative enhancement has been employed. This validation process is meticulously designed, leveraging an array of use cases that encapsulate a breadth of scenarios and challenges pertinent to the AUTONODE application domain. Through this comprehensive testing regime, the design and operational paradigms of AUTONODE are refined, ensuring the attainment of the most suitable and effective solution for its intended functionalities.
+
+
+E. Iterative Refinement
+
+
+During our research, AUTONODE has undergone a series of iterative refinements, culminating in a significantly advanced and mature framework capable of addressing and resolving the various limitations identified earlier. The foundation of AUTONODE is constructed upon a neurographical system, which has demonstrated remarkable proficiency in enhancing both the user experience (UX) and the overall effectiveness of the platform. A pivotal aspect of our methodology is its emphasis on resilience and fault tolerance, thereby ensuring the robustness of the cognitive Robotic Process Automation (RPA) capabilities. Integral to the enhanced version of AUTONODE is a graph-based module, which derives its power from a self-training component, herein referred to as DoRA (Deep Robotic Automation). This module, which will receive a more detailed examination in subsequent sections of the study, is instrumental in augmenting the autonomous functionalities of AUTONODE, further solidifying its position as a pioneering solution in the realm of cognitive RPA.
+
+
+FIGURE 6
+
+
+This section presents an overview of DoRA&apos;s methodology, which comprises five integral components aimed at enhancing the cognitive capabilities of automation systems. Firstly, the Guided Exploration module is introduced. This module is designed to navigate through the interface from web applications &amp; desktop applications, identifying relevant information and patterns that can be further processed, laying the foundation for future work on a Generalised Explorer Agent using Reinforcement Learning (RL).
+
+
+Secondly, the Learnable Mapping and Annotation module is discussed.
+This component is responsible for establishing meaningful connections between different data elements, facilitating their interpretation and utilisation in various automation flows. By enabling the system to learn and adapt these mappings, DoRA enhances its ability to handle diverse and evolving data structures within interface elements across workflows.
+
+
+Thirdly, the framework incorporates a Graph-aided Heuristic Search mechanism, which utilises normalised scores to retrieve, encode, and reflect the learnable mappings. This approach ensures that the system can efficiently navigate the site-graph structure, prioritising the most relevant information, minimising computational overhead and translating information into action domain.
+
+
+Fourthly, DoRA integrates Knowledge Graph Augmented Language Modelling, a technique that leverages knowledge graphs for knowledge-grounded dialogue generation. This component is crucial for grounding and context retrieval from subgraphs, enabling the system to generate more contextually relevant and coherent responses in conversational interfaces.
+
+
+Finally, the transition from Language Modelling to a Neuro-Symbolic Programming Paradigm is explored. This shift represents a significant advancement in cognitive automation, as it allows for the generalisation of cognitive tasks through multimodal representation learning during training. By combining symbolic reasoning with graph
+
+
+Generalised Explorer Agent in addition to the existing guided discovery abstraction. RL provides a framework for the agent to learn optimal exploration strategies through trial and error, continuously improving its ability to navigate the data environment and make informed decisions about where to focus its attention. Exploration can help an agent gather more information about its environment, which can improve its ability to generalise to new tasks or environments within the interface. This exploration can help agents learn about parts of the environment which may be useful at test time, even if they are not needed for the optimal policy on the training environments. As the context space is sparse, the exploration is guided by a reward function, which quantifies the value of the information discovered during exploration, encouraging the agent to prioritise areas, hereafter called contextual Sample Space, 𝑆+ of the interface that are most relevant to the task, 𝑡 at hand where a task may be composed of many subtasks, 𝑡9 which may be employed by the RL agent to derive and abstract the optimal actions, such that for the 𝑗^!Q^ workflow, the subtasks 𝑡^R^ constitute the task 𝑡^R^, where action steps 𝑎^R^ add up to form the optimal actions, 𝑎^R^ neural network-based learning, DoRA aims to achieve a 9 R more holistic and flexible approach to cognitive process automation.
+
+
+In conclusion, the DoRA framework presents a comprehensive and innovative methodology for self-training module in cognitive process automation. By integrating guided exploration, learnable mapping, graph-aided heuristic search, knowledge graph augmented language modelling, and neurosymbolic programming paradigm, DORA sets a new standard for the development of intelligent automation systems which can be trained on interface intensive workflows. Future research co-laterally will focus on refining these components and exploring their applications in various domains, with the ultimate goal of achieving more autonomous, efficient, and adaptable cognitive processes.
+
+
+A.Guided Exploration Module
+
+
+The Guided Exploration module in the DoRA framework serves as the foundation for autonomous data navigation and pattern identification to model human actions on computer applications across the operating system [5]. This component is crucial for enabling the system to efficiently traverse complex interfaces and extract relevant information and event 𝑒9 across the OS environment, hereafter referred to as the &apos;World Interface&apos;, and &apos;interface &apos;interchangeably, 𝑊. At the core of the Exploration module is the concept of guided discovery, where the system is directed to record events of the interface landscape throughout the workflows spanning transformed action steps 𝑎9, which need to be interacted with in order to leverage the &apos;learning &apos;facility of the system, such that *MATH*and the action vector, 𝐴. where, *MATH*.
+
+
+FIGURE
+
+
+B.Learnable Mapping and Annotation Module
+
+
+The future development of this module involves the integration of Reinforcement Learning (RL) to create a GUI elements. This module enables the system to interpret and organise the information from events and action steps, discovered during the guided exploration phase, facilitating its use in various automation tasks.
+Mapping, 𝑀 in this context refers to the process of linking related data points, creating a structured representation, 𝑆&amp; of the information that can be easily navigated and analysed. In a knowledge graph, mapping involves connecting entities 𝑛, and their attributes based on their relationships 𝑟. The learnable aspect of this module implies that these mappings are not static and they can be updated and improved over time as the system encounters new data or as the relationships between data elements evolve.
+
+
+The Learnable Mapping and Annotation module is a pivotal component of the DORA framework, responsible for establishing and refining the relationships between different GUI elements. This module enables the system to interpret and organise the information from events and action steps, discovered during the guided exploration phase, facilitating its use in various automation tasks. 
+
+
+FIGURE
+
+
+Annotation, on the other hand, involves adding metadata and labels to the data points, providing additional context and categorisation among the GUI elements across the OS. During the post processing regimes, YOLO and Optical Character Recognition and GPT-4V methods are used to annotate the metadata to map the information gathered in the exploration phase, 𝑆&amp; into transformed Structured &quot;Nodes&quot; vectors, 𝑆7, within the site-graph, 𝐺 [11]. The Learnable Mapping and Annotation module employs the multi modality representation learning techniques to continuously refine its understanding of the contextual information within the interface,𝑊 the node vectors and the relationships within it. This iterative learning process ensures that the system&apos;s mappings and annotations remain accurate and relevant, even as the underlying data changes.
+
+
+This module is fundamental to the cognitive capabilities of the DoRA framework, as it enables the system to construct a coherent and adaptable representation of the data landscape. By continually learning and updating its mappings and annotations, the system can maintain a high level of accuracy and efficiency in its automation tasks.
+
+
+C.Graph Aided Heuristic Search
+
+
+The Graph-aided Heuristic Search component of the DORA framework is designed to leverage the structured representation of data provided by the Learnable Mapping and Annotation module to efficiently navigate and retrieve relevant information. This search mechanism utilizes heuristic algorithms, which are guided by the graph structure and the normalized scores assigned to different data elements, to prioritize the most promising paths and minimize the search space.
+
+
+The use of normalized scores is a key feature of this module, as it allows for a standardized comparison of different data points based on their relevance or importance to the task at hand. These scores can be derived from various factors, such as the frequency of occurrence, the strength of relationships, or the relevance to the user&apos;s query. By assigning scores to nodes and edges in the graph, the system can quickly identify the most pertinent information and focus its search efforts accordingly.
+
+
+The heuristic aspect of the search algorithm is crucial for its efficiency, as it enables the system to make informed decisions about which paths to explore based on the available information and the current context. This approach reduces the computational overhead associated with exhaustive search methods and ensures that the system can retrieve relevant information in a timely manner.
+
+
+The Graph-aided Heuristic Search module is an essential component of the DoRA framework, as it directly impacts the system&apos;s ability to quickly and accurately access the information required for various automation tasks. By optimizing the search process using heuristic and normalized scores, this module enhances the overall performance and effectiveness of the cognitive automation system.
+
+
+D.Knowledge Graph Augmented Language Modelling
+
+
+The Knowledge Graph Augmented Language Modelling component of the DoRA framework represents a significant advancement in natural language processing and dialogue generation. This module integrates the structured information from knowledge graphs into the language modelling process, enabling the system to generate more contextually relevant and coherent responses in conversational interfaces.
+
+
+Grounding and context retrieval from subgraphs are key aspects of this module. By leveraging the connections and relationships encoded in the knowledge graph, the system can ensure that its responses are grounded in the relevant context, providing more accurate and informative node selections.
+
+
+The integration of knowledge graphs into language modelling also facilitates the generation of knowledge-grounded dialogue, where the system references sub-graphs and nodes filtered in the graph aided search methods for substantiated response generation. By grounding language generation in the rich context provided by knowledge graphs, this module ensures that the optimal node selection is relevant and informative for consumption by AUTONODE.
+
+
+FIGURE
+
+
+E.From Language Modelling to Neuro-Symbolic Programming Paradigm (Appendix)
+
+
+The transition from Language Modelling to a Neuro-Symbolic Programming Paradigm represents a paradigm shift in cognitive automation, as encapsulated in the DoRA framework. This shift involves integrating the flexibility and expressiveness of neural network-based language models with the structured reasoning capabilities of symbolic programming, creating a more holistic approach to cognitive automation.
+
+
+Multimodal representation learning during training is a key aspect of this transition. By incorporating multiple data modalities, such as text, images, and site-graphs, into the learning process, the system can develop a more comprehensive understanding of the task at hand.
+This multimodal approach enables the system to enhance its cognitive capabilities, applying its learning to a wider range of automation tasks.
+
+
+The Neuro-Symbolic Programming Paradigm offers several advantages over traditional language modelling approaches. By combining neural networks&apos; ability to capture complex patterns and relationships with symbolic programming&apos;s logical reasoning and interpretability, the system can achieve a more nuanced and accurate understanding of the data. This integration enables the system to perform tasks that require both deep understanding and precise reasoning, such as natural language understanding, decision-making, and problem-solving.
+
+
+The shift to a Neuro-Symbolic Programming Paradigm is a critical development in the DoRA framework, as it represents a significant step towards generalising cognitive automation across different domains and tasks. By leveraging multimodal representation learning and the synergies between neural networks and symbolic programming, the system can achieve a more advanced and versatile level of cognitive automation.
+
+
+V.System Architecture
+
+
+In the preceding discourse, the integration of Process C alongside the DoRA module has been elucidated as the optimal architectural framework to address the cognitive challenges inherent in Robotic Process Automation (RPA). This architecture, characterized by the amalgamation of multiple components, evolves into a sophisticated system, entailing an intricate network of potential points of failure. Consequently, it becomes imperative to engineer the architecture of this system to not only embody scalability but also exhibit robustness, thereby ensuring its capacity to deliver efficient service to the user. This necessitates a meticulous design approach that prioritizes fault tolerance and adaptability, facilitating the system&apos;s ability to handle diverse and dynamic user demands effectively. The architecture of the proposed system incorporates an assemblage of sophisticated modules, including YOLO-V8, Optical Character Recognition (OCR), Retrieval-Augmented Generation (RAG), and an action-execution component. This composite structure underpins the operational efficacy of the system. The employment of the YOLO-V8 module is pivotal for the accurate detection of web elements within the interface, necessitating comprehensive training to fine-tune its performance for this specific application. Contrastingly, the integration of OCR models leverages their generic applicability, allowing for a seamless, one-time incorporation into the system. The action-execution module emerges as a critical entity within this framework, mandated to function with high reliability while ensuring scalability. It is imperative that this module operates in a non-blocking manner, facilitating asynchronous interactions with dynamically varying wait times. This capability is essential for addressing the challenges posed by web pages that exhibit delayed loading times. Incorporating the RAG module ushers in significant enhancements in terms of Turnaround Time (TAT) and system robustness. This is achieved through the module&apos;s capacity to catalog and recall the actions previously undertaken to fulfill specific objectives. Consequently, this enriches the system with the ability to efficiently execute tasks that are either identical or bear similarity to previously encountered objectives, thereby optimizing operational efficiency and adaptability.
+
+
+VI. Experimentation and Results
+
+
+In this section, we present the evaluation of our multimodal neuro-graphic retrieval agent framework through a combination of quantitative and qualitative experiments. Our primary goal is to assess the agent&apos;s performance and ability to operate on a diverse set of complex tasks across various applications.
+
+
+A.Experimental Setup
+
+
+We evaluate the effectiveness of our agent (present and the former versions) against the SOTA multimodal agents using GPT-4 Vision and Gemini Pro, on tasks across different websites highlighting its adaptability and adoption in complex applications.
+
+
+To comprehensively evaluate our methods we construct a benchmark which includes 5 web applications - Apollo, Gmail, Calendar, Twitter and Contlo encompassing more than 50 tasks (workflows), divided into three categories Level-1, Level-2 and Level-3 on the basis of their complexities and the number of steps involved for a workflow, each serving various purpose. In particular, to gain a more comprehensive insight into the proposed framework&apos;s approach involving the efficiency and the accuracy that the self-training module - DoRA imparts, we conduct an extensive case study on the Apollo website with over 50 standalone complex crowd sourced workflows. This case study allowed us to evaluate the framework&apos;s proficiency in handling complex tasks and automating RPA workflows which require cognitive involvement else wise.
+
+
+The tasks and workflows are categorised on the basis of increasing complexity and the number of steps involved. Level-1 (or L-1) tasks are relatively easier tasks/workflows with less than 5 steps involving static and intuitive User Interface within the websites / web applications. Level-2 (or L-2) tasks, on the other hand are intermediately complex tasks with the number of steps ranging from 5-10. And Level-3 (or L-3) tasks are the advanced and complex tasks with greater than 10 steps within the workflow. For the exploration and testing phase we capped the number of steps within the workflow to be 20.
+
+
+B.Results &amp; Discussion
+
+
+Our comprehensive evaluation highlighted in Table 5.1 presents a comparative analysis of the successive versions of the AutoNode framework. With each iteration from v.1 to v.3, we observed a notable enhancement in the success rate, indicating a positive trend in the development and refinement of the AutoNode processes A, B, and C. This iterative process underscores the impact of incremental improvements and the importance of evolving architecture to achieve better performance.
+
+
+TABLE 
+
+
+TABLE 
+
+
+In Table 5.2, we extend our investigation to encompass a diverse array of agents, comparing their performance across three levels of task complexity. The human benchmark remains the gold standard, demonstrating superior performance with success rates consistently above 94% across all levels. Notably, the Human agent exhibited only a modest decline in performance as task complexity increased from Level 1 to Level 3, which contrasts with the performance patterns observed in State of the Art multimodal agents and frameworks..
+
+
+The Multi-On and Self Operating Computer (SOC)/Hyper-write agents delivered middling results, indicating that while they are capable of handling less complex tasks (Level 1), their performance significantly dwindles as they progress to Levels 2 and are unable to execute Level 3 tasks. This drop-off accentuates the challenge faced by current AI models in maintaining high performance with increasing task complexity.
+
+
+Conversely, among the present open sourced agents and our proposed framework, the AUTONODE (with DoRA) showcased remarkable effectiveness, bridging the gap between human performance and automated systems, especially in higher complexity tasks (Level 3).
+The AUTONODE without the DoRA component presented the most significant variation in success rates between task levels. Its performance plummeted when transitioning from structured (Level 1) to more unstructured and complex tasks (Level 3), highlighting the pivotal role of the DoRA component in managing task complexity.
+
+
+In conclusion, these results illustrate the critical importance of tailored process enhancements in automated agents to parallel human flexibility and efficiency. The experiments indicate potential pathways to augmenting agent&apos;s capabilities, specifically through modular improvements as seen with AutoNode, and stress the need for further research into exploration and adaptive mechanisms that allow AI to maintain high performance across varying levels of task complexity.
+
+
+C.Case Study (Apollo Automation)
+
+
+To ascertain the efficacy and precision that the self-training module DoRA bestows, we carried out an in-depth case study within the Apollo automation environment. Our investigation delved into over 50 intricate, crowd-sourced workflows on the Apollo website, examining the AUTONODE framework&apos;s adeptness at executing complex tasks (L-2 and L-3) and automating RPA workflows that traditionally demand human cognitive skills. Additionally, the open-ended nature of the workflows&apos; tasks allows us to assess the agent&apos;s problem-solving capabilities.
+
+
+The AUTONODE model demonstrated a remarkable success rate, accurately completing 45 out of the 50 workflows in the first pass itself. For the remaining five workflows that presented unstructured challenges, the agent achieved a partial success rate varying between average accuracy ranging from 80% to 85% in reaching a logical endpoint, despite not fully completing the entire workflow. The agent exhibited robust performance across all levels of complexity. This case study not only illuminated the agent&apos;s operational proficiency but also highlighted the robustness of DoRA in enhancing the framework&apos;s capability to tackle intricate workflows, thereby validating our approach in a real-world scenario. As can be seen from the comparison of results from the tables, our framework yields consistently better results than the SOTA multimodal agents and other open-sourced frameworks towards achieving a generalist agent for cognitive automation.
+
+
+VII. Conclusion
+
+
+In the present manuscript, we have endeavored to investigate a feasible and prospective framework for cognitive Graphical User Interface (GUI) Automation. The empirical evidence derived from the conducted experiments attests to the robustness and reliability of the proposed framework. Future research directions include enhancing the Turnaround Time (TAT) for completing an objective. Currently, the framework requires approximately 10-15 minutes to execute an objective with a depth of 40. While the capacity to simultaneously run multiple sessions exists, it is deemed judicious to prioritize the refinement of the TAT and the overall reduction of the Waiting Time (WT) which includes future work on AutoRAGA and CogNAV architectures.

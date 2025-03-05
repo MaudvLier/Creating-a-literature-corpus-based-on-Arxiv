@@ -1,0 +1,558 @@
+Knowledge Boundary and Persona Dynamic Shape A Better Social Media Agent
+
+
+Introduction
+
+
+FIGURE
+
+
+Social networks play a crucial role in the daily lives of individuals
+[*REF*; *REF*]. In sociology, the social network
+is an important way to understand behavior
+[*REF*; *REF*]. By studying the
+performance of the agent in social networks, we can better understand
+its behavior and guide the construction of it. The emergence of large
+language models (LLMs) [*REF*; *REF*; *REF*; *REF*]
+brings possibilities for the agent construction. Several works attempt
+at it and achieve encouraging results
+[*REF*; *REF*; *REF*]. Due to the
+social nature of social media, it is particularly important to shape the
+personalization of the agent, which facilitates deep and meaningful
+interactions with other users. To balance the information from knowledge
+and persona, we shape personalization through two important attributes:
+the knowledge boundary and the persona dynamic. However, existing works
+ignore these two key problems, which make the performance of the agent
+different from humans.
+
+
+Regarding the knowledge boundary, the agent should only process world
+knowledge that aligns with the given persona. However, the knowledge
+boundary of existing works is too
+flexible [*REF*; *REF*], and they use all
+knowledge within LLMs or directly retrieve it from knowledge datasets.
+This makes the agent more like a &quot;naturalist&quot; who frequently outputs
+knowledge that does not belong to its persona, rather than a
+personalized agent. It may reduce its personalization and credibility
+and cause users to lose trust. As shown in
+Figure [1](a), the doctor should have professional medical knowledge and not professional
+knowledge of law, physics, and artificial intelligence. Therefore, the
+knowledge possessed by each agent should be a limited subset related to
+persona, rather than the entire world knowledge.
+
+
+For persona dynamic, the agent should only use relevant persona
+information for the current action. However, existing
+works [*REF*; *REF*] are less flexible in
+using persona information. They combine all the persona information with
+the action information and provide them to the agent when it takes
+action. The persona information is usually diverse, but the current
+action may only be related to a subset of it. As shown in
+Figure [1](b), the persona information contains multiple hobbies, and the current action is
+only related to &quot;playing video games&quot; in the hobby. If all persona
+information is used, possible conflicts between them may interfere with
+the decision-making of the action, or the agent may generate generic
+text that covers all persona information but contains little specific
+content. Therefore, the agent should only use the persona information
+relevant to the action rather than all of them.
+
+
+To address the above challenges, we build a social media agent based on
+personalized knowledge and dynamic persona information. For personalized
+knowledge, we add retrievable external knowledge sources to the agent
+and combine them with persona information. Every time the agent uses
+knowledge, it needs to judge whether the knowledge the persona should
+have. If so then the agent uses the knowledge, otherwise it discards the
+knowledge. The basis for judgment is whether the text similarity between
+this knowledge and the description of the knowledge that the persona
+should have is greater than a fixed threshold. For dynamic persona
+information, we divide the persona information into multiple retrievable
+items, including detailed historical behavior information, social media
+content preferences, and persona knowledge. Each retrieval item is about
+a single historical behavior, content preference, or knowledge. When the
+agent performs an action, the action information is used as a query, and
+the above three are retrieved respectively to obtain the relevant
+persona information, thereby reducing the interference of other
+irrelevant persona information.
+
+
+To give the agent basic functions and make it suitable for social media,
+we equip the agent with five modules: persona, action, planning, memory,
+and reflection. In the persona module, the agent is given rich persona
+information and personalized world knowledge. In the action module, the
+agent can complete various actions on social media, such as likes and
+posts. The planning module provides the activity and planning basis for
+the action module. In the memory module, the historical action
+information of the agent is recorded, and the agent can retrieve the
+memory when needed to support actions. In the reflection module, the
+agent can reflect on past actions and support more complex actions such
+as following users.
+
+
+To provide an interaction and verification environment for agents, we
+build a social media simulation sandbox based on an open-source
+platform. The sandbox has the basic functions of social media, and the
+agent can complete actions by calling the API. Meanwhile, the
+recommendation mechanism is added to the sandbox to improve the realism.
+Overall user activity is simulated and combined with the planning module
+of the agent to make the sandbox closer to social media in the real
+world.
+
+
+In the experiment, multiple agents interact in the sandbox and take
+actions such as browsing, liking and posting. In automated evaluation,
+the posts engaged by the agent through liking, reblogging, or commenting
+exhibit higher entailment or textual similarity with persona information
+compared to posts browsed only. The posts and comments generated by the
+agent have good text quality and are relevant to the persona
+information. The evaluation based on GPT-4 also confirms the above
+results. In human evaluation, the action rationality and text generation
+quality of the agent are evaluated, and the results show the
+effectiveness of the agent.
+
+
+FIGURE
+
+
+Our contributions in this paper are three folds:
+-  We endow the agent with personalized world knowledge and dynamic
+persona information, thereby improving the personalization and
+anthropomorphism of the agent.
+-  We design five modules for the agent: persona, action, planning,
+memory and reflection, which make it more suitable for social media.
+-  We build a social media simulation sandbox with authentic page
+interfaces, offering the agent an interaction and verification
+environment. Automatic and human evaluations demonstrate the
+effectiveness of the agent.
+
+
+Related Work
+
+
+After the emergence of large language models, recent works have used
+them in the research of agents, aiming to get closer to general
+artificial intelligence. Part of these works focus on building a single
+agent and improving the performance of the agent on various tasks
+[*REF*; *REF*; *REF*; *REF*].
+Other works focus on the research of multi-agent collaboration, which
+allows each agent to play different roles to cooperate and complete more
+complex tasks [*REF*; *REF*; *REF*; *REF*].
+
+
+The performance of agents in social environments is an issue that needs
+urgent research, and several works have made preliminary attempts at
+this. *REF* build a social simulation sandbox to observe
+whether the action of agents in it is close to real people.
+*REF* simulate the performance of multiple agents when
+facing public management crisis events. Other works explore the
+interaction of agents in social networks to observe the performance of
+agents in the virtual world. *REF* develop a simulation
+sandbox to refine the design of social media platforms by examining edge
+actions and implementing interventions. *REF* simulate and observe
+the attitude of agents facing specific events by introducing real social
+media data.
+
+
+Our Approach
+
+
+The overall framework of our work is divided into two parts: agent
+simulation and system construction, which is shown in Figure 2.
+
+
+FIGURE
+
+
+Agent Simulation
+
+
+We design five modules for the agent to make it suitable for social
+media: persona, planning, action, memory and reflection, which follows
+as *REF* and *REF*.
+
+
+Persona Module
+
+
+Creation and Enrichment of Persona
+
+
+We enrich the simple persona in Personachat
+[*REF*] and create the rich persona information
+of agents. Personachat is a persona-based dialogue dataset containing
+1155 personas. The enriched persona information includes basic
+information and advanced attributes. Basic information includes name,
+age, gender, nationality, personality and hobbies. Advanced attributes
+include detailed historical behavior information, social media content
+preferences, and persona knowledge. An example of the process of
+enriching persona information is shown in
+Figure 3. We design the prompt for ChatGPT to complete the
+above process. The implementation details are shown in Appendix [6].
+
+
+Addition of Personalized Knowledge
+
+
+Each agent should have knowledge related to the persona instead of all
+world knowledge, so we need to endow each persona with personalized
+knowledge. We use the HotpotQA [*REF*] as an external
+knowledge source, boasting 113k question-answer pairs and encompassing
+extensive world knowledge. When the agent generates a post, it retrieves
+knowledge that the persona should have from HotpotQA based on the post
+topic, thus providing support for the action. Specifically, we use the
+post topic as a query and use ColBERT [*REF*] to
+retrieve the relevant knowledge from HotpotQA. The TF-IDF algorithm
+[*REF*] is then used to calculate the text similarity between
+the retrieved knowledge and the &quot;knowledge&quot; item in persona information.
+When the text similarity between the two is greater than the knowledge
+adoption threshold *MATH*, the knowledge is used, otherwise, it is not
+used.
+
+
+Dynamic Persona Information
+
+
+Since the information of each persona is diverse, which includes
+multiple hobbies, historical behavior information, social media content
+preferences, etc. Excessive persona information may prevent the agent
+from selecting the most relevant persona information for the current
+action, thereby interfering with the action decision-making process.
+Therefore, we set up the advanced attributes of persona as multiple
+internal retrieval items, including detailed historical behavior
+information, social media content preferences, and persona knowledge.
+When the agent actions, the action information is used as a query and
+each advanced attribute is retrieved internally. The persona information
+that is most relevant to the current action in each advanced attribute
+is obtained and used to support the action, thereby avoiding the
+interference of irrelevant persona information.
+
+
+FIGURE
+
+
+Action Module
+
+
+In the action module, agents can perform actions on social media. Our
+agent is specifically constructed for social media, so we only simulate
+actions suitable for it. We design six actions: browse, like, reblog,
+comment, post and follow users. The description of them is as follows:
+(1) Browse: the agent looks through posts on social media. Since we use
+LLMs instead of multi-modal models, the post content only includes text
+but not images and videos. (2) Like: the agent expresses its approval or
+liking of the content through the like operation. (3) Reblog: the agent
+shares posts of other people on its homepage. (4) Comment: the agent
+leaves responses on a post, fostering conversation with the content
+creator. (5) Post: the agent creates content for others to browse. (6)
+Follow users: the agent subscribes to the homepages of other users.
+
+
+We technically use prompt engineering [*REF*] to implement
+the above actions. In the designed prompt, we splice together the
+instructions for the agent to make action decisions, the retrieved
+persona information and the action information. Due to the complexity of
+the posting action, personalized external world knowledge is also added
+to the above prompt to better support the agent in generating posts. For
+likes, reblogs and comments, we use the browsed post content as a query
+to internally retrieve the persona information of the agent and obtain
+the relevant persona information. For posting, the agent first generates
+post topics based on all persona information, and internally retrieves
+the persona information based on each topic. In addition, the topic is
+used as a query to retrieve world knowledge, and the text similarity
+between the knowledge and the &quot;knowledge&quot; item in persona information is
+calculated. If the text similarity is greater than the knowledge
+adoption threshold *MATH*, the knowledge will be used, otherwise it
+will not be used. The prompt for the agent to generate post content is
+shown in Figure. More prompts of the action are shown in
+Appendix [7].
+
+
+Planning Module
+
+
+In the planning module, the agent can plan its action. The agent
+generates the plan containing the time and probabilities of the action
+based on its own user activity and persona information, which includes
+the time to browse posts every day, the time and number to post every
+week, the probability of likes, reblogs and comments. The agent performs
+actions according to the generated plan. Meanwhile, we convert the
+action probability into the number of actions and make the agent follow
+the constraints of it. An example of planning content is shown in
+Figure [2]. The prompt for generating planning content is shown in
+Appendix [8].
+
+
+FGURE
+
+
+Memory Module
+
+
+Memory Storage
+
+
+We equip the agent with short-term memory and long-term memory.
+Information about the actions of the agent is recorded and stored as
+short-term memory. Taking likes as an example, the recorded action
+information includes the post content, whether to like it, the poster
+ID, etc. The external knowledge source of persona serves as the
+long-term memory of agents, which comes from the HotpotQA dataset
+[*REF*].
+
+
+Memory Retrieval
+
+
+In memory retrieval, the agent can extract information related to the
+current action from short-term memory and long-term memory to better
+support the action. Specifically, when the agent generates a post, it
+uses the post topic as a query to retrieve the long-term memory and
+obtain relevant knowledge. After the post is generated, the short-term
+memory is retrieved and the similarity between the generated post and
+its own previous posts is calculated. If the similarity is greater than
+the post duplication threshold *MATH*, the agent regenerates the post
+to avoid publishing posts that are too repetitive. The above two text
+similarities are calculated through the TF-IDF algorithm
+[*REF*].
+
+
+Reflection Module
+
+
+Based on short-term memory, the agent can generate high-level ideas
+through reflection. Every time the simulation time increases by two
+days, the agent reflects on the users to follow based on its history
+action information including likes, reblogs, and comments. We design the
+appropriate prompt for the agent and take its history action information
+as input. The agent outputs the user ID to follow or not to follow.
+Because of the length of the post on social media, we equip the agent
+with a summary component. The summarized post and action information of
+the agent are spliced and input into the reflection module, thereby
+improving the effect of the reflection module. The prompts for
+generating the reflection and the summary are shown in
+Appendix [9] and Appendix [10] respectively.
+
+
+System Construction
+
+
+We construct a social media simulation sandbox, which mainly includes
+three parts: basic functions of the social media, recommendation
+mechanism and overall user activity simulation.
+
+
+Construction of Social Media Platform
+
+
+We construct a social media sandbox with authentic page interfaces based
+on Mastodon. Mastodon is an open-source social media software
+similar to Twitter that provides basic social media functions such as
+live feeds and posting. The screenshot of the sandbox we constructed is
+shown in Appendix [11]. To allow the agent to automatically execute
+actions in the sandbox, we encapsulate the existing Mastodon API to
+build an API interface, which has a variety of functions: register
+accounts, get live feeds, post, like, comment, etc. In addition, we
+design timers to simulate real-world time. The simulation sandbox runs
+according to turns, and the time increases by one hour for each turn.
+
+
+Recommendation Mechanism
+
+
+To make our sandbox closer to real social media, we add a recommendation
+mechanism to it. We build our recommendation module based on the
+Mastodon Digest, which is a recommendation project for Mastodon.
+Every time a user browses the posts, it scores and sorts unread posts.
+The score is calculated as follows. *MATH* where
+*MATH*, *MATH*, and *MATH* are the number of likes, reblogs, and
+comments of the post, respectively. *MATH* is the number of followers
+of the post creator.
+
+
+Simulation of Overall User Activity
+
+
+In real social media, different users may have different levels of
+activity. We simulate the overall activity of users. Following as
+*REF*, user activity usually presents a long-tail
+distribution from an overall perspective, that is, a few users are
+highly active and most users are low active. Therefore, the Pareto
+distribution is used to simulate user activity, and the probability
+density of user activity is as follows. *MATH* where *MATH* is the
+minimum activity level, and *MATH* is the parameter that affects the
+shape of the function. After the user activity is generated, we combine
+it with the planning module of the agent. Specifically, user activity
+and persona information are input into the plan generation process,
+thereby jointly determining the action probability in the plan.
+
+
+TABLE
+
+
+Experiments 
+
+
+Experiment Settings
+
+
+Models and Implementation Details
+
+
+We use ChatGPT [*REF*] as the basic model for constructing
+the agent. We use gpt-3.5-turbo provided from the API of OpenAI.
+Parameters are set as follows: the knowledge adoption threshold *MATH* 
+is 0.25, the post duplication threshold *MATH* is 0.80, and *MATH* in
+the Pareto distribution is 2, determined through parameter tuning. The
+agent count is 450, with 150 initial agents and 300 regular agents. The
+sandbox starts empty, with the initial agent providing initial content
+and publishing 1050 posts. Regular agents subsequently engage in two
+stages of interaction within the sandbox. In the first stage, they post
+and browse the posts posted by initial agents. New posts posted by the
+regular agent in this stage will not be browsed. In the second stage,
+regular agents post and browse posts from regular agents. Each stage is
+one week in simulation time.
+
+
+Evaluation Metrics
+
+
+Automatic Metrics
+
+
+We choose the automatic metrics in different aspects to evaluate
+different actions of agents. The action should be consistent with the
+persona information, we evaluate the relationship between the posts that
+the agent chooses to like, forward, or comment on and the persona
+information. The relationship between posts generated by the agent and
+persona information is also evaluated. We use consistency score
+(C.score) [*REF*] and BERTScore
+[*REF*] to evaluate consistency and text similarity
+respectively. For C.score, the RoBERTa
+[*REF*] fine-tuned on DialogueNLI
+[*REF*] as the natural language inference (NLI)
+model is used to evaluate the consistency between persona information
+and post content. When the relation between them is entailment, neutral,
+and contradiction, the C.score is 1, 0, and -1, respectively.
+
+
+For posts and comments, we additionally evaluate the text generation
+quality of the agent. We use distinct-1/2 [*REF*]
+to evaluate the diversity. In addition, we randomly select 120 posts and
+120 comments and use GPT-4 [*REF*] to score. The version we
+use is gpt-4-1106-preview. Informativeness (Info), consistency
+(Cons), and humanness (Hum) are used to evaluate text quality.
+Informativeness means whether the text is diverse and informative.
+Consistency means whether the text is relevant and consistent with the
+persona information. Humanness means how similar the generated text is
+to text written by a real person. The three indicators are scored on a
+scale of 1 to 3, where 3 is good, 2 is moderate, and 1 is poor. When
+evaluating, only personality, hobbies, and social media content
+references of the persona are used, because the action is more related
+to the above three attributes, and there is a limit on the input length
+of the BERT, RoBERTa and GPT-4.
+
+
+Human Evaluations
+
+
+In human evaluation, three graduate students with good English skills
+are asked to evaluate the action rationality and text generation quality
+of the agent. The action rationality is 0 or 1, 1 indicates that the
+action is reasonable, 0 otherwise. For the evaluation of the reflection
+module, the annotator determines whether the user the agent follows is
+reasonable based on the historical actions of the agent. If it is
+reasonable, the reflection score (Ref) is 1, 0 otherwise. The
+metrics used in text quality are the same as those used in the
+evaluation based on GPT-4. In addition, the appropriateness of knowledge
+(Know) is evaluated. If the agent utilizes knowledge when needed and
+uses it appropriately, Know is 1; if the agent does not use it when
+knowledge is unnecessary, it is also 1. Otherwise, it is 0. To measure
+the agreement between human annotators, we use Pearson correlation
+coefficient [*REF*]. We randomly select 30 regular agents
+for the action rationality evaluation. For text quality, we randomly
+select 60 posts and 60 comments posted by regular agents.
+
+
+Results
+
+
+Results of Action Rationality
+
+
+As shown in Table 1, the posts engaged with by the agent through liking,
+reblogging, or commenting exhibit higher BERTScore with persona
+information compared to posts browsed only. The consistency between
+these engaged posts and person information is greatly high, exceeding
+browse-only posts except for the comment. The above results show that
+the agent can make reasonable actions based on its persona. In the human
+evaluation of the action rationality, the like and forward achieve good
+scores. The rationality of comments is lower than the above two, which
+is because comments are more complex and difficult for the agent to
+decide. The agent shows similar results in two stages of interactions,
+indicating that the agent can interact well with users possessing
+different persona information.
+
+
+Results of Text Generation Quality
+
+
+In automatic evaluation, posts generated by the agent show good
+diversity and informativeness, both using automatic metrics and
+GPT-4-based evaluations. The comments generated by the agent are less
+diverse and informative. This is because comments are shorter and tend
+not to include much content. As shown in
+Table 1, the posts generated by the agent have good BERTScore and consistency
+score with the persona information, indicating that the agent can
+generate posts that are relevant and consistent with the persona. In the
+evaluation based on GPT-4, there is good consistency between the
+generated posts and the persona information, as shown in
+Table 2. The consistency between the generated comments and persona information
+is lower than that in posts. We believe this is because generating
+comments does not involve too much persona information. In addition, the
+generated posts and comments have great humanness, indicating that they
+are similar to those written by real people.
+
+
+FIGURE
+
+
+The human evaluation shows similar results. As shown in
+Table 3, the posts and comments have good informativeness, with posts being more
+informative due to their length. The posts have higher consistency than
+comments because they contain more information related to the persona.
+Both posts and comments show good humanness, indicating that annotators
+prefer that they are written by real people. The knowledge score is
+high, indicating that the agent can select and use knowledge
+appropriately. The Pearson correlation coefficients of annotators for
+the action and text quality are 0.40 and 0.79 respectively, indicating
+good consistency between annotators. The action exhibits a lower
+consistency score compared to text quality due to its subjectivity in
+evaluation. We provide the results of the ablation study, examples of
+action and text generation in Appendix [12] and Appendix [13] respectively.
+
+
+Results of Reflection
+
+
+We manually evaluate the effect of the reflection module, and the
+reflection score is 0.644, which shows that the agent can reasonably
+choose the users to follow based on its historical action information.
+In addition, we count the number of followers of 300 regular agents, and
+the results are shown in Figure [3]. The results show that most agents have few or no
+followers, while two agents have more than 100 followers, forming
+well-known influences. This is similar to real social media,
+illustrating the effectiveness of the agent and simulation sandbox we
+constructed.
+
+
+Conclusion
+
+
+In this work, we construct the social media agent and a social media
+simulation sandbox. We endow the agent with personalized world knowledge
+and dynamic persona information, thereby improving its personalization
+and anthropomorphism. Five modules are designed to make the agent
+suitable for social media: persona, action, planning, memory and
+reflection. Meanwhile, we build a sandbox to provide the agent with an
+interaction and verification environment. Experimental results
+demonstrate the effectiveness of our constructed agent.

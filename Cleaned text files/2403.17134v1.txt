@@ -1,0 +1,424 @@
+RepairAgent: An Autonomous, LLM-Based Agent for Program Repair
+
+
+Introduction 
+
+
+Software bugs lead to system failures, security vulnerabilities, and compromised user experience. Fixing bugs is a critical task in software development, but if done manually, demands considerable time and effort.
+Automated program repair (APR) promises to dramatically reduce this effort by addressing the critical need for effective and efficient bug resolution in an automated manner. Researchers and practitioners have explored various approaches to address the challenge of automatically fixing bugs [*REF*], including techniques based on manually designed [*REF*; *REF*] and (semi-)automatically extracted [*REF*; *REF*; *REF*] fix patterns, based on symbolic constraints [*REF*; *REF*; *REF*], and various machine learning-based approaches [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+The current state-of-the-art in APR predominantly revolves around large language models (LLMs). The first generation of LLM-based repair techniques involve a one-time interaction with the model, where the model receives a prompt containing the buggy code and produces a fixed version [*REF*; *REF*]. The second and current generation of LLM-based repair techniques introduces iterative approaches, which query the LLM repeatedly based on feedback obtained from previous fix attempts [*REF*; *REF*; *REF*].
+
+
+A key limitation of current iterative, LLM-based repair techniques is that their hard-coded feedback loops do not allow the model to gather information about the bug or existing code that may provide ingredients to fix the bug. Instead, these approaches fix the context information provided in the prompt, typically to the buggy code [*REF*; *REF*], and sometimes also details about the test cases that fail [*REF*]. The feedback loop then executes the tests on different variants of the buggy code and adds any compilation errors, test failures, or other output, to the prompt of the next iteration.
+However, this approach fundamentally differs from the way human developers fix bugs, which typically involves a temporal interleaving of gathering information to understand the bug, searching code that may be helpful for fixing the bug, and experimenting with candidate fixes [*REF*; *REF*].
+
+
+This paper presents RepairAgent, the first autonomous, LLM-based agent for automated program repair. Our approach treats the LLM as an autonomous agent capable of planning and executing actions to achieve the goal of fixing a bug. To this end, we equip the LLM with a set of bug repair-specific tools that the models can invoke to interact with the code base in a way similar to a human developer. For example, RepairAgent has tools to extract information about the bug by reading specific lines of code, to gather repair ingredients by searching the code base, and to propose and validate fixes by applying a patch and executing test cases. Importantly, we do not hard-code how and when to use these tools, but instead let the LLM autonomously decide which tool to invoke next, based on previously gathered information and feedback from previous fix attempts.
+
+
+Our approach is enabled by three key components. First, a general-purpose LLM, such as GPT-3.5, which we query repeatedly with a dynamically updated prompt. We contribute a novel prompt format that guides the LLM through the bug repair process, and that gets updated based on the commands invoked by the LLM and the results of the previous command executions. Second, a set of tools that the LLM can invoke to interact with the code base. We present a set of 14 tools designed to cover different steps a human developer would take when fixing a bug, such as reading specific lines of code, searching the code base, and applying a patch. Third, a middleware that orchestrates the communication between the LLM and the tools. We present novel techniques for guiding tool invocations through a finite state machine and for heuristically interpreting possibly incorrect LLM outputs. The iterative loop of RepairAgent continues until the agent declares to have found a suitable fix, or until exhausting a budget of iterations.
+
+
+To evaluate the effectiveness of our approach, we apply it to all 835 bugs in the Defects4J [*REF*] dataset, a widely used benchmark for evaluating program repair techniques. RepairAgent successfully fixes 164 bugs, including 74 and 90 bugs of Defects4J v1.2 and v2.0, respectively.
+The correctly fixed bugs include 49 bugs that require fixing more than one line, showing that RepairAgent is capable of fixing complex bugs.
+Compared to state-of-the-art techniques [*REF*; *REF*], RepairAgent successfully fixes 39 bugs not fixed by prior work.
+Measuring the costs imposed by interacting with the LLM, we find that RepairAgent imposes an average cost of 270,000 tokens per bug, which, under the current pricing of OpenAI&apos;s GPT-3.5 model, translates to 14 cents per bug. Overall, our results show that our agent-based approach establishes a new state of the art in program repair.
+
+
+In summary, this paper contributes the following:
+
+
+- An autonomous, LLM-based agent for program repair.
+- A dynamically updated prompt format that guides the LLM through the bug repair process.
+- A set of tools that enable a LLM to to perform steps a human developer would take when fixing a bug.
+- A middleware that orchestrates the communication between the LLM and the tools.
+- Empirical evidence that RepairAgent establishes a new state of the art by successfully fixing 164 bugs, including 39 bugs not fixed by prior work.
+- We will release the implementation of RepairAgent as open-source to foster future work.
+
+
+To the best of our knowledge, there currently is no published work on an autonomous, LLM-based agent for any code-generation task. We envision RepairAgent to pave the way for future agent-based techniques in software engineering.
+
+
+Background on LLM-Based, Autonomous Agents
+
+
+By virtue of being trained on vast amounts of web knowledge, including natural language and source code, LLMs have demonstrated remarkable abilities in achieving human-level performance for various tasks [*REF*]. A promising way of using these abilities are LLM-based agents that autonomously plan and execute actions to achieve a goal. The basic idea is to query the LLM with a prompt that contains the current state of the world, the goal to be achieved, and a set of actions that could be performed next. The model than decides which action to perform, and the feedback from performing the action is integrated into the next prompt. One way to represent &quot;actions&quot; is through tools that the model can invoke to interact with the world [*REF*; *REF*]. Recent surveys provide a comprehensive overview of LLM-based, autonomous agents [*REF*] and of LLM agents equipped with tools invoked via APIs [*REF*]. The potential of such agents for software engineering currently is not well explored, which this paper aims to address for the challenging task of automated program repair.
+
+
+Approach
+
+
+Overview 
+
+
+FIGURE 
+
+
+Figure  gives an overview of the RepairAgent approach, which consists of three components: an LLM agent, a set of tools, and a middleware that orchestrates the communication between the two. Given a bug to fix, the middleware initializes the LLM agent with a prompt that contains task information and instructions on how to perform it by using the provided tools. The LLM responds by suggesting a call to one of the available tools, which the middleware parses and then executes. The output of the tool is then integrated into the prompt for the next invocation of the LLM, and the process continues iteratively until the bug is fixed or a predefined budget is exhausted.
+
+
+Terminology
+
+
+RepairAgent proceeds in multiple iterations, which we call cycles:
+
+
+DEFINITION
+
+
+In each cycle, the approach queries the LLM once. The input to the model is updated based on commands (calls to tools) invoked by the LLM, and their results, in previous cycles. We call the model input a dynamic prompt:
+
+
+DEFINITION
+
+
+Dynamic Prompting of the Repair Agent
+
+
+TABLE
+
+
+The repair agent is an LLM trained on natural language and source code, such as GPT-3.5. RepairAgent queries the LLM with a dynamic prompt that consists of a sequence of static and dynamic sections, as listed in Table [1]. We describe each section in detail in the following.
+
+
+Role
+
+
+This section of the prompt defines the agent&apos;s area of expertise, which is to resolve bugs in Java code, and outlines the agent&apos;s primary objective: understanding and fixing bugs. The prompt emphasizes that the agent&apos;s decision-making process is autonomous and should not rely on user assistance.
+
+
+Goals
+
+
+We define five goals for the agent to pursue, which remain the same across all cycles:
+
+
+- Locate the bug: Execute tests and use fault localization techniques to pinpoint the bug&apos;s location. Skip this goal when fault localization information is already provided in the prompt.
+- Gather information about the bug: Analyze the lines of code associated with the bug to understand the bug.
+- Suggest simple fixes to the bug: Start by suggesting simple fixes.
+- Suggest complex fixes: If simple fixes prove ineffective, explore and propose more complex ones.
+- Iterate over the previous goals: Continue to gather information and to suggest fixes until finding a fix.
+
+
+Guidelines
+
+
+We provide a set of guidelines. First, we inform the model that there are diverse kinds of bugs, ranging from single-line issues to multi-line bugs that may entail changing, removing, or adding lines. Based on the observation that many bugs can be fixed by relatively simple, recurring fix patterns [*REF*], we provide a list of recurring fix patterns. The list is based on the patterns described in prior work on single-statement bugs in Java [*REF*]. For each pattern, we provide a short natural language description and an example of buggy and fixed code. Second, we instruct the model to insert comments above the modified code, which serves two purposes. On the one hand, the comments allow the model to explain its reasoning, which has been shown to enhance the reasoning abilities of LLMs [*REF*].
+On the other hand, commenting will ultimately help human developers in understanding the nature of the edits. Third, we instruct the model to conclude its reasoning with a clearly defined next step that can be translated into a call to a tool. Finally, we describe that there is a limited budget of tool invocations, highlighting the importance of efficiency in selecting the next steps. Specifically, we specify a maximum number of cycles (40 by default).
+
+
+State Description
+
+
+FIGURE
+
+
+To guide the LLM agent toward using the available tools in an effective and meaningful way, we define a finite state machine that constrains which tools are available at a given point in time. The motivation is that we observed the LLM agent to frequently get lost in aimless exploration in earlier experiments without such guidance.
+Figure [1] shows the finite state machine, which we design to mimic the states a human developer would go through when fixing a bug. Each state is associated with a set of tools available to the agent, which are described in Section [3.4].
+Importantly, the agent is free to transition between states at any point in time by using tools. That is, despite providing guidance, the state machine does not enforce a strict order of tool invocations.
+
+
+The state description section of the prompt informs the agent about its current state:
+
+
+- Understand the bug: The agent starts in this state, where it can collect information related to the failing test cases and the bug&apos;s location. Once the agent has an understanding of the bug, it formulates a hypothesis to describe the nature of the bug and the reason behind it. Throughout the repair process, the agent may refute earlier hypotheses and express new ones. After expressing a hypothesis, the agent will automatically switch to the next state.
+- Collect information to fix the bug: In this state the agent collects information that help suggest a fix for the bug expressed by the hypothesis, e.g., by searching for specific repair ingredients or by reading possibly relevant code. Once the agent has gathered enough information to attempt a fix, it can transition to the next state.
+- Try to fix the bug: In this state, the agent tries to fix the bug based on its current hypothesis and the collected information. Each fix attempt modifies the code base and is validated by executing the test cases. If necessarily, the agent can go back to one of the previous states to establish a new hypothesis or to gather additional information.
+
+
+In addition to the three above states, RepairAgent has a final state, &quot;Done&quot;, which the agent can reach by calling a specific command that indicates the success of repair.
+
+
+Available Tools
+
+
+This section of the prompt describes a set of tools that the agent can call at the current state. Each tool has a name, a description, and a set of typed arguments (Section [3.4]).
+
+
+Gathered Information
+
+
+A key ability of the repair agent is to gather information about the bug and the code base, which serves as the basis for deciding which commands to invoke next. To make this information available to the agent, we maintain a prompt section that lists the information gathered by the different tool invocations. Intuitively, this section of the prompt serves as a memory for the agent, allowing it to recall information from previous cycles. The gathered information is structured into different subsections, where each subsection contains the outputs produced by a specific tool.
+
+
+Specification of Output Format
+
+
+FIGURE
+
+
+Given the dynamic prompt, the LLM agent provides one response per cycle.
+To enable the middleware to parse the response, we specify the expected output format (Figure [2]). The &quot;thoughts&quot; field provides a textual description of the agent&apos;s reasoning when deciding about the next command. Asking the agent to express its thoughts increases the transparency and interpretability of the approach, provides a way to debug potential issues in the agent&apos;s decision-making process, and helps improve the reasoning abilities of LLMs [*REF*]. The &quot;command&quot; field specifies the next command to be executed, consisting of the name of the tool to invoke and the set of arguments.
+
+
+FIGURE
+
+
+For example, Figure [3] shows a response of the LLM agent. The model expresses the need to collect more information to understand the bug. It then suggests a command that searches the code base with a list of keywords.
+
+
+Last Executed Command and Result
+
+
+This section of the prompt contains the last command (tool name and arguments) that was executed (if any) and the output it produced. The rationale is to remind the agent of the last step it took, and to make it aware of any problems that occurred during the execution of the command. Furthermore, we remind the agent how many cycles have already been executed, and how many cycles are left
+
+
+Tools for the Agent to Use 
+
+
+A key novelty in our approach is to let an LLM agent autonomously decide which tools to invoke to fix a bug. The tools we provide to the agent (Table ) are inspired by the tools that developers use in their IDEs.
+
+
+TABLE
+
+
+Reading and Extracting Code
+
+
+A prerequisite for fixing a bug is to read and understand relevant parts of the code base. Instead of hard-coding the context provided to the LLM [*REF*; *REF*; *REF*], we let the agent decide which parts of the code to read, based on four tools. The read_range tool allows the agent to extract a range of lines from a specific file, which is useful to obtain a focused view of a particular section of code. To obtain an overview of the code structure, the get_classes_and_methods tool retrieves all class and method names within a given file. By invoking the extract_method tool, the agent can retrieve the implementation(s) of methods that match a given method name within a given file. Finally, we offer the extract_tests tool, which extracts the code of test cases that resulted in failure. The tool is crucial to understand details of failing tests, such as input values and the expected output.
+
+
+Search and generate code
+
+
+Motivated by the fact that human developers commonly search for code [*REF*], we present tools that allow the agent to search for specific code snippets. These tools are useful for the agent to better understand the context of a bug and to gather repair ingredients, i.e., code fragments that could become part of a fix. The search_code_base tool enables the agent to locate instances of particular keywords within the entire code base. For example, the agent can use this tool to find occurrences of variables, methods, and classes. Given a set of keywords, the tool performs an approximate matching against all source code files in the project. Specifically, the tool splits each keyword into subtokens based on camel case, underscores, and periods, and then searches for each subtoken in the code. For example, searching for &apos;quickSortArray&apos; yields matches for &apos;sortArray&apos;, &apos;quickSort&apos;, &apos;arrayQuickSort&apos;, and other related variations. The output of the tool is a nested dictionary, organized by file names, classes, and method names, that provides the keywords that match a method&apos;s content. Another search tool, find_similar_api_calls, allows the agent to identify and extract usages of a method, which is useful to fix incorrect method calls. Without such a tool, LLMs tend to hallucinate method calls that do not exist in the code base [*REF*]. Given a code snippet that contains a method call, the tool extracts the name of the called method, and then searches for calls to methods with the same name. The agent can restrict the search to a specific file or search the entire code base.
+
+
+In addition to searching for existing code, RepairAgent offers a tool that generates new code by invoking another LLM. The tool is inspired by the success of LLM-based code completion tools, such as Copilot [*REF*], which human developers increasingly use when fixing bugs. Given the code preceding a method and the signature of the method, the generate_method_body tool asks an LLM to generate the body of the method. The query to the code-generating LLM is independent of the dynamic prompt used by the overall RepairAgent approach, and may use a different model. In our evaluation, we use the same LLM for both the repair agent and as the code-generating LLM of this tool. The tool limits the given code context to 12k tokens and sets a limit of 4k tokens for the generated code.
+
+
+Testing and Patching
+
+
+The next category of tools is related to running tests and applying patches. The run_tests tool allows the agent to execute the test suite of the project. It produces a report that indicates whether the tests passed or failed. In case of test failures, the tool cleans the output of the test runner, e.g., by removing entries of the stack trace that are outside of the current project. The rationale is that LLMs have a limited prompt size and that irrelevant information may confuse the model. The run_fault_localization tool retrieves fault localization information, which is useful to understand which parts of the code are likely to contain the bug. RepairAgent offers two variants of this tool: Either, it provides perfect fault localization information, i.e., the file(s) and line(s) that need to be edited to fix the bug, or it invokes an existing fault localization tool, such as GZoltar [*REF*], to calculate fault localization scores. As common in the field of program repair, we assume perfect fault localization as the default.
+
+
+FIGURE
+
+
+Once the agent has gathered sufficient information to fix the bug, it can apply a patch to the code base using the write_fix tool.
+RepairAgent aims at repairing arbitrarily complex bugs, including multi-line and even multi-file bugs. The write_fix tool expects a patch in a specific JSON format, which indicates the insertions, deletions, and modifications to be made in each file.
+Figure [4] shows an example of a patch in this format. Given a patch, the tool applies the changes to the code base and runs the test suite. If the tests fail, the write_fix reverts the changes, giving the agent a clean code base to try another fix.
+Motivated by the observation that some fix attempts are almost correct, the write_fix tool requests the LLM to sample multiple variants of the suggested fix. By default, RepairAgent samples 30 variants at max. Given the generated variants, the approach removes duplicates and launch tests for every variant.
+
+
+Control
+
+
+The final set of tools do not directly correspond to a tool a human developer may use, but rather allow the agent to move between states (Figure [1]). The express_hypothesis tool empowers the agent to articulate a hypothesis regarding the nature of the bug and to transition to the &apos;Collect information to fix the bug&apos; state.
+Inversely, the discard_hypothesis tool allows the agent to discard a hypothesis that is no longer viable, which leads back to the &apos;Understand the bug&apos; state. Together, the two commands enforce a structured approach to hypothesis formulation, aligning with work on scientific debugging [*REF*; *REF*]. In case the agent has tried multiple fixes without success, the collect_more_information tool allows the agent to revert to the &apos;Collect information to fix the bug&apos; state. Finally, once the agent has found at least one fix that passes all tests, it can invoke the goal_accomplished tool, which terminates RepairAgent.
+
+
+Middleware
+
+
+The middleware component plays a crucial role in RepairAgent, orchestrating the communication between the LLM agent and the tools. It performs the steps in Definition [1] as described in the following.
+
+
+Parsing and Refining LLM Output
+
+
+At the beginning of each cycle, the middleware queries the LLM with the current prompt. Ideally, the response adheres perfectly to the expected format (Figure [2]). In practice, however, the LLM may produce responses that deviate from the expected format, e.g., due to hallucinations or syntactic errors. For example, the LLM may provide a &quot;path&quot; argument while the tool expects a &quot;file_path&quot; argument.
+
+
+RepairAgent tries to heuristically rectify such issues by mapping the output to the expected format in three steps. First, it tries to map the tool mentioned in the response to one of the available tools.
+Specifically, the approach checks if the predicted tool name *MATH* is a substring of the name of any available tool *MATH*, or vice versa, and if yes, considers *MATH* to be the desired tool. In case the above matching fails, the approach checks if the Levenshtein distance between *MATH* and any *MATH* is below a threshold (0.1 by default). Second, the approach tries to map the argument names provided in the response to the expected arguments of the tool, following the same logic as above. Third, the approach handles invalid argument values by heuristically mapping or replacing them, e.g., by replacing a predicted file path with a valid one. If the heuristic mapping fails or produces multiple possible tool invocations, the middleware informs the LLM about the issue via the &quot;Last executed command and result&quot; prompt section and enters a new cycle.
+
+
+In addition to rectifying minor mistakes in the response, the middleware also checks for repeated invocations of the same tool with the same arguments. If the agent suggests the exact same command as in a previous cycle, which would yield the same results, the middleware informs the agent about the repetition and enters a new cycle.
+
+
+Calling the Tool
+
+
+Once the middleware has received a valid command from the LLM, it calls the corresponding tool. To prevent tool executions to interfere with the host environment or RepairAgent itself, the middleware executes the command in an isolated environment that contains a cloned version of the buggy repository.
+
+
+Updating the Prompt
+
+
+Given the output of the tool, the middleware updates all dynamic sections of the prompt for the next cycle. In particular, the middleware updates the state description and the available tools, appends the tool&apos;s output to the gathered information, and replaces the section that shows the last executed command.
+
+
+Implementation
+
+
+We use Python 3.10 as our primary programming language. Docker is used to containerize and isolate command executions for enhanced reliability and reproducibility. RepairAgent is built on top of the AutoGPT framework and GPT-3.5-0125 from OpenAI. To parse and interact with Java code, we use ANTLR.
+
+
+Evaluation 
+
+
+To evaluate our approach we aim to answer the following research questions:
+
+
+1. How effective is RepairAgent at fixing real-world bugs?
+2. What are the costs of the approach?
+3. How does the LLM agent use the available tools?
+
+
+Experimental Setup
+
+
+Dataset
+
+
+We apply RepairAgent to bugs in the Defects4J dataset [*REF*]. We use the entire Defects4J dataset, which consists of 835 real-world bugs from 17 Java projects, including 395 bugs from 6 projects in Defects4Jv1.2, as well as another 440 bugs and 11 projects added in Defects4Jv2. Evaluating on the entire dataset allows us to assess the generalization capabilities of RepairAgent to different projects and bugs, without restricting the evaluation, e.g., based on the number of lines, hunks, or files that need to be fixed.
+
+
+Baselines
+
+
+We compare with three existing repair techniques: ChatRepair [*REF*], ITER [*REF*], and SelfAPR [*REF*].
+ChatRepair and ITER are two very recent approaches and have been shown to be the current state of the art. All three baseline approaches follow an iterative approach that incorporates feedback from previous patch attempts. Unlike RepairAgent, the baselines do not use an autonomous, LLM-based agent. We compare against the baselines based on patches provided by the authors of the respective approaches.
+
+
+Metrics of success
+
+
+Similar to past work, we report both the number of plausible and correct patches. A fix is plausible if it passes all test cases, but is not necessarily correct. To determine whether a fix is correct, we automatically check whether it syntactically matches the developer-created fix. If this is not the case, we manually determine whether the RepairAgent-generated fix is semantically consistent with the developer-created fix. If and only if either of the two checks succeeds, we consider the fix to be correct.
+
+
+RQ1: Effectiveness
+
+
+Overall Results
+
+
+TABLE
+
+
+TABLE
+
+
+Table [2] summarizes the effectiveness of RepairAgent in fixing the 835 bugs in Defects4J. The approach generates plausible fixes for 186 bugs. While not necessarily correct, plausible fixes pass all test cases and may still provide developers a hint about what should be changed. RepairAgent generates correct fixes for 164 bugs, which are semantically consistent with the developer-provided patches. Being able to fix bugs from different projects shows that the approach can generalize to code bases of multiple domains. Furthermore, RepairAgent creates fixes for bugs of different levels of complexity. Specifically, as shown in Table [3], the approach fixes 115 single-line bugs, 46 multi-line (single-file) bugs, and 3 multi-file bugs.
+
+
+Comparison with Prior Work
+
+
+FIGURE
+
+
+The right-hand side of Table [2] compares RepairAgent with the baseline approaches ChatRepair, ITER, and SelfAPR. Previous to this work, ChatRepair had established a new state of the art in APR by fixing 162 bugs in Defects4J. RepairAgent achieves a comparable record by fixing a total of 164 bugs. Our work particularly excels in Defects4Jv2, where RepairAgent fixes 90 bugs, while ChatRepair only fixes 48 bugs. To further compare the sets of fixed bugs, Figure [5] shows the overlaps between different approaches. As often observed in the field of APR, different approaches complement each other to some extent. In particular, RepairAgent fixes 39 bugs that were not fixed by any of the three baselines. Comparing the complexity of the bug fixes, as shown on the right-hand side of Table [3], RepairAgent is particularly more effective, compared to other tools, for bugs that require more than a single-line fix. We attribute this result to the RepairAgent&apos;s ability to autonomously retrieve suitable repair ingredients and the fact that the agent can perform edits to an arbitrary number of lines and files.
+
+
+Examples
+
+
+FIGURE 
+
+
+FIGURE 
+
+
+Figures [6] and [7] showcase interesting bugs fixed exclusively by RepairAgent. In the example of Figure [6], the agent used the tool *MATH* to search for calls similar to &apos;cfa.createEdge(fromNode, Branch.UNCOND, finallyNode);&apos; which returns a similar call that is found in another file but passes &apos;Branch.ON_EX&apos; to the method call instead of &apos;Branch.UNCOND&apos;. The latter was used as the repair ingredient by the agent.
+
+
+In the second example, RepairAgent benefeted from the tool *MATH* to generate the missing if-statement which led to suggesting a correct fix afterwards.
+
+
+From one side, these examples illustrate the clever and proper usage of available tools by the repair agent. From the other side, it shows how useful these tools at finding repair ingredients that traditional approaches and previous work failed to find.
+
+
+RQ2: Costs of the Approach
+
+
+FIGURE
+
+
+We measure three kinds of costs imposed by RepairAgent: (i) Time taken to fix a bug. (ii) The number of tokens consumed by queries to the LLM, which is relevant both for commercial models, such as the GPT-3.5 used here, and for self-hosted models, where the number of tokens determines the computational costs. (iii) The monetary costs associated with the token consumption, based on OpenAI&apos;s pricing as of March 2024.
+
+
+Our findings are summarized in Figure . The median time taken to address a bug is 920 seconds, with minimal variation between fixed (870 seconds) and unfixed bugs. Surprisingly, fixed bugs do not consistently exhibit lower repair times. This is due to RepairAgent&apos;s autonomous nature, where the repair process continues until the goal_accomplished command is invoked or the cycles budget is exhausted. The figure shows several outliers where bug fixing attempt takes multiple hours. RepairAgent spends 99% of the total time in tool executions, mostly running tests.
+This cost could be reduced in the future by executing selected test cases only.
+
+
+Analyzing the costs imposed by the LLM, we find a median consumption of approximately 270,000 tokens, equating to around 14 cents (US dollars).
+The number of tokens consumed by fixed bugs (21,000) is clearly lower than by unfixed bugs (315,000). This difference is because the agent continues to extract additional information for not yet fixed bugs, saturating the prompt with operations, such as reading more lines of code or performing extensive searches.
+
+
+RQ3: Usage of Tools by the Agent
+
+
+To better understand the approach, we evaluate how the agent uses the available tools.
+
+
+Adherence to Output Format
+
+
+A notable challenge in designing an LLM-based agent is the inherent informality and natural language noise present in the model&apos;s output. We categorize the output of the model as follows:
+
+
+- Fully parsable output: Responses that adhere to the JSON format without requiring further refinement (87.7%).
+- Unparsable output: Responses that do not conform to the JSON format (2.3% of the responses).
+- Partially parsable output: Responses in JSON format but with missing or misnamed fields requiring refinement by the middleware (9.9%).
+
+
+A parsed output does not guarantee a correctly specified command, which the middleware tries to rectify. At this phase, the output may fall into the following categories:
+- Correct command name: The name of the command is correct (97.9%).
+- Non-existent command: The command could not be found or mapped to an existing one (1.4%).
+- Mapped command: The command does not exist but can be mapped to an existing command by the middleware (0.7%).
+- Correct arguments: The arguments are correct (90.1%).
+- Unrefinable arguments list: The command exists or was mapped, but the list of arguments is incomplete or has incorrect names (1.9%).
+- Refinable arguments list: The middleware successfully maps the list of arguments into a correct one (8.0%).
+
+
+Overall, these results show that our heuristic refinement of LLM outputs contributes to the effectiveness and robustness of RepairAgent.
+
+
+Frequency of Tools Invocation
+
+
+FIGURE
+
+
+On average, RepairAgent makes 35 calls per bug, which also corresponds to the number of cycles.
+Figure [10] shows the frequency of tool invocations, where we distinguish between fixed (i.e., &quot;correct&quot;) and unfixed (i.e., &quot;plausible&quot; only or completely unfixed) bugs. The LLM agent uses the full range of tools, with the most frequently called tool being write_fix (average of 6 calls for fixed bugs and 17 calls for unfixed bugs). Around 7% of write_fix invocations in unfixed bugs produce plausible patches, compared to 44% in fixed bugs.
+
+
+Threats to Validity and Limitations 
+
+
+While RepairAgent shows promising results when repairing Defects4J bugs, we acknowledge several potential threats to validity and inherent limitations: (i) Data leakage: As we evaluate on GPT-3.5 and its training data is not publicly known, the LLM may have seen parts of the Java projects during training. While we acknowledge this risk, our approach does not solely depend on knowing about a bug, but rather the ability to collect information to fix the bug. We also note that the closest competitor, ChatRepair, also uses GPT-3.5, and thus faces the same risk. (ii) Missing test cases: Defects4J has at least one failing test case for each bug, which may not be the case for real-world usage scenarios. It will be interesting to evaluate RepairAgent on bugs with no a-priori available error-revealing test cases in future work. (iii) Fault localization: Inaccurate or imprecise fault localization could lead to suboptimal repair suggestions or incorrect diagnoses. (iv) Non-deterministic output of LLMs: The inherently non-deterministic nature of LLMs may result in different outcomes between two consecutive runs of RepairAgent. The large number of bugs we evaluate on mitigates this risk. Moreover, we make logs of all interactions with the LLM available to ensure reproducibility.
+
+
+Related Work 
+
+
+Automated program repair
+
+
+Automated program repair [*REF*] has received significant attention. Some approaches address it as a search problem based on manually designed code mutation rules and fix patterns [*REF*; *REF*; *REF*]. Alternatively, transformation rules can be derived (semi-)automatically from human-written patches [*REF*; *REF*; *REF*]. Other approaches use symbolic constraints to derive fixes [*REF*; *REF*; *REF*; *REF*], integrate repair into a static analysis that identifies bugs [*REF*; *REF*; *REF*], or replace buggy code with similar code from the same project [*REF*]. APR has been successfully deployed in industrial contexts [*REF*; *REF*]. Beyond functional bugs, several techniques target other kinds of problems, such as syntax errors [*REF*; *REF*; *REF*], performance bugs [*REF*], vulnerabilities [*REF*], type errors [*REF*], common issues in deep learning code [*REF*], and build errors [*REF*].
+
+
+Learning-based program repair
+
+
+While early work uses machine learning to rank and select candidate fixes [*REF*], more recent work uses machine learning to generate fixes. Approaches include neural machine translation models that map buggy code into fixed code [*REF*; *REF*; *REF*; *REF*], models that predict tree transformations [*REF*; *REF*], neural architectures for specific kinds of bugs [*REF*], and repair-specific training regimes [*REF*; *REF*]. We refer to a recent survey for a more comprehensive discussion [*REF*]. Unlike the above work, RepairAgent and the work discussed below use a general-purpose LLM, instead of training a task-specific model.
+
+
+LLM-based program repair
+
+
+LLMs have motivated researchers to apply them to program repair, e.g., in studies that explore prompts [*REF*; *REF*] and in a technique that prompts the model with error messages [*REF*]. These approaches perform a one-time interaction with the model, where the model receives a prompt with code and produces a fix. The most recent repair techniques introduce iterative approaches, which query the LLM repeatedly based on feedback obtained from previous fix attempts [*REF*; *REF*; *REF*]. RepairAgent also queries the model multiple times, but fundamentally differs by pursuing an agent-based approach. Section [5] empirically compares RepairAgent to the most closely related iterative approaches [*REF*; *REF*].
+
+
+LLMs for code generation and code editing
+
+
+Beyond program repair, LLMs have been applied to a variety of other code generation and code editing tasks, including code completion [*REF*; *REF*], fuzzing [*REF*], generating and improving unit tests [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*], multi-step code editing [*REF*]. Unlike our work, none of these approaches uses an agent-based approach.
+
+
+LLM-based agents
+
+
+The idea to let LLM agents autonomously plan and perform complex tasks is relatively new and has been applied to tasks outside of software engineering [*REF*]. To the best of our knowledge, our work is the first to apply an LLM-based agent to program repair or any other code generation problem in software engineering. RepairAgent is inspired by prior work [*REF*] on augmenting LLMs with tools invoked via APIs [*REF*; *REF*] and with the ability to generate and execute code [*REF*]. Our key contribution in applying these ideas to a software engineering task is to define tools that are useful for program repair and a prompt format that allows the LLM to interact with these tools.
+
+
+Conclusion
+
+
+This paper presents a pioneering technique for bug repair based on an autonomous agent powered by Large Language Models (LLMs). Through extensive experimentation, we validate the effectiveness and potential of our approach. Further exploration and refinement of autonomous agent-based techniques will help generalize to more difficult and diverse types of bugs if equipped with the right tools.
