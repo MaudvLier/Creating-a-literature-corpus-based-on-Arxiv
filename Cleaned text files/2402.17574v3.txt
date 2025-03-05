@@ -1,0 +1,236 @@
+Agent-Pro: Learning to Evolve via Policy-Level Reflection and Optimization
+
+
+Introduction
+
+
+Designing a human-level agent with robust problem-solving abilities has long been a vision in the academic community. This necessitates the agent to possess learning and generalization capabilities across a diverse array of tasks. The advent of Large Language Models (LLMs) [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*] has shed light on this vision, especially they can be rapidly generalized across a wide range of tasks with only a few demonstrations [*REF*; *REF*]. Benefiting from this, many systems built upon LLMs have showcased markedly enhanced performance such as question-answering [*REF*; *REF*; *REF*; *REF*; *REF*], code generation [*REF*; *REF*], and real-world application [*REF*; *REF*].
+
+
+Despite these achievements, building a human-level agent remains a challenging endeavor. First, most LLM-based agents are designed for specific tasks through sophisticated prompts, including detailed task descriptions and behavioral specifications. However, numerous real-world tasks, e.g., business, company negotiations, and security, are more intricate with imperfect information, necessitating laborious efforts to design strategic behavior.
+
+
+Second, most LLM-based agents do not consider interacting with task scenarios, and more critically, cannot learn from past experiences and evolve their behavioral strategies during interactions. In contrast, humans often learn and adjust their behaviors through interaction, especially in novel scenarios. In light of these, a promising yet under-explored topic emerges: Can LLM-based agents learn and elevate behavioral strategies by interacting with the environment like humans? It should be an indispensable ability of a human-level agent.
+
+
+Recently, numerous studies [*REF*; *REF*; *REF*; *REF*; *REF*] undertake intriguing explorations, e.g., utilizing feedback for self-correction at the action-level. Besides, several efforts also explore deploying LLM in interactive games, including StarCraft [*REF*], Minecraft [*REF*], strategy-based gaming [*REF*; *REF*; *REF*; *REF*].
+
+
+Similarly, we first evaluate LLM-based agents with the self-correction strategy in dynamic interactive scenarios, such as multi-player Texas Hold&apos;em, which is a zero-sum game with imperfect information. However, we observe that it loses most of the rounds to its opponents, even the most advanced LLMs. Upon examining its reasoning thoughts and actions, we find that it often adopts irrational behaviors and is unable to deduce effective strategies from long action sequences.
+
+
+To answer the above question, the Theory of Mind (ToM) [*REF*] may provide some insight. In this framework, each human develops perceptions of himself (self-belief) and the external environment (social-belief) in the social context, and then grounds their decisions on these beliefs, or adjusts incorrect beliefs in response to external feedback. Inspired by this, we advocate Agent-Pro: a LLM-based Agent with Policy-level Reflection and Optimization. Agent-Pro is endowed with the capacity to learn and evolve within environments, i.e., autonomously reflect on past experiences, calibrate its beliefs about itself and the environment, and optimize its behavior policy without parameter tuning.
+
+
+Concretely, as shown in [1], an LLM-based agent involves an LLM as the foundational model and some instructions in the prompt to regulate its behavior (policy). Upon observing partial information from the scenarios, Agent-Pro first updates its self-belief and world-belief, then makes decisions based on these beliefs. After exploring tasks, Agent-Pro performs a policy-level reflection and optimization on past trajectories, beliefs, and results. It autonomously &quot;fine-tunes&quot; its beliefs, searches for useful prompt instructions, and consolidates them into a new behavior policy.
+
+
+The experiments in two zero-sum games, Blackjack and Texas Hold&apos;em, demonstrate that Agent-Pro, after evolution, can defeat vanilla LLMs and specialized models, improving the game&apos;s payoffs. It indicates that Agent-Pro enhances its capabilities through interaction and reflection without human guidance. As depicted in [1], the initial prompt is quite simple (Left Bottom), but after learning and evolution, the Agent-Pro generates many practical instructions (Right Bottom). For instance, Agent-Pro records estimations of each opponent&apos;s style in &apos;Task Description&apos; and adds specific &apos;Goals, Strategies&apos; in &apos;Behavior Policy&apos;.
+
+
+The contributions of this work are as follows:
+
+
+-  We introduce Agent-Pro, a framework capable of learning and evolving within interactive games, empowering LLM-based agents to efficiently adapt to more complex dynamic tasks.
+-  We devise a belief-aware decision-making process with self and world-belief, enhancing its capabilities for intricate tasks, i.e., generating more rational actions in interactive scenarios.
+-  We utilize policy-level reflection and optimization to iteratively update prompt instructions, which empower Agent-Pro to progressively evolve from a novice to a skilled veteran with many strategic behaviors.
+-  After learning, Agent-Pro is evaluated in multiplayer games and defeats specialized models, gaining notable progress. It develops strategic skills like humans, e.g., actively cutting losses, bluffing, or disguising to influence others.
+
+
+Not just in card games, similar scenarios abound in the real world as well. Through self-learning and evolution, Agent-Pro can enhance deployment effectiveness in those scenarios, expanding the capability boundaries of LLM-based agents notably.
+
+
+Problem Definition
+
+
+Our study focuses on multi-player imperfect information interactive games, with two characteristics:
+
+
+Imperfect Information. Unlike perfect information games (e.g., chess), imperfect information scenarios are characterized by agents only having access to their own states and public information, without knowing the states of others, e.g., in Texas Hold&apos;em, players cannot observe others&apos; cards, which is dissimilar to many LLM-based tasks.
+
+
+Dynamic Interaction. There may be multiple agents in the environment, and they may influence each other. That is, the actions of one agent may lead to changes in the environment, which are unpredictable for other agents.
+
+
+In real-world contexts, such as competition, company negotiations, and security, these scenarios can often be abstracted as multi-agent interactive scenarios with imperfect information. Research on this can offer viable solutions to many real-world problems. We select two games as our testbed: Blackjack and Limit Texas Hold&apos;em with multi-player.
+Please refer to [8] for details.
+
+
+FIGURE
+
+
+Methods
+
+
+To empower agents to learn in interactive contexts, a typical method is reinforcement learning [*REF*; *REF*]. This involves exploring highly rewarding actions through trial and error and solidifying these experiences into model parameters. Nonetheless, the training overhead for LLMs is substantial. Therefore, we employ a gradient-free &quot;exploration-learning&quot; strategy that enables LLM-based agents to learn through in-context learning. Specifically, we convert the policy learning into a prompt optimization process, i.e., LLM autonomously reflects and updates the prompt&apos;s instructions based on its exploration experience, solidifying the high-reward strategies into the prompts. Benefiting from LLM&apos;s generalization capabilities, our agent can summarize rules and learn specialized skills from a small number of samples like humans, making it well-suited for many real-world scenarios.
+
+
+As shown in FIGURE, Agent-Pro comprises three components: (1) A Belief-Aware Decision-Making process. It first updates beliefs about the world and itself, rendering more coherent and consistent decisions in dynamic and imperfect game scenarios. (2) A Policy-Level Reflection.
+Rather than reflecting on a single action, our design empowers LLMs to self-reflect on irrational beliefs from failed experiences. Then, it summarizes these erroneous beliefs into specific prompt instructions, like acting strategy (Behavioral Guideline), descriptions of the task world, and conjectures about other players (World Modeling), etc, which can calibrate its incorrect beliefs, evolving into a better policy. (3) A Prompt Optimization process ensures that the agent&apos;s policy evolves for a higher payoff following a DFS-based search.
+
+
+Belief-aware Decision-Making Process 
+
+
+To develop an LLM-based agent better suited for interactive environments, we draw inspiration from the Theory of Mind (ToM) [*REF*; *REF* -etal-2023-theory; *REF*]. In this framework, human condenses perceptions of themselves (self-belief) and the external environment (social-belief) and then ground their decisions on these beliefs, or adjust incorrect beliefs in response to external feedback. We also design a belief-aware decision-making process for Agent-Pro, simulating human cognitive processes in social contexts.
+
+
+First, we need to define the policy of an LLM-based agent, which refers to a specific behavioral strategy guiding the agent to interact and complete tasks. It often involves complex prompts designed by experts, covering task rules, strategies, and output formats. In a zero-sum game with *MATH* players (assuming playing order is *MATH*), we denote the policy of our agent as *MATH* with some observable information, containing agent&apos;s private information *MATH*, public information *MATH*, our own action *MATH*, and the actions of all opponents *MATH*, where *MATH* means *MATH* -th rounds of a game. Therefore a complete game trajectory spanning *MATH* rounds: *MATH* *MATH* *MATH*.
+
+
+As shown in FIGURE, when making a decision, Agent-Pro first generates a dynamic belief *MATH* about itself (self-belief) and opponents (world-belief) in natural language. Then, it predicts an action based on the latest beliefs. For instance, for Texas Hold&apos;em, Agent-Pro&apos;s understanding of its hand cards, plan, and potential risk constitutes its self-belief, while the conjectures about the opponents form its world-belief. These beliefs are updated in each decision-making cycle. Equipped with this, Agent-Pro can generate more coherent and consistent actions: *MATH* *MATH* *MATH*.
+
+
+When a game is over, we acquire the observable state *MATH* (e.g., private hand cards after showdown) and the final scores *MATH* of all players. The objective is to find an optimal *MATH* to maximize *MATH*.
+
+
+Policy-Level Reflection 
+
+
+Equipped with an initial policy (a simple prompt) and a dynamic belief, Agent-Pro already possesses basic capabilities for game exploration. To further enhance Agent-Pro&apos;s capabilities, we design a learning mechanism via a policy-level reflection.
+
+
+Specifically, many text-based tasks have employed reflection strategies and immediate environmental feedback to correct prior actions. However, in many typical interaction scenarios with longer decision-making processes, action-level reflections are not directly applicable due to delayed feedback. Therefore, for such a long-horizon interaction process, Agent-Pro is instructed to focus on the rationality of beliefs and underlying behavioral policies rather than individual actions.
+
+
+Belief Calibration As depicted in FIGURE, under the guidance of the current behavior policy, Agent-Pro generates actions based on self-belief and world-belief. If these beliefs are inaccurate, they may lead to irrational actions and eventual failure. Therefore, Agent-Pro examines the rationality of these beliefs based on the final results and reflectss on the reasons for the final failure.
+
+
+Correctness: Whether its beliefs about itself, the game, and its opponents align with the final results.
+Consistency: Whether each belief and action is self-contradictory.
+Rationality: Whether the beliefs accurately reflect the underlying intentions behind the opponents. 
+Reasons: Reflect on why it lost to its opponents, which beliefs are problematic, and what the underlying reasons are.
+
+
+Lastly, to calibrate the incorrect beliefs, Agent-Pro summarizes these reflections and analyses about itself and the external world into specific instructions: Behavioral Guideline and World Modeling, where the former represents generalized behavioral strategies for this task, and the latter signifies its understanding and conjectures about the game world. For instance, in Texas Hold&apos;em, Agent-Pro summarizes the following contents:
+
+
+Behavioral Guideline 
+1-Please summarize a detailed goal based on your reflection on beliefs. 
+2-What strategy helps you build correct belief and win at similar.. 
+3-Can this game be considered a typical example for future... World Modeling 
+1-Accurately model each player to help build more precise beliefs about them, including action, and style.
+2-Describe any game rules or details that are easy to overlook...
+
+
+Agent-Pro summarizes high-level strategies within the &apos;Behavioral Guideline&apos; and describes the task and opponents in &apos;World Modeling&apos;. These instructions can calibrate previous incorrect beliefs and improve policy performance. The entire process can be formalized as follows: *MATH* *MATH* *MATH* where *MATH* denotes a complete trajectory at the *MATH* -th match, *MATH* denotes the belief sequence, *MATH* and *MATH* means the final results and score. *MATH* denotes new generated &apos;Behavioral Guideline&apos; and &apos;World Modeling&apos;.
+
+
+Verification After extracting these instructions, Agent-Pro verifies its efficacy. Agent-Pro incorporates these generated &apos;Behavioral Guideline&apos; and &apos;World Modeling&apos; into the prompt and then replays the same game again, i.e., the same opponents and initial conditions. If the final score improves, we retain them in the prompt.
+Otherwise, we regenerate a new one. If it fails to pass verification after three retries, we discard this trajectory *MATH*: *MATH* *MATH* *MATH* where *MATH* means incorporates new instructions into the previous prompt for *MATH*. This new policy encompasses more effective instructions, empowering Agent-Pro to establish accurate self- and world beliefs and generate more rational actions.
+
+
+DFS-based Policy Evolution 
+
+
+To iteratively update the policy, we devise a policy optimization process based on depth-first search (DFS). It encompasses a policy evaluation process to assess the generalization ability of the new policy in novel game scenarios and a search mechanism to progressively find a better policy.
+
+
+Policy Evaluation Each time the policy is updated, Agent-Pro is required to evaluate the new strategies. This evaluation process is distinct from the previous &apos;Verification&apos; step, as the &apos;Verification&apos; repeatedly utilizes the &quot;training&quot; data for evaluation and can not ensure the generalizability of the new policy. Hence, Agent-Pro conducts a thorough assessment of the new policy in novel trajectories. Besides, it is imperative to eliminate the influence of random factors when policy evaluation, e.g., a poor initial hand due to bad luck or an unfavorable playing order.
+
+
+Therefore, we first randomly generate a new game for *MATH* players. Then we sequentially swap both the hand cards and the playing order of each player, generating a total of *MATH* combinations. To eliminate randomness, we concurrently use these *MATH* games to evaluate Agent-Pro&apos;s new policy. We calculate the average score over the *MATH* games for each player. Since the influences of hand-card quality and playing order are mitigated, the average score of all combinations can represent the true capabilities of each player. Lastly, we calculate the evaluating metrics: *MATH* *MATH* *MATH* where *MATH* denotes the index of an opponent, and *MATH* denotes the index of the games within *MATH* combinations. The *MATH* assesses both the absolute gains of the policy and its gains relative to the strongest opponent, providing a comprehensive evaluation in multiplayer gaming scenarios.
+
+
+Policy Search Inevitably, sometimes the new policy does not bring an improvement in *MATH* in the new scenario. In such cases, we employ DFS to search for a better policy from other branches (i.e., other candidate policies). As shown in FIGURE, when updating old policy *MATH*, we generate *MATH* candidate policies *MATH*, *MATH*,..., *MATH*, forming *MATH* branches. Then, we first calculate *MATH* for new policy *MATH* and compare it with *MATH*. If *MATH* is greater than *MATH*, we accept this evolutionary. Otherwise, we reject *MATH* and consider *MATH*. If none of the *MATH* candidate policies *MATH* enhance Agent-Pro&apos;s performance, we backtrack to *MATH* and consider its sibling nodes *MATH*. Similarly, Agent-Pro explores the environment using *MATH*, then also updates *MATH* candidate policies and searches in a depth-first manner. Ultimately, we select the policy with the highest *MATH* across the entire policy tree.
+
+
+Game: Blackjack 
+
+
+Environment Settings We employ the RLCard [*REF*] as our simulators for two games. We train two reinforcement learning agents as opponents: DQN [*REF*], and Deep Monte Carlo Search (DMC) [*REF*]. Please refer to [7] for more details.
+
+
+Results
+
+
+As shown in [1], we report the win rates of each agent against the dealer over 900 games. We also provide the results of RL-based models and a human player in [4] for reference.
+
+
+Agent-Pro Significantly Surpasses the Baseline Agents Across most LLMs. The results show that Agent-Pro significantly surpasses most baseline agents with an average advantage of +4%. For example, On Qwen-72B and Llama2-70B, Agent-Pro significantly surpasses Reflexion with increases of +3.9% and +11%, respectively. For GPT-4, Blackjack is relatively simple, so the win rates of different strategies are quite similar.
+
+
+TABLE
+
+
+What has Agent-Pro learned from evolution? Compared to ReAct and Reflexion, Agent-Pro is more robust. We find that this is due to the effective behavioral guidelines summarized by policy-level reflection.
+For instance, Agent-Pro summarizes two instructions as follows: &apos;1-When you have achieved a relatively stable total hand value, choosing not to take risks is a good decision. 2-Analyze the dealer cards in World-belief,..., excessive risk-taking can lead to unfavorable outcomes...&apos;
+These self-summarized instructions can alert Agent-Pro to the risks associated with action &apos;Hit&apos;, thus making more rational decisions.
+
+
+FIGURE
+
+
+Analyisis
+
+
+Agent-Pro is More Rational than Baselines. We further analyze the &apos;Hit&apos; rates of the agents under different initial point totals, i.e., the sum of the initial two cards. The hit rate represents whether the agent is willing to take risks to draw cards. At this point, the player needs to consider both their own hand and the dealer&apos;s hand to decide whether to take the risk. However, in [2], we observe that the baseline seems to only focus on its own hand, with no significant difference in behavior when the dealer&apos;s cards are high or low, whereas Agent-Pro is much more reasonable. For instance, for Agent-Pro, areas &apos;B1&apos; and &apos;B2&apos; show a clear difference. It tends to &apos;Stand&apos; when the dealer has high cards and &apos;Hit&apos; when the dealer has low cards. Because it believes the dealer is more likely to bust with high cards, making it not worth the risk for itself. We provide some detailed cases in BLACKJACK CASES to show their difference.
+
+
+TABLE
+
+
+Game: Limit Texas Hold&apos;em 
+
+
+Setups In Limit Texas Hold&apos;em, each player has two private cards and chooses from four actions: &apos;Fold, Check, Call, Raise&apos;. We set up matches among four players: DQN, DMC, GPT-3.5, and *MATH*, where *MATH* represents the LLM-based agent we aim to evaluate, including Agent-Pro and baselines ([7]). The prompts for baselines and Agent-Pro in PROMPT.
+To enable Agent-Pro to learn within the game, we employ a total of 167 &quot;training&quot; game hands and 20 evaluation hands. Please refer [7.4] for detail.
+
+
+Metrics Similar to [3.3], we sample 100 new game hands and allocate them to players. The players sequentially swap their hands and positions, generating 16 distinct permutations to eliminate the impact of chance and playing order. Lastly, we acquire 1600 games as the test set in total and calculate the average chip counts for four players. We provide detailed statistics in [2] regarding &quot;training&quot;, evaluation, and test set.
+
+
+Results
+
+
+As shown in MAIN RESULTS, we report the final chip counts of various LLM-based agents against the other three players (DQN, DMC, GPT-3.5).
+The results indicate that Agent-Pro consistently outperforms RL-based agents e.g., DMC, and surpasses other LLM-based agents across numerous LLMs.
+
+
+Agent-Pro Surpasses LLM-based Agents and also Defeats RL-based Agents. We observe that Agent-Pro achieves significant progress on GPT-3.5, GPT-4, and Llama2-70B, with an average score increase of +2 points. Besides, it surpasses specialized agents (DMC) on GPT-4, with an advantage of +3.2 points, and outperforms other LLM-based agents by a large margin (larger than 2.0 points). By analyzing the actions of Agent-Pro, we notice that it has learned to use multiple game techniques like humans. For instance, based on the analysis of the opponent&apos;s style in the &apos;World Modeling&apos;, it may coerce some cautious players into folding by bluffing or sometimes it may disguise itself to entice aggressive opponents to raise their bets.
+
+
+Belief Enhances Decision-making Capabilities in Dynamic Scenario.
+Even without the learning process (policy-level reflection), Agent-Pro also can improve Vanilla LLM&apos;s performance by +0.9 points. For instance, on GPT-3.5 and GPT-4, it led to improvements of +1 points and +1.3 points, respectively, which already slightly surpasses most LLM-based agents. This improvement stems from the dynamic belief, which enables agents to promptly capture updates in community cards, changes in opponents&apos; strategies, etc., thereby making more rational decisions.
+From the perspective of ReAct, our belief can also be seen as a dynamic thought process constructed based on the ToM framework, which endows agents with the ability to actively perceive internal and external beliefs and how they may change over time.
+
+
+Besides, in [3], we explore whether our evolution process could be replaced by few-shot learning, i,e., we add some demonstrations to the prompt of Vanilla LLM, and evaluate its results. We find that failed game trajectories can slightly improve its effectiveness, but not as significantly as our evolution strategy.
+In [3], we also ablate the belief component from Agent-Pro but remain learning process. It shows that directly reflecting on the action sequence is quite unstable, and results in some vague and verbose behavioral instructions.
+
+
+FIGURE
+
+
+FIGURE
+
+
+Analysis on Learning Process
+
+
+We analyze the performance of Agent-Pro throughout the whole learning process. As shown in [3], Agent-Pro is evaluated every 10 iterations.
+
+
+Different LLM-based Agent-Pro Develops Diverse Strategies. We observe that the learning curves of the three Agent-Pros exhibit significant differences. Agent-Pro based on GPT-4 and GPT-3.5 rapidly improves their performance in the early stages of learning, with a maximum increase of +2.1 and 2.3 chips respectively. In contrast, Llama-2-70B exhibits a dissimilar learning process, with performance initially declining in the first half and then improving (+0.6 chips) in the latter half. Analyzing the behaviors of the three agents, we discover that their strategic styles are entirely different. When dealt the same bad hand, the GPT-4-based Agent-Pro is relatively flexible and may bluff to probe opponents. GPT-3.5-based Agent-Pro tends to be cautious and may actively fold in the later stages, whereas the Llama-based Agent-Pro develops a highly conservative, risk-averse strategy. It concedes at the beginning of the game by opting to &apos;Fold&apos;, thereby losing only the initial few chips.
+
+
+Analysis on Policy Evolution
+
+
+We manually select 20 challenging games (Details in 20 CARDS). Then, we test three agents on these 20 games: Agent-Pro in the early learning phase (Agent-Pro-Early), Agent-Pro, and Vanilla LLM.
+
+
+How the Strategy Evolved. We calculate the frequency of the most conservative action (&apos;Fold&apos;) and the most aggressive action (&apos;Raise&apos;) during the four stages of the game: &apos;PreFlop, Flop, Turn, River&apos;. As shown in [4], we discuss how the strategy evolved. 1) The behavior of Vanilla LLM is rather rigid, &apos;Folding&apos; early in the game (&apos;Preflop&apos; stage) and ignoring subsequent community cards. 2) As learning progresses, Agent-Pro-Early becomes more rational, with a noticeable decrease in &apos;Folding&apos; frequency during the &apos;Preflop&apos; stage.
+It can observe the public cards in subsequent phases before deciding to &apos;Folding&apos;. Besides, Agent-Pro-Early is more cautious, with a significant decrease in the frequency of &apos;Raising&apos;. 3) After learning, Agent-Pro exhibits flexible and proactive behavior. Compared to Agent-Pro-Early, its &apos;Fold&apos; frequency in &apos;Preflop&apos; continues to decrease, but the frequency of &apos;Raising&apos; in all four stages has rebounded. This result demonstrates the evolution of the strategy: from irrational to rational, from conservative to flexible. A detailed case study is shown in CASES.
+
+
+Win More, Lose Less. As shown in [5], we categorize the hands dealt to the agent into three types: strong, medium, and weak hands, and record their performance separately. The results show that Agent-Pro can win more chips with strong hands and lose fewer chips with weak hands compared to Vanilla LLM. Notably, Agent-Pro significantly improves performance (&gt; 80%) with medium-strength hands, which indicates that it learns advanced skills, expanding its capability boundaries.
+
+
+FIGURE
+
+
+Conclusion
+
+
+We design an LLM-based agent, Agent-Pro, capable of learning and evolution in complex interactive tasks. It first constructs a dynamic belief for decision-making in uncertain scenarios. Then Agent-Pro reflects on its interactive experiences, corrects irrational beliefs, and summarizes its reflections into two instructions: behavioral guidelines and world descriptions for a new policy. Lastly, we evaluate Agent-Pro in two zero-sum games and observe that its decision-making capabilities significantly improve after learning from historical experiences.

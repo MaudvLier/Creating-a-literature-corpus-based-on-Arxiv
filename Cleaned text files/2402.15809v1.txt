@@ -1,0 +1,256 @@
+Empowering Large Language Model Agents through Action Learning
+
+
+Introduction
+
+
+Language agents, which employ the large language model (LLM) as the policy model to control agents to iteratively take actions and interact with environments, have recently garnered increasing interest [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+The underlying reason is that LLMs offer a fresh angle to address the commonsense issue that is difficult to tackle in the reinforcement learning paradigm which learns the agent policy solely from trial and error. Reasoning and planning of agents are often derived from prior knowledge in the particular environment, precisely where LLMs excel.
+
+
+FIGURE 
+
+
+Researchers increasingly recognize that, while leveraging LLMs for agent control shows promise, it is far from perfect due to their limited ability to learn from experience [*REF*; *REF*; *REF*]. The substantial scale of LLMs makes direct policy model finetuning impractical. Instead, LLMs depend on incorporating historical interactions into prompts to leverage past experiences for future action planning [*REF*; *REF*; *REF*; *REF*].
+However, these approaches are often constrained in their capacity to learn from long-term experiences and typically draw experience on single-instance examples [*REF*; *REF*; *REF*].
+
+
+While humans naturally expand their action spaces and develop skills through experiential learning, LLM agents typically operate within predetermined action spaces [*REF*; *REF*], limiting their potential for growth. In this work, we propose a novel learning paradigm for LLM agents that focuses on learning to expand and refine the action space, thereby aligning tasks more closely with the agents&apos; planning abilities. By adapting the action space to fit the LLM&apos;s planning, we address the limitations imposed by fixed action spaces, such as the misalignment between commonsense knowledge-guided planning and actions, and the prevalence of action errors due to unmet prerequisites or ineffective strategies[*REF*; *REF*; *REF*]. This approach not only mitigates bottlenecks in language agent performance but also allows transferring experience across different tasks.
+
+
+For a more illustrative view, we could look at the example where an LLM agent is asked to make cocktails. With a learnable and open action space, LLMs may naturally instruct the agent to gather all the components in a specific order and mix them, while the closed action space may only involve basic handling, such as moving to different places and grabbing bottles, which greatly increases the difficulty of the task for LLM agent. On the other hand, it is necessary to update existing actions to accommodate changing factors in the environment.
+Still, in the cocktail example, when making an Old Fashioned cocktail, muddling sugar is often the standard practice. However, if only syrup is available, the agent should adapt its pre-set actions to prevent repeated failures despite being competent to accomplish the task.
+
+
+To solve these issues, we conduct an extensive exploration of action learning in LLM agents. We introduce a framework LearnAct, designed to dynamically generate new action types as APIs. The newly generated action types are in the form of Python functions, leveraging the LLM&apos;s extensive prior knowledge and code generation ability to devise a diverse and representative action space. Furthermore, LearnAct stands out due to its iterative learning strategy, which continuously refines actions through a feedback loop. In each cycle, the LLM evaluates the effectiveness of current actions using training examples, identifying and rectifying errors in failed instances. The learning strategy leverages experience in environments to progressively deepen task understanding and improve learnable actions.
+
+
+Our experimental results demonstrate that this method of iterative refinement not only creates complex and user-friendly action types but also achieves more effective and efficient learning compared to previous state-of-the-art methods such as Reflexion [*REF*]. By learning on a few problem instances, LearnAct can generalize to a general type of task with strong performance. In summary, our contributions are as follows.
+
+
+- We propose the action learning framework by generating and updating learnable actions based on experience, enabling language agents to learn customized action space that better fits the LLM&apos;s planning capacity.
+- To implement the action learning framework, our method LearnAct employs Python functions to generate new actions, enabling flexible definitions of action types. Our iterative learning strategy incorporates LLM to autonomously refine and updates the currently available actions based on errors in failed tasks.
+- Our experimental results demonstrate that LearnAct effectively learns action spaces within a few trials, acquiring transferable capabilities in diverse environments. Through action learning, LearnAct outperforms SOTA agents by a significant margin, showcasing the potential of action learning for LLM agents.
+
+
+Related Work
+
+
+LLM Agent Learning
+
+
+TABLE
+
+
+Recent research has advanced the use of large language models (LLMs) in embodied agents [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+These methods differ from previous reasoning-centered methods like Chain-of-Thought [*REF*; *REF*; *REF*; *REF*] as they iteratively incorporate environment feedback to modify subsequent plans. This closed-loop verification then refine process is centered on the ability of LLM agents to learn from environment.
+
+
+The majority of previous work on multi-turn reflection concentrates on learning from environment feedback within the same problem [*REF*; *REF*; *REF*; *REF*; *REF*].
+ReAct [*REF*] propose a basic framework for using thought to enforce the LLM reflect on previous behaviors within the same trial.
+Reflexion [*REF*; *REF*], on the other hand, uses a multi-trial approach to perform reflection. By summarizing historical experiences and identifying reasons for failure, LLM is prompted to generate insights for more effective agent instruction.
+Similarly, ExpeL [*REF*] facilitates a general learning system that extracts insights and past experiences with retrieval. Retroformer [*REF*] propels introduce prompt-based training to enhance LLM reflections.
+
+
+Our method differs from this line of work in two points (1) LearnAct performs direct learning in the action space, which substantially improves the reliability and utility of generated actions. (2) LearnAct does not target a single problem instance but learns experience from a few training instances and is tested on a general type of task. A more detailed comparison is provided in Table.
+
+
+Hierarchical Reinforcement Learning
+
+
+LearnAct generates new action types based on atomic actions to enable more informative and applicable actions, similar to the approach in hierarchical reinforcement learning [*REF*; *REF*; *REF*], where a high-level executor plan with high-level action types, and then executes the seed actions according to the high-level plan [*REF*; *REF*; *REF*; *REF*].
+Our approach also differs from hierarchical reinforcement learning by not only using code-based action space, providing stronger capacity due to the code statements such as conditions and loops [*REF*; *REF*], but also avoiding the typical imposition of a strict two-level structure, using flexible mixed-level actions instead.
+
+
+Problem Statement
+
+
+The task of a language agent can be succinctly modeled as a Partially Observable Markov Decision Process (POMDP), which is defined by a tuple *MATH*, with *MATH* representing the set of all possible states, *MATH* being the observation space through which the agent perceives the state, *MATH* denoting the action space, *MATH* being the state transition function, and *MATH* being the reward function.
+
+
+At step *MATH*, the language agent *MATH* takes an action step *MATH* based on policy *MATH* (policy prompt), problem *MATH* (problem instructions), and previous observation-action trajectory *MATH*, i.e, *MATH* *MATH* *MATH*.
+
+
+*MATH*, *MATH*, and *MATH* correspond to the instruction, goal, and history in Figure (right), respectively. Action *MATH* is successfully grounded (executable) only if it is within the action space, i.e. *MATH*. Even successfully grounded action may be invalid due to unmet conditions or has no effect in the current state. The agent aims to maximize the final reward *MATH*. In our problem setup, we use an outcome-based reward mechanism (ORM) [*REF*] that assigns a binary indicator as a reward signal, depending on whether the task has been successfully completed.
+
+
+In this work, we try to answer the question How to learn from experience and apply them to other decision-making problems? We focus on the training-testing setting, where for each task, our LLM agent optimizes its action space and corresponding policy on the training set *MATH*, before trying to accomplish problems in the test set *MATH*.
+These problems share the same original action spaces and rules, though requiring varied policies to solve them as they have different scenarios and goals. This setting poses a challenge for the agent to develop a general capacity through learning to accumulate experience and accomplish tasks of this general type.
+
+
+To address this problem, we introduce an action-learning framework designed for language agents, enabling them to autonomously enhance their skills by learning from interactions within their environment, as shown in Figure. The framework considers the action space, denoted as *MATH*, to be an open set capable of learning and expanding.
+More specifically, we define the original action space as *MATH* and augment it with newly learned action type (API) *MATH*, represented as *MATH*. Also, instruction for using these new actions *MATH* is updated to the original policy instructions *MATH*, i.e. the new policy is denoted as *MATH*. Consequently, subsequent actions by this LLM agent are characterized as *MATH*, as depicted in Figure (right), where the agent is guided to generate both origin and learned actions. The details of the learning algorithm are introduced in the following section.
+
+
+ALGORITHM 
+
+
+Method
+
+
+The overall pipeline of LearnAct is illustrated in Figure and Algorithm. The training stage of LearnAct involves first creating new actions and then refine them based on the error feedback on training samples. After learning the action space and policy instructions in the training stage, the refined agent perform actions from the augmented action space and try to accomplish the problem step by step. The training stage is specified in §, and test stage is detailed in §.
+
+
+Training Stage
+
+
+1. Expanding Action Space by Action Creation.
+
+
+We develop a set of enhanced action types, akin to an API, to enable LLMs to interact with environment more seamlessly. These newly crafted action types are implemented as code functions, thereby unlocking the potential for more intricate logical expressions that leverage the foundational APIs through constructs such as conditional statements (if-else), loops, and assertions. *MATH* involves two steps:
+
+
+(1) Generating Action Function *MATH*: Upon receiving detailed instructions and problem specifics, the LLM, denoted as *MATH*, is prompted to summarize high-level actions to complete this task in the form of Python functions for agent use. The detailed prompt is in the Appendix. These functions can call multiple basic or defined actions to complete subtasks. After generation, functions are parsed and added to the action space. See detailed prompt in Appendix.
+
+
+(2) Generating Policy Instruction *MATH* for Using New Action: After generating new action functions, we then update the agent with information about their potential applications. As the basic instruction contains action descriptions and usage examples, the updated policy guidance includes both a description of each function and a usage example.
+
+
+First, the LLM *MATH* is prompted to provide a comprehensive description of each new function. The purpose of this description is to offer the agent an overview of the anticipated outcomes and necessary conditions, along with the input-output format of the new action. Second, the language model generates illustrative usage examples for the new functions. This is crucial for guiding LLM to use the new action in the appropriate scenario, as indicated by previous work [*REF*]. Prompts are in Appendix.
+
+
+We denote this process by the &apos;ActionCreation&apos;: *MATH* *MATH* *MATH*.
+
+
+2. Learning Actions Based on Error Feedback
+
+
+After creating the initial set of actions, there&apos;s a possibility that these actions may have errors, misunderstand the task, overlook certain task scenarios, or possibility for misuse. To address this, we devise the training phase that allows the language model to learn through trial and error, as shown in Figure [1]. In this phase, the agent is executed in the training instances, identifies action failures, and then iteratively updates the action set, until successfully solving all the instances with no action errors or exceeding maximum optimization steps.
+
+
+FIGURE
+
+
+During the learning process, the agent first tries to solve problems in the training set with the current available action space *MATH* and policy instruction *MATH*, denoted as the &apos;SolveProblem&apos; process. Then a failed problem with action error is sampled with &apos;SelectErrorCase&apos; operator and then the &apos;ActionLearn&apos; either fixes it by revising the used action or writing note as an annotation. We present each of them below:
+
+
+(1) &apos;SolveProblem&apos;: The assessment of current policy and action space is done by trying to solve problems in the training set. We follow the simple Act[*REF*] agent and ask the agent to solve the current problem by interacting with the environment and generating actions based on history.
+
+
+(2) &apos;SelectErrorCase&apos;: This step identifies error-inducing steps in action sequences based on the environment&apos;s feedback, such as invalid actions due to unmet preconditions, ineffective actions, or errors in action names or parameters. In multi-step complex actions, it evaluates each atomic step for error signals.
+
+
+(3) &apos;ActionLearn&apos;: We address errors by implementing either function updates or writing notes. Function updates refines the Python function to correct the misunderstanding and overlooking of tasks, whereas writing notes entails enhancing the function&apos;s description to guide the agent toward more accurate use. The two options are both available and LLM *MATH* is free to choose one of them, as shown in Figure [2]. When function updates are made, the corresponding action instructions *MATH* are also updated later to adapt to the new actions. Although function updating is triggered for a specific action function, it is not restricted to modifying just this single action. By accessing all action functions via prompt, LLM could choose by itself the actions to revise and could also incorporate new actions. Consequently, &apos;ActionLearn&apos; can freely update the entire action space in each iteration. The detailed prompt is in the Appendix.
+
+
+3. Augment Action Learning with Sampling In practice, the action learner could generate low-quality actions that can greatly affect the efficiency of the overall optimization process. Also, some action revisions may be spurious. Thus to enhance the stability of the learning process and improve the quality of each step, we sample *MATH* times with &apos;ActionLearn&apos;, yielding K revised results *MATH*. During the learning iteration, each action-policy pair is evaluated on the training set, and the best one is chosen, as shown in Figure [1] and Appendix.
+
+
+We select the best action based on the results obtained with the agent.
+The score *MATH* for a sample *MATH* is as follows: *MATH* *MATH* *MATH*. 
+
+
+Here, *MATH* denotes the success rate of the agent in training instances, and *MATH* refers to the ratio of successfully executed actions to the total number of steps taken by the agent, indicating the practicality of generated actions. Based on these selection criteria, we identify the most beneficial and feasible action sample *MATH*.
+
+
+Testing Stage
+
+
+After completing the learning phase, the agent possesses an updated action space and refined policy instructions. In the testing phase, the agent attempts to solve problems in the same procedure as the &apos;SolveProblem&apos; process used during training. Notably, whereas most prior research [*REF*; *REF*] has concentrated on the learning loop within a single problem instance, LearnAct is designed to facilitate the transfer to this general type.
+
+
+FIGURE
+
+
+Experiment
+
+
+TABLE
+
+
+TABLE
+
+
+Tasks
+
+
+Robotic Planning [*REF*] We conducted experiments on four challenging Robotic Planning tasks, namely Gripper, Blockworld, Barman, and Tyreworld. We followed the environment implementation of AgentBoard [*REF*] and LLM+P [*REF*]. These tasks involve long-horizon robot planning problems, such as creating cocktails based on customer orders using available ingredients and containers, moving objects between different rooms using two grippers, or rearranging piles of blocks to achieve a specified target configuration.
+The complexity of these tasks puts a significant demand on the agent&apos;s long-term planning capabilities.
+
+
+AlfWorld [*REF*] We also test agents on AlfWorld tasks, which simulate six types of objectives within a household. For instance, agents are required to locate an apple within the house, heat it, and then place it in a target area. These tasks push the agent to explore the house systematically, given that the complete state of the environment remains unknown until the agent observes a specific location. Additionally, the agent&apos;s ability to execute the essential steps to accomplish the task is crucial.
+
+
+Baselines
+
+
+In our experiment, we compare LearnAct with several language agent baselines. Our training-testing setting emphasizes learning to solve a general type of task from a limited number of instances, deviating from the original settings of some baseline. As a result, we re-implement the baselines in our study if necessary. Act &amp; ReAct [*REF*]: The basic agent, Act, is prompted to iteratively take actions and obtain observations in the environment.
+Based on Act, the ReAct agent employs &quot;Think&quot; as an additional action. Reflexion [*REF*]: Reflexion is a learning method for language agents that utilize language as a learned policy. The original Reflexion is designed for learning individual policies in each instance.
+In our study, we adapt Reflexion for the training-testing setting, where policies are designed to be not instance-specific, facilitating transferability. Details are in the Appendix. CodeAsPolicy [*REF*]: The method utilizes code to generate the entire solution for the task in an open-loop way. As the method does not interact with environments, we only report the results of CodeAsPolicy on Robotic policy tasks. This is because the ALfWorld task necessitates exploration in the environment to obtain information, and CodeAsPolicy cannot generate a code solution without access to the complete environmental information. Voyager [*REF*]: Voyager proposes functions as actions to solve tasks in a closed-loop agent manner. The original Voyager is specifically designed for Minedojo [*REF*], emphasizing skill acquisition through a structured hierarchical task curriculum. For comparison, we reimplement it as *REF*, which creates skills via code with basic verification. It can be seen as an ablation of our method without iterative learning.
+
+
+Setting
+
+
+We test on both GPT-4 and GPT-3.5 Turbo models as the LLM during testing. We employ GPT-4 throughout our learning for action creation and improvement, as well as the learning of Reflexion and Voyager. We set the temperature as 0.0 for consistency and reproducibility in our experiments. The sampling number in our method is set to 4. For each task, we randomly select 3 instances for the training set, with the remaining instances used for testing. We report test set results for our LearnAct and all baseline models. The primary evaluation metric was the task success rate. Each experiment is conducted three times per task, and we present the average results. We ensure a fair comparison by providing a single in-context example to LearnAct and all baselines.
+CodeAsPolicy and Voyager&apos;s action creation utilize the identical code example as ours.
+
+
+Main Results
+
+
+We present a comparison of LearnAct with baseline models in Tables and. LearnAct outperforms the baselines in various tasks, utilizing both GPT-3.5 Turbo and GPT-4 as backbones. We further analyze the performance and discuss the conclusions drawn from the comparison.
+
+
+FIGURE
+
+
+A well-designed action space enhances the language agent&apos;s ability to plan and solve tasks. LearnAct markedly surpasses the Act baseline in performance, highlighting the crucial role of the action space. It is noteworthy that, after its learning phase, LearnAct is also an Act type agent except with a developed action space. This supports our hypothesis that the limitation of language agents lies in the effective integration of the planning process with the action space, and an adaptable action space can substantially unlock the latent planning capabilities of LLM.
+Additionally, LearnAct surpasses ReAct in both Robotic Planning and AlfWorld, demonstrating that while &quot;Think&quot; improves planning, it suffers from ill alignment with the action space.
+
+
+Action learning outperforms the verbal policy learning. In the realms of Robotic Planning and AlfWorld, LearnAct markedly outperforms both Act+Reflexion and ReAct+Reflexion. Reflexion writes policy prompts during the learning process to assist the agent in task-solving. This approach does yield improvements over the Act and ReAct methods; however, these enhancements are considerably less pronounced than those achieved by LearnAct, which focuses on learning within the action space.
+While learned verbal policies and prompts can aid in enhancing the agent&apos;s planning capabilities, possessing proficient skills is essential for the agent to fully realize its potential.
+
+
+Action learning is important for the action quality.
+
+
+LearnAct outperforms coding baselines such as CodeAsPolicy and Voyager.
+CodeAsPolicy directly generates code in open loop without interacting with the environment, leading to inferior performance compared to closed-loop agent baselines. Notably, while Voyager generates actions using a method similar to LearnAct, it lacks the component of iterative action learning. This highlights the significance of action learning in achieving superior performance; without this learning phase, the created actions are constrained by insufficient understanding of the task.
+
+
+Analysis of the Learning Process
+
+
+Learning enhances performance through action reliability and utility. We further analyze action utilization to explain why action learning enhances agent performance. We assess the frequency of use and accuracy at both the initial stage of learning and the post-learning.
+These results are presented in Figure [3]. It is evident that, compared to the initial action values, the actions post-learning demonstrate significantly higher correctness, indicating their enhanced reliability and utility for the agent. This is a direct consequence of our learning method, which focuses on correcting errors encountered during usage. Additionally, it is observable that the rate of action usage also improves after learning. It is possible because the agent is more inclined to employ these actions upon recognizing their usefulness, i.e., observing valid effects after calling the action.
+
+
+LearnAct learns action by updating functions, writing notes, and generating new actions. We analyze the learning choices and learned action numbers. The strategies for learning encompass function updates and writing notes. We find that the model prefers to update functions.
+As shown in Table, function updating occurs for about 90 *MATH* in the learning. This may be due to the model&apos;s ability to circumvent most invalid executions through code adjustments.
+Additionally, the process of updating functions can lead to the creation of new functions. As shown in Table, the average number of actions learned ranges from 3 to 4 for both Robotic Planning and AlfWorld, and the number of actions tend to increase post-learning, showing that new actions could be innovated while updating existing ones.
+
+
+The iteration number influences the performance of the model.
+
+
+FIGURE 4
+
+
+We illustrate the impact of learning iterations on LearnAct and ReAct+Reflexion in Figure [4]. It is evident that in both AlfWorld and Robotic Planning tasks, LearnAct&apos;s learning markedly enhances performance, achieving optimal results within just two iterations. The enhancement from our learning approach is notably more substantial than that observed with Reflexion. While ReAct+Reflexion also shows performance gains, its impact is less consistent and displays more negative effects.
+
+
+Why does prolonged learning with LearnAct detrimentally affect performance? We observe that it cannot be avoided for agents to make mistakes, and excessive optimization for these mistakes can lead to overfitting to specific training cases, and misunderstanding the task rule. See failed cases in Appendix.
+
+
+Ablation Study
+
+
+We conducted ablation experiments to demonstrate the significance of various components in our method. First, we evaluated the action format of our method, including descriptions and usage examples of actions. The results of employing GPT-4 as the agent in Robotic Planning and Alfworld are presented in Table [1]. It was observed that both the description and usage examples contribute to the performance, with the usage examples having a more pronounced impact compared to the descriptions.
+Interestingly, we discovered that the usage examples are often incorrect. Despite this, they still encourage the agent to utilize the learned actions. The descriptive aspect also plays a crucial role in Robotic Planning tasks. This could be attributed to that the actions have many pre-conditions, so the descriptions of the learned actions aid the agent in their correct usage.
+
+
+TABLE
+
+
+Next, we examine the components of our learning algorithm, which includes two types of learning: updating function and writing notes, as well as sampling during the learning process. The results are presented in Table [2]. It is evident that function updating plays a crucial role in action learning, and writing notes for actions further enhances performance. Our observations indicate that function updating occurs approximately 90% of the time during learning, suggesting that the learner predominantly opts to modify functions to improve actions rather than merely adjusting notations for more accurate action use.
+
+
+Moreover, sampling is vital for the effectiveness of the learning process. In the absence of sampling, the learner generates only a single action proposal for the next iteration, which is highly prone to errors and can negatively impact overall performance. However, note that sampling alone (w.o. learning) is ineffective in learning actions as LearnAct does, highlighting the importance of our learning algorithm.
+
+
+Conclusion
+
+
+In conclusion, our research advances LLM agents by equipping them with the ability to learn and refine actions through direct interaction with the environment. Our proposed framework LearnAct demonstrates a significant improvement in agent performance by enabling open-action learning, which aligns closely with how humans acquire and enhance skills. The empirical success of our methods in Robotic Planning and Alfworld environments underscores the potential of action learning in developing more intelligent and capable LLM agents.

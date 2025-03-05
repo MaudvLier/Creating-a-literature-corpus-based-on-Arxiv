@@ -1,0 +1,575 @@
+Introduction 
+
+
+FIGURE
+
+
+With age, one may lose the capacity to act, to see, and even to hear;
+however, it also comes with wisdom such that one can think smartly and
+view clearly through the mind&apos;s eye. Thus, it is important to learn from
+senior people, whose rich experience and structural reasoning can
+significantly facilitate the development of the younger ones
+*REF*. Nowadays, given the advancement of large
+foundation models (LFMs), a similar complementarity emerges for the
+development of embodied agents. On one hand, we have models like GPT *REF*
+that can perform reasoning in the language space as well as question and
+answer with visual input. However, these models are not grounded in the
+3D environment (embodiment) and are incapable of physical interactions.
+On the other, we have embodied agents that can interact with the scene
+but lack an understanding of the physical world to accomplish semantically meaningful tasks.
+
+
+In this work, we treat the ensemble of the foundation models (e.g.,
+GPTs) as a wise elderly equipped with the common sense of the physical
+world (the brain), and seek the possibilities of training an embodied
+agent (the body) from scratch with the disembodied structural knowledge
+of the brain towards intelligent physical interactions. More explicitly,
+we consider the scenarios in which the foundation models, together with
+an embodied agent (of a basic factory setting), are put into an
+environment without any prior knowledge of the specific scene. Our goal
+is to develop a pipeline that enables the autonomous acquisition of
+various physical interaction skills for the embodied agent with as little human involvement as possible.
+
+
+We propose that the key to our goal lies in threefold. First, the
+brain has to propose interaction tasks or skills for the body to
+learn, which have to be compatible with the scene and achievable given
+the physical constraints of the agent. Second, to make the proposed
+tasks learnable by the body, the brain should also define the tasks
+by specifying metrics that help determine whether the task is
+successfully executed or not. Lastly, the body has to acquire the
+skills for accomplishing the proposed tasks through efficient
+interaction (trial and error) with solely the feedback (e.g., whether
+the metrics are satisfied) from the brain. Existing works leveraging
+foundation models for training embodied agents either rely on humans to
+propose tasks *REF* or synthesize scenes to suit the tasks
+proposed by LFMs *REF*, which imposes a bottleneck on the
+learning autonomy and is subject to potential generalization issues. In
+contrast, our approach is uniquely positioned to minimize human input in
+task proposal and scene customization, aiming to enhance autonomous
+learning ability and generalization in various settings and providing a
+foundation for future research in more complex environments.
+
+
+To achieve autonomous learning of embodied agents in unknown scenes, we
+develop a framework that first comes up with task proposals compatible
+with the scene and the agent&apos;s physical limitations. Specifically, the
+scene is parsed with a few sensing modules, e.g., SAM *REF* and CLIP
+*REF*, which extract rich semantic and physical
+information about the scene components. A scene graph is then
+constructed holding this information and serving as an easy interface
+for an LFM to comprehend the environment and propose diverse and
+achievable interaction tasks. Meanwhile, a task completion metric(s) is
+instantiated by prompting an LFM to provide feedback on whether a
+proposed task is accomplished based on the scene graphs (before and
+after action). These two components form a verifiable definition of a
+task, i.e., its description and measurement of success, and also render
+the task learnable by an embodied agent. Consequently, an agent performs
+brain-guided exploration with action primitives for obtaining successful
+execution trajectories which are further distilled into a
+language-conditioned policy for enhancing and expanding the agent&apos;s
+physical interaction capabilities. Therefore, the name brain-body
+synchronization for the fact that an embodied agent can align with the
+physical understanding of a collection of foundation models via continuous interaction and feedback.
+
+
+The proposed synchronization diagram helps improve the efficiency of
+learning interactive tasks and the explainability of the learned
+policies, e.g., the structural knowledge in foundation models can help
+reduce the exploration cost while the modular instructions can help
+understand the behavior of the embodied agents. Moreover, it enhances
+the generalization capability of embodied agents (learned interactive
+policies) to new tasks, e.g., by reusing common skills summarized in the
+language guidance as well as efficiently acquiring novel skills.
+Furthermore, language-driven human-robot cooperation can be
+automatically achieved with the minimum involvement of human agents in
+the training loop. Experiments show that our system can automatically
+propose diverse and feasible tasks on par with humans and distill a
+multi-task policy in a continuous manner. The learned policy also shows
+graceful zero-shot capabilities and can be effectively fine-tuned for
+novel tasks, evidencing adaptability in diverse physical interactions.
+Even though our study is mainly performed in a table-top scenario, which
+is commonly used in the literature, our exploration presents useful
+insights and a solid foundation for scaling up to more complex environments.
+
+
+In summary, our contributions are:
+- A framework that integrates foundation models with embodied agents
+for autonomously learning physical interaction tasks in unknown
+environments, creating an effective brain-body synchronization and
+a stepping stone towards more complex real-world scenarios.
+- A task proposal module for efficient scene comprehension and
+automatically proposing scene-compatible tasks. Moreover, it
+establishes metrics for task completion, aiding the embodied agent
+in skill acquisition with minimum human involvement.
+- An extensive validation of the proposed synchronization by
+continuously learning an effective language-conditioned policy in
+both zero-shot and few-shot settings, demonstrating reasonable
+adaptability to novel tasks and configurations.
+
+
+FIGURE
+
+
+Related Work 
+
+
+Embodied AI with Large Foundation Models.
+
+
+The advent of Large Foundation Models (LFMs), including Language Models
+(LLMs) and Vision-Language Models (VLMs), enables significant
+advancements in Embodied AI research, making progress across various domains such as manipulation *REF*,
+navigation *REF*, and locomotion *REF*. In addition, LLMs have
+been instrumental in transforming complex language instructions into
+robotic affordance, empowering tailored and flexible task execution *REF*.
+Furthermore, advances in code policy generation
+*REF* highlight LFMs&apos; adaptability to varied environments, diverse robotic
+functionalities, and a spectrum of task requirements. Recent studies
+*REF* also reveal LFMs&apos; role in shaping low-level policies for complex visual tasks in
+different scenarios. Unlike the aforementioned research, our framework
+leverages the common sense knowledge from LFMs to acquire a rich set of
+skills in unknown environments. Building on the emergent capabilities of
+LFMs as tools for embodied learning *REF*, reward design *REF*, and
+completion inference *REF*, we develop a
+fully automated pipeline to learn policies with minimum human intervention.
+
+
+Policy Distillation in Robotic Manipulation.
+
+
+Robot learning has achieved great success in mastering manipulation
+skills via reinforcement learning *REF* or imitation learning *REF*. Recent
+research also leverages VLMs to train language-conditioned multi-task policies *REF*.
+However, in these works, both the design of tasks and the supervision
+needed for policy learning require a substantial amount of human effort.
+LFMs help relieve humans of this labor to some extent. Huy et al.
+*REF* scale up the data collection for manipulation skills
+by leveraging an LLM, then distilling the robot experiences into a
+visuo-linguistic-motor policy that infers control sequences. However,
+the diversity of skills is still constrained by the quantity of tasks
+available, which are defined by human experts. In this paper, we propose
+an innovative framework that automates diverse skill acquisition for
+robotic manipulation. Our method uses LFMs as a central brain to guide
+the robot body, enabling embodied agents to acquire various
+manipulation tasks efficiently, bypassing the need for human-provided
+task descriptions, success metrics, or demonstrations.
+
+
+FIGURE
+
+
+Brain-Body Synchronization 
+
+
+Our goal is to convert common-sense knowledge in (disembodied) Large
+Foundation Models into manipulation policies supporting language-based
+instructions. Specifically, we aim to automate the training process for
+embodied agents in various manipulation tasks with minimum human
+intervention through the help of LFMs. Our proposed framework consists
+of two components: the brain -- foundation models and a perception
+module, and the body -- robot arms that interact with the environment
+based on textual instructions. The brain leverages a scene graph to
+understand the environment, proposes tasks, and determines task
+completion. And the body learns a policy for the tasks proposed by the
+brain. In summary, our pipeline comprises three parts: 1)
+scene-compatible task proposal, 2) task completion inference, and 3)
+task-conditioned policy learning. An overview is shown in Fig. *REF*.
+
+
+Scene-Compatible Task Proposal 
+
+
+Automatic task proposal and engagement in physical interactions are
+crucial for embodied agents to acquire diverse manipulation skills and
+adapt to new environments *REF*. A
+task represents a set of reachable states from the current scene
+configuration, considering the agent&apos;s physical limitations (e.g., a
+wheeled robot can not climb the wall to install a light bulb). Next, we
+describe how to use an LFM to continuously suggest compatible
+manipulation tasks within an agent&apos;s physical constraints, initiating the skill acquisition process.
+
+
+Scene Comprehension with Robust Sensing 
+
+
+First, it is important to have an accurate perception of scene entities&apos;
+physical states. Although large models show promising physical reasoning
+capabilities, directly querying GPT-4V *REF* may result in
+unreasonable tasks due to imprecise and ungrounded understanding *REF*. Thus, we resort to robust
+sensing modules to extract meaningful scene information and enable the LFM to produce scene-compatible tasks.
+
+
+We assume two RGBD cameras for sensing: one horizontal view observing
+the robot and one top-down view for a holistic scene perspective. Using
+RGBD images, we first employ an object detector to identify objects
+*REF*, outputting 2D bounding boxes and names. Then we prompt SAM *REF* with detected bounding boxes to derive
+segmentation masks, refining spatial occupancy. This enables extracting
+point clouds (3D position and bounding boxes) for each object, given camera parameters and depth.
+
+
+In addition to &quot;what&quot; and &quot;where&quot; information, an LFM should know the
+objects&apos; states (in text) to propose reasonable tasks. For each object,
+we predefine a list of semantically meaningful states depending on its
+category (e.g., a drawer can be *MATH*). Please
+refer to Appendix *REF* for a full list of the
+considered states. We then apply CLIP encoders *REF* on
+object segments and textual state descriptions to detect objects&apos; states
+using cosine similarities. With the necessary information (object name,
+state, position, and bounding box) collected in text and numbers, we
+then leverage a scene graph to inform an LFM to propose executable tasks.
+
+
+Scene Graph Construction
+
+
+We organize perceived object information using a scene graph *MATH* 
+as input to the LFM, where *MATH* represents object nodes,
+*MATH*, and *MATH* is the set of edges. An edge *MATH* represents a spatial relationship (*MATH*) between
+objects *MATH* and *MATH* as *MATH*, and is determined using
+point clouds. If two nodes lack a meaningful spatial relationship, no
+edge is established. For more details, see Appendix *REF*.
+
+
+FIGURE
+
+
+Prompting LLMs for Task Proposal 
+
+
+With the comprehensive information contained in the scene graph, we
+leverage LLMs&apos; commonsense knowledge of the physical world to propose
+multiple interaction tasks to drive the learning. More explicitly, an
+LLM takes in the scene graph *MATH* and outputs a set of task descriptions *MATH*, which should comply with the following:
+
+
+The tasks are based on the objects in the scene, considering their
+states and spatial relationships. This ensures that the tasks are grounded and permitted by the scene.
+
+
+The tasks should also be aware of the agent&apos;s physical capabilities
+in terms of primitive actions. This ensures that the tasks are practically achievable.
+
+
+With the above, the LLM still needs to propose a wide range of
+tasks, ensuring diversity in the interactions and skills to be
+acquired. This is crucial for training a versatile and adaptable embodied agent.
+
+
+To ensure these properties, we develop a prompting method shown in
+Fig. *REF*. The prompt consists of a clearly
+defined goal (what to output), along with a few (fixed) in-context
+examples or rules that the LLM could refer to while formulating the
+response, as well as the output format. The devised prompt guarantees
+that the tasks proposed are feasible, diverse, and tailored to the
+specific environment and capabilities of the robot. We perform a study
+of the diversity of the proposed manipulation tasks in Sec. *REF*.
+
+
+Furthermore, to facilitate task-conditioned policy training, the LLM is
+asked to propose tasks that can be decomposed into sequences of
+predefined (factory) actions. This has two benefits. First, it prevents
+physically ambiguous tasks, like &quot;Organizing the Desk,&quot; which could
+imply numerous goal states. Second, explicit action items using
+primitives allow easy assessment of task success. Examples of proposed tasks are in Fig. *REF*.
+
+
+Hereto, we introduce an automatic mechanism using robust sensing modules
+and LLMs to propose scene-compatible, achievable, and definitive
+manipulation tasks. However, textual tasks need a measure of physical
+state to determine completion. We address this with the inference module introduced in the next section.
+
+
+Task Completion Inference 
+
+
+For acquiring interaction skills, the foundation models (brain) must
+propose diverse manipulation tasks and provide feedback on their
+completion. Assessing task completion is crucial for training embodied
+agents (body) to derive action policies. Thus, we utilize GPT-4&apos;s
+reasoning capability to automatically generate success criteria and determine task accomplishment.
+
+
+Specifically, when an agent performs a sequence of actions, an updated
+scene graph *MATH* is constructed, reflecting object states and
+relationships. The before-action scene graph *MATH* and after-action scene
+graph *MATH* are encapsulated in a prompt, providing GPT-4 with the
+necessary information to infer task completion status. An example prompt
+is shown in Fig. *REF*, applicable to other tasks by changing the task description.
+
+
+It is worth noting that GPT-4 can generalize beyond in-context examples.
+For instance, Fig. *REF* shows decisions based on direction, but in
+practice, GPT-4 can also calculate object positions to assess task
+accomplishment. This ensures that an embodied agent receives meaningful
+instructions and effective feedback during learning.
+
+
+Task-Conditioned Policy Learning 
+
+
+Given the proposed tasks and completion metrics, training an embodied
+agent to efficiently achieve proposed tasks fulfills the synchronization
+between the foundation models (brain) and the agent (body). One
+approach is using reinforcement learning *REF* with
+LLM-generated task completion status as the reward. However, this is
+challenging due to the large exploration space and sparse rewards.
+Instead, we use robustly executable primitive actions to collect
+successful task demonstrations and train a task-conditioned policy network via behavior cloning *REF*.
+
+
+Task Decomposition with Primitive Actions
+
+
+To collect demonstrations, we first prompt GPT-4 to decompose generated
+tasks into step-by-step instructions using primitive actions like
+&quot;Pick,&quot; &quot;PlaceOn,&quot; and &quot;Push,&quot; which cover most daily physical
+interaction tasks *REF*. See Appendix *REF* for
+the full list of primitive actions. The task decomposition prompt is shown in Fig. *REF*.
+
+
+Demonstration Collection
+
+
+We employ a waypoint sampler and motion planner to execute primitive
+actions proposed by the LLM. The waypoint sampler takes object point
+clouds and GPT-4-generated parameters as input to sample potential
+waypoints, while the motion planner determines robot arm configurations
+to achieve these waypoints. Actions are executed sequentially and
+assessed using the completion inference mechanism. Successful task
+trajectories are added to the demonstration pool and collected for
+various tasks and scenes. Note that the demonstration collection
+mechanism is not the task-conditioned policy to be learned. Its
+trial-and-error nature leads to less robust task performance, and fixed
+action primitives without trainable parameters limit learning and
+adaptation from interaction experiences, as described in the following.
+
+
+Task-Conditioned Policy
+
+
+With successful trajectories, an embodied agent can continuously train a
+language-conditioned action policy to acquire diverse manipulation
+skills. The policy takes scene observations and task descriptions as
+input, outputting actions that achieve the desired goal state.
+Distilling physical experiences into a task-conditioned policy is
+crucial for an evolving automatic skill acquisition framework.
+
+
+The conditional policy is learned using behavior cloning by training the
+network proposed in *REF*. The 10-dimensional action space
+policy network allocates three dimensions for position, six for rotation
+(represented by elements in the upper two rows of the rotation matrix
+*MATH*), and one for the gripper command. By learning a stream of tasks suggested by the
+scene-compatible proposal module, the embodied agent, equipped with the
+evolving conditional policy, gradually acquires skills to perform complex interaction tasks.
+
+
+To this point, we present an autonomous method for training embodied
+agents to continuously acquire manipulation skills by transforming
+foundation models&apos; high-level physical understanding into low-level
+motor commands, i.e., brain-body synchronization. We also note that
+online reinforcement learning can perform synchronization within a
+lifelong training framework. However, by reducing exploration overhead
+using behavior cloning and enabling continuous learning with rehearsal,
+we establish a minimal yet functionally equivalent pipeline to
+investigate essential modules&apos; roles. Next, we evaluate the pipeline&apos;s
+effectiveness in acquisition efficiency and policy generalization.
+
+
+FIGURE
+
+
+Experiments 
+
+
+We evaluate the effectiveness of our pipeline in a tabletop manipulation
+environment provided by *REF*. This evaluation is conducted
+via collecting trajectories in a way that mimics the continuous skill
+acquisition process and by distilling a multi-task policy based on the
+proposed tasks. We design the experiments to answer the following questions:
+- Can the proposed synchronization pipeline generate diverse tasks
+consistent with human understanding of manipulation task diversity?
+- Is our pipeline reliable in task generation and success inference,
+and how essential is the scene graph in ensuring the quality of these tasks?
+- How well does the distilled policy (synchronized body) perform
+compared to the elementary data collection policy (factory setting)?
+- Can the policy perform effectively and adapt efficiently to unseen
+tasks as it accumulates interaction experience of learned tasks?
+
+
+TABLE
+
+
+TABLE
+
+
+Analysis of Task Proposal Diversity 
+
+
+We first assess our system&apos;s capability to generate a contextually
+relevant array of tasks that are diverse enough by human standards.
+
+
+Experiment Setting. First, we propose a scoring metric to quantify
+the similarity between two tasks based on human rankings of a set of
+critical factors. The rankings are obtained through a survey from a
+diverse population of subjects (e.g., college students, bankers,
+doctors, and engineers). Please refer to Appendix *REF* for details about the scoring metric.
+
+
+We apply this scoring metric on a set of 100 tasks proposed by the task
+proposer module to obtain a distance matrix containing pairwise distances between tasks.
+
+
+Visualization and Result. We perform Multidimensional Scaling (MDS)
+on the distance matrix and cluster the tasks by K-Means, as shown in
+Fig. *REF*. MDS is performed again using the GPT text
+embedding of the task descriptions and we visualize the previously
+obtained clusters in Fig. *REF*. The overlapping clusters highlight that
+the GPT text embedding may not represent the diversity of tasks well
+regarding human cognition. A snapshot of tasks in each cluster is also
+shown in Fig. *REF*. This study shows that the tasks
+proposed by our pipeline are potentially more diverse than those tasks
+selected according to the text-embedding-based diversity.
+
+
+TABLE
+
+
+TABLE
+
+
+TABLE
+
+
+Analysis of Task Proposal Feasibility 
+
+
+We then conduct an evaluation of the feasibility of proposed tasks from
+the task proposer. We consider the baselines of different task proposal
+methods: (1) BBSEA queries GPT-4 with full information of the scene
+graph. (2) BBSEA w/o bbox queries GPT-4 without bounding boxes of
+the objects in the scene graph. (3) BBSEA w/o bbox&amp;positions queries
+GPT-4 without bounding boxes and positions of the objects in the scene
+graph. (4) GPT-4V queries GPT-4V with front view image, without any
+information of the scene graph. (5) GPT-4V-SG queries GPT-4V with
+front view image, and is prompted to formulate its own scene graph for
+task proposal. See Appendix *REF* for the full list of
+prompts. The evaluation is conducted across five randomly chosen scenes
+(the environments are visualized in Appendix *REF*). For each baseline, we query
+GPT-4/4V in multiple trials and assess the feasibility based on the
+proportion of the tasks that can be used to collect successful demos for policy training.
+
+
+Results in Tab. *REF* reveal that tasks generated
+by our pipeline demonstrate significantly higher feasibility compared to
+those proposed by GPT-4V/4V-SG, which matches the case shown in
+Fig. *REF*. It shows the imprecise and ungrounded understanding of GPT-4V and the need for our robust sensing
+module. Also, the ablations of scene graph (w/o bbox and w/o
+bbox&amp;positions) are worse than the original pipeline, which shows that
+the usage of scene graph is essential in ensuring the quality of the proposed tasks.
+
+
+Analysis of Success Inference Accuracy 
+
+
+We further investigate the accuracy of our task completion inference
+module. The baseline methods and evaluation scenes from the previous
+section *REF* are retained. This analysis focuses on the ability of these methods to accurately infer whether a
+proposed task has been successfully completed, which is crucial for
+effective demonstration collection and policy training in our pipeline.
+
+
+The results in Tab. *REF* reveal that our BBSEA
+framework, which leverages complete scene graph information, is more
+accurate than other approaches when inferring task success. The
+consistent high scores observed for the BBSEA framework across various
+scenes demonstrates the importance of detailed spatial data, including
+bounding boxes and object positions. In contrast, GPT-4V and GPT-4V-SG
+which rely solely on visual inputs, show lower accuracy. The findings
+underscore the vital role of comprehensive scene graph information for precise success inference.
+
+
+Evaluation of Distilled Policies 
+
+
+We evaluate the performance of the policies learned with BBSEA by
+comparing it against the policy we used to collect data. This assessment
+aims to demonstrate the necessity and effectiveness of the policy distillation.
+
+
+Experiment Setting. We train a multi-task policy on eight tasks with
+200 demonstrations per-task. The implementation details including
+environment and training settings are shown in Appendix *REF*. The performance of distilled
+policy is then evaluated on the eight tasks, and compared with the original data collection policy.
+
+
+Main Results. The results in Tab. *REF* reveal an improvement by 25% in average
+success rate of the distilled policy over the data collection policy,
+affirming the effectiveness of our methodology in skill acquisition and policy evolution.
+
+
+Zero-shot Capability Assessment 
+
+
+We then assess the zero-shot capability of our pipeline by evaluating
+tasks not seen during training. Following the training procedure in
+Sec. *REF*, we evaluate the policies
+trained on 10, 30, and 60 proposed tasks on four unseen tasks
+respectively. The task details are shown in
+Appendix *REF*. We also visualize the MDS
+diversity of these tasks in Fig. *REF*, suggesting that a larger task
+set contributes to a broader range of task variations. The results of
+our assessment are presented in Tab. *REF*, which indicate that policies
+trained on a larger variety of tasks can exhibit better zero-shot
+generalization. This suggests that the breadth of training directly
+influences the system&apos;s ability to adeptly handle tasks it has not
+encountered before, highlighting the significance of scaling diverse skills using our automatic pipeline.
+
+
+Adaptation Performance on Novel Tasks 
+
+
+We further evaluate the adaptation performance of our derived policies
+across four unseen tasks: &quot;gather&quot;, &quot;bin&quot;, &quot;bus&quot; and &quot;drawer&quot;. We choose
+the distilled policies (trained on 10, 30, and 60 tasks) from
+Sec. *REF* as pre-trained policies. We then
+fine-tune the policies across the four unseen tasks with varying
+demonstrations per task. The outcome in Tab. *REF* demonstrates that policies trained with
+a larger task variety exhibit better performance after fine-tuning.
+Also, distilled policies trained on 60 tasks show the highest success
+rate compared to others. Despite small variations induced by the
+training dynamics, our experiments confirm the importance of acquiring
+physical skills across diverse tasks. This emphasizes the necessity of
+autonomously proposing and learning interaction policies as in the proposed BBSEA pipeline.
+
+
+Conclusion 
+
+
+We present a brain-body synchronization pipeline to enable embodied
+agents to autonomously acquire various interaction skills without human
+intervention. Leveraging large foundation models, our pipeline proposes
+tasks for learning and establishes success metrics for providing
+learning feedback. Our experiments in the widely adopted tabletop
+settings demonstrate that with a structured representation of scene
+information and a small set of in-context examples, a collection of
+large foundation models (representing the brain) can effectively
+suggest scene-compatible and physically feasible tasks for an agent (body).
+
+
+This approach facilitates autonomous skill acquisition, enabling the
+training of language-conditioned policies that exhibit promising
+zero-shot and few-shot generalization capabilities on novel tasks and environments.
+
+
+While our experiments provide valuable insights, they are primarily
+confined to tabletop environments and utilize a limited set of action
+primitives. These are the current limitations of our approach for
+dealing with complicated real-world scenarios. In future work, we aim to
+extend our pipeline beyond the boundaries, exploring more intricate and
+realistic environments and integrating a wider array of action
+primitives. This extension is essential for fully realizing the
+potential of our methods and for advancing the application of autonomous
+skill acquisition in more diverse and complex scenarios.

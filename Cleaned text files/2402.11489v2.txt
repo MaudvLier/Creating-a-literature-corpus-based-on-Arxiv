@@ -1,0 +1,237 @@
+What&apos;s the Plan? Evaluating and Developing Planning-Aware Techniques for Language Models
+
+
+Introduction
+
+
+Planning, a crucial aspect of artificial intelligence, involves strategizing a sequence of actions to achieve defined goals in particular environments (Figure [1]). With the success of large language models (LLMs) in various natural language processing tasks, there has been an increasing interest in utilizing them for planning and reasoning applications, including web agents [*REF*, *REF*, *REF*], embodied agents [*REF*, *REF*, *REF*] or open-world games [*REF*, *REF*]. Classical planning domains, known for structuring real-world problems into algorithmically analyzable formats [*REF*, *REF*, *REF*], serve as an ideal testbed for testing the planning capabilities of LLMs [*REF*  *REF*  *REF* *REF*]. For instance, Agarwal et al. [*REF*] explore the influence that many-shot examples have on the Logistics domain, and Lehnert et al. [*REF*] test for LLMs ability to replicate the A algorithm within the Sokoban domain. Nevertheless, LLMs often struggle with such well-defined classic planning tasks [*REF*, *REF*, *REF*]. This significant shortfall underscores the need for alternative or enhanced approaches to boost their planning effectiveness.
+
+
+In our study, we examine whether LLMs possess world modeling capabilities essential for effective planning in classic planning domains, which includes understanding the preconditions and effects associated with various actions. Building on previous research by Valmeekam et al. [*REF*] and Silver et al.
+[*REF*], our work delves deeper into specific capabilities that test LLMs&apos; understanding across varied domains. Our analysis reveals that LLMs are limited in their ability to effectively model past actions, such as recalling previous decisions and understanding their impact on the current state. Additionally, these models struggle with identifying the full range of applicable actions.
+These findings highlight potential shortcomings in the planning and decision-making mechanisms of LLMs, suggesting areas for future improvement and research.
+
+
+FIGURE 
+
+
+Despite these limitations, we observe that language models often generate plausible responses within the vast search spaces of classic planning problems. Accordingly, we pose a critical question: Can simplifying the planning task for language models -- by removing the need to independently manage world models -- enhance their success in planning? To answer this question, we propose SimPlan, a language model-based planner that combines a greedy best-first search algorithm and external world modeling tools. This hybrid approach addresses the shortcomings of language models in world modeling and enhances state space exploration. We rigorously evaluate our approach across diverse planning domains, comparing it against existing LLM-based planners.
+The experiments reveal that our hybrid model surpasses such planners, underscoring the viability of combining language models with best-first search algorithms and external world modeling tools. Below, we summarize the key contributions of our paper:
+
+
+-  We evaluate LLMs shortcomings in reasoning about planning problems, highlighting key world modeling capabilities that are missing.
+-  We introduce SimPlan, a new hybrid language model-based planner that integrates a best-first search algorithm with an external world modeling tool to overcome these limitations.
+-  We propose a novel generalized planning setup and demonstrate significant performance gains over prior work. Despite our advancements, the setup presents ongoing challenges that require further explorations in the Depots and Blocksworld domains.
+
+
+The sections of this paper are organized as follows: Section [2] provides an essential overview of classic planning. Section [3] evaluates the planning and reasoning capabilities of LLMs across a range of diverse tasks. Section [4] introduces our novel approach, which capitalizes on the strengths of traditional planning techniques to enhance planning efficiency. Finally, Section [5] details our empirical studies across various diverse planning domains, illustrating the substantial benefits of our hybrid approach. Discussions of related work and limitations are included in Sections [6] and [7], respectively.
+
+
+Classical Planning
+
+
+The core objective of a planning task is to construct a sequence of actions, or a plan, that effectively transitions from an initial state to a desired goal state, overcoming potential challenges inherent in the domain. In classical planning, this task relies on a formal representation of the planning domain and problem instance. This includes a defined state space, actions with specific preconditions and effects, and clearly stated goals, all of which are crucial for systematic problem-solving. A widely used formalism in classical planning is the Planning Domain Definition Language (PDDL), developed to standardize the description of planning problems and domains [*REF*]. See Appendix [A] for more information about PDDL.
+
+
+Formally, a state s ∈ S represents the complete configuration of all objects at any given point, with S encompassing every conceivable configuration within the planning domain. The planning problem begins with an initial state s0 ∈ S, and aims to achieve a set of desired end conditions represented by the goal subset G ⊆ S. An action a ∈ A is applicable in state s if the state satisfies the action&apos;s preconditions, s |= Pre(a), where Pre(a) defines the necessary conditions for action applicability. Each action a is associated with an effect function Eff (a): S → S, which maps the current state to a new state resulting from the action&apos;s execution. The output of the planning problem is a sequence of actions π = (a1, a2,..., an). A plan π is valid if, when applied sequentially starting from s0, the final state sn satisfies the goal conditions sn ∈ G.
+
+
+We now describe a specific problem instance from the Ferry planning domain, as illustrated in Figure [1]. In this instance, a ferry must transport two cars, car1 and car2. Initially, car1 is at dock loc1 and car2 at dock loc2. The goal state is to swap their locations, with car1 moving to loc2 and car2 to loc1. Each state is defined by the locations of the ferry and the cars (e.g., ferry is at loc1, car1 is at loc1, car2 is at loc2). Each action in this domain has specific preconditions of how actions transform the state. For example, the action &quot;board car1 loc1&quot; requires both the ferry and car1 to be at loc1, resulting in car1 boarding the ferry upon execution. An example valid plan involves a sequence of six actions: first &quot;board car1 loc1&quot; to load car1 onto the ferry, followed by &quot;sail loc1 loc2&quot; to move to loc2, where car1 is unloaded via &quot;debark car1&quot;. The ferry then boards car2 with &quot;board car2 loc2&quot;, sails back to loc1 with &quot;sail loc2 loc1&quot;, and finally, car2 is unloaded at loc1 with &quot;debark car2&quot;, achieving a desired goal state.
+
+
+Language Models as World Models
+
+
+Recent studies [*REF*, *REF*, *REF*] have highlighted significant limitations in the planning capabilities of LLMs, indicating a critical area for improvement. This section provides an in-depth analysis of these shortcomings, focusing on world modeling skills required for successful planning. Our world modeling evaluation assesses the capacity to understand the operating principles within the specific planning domain under consideration, focusing on its grasp of the preconditions and effects associated with various actions.
+
+
+We selected a diverse set of models for testing, including FALCON-180B, LLAMA-2-70B-CHAT, LLAMA-3-70B-INSTRUCT, CODE-LLAMA-34B-INSTRUCT, MISTRAL-7B-INSTRUCT-V0-2, MIXTRAL-8X7B-V0-1, and GPT-4 TURBO, chosen for their varying capacities and approaches in handling complex tasks [*REF*, *REF*, *REF*, *REF*, *REF*, *REF*, *REF*]. Detailed methodologies and the specific prompts used in these experiments are thoroughly documented in Appendix [B]. To improve readability we use abbreviated names for the models throughout the paper rather than their full titles.
+
+
+Planning Domains
+
+
+Planning domains formalize real-world problems into structured formats for algorithmic analysis. As such, they are often used to research large language models reasoning capabilities [*REF*, *REF*, *REF*, *REF*]. Numerous domains are released annually, characterized by unique features that influence their problem-solving strategies. In this paper, we are specifically concerned with the various goal-ordering challenges that impact the strategy required for successful execution [*REF*, *REF*]. Some domains enforce a necessary ordering, where certain goals must be achieved before others are accessible. Others allow for a reasonable ordering, where goals can be approached independently but should be achieved in a specific sequence for successful execution. Additionally, optimal ordering is observed in scenarios where goals need to be completed based on their proximity to minimize resources.
+
+
+In our experiments, we explore five domains that exemplify these diverse ordering challenges. Blocksworld exhibits reasonable ordering, Ferry and Grippers demonstrate optimal ordering, and Minigrid features necessary ordering. Depots incorporates both reasonable and optimal orderings, posing a complex array of strategic decisions. Ferry and Grippers are very similar domains, which allows us to test the language models&apos; bias toward specific scenarios. This diverse set of domains provides a robust framework for analyzing the capabilities and adaptability of LLMs under varied conditions. An elaborated discussion supported by experiments is provided in Appendix [C].
+
+
+TABLE 1
+
+
+TABLE 
+
+
+Experiment 1: The Actions&apos; Effects
+
+
+In this experiment, the model receives an initial state and a sequence of actions, and it is tasked with inferring the resulting state after executing those actions. This setup evaluates the model&apos;s ability to accurately predict environmental changes. This approach extends the work of [*REF*], which was restricted to a single domain and only involved GPT models, by applying it across multiple domains and potentially different model architectures.
+
+
+The results of this experiment are demonstrated in Table [1]. Overall, the results indicate poor performance by LLMs in understanding the environmental impact of actions. The highest average success rate was 69% for GPT-4, followed by only 39% for LLAMA-3. Additionally, the results highlight the complexity of the Depots domain, characterized by its numerous types of objects, which increase the difficulty of the task.
+
+
+It is expected that adding more actions would decrease the success rate, as each additional action increases the number of changes the model must track. Indeed, Figure *REF* confirms that tracking multiple actions is substantially more difficult; the average success rate plummets by an average of 80% when comparing scenarios with one action to those with seven. We observe that LLAMA-3 matches GPT-4 in simple scenarios with just one action.
+However, as the number of actions increases, the performance gap between the two models widens significantly.
+
+
+We conducted an error analysis of 30 mistakes that the models made, presented in the Appendix in Tables *REF* and [6]. Our analysis identified two prevalent types of mistakes: firstly, models describe an object in multiple places or states at the same time. For example, in a problem from the Grippers domain, a ball was described both as held by the robot and present in room2. In the Blocks domain a block was described as being clear and at the same time having a block on top of it. The second mistake is that models ignore actions, like failing to recognize that a door, which is still described as locked, was unlocked. In another example from the Ferry domain, although a car was boarded on the ferry, it was still described as being in its original location.
+
+
+FIGURE
+
+
+Experiment 2: Applicable Actions
+
+
+In this experiment, we evaluate the models&apos; understanding of action preconditions, which is another fundamental world modeling aspect of planning. The models are presented with a state and a set of four possible actions, and we then ask the models to identify which action is applicable. Detailed results of this experiment are outlined in Table [1], and examples of mistakes are provided in Table [5].
+
+
+Despite the task&apos;s seemingly straightforward nature, the highest average success rate recorded was only 71% by GPT-4, with a low 38% success rate for MiniGrid. Given that this is a multiple-choice scenario, where a random guess would yield a 25% success rate, these results highlight a significant room for improvement for GPT-4, with a significant gap in the current capabilities of open-source models.
+
+
+Language Models as Planning Heuristics
+
+
+As demonstrated by Valmeekam et al. [*REF*], language models struggle with planning tasks, particularly in describing world states and identifying applicable actions, as detailed in Section [3]. However, despite these limitations, language models often generate plausible responses within the vast search spaces of classic planning problems. This observation leads us to an important question: Can simplifying tasks for language models -- by removing the need to independently manage world models -- enhance their success in planning? Exploring this could help us understand the potential utility of language models in planning.
+
+
+Motivated by this question, we introduce SimPlan (similarity-based planning), a novel hybrid approach that combines language models with classical planning tools. Our methodology leverages a best-first search algorithm, a strategy that enables the system to dynamically select the most promising path from those explored, facilitating effective error recovery. In this framework, we incorporate external planning tools to provide the language models with direct access to world model data, such as the current state and applicable actions.
+Within SimPlan, the language model&apos;s role is specifically tailored to function as an action-ranking heuristic, helping to prioritize actions based on their predicted effectiveness in achieving planning goals. This integration not only enhances the decision-making process but also significantly improves the system&apos;s adaptability to complex planning scenarios.
+
+
+Search Algorithm
+
+
+In planning systems, navigating the vast landscape of potential paths presents a significant challenge, particularly as many paths that initially appear viable are ultimately infeasible. This issue is exacerbated by inaccuracies in world modeling by language models (Section [3]), which can misrepresent the feasibility of paths. Consequently, we suggest that local search algorithms like beam search often fall short, primarily because they lack mechanisms to effectively revisit and reassess previously considered paths once new information emerges and errors are recognized.
+
+
+To overcome this limitation, we draw inspiration from classic planning algorithms like the LAMA planner [*REF*] and adopt a best-first search algorithm, specifically Greedy Best-First Search (GBFS). GBFS prioritizes paths that appear most promising based on a heuristic, enabling a more focused and efficient exploration of the search space. Unlike beam search, GBFS allows for greater flexibility in path selection, which is crucial when initial paths must be abandoned for more promising alternatives. Specifically, our heuristic calculates the average log probability, mathematically defined as: 
+
+
+Here, n represents the number of actions in the plan π, and P (ai|si−1, G) denotes the probability of choosing action ai given the preceding state si−1 and goal G, described in Section [4.2]. This formulation aims to equitably account for each action&apos;s impact by averaging the probabilities, thus
+
+
+preventing longer paths from being unfairly penalized. This approach reduces the inherent bias against longer sequences, which is typical in beam search. Consequently, GBFS promotes a broader exploration of high-potential paths, enhancing its applicability and effectiveness in complex planning tasks.
+
+
+The complete planning process of our approach is outlined in Algorithm *REF* in the appendix. During each iteration of the algorithm, we extract the partial plan with the highest heuristic value from a prioritized queue. For each action deemed applicable in the plan&apos;s last state, we then calculate the resultant new state.
+Subsequently, a cost function is applied to evaluate the plan leading to this new state, and the plan is inserted back into the queue for future consideration. To enhance efficiency, plans that result in states that have been previously visited are not inserted into the queue. This iterative process continues until the goal is achieved or the step limit is reached.
+
+
+FIGURE 3
+
+
+External World Modeling. Within SimPlan, we employ an established planning tool, which describes the current world model to the language model based on predefined planning problem formulations. This method effectively sidesteps the language models&apos;s potential inaccuracies in state description and applicable actions identification.
+
+
+Scoring Actions with Language Models
+
+
+Within our search heuristic, we utilize a language model to calculate the probability P (ai|si−1, G) that a given action ai in state si−1 is a correct action to take towards achieving the goals G. Specifically, we utilize the encoder component of the Flan-T5 base model, which is significantly smaller than the large language models discussed in Section [3]. To train the model, we frame it as a ranking task, using a cross-entropy loss for optimization and mean Average Precision (mAP) for early stopping.
+
+
+Our ranking architecture incorporates the late interaction schema, as introduced by ColBert [*REF*], which was originally designed to handle search problems efficiently. In this model, the state si−1 and the goal G form the query, while the action ai is treated as the context. An example is provided in Figure *REF* in the Appendix. This setup allows us to calculate the score based on how similar the query (state and goal) is to the context (action). Specifically, this architecture computes the max cosine similarity between individual tokens of the query and the context (Figure [3]; top). The total similarity score for an action is then determined by summing these maximum scores for each token in the query. This method not only improves computational efficiency -- especially when evaluating many applicable actions -- but also enhances prediction accuracy.
+
+
+Negative examples. To prevent the collapse of action representations -- where distinct actions become indistinguishable -- we incorporate negative examples during training. Firstly, we adopt the in-batch negative sampling technique, as described by [*REF*]. In this approach, within each training batch containing n action-state pairs, each pair is used as a negative example for all other pairs. Secondly, we generate &apos;hard negative&apos; examples through three targeted techniques, each designed to refine the model&apos;s discernment capabilities: (1) Action Name Replacement: We swap actions with their opposites, e.g. changing &quot;debark car1 loc1&quot; to &quot;board car1 loc1&quot;, (2) Subterm Swapping: We reorder subterms within an action, e.g. converting &quot;sail loc1 loc2&quot; to &quot;sail loc2 loc1&quot;, and (3) Random Subterm Sampling: We replace subterms with randomly selected alternatives, e.g. transforming &quot;board car2 loc2&quot; to &quot;board car1 loc1&quot;. These techniques enhance the model&apos;s ability to distinguish between similar but non-identical actions, compelling the model to make fine-grained distinctions.
+
+
+Data Generation and Augmentation
+
+
+The symbolic nature of planning problem formulations significantly simplifies the generation of training data. However, the use of unique identifiers for objects, such as b1 to b5 in Blocksworld, introduces a risk of bias, particularly when the identifiers used during testing differ from those in training, potentially skewing the model performance. For example, in our experimental setup described in Section [5], we train models with 2 to 5 blocks but test them with 11 to 25 blocks, which challenges the models to adapt to a wider range of scenarios than they were exposed to during training. To mitigate this bias, we augment the training data by generating 100 permutations for each instance, randomly shuffling object identifiers to ensure that the model does not develop any preferences based on identifier frequency.
+
+
+Experiments
+
+
+To assess the effectiveness of our proposed method, we adopt generalized planning -- a subfield of classical planning that provides a more suitable framework for evaluating the capabilities of LLMs, particularly in adapting to varied problem instances [*REF*, *REF*]. In this paradigm, we test the capability of the SimPlan algorithm to generalize from simplified tasks to more complex scenarios, as demonstrated in Figure [4]. For a discussion on the choice of domains see Section [3.1].
+
+
+Datasets
+
+
+We evaluate planning models&apos; performance across varying difficulties.
+To that end, we generated two problem configurations for each domain: simple and complex. The configurations vary in their number of objects (Figure [4]). This manipulation impacts plan length in two key ways: (1) more objects introduce more goals, and (2) new objects can act as obstacles, requiring further actions for removal.
+Consequently, simple problems had an average plan length of 13.5 actions, while complex problems had a significantly higher average of 357.2 actions. Each instance includes a plan generated by the LAMA planner [*REF*] for training purposes. Configurations and more details can be found in Appendix [D].
+
+
+Baselines
+
+
+FIGURE 4
+
+
+The baselines used in our experiments can be categorized as follows:
+
+
+-  In-context Learning: The first baseline utilizes vanilla GPT-4 Turbo and directly instructs it to generate a plan. The second baseline incorporates CodeLlama-34b-instruct with a soft-validation strategy to address poorly formatted LLM outputs.
+Both adhere to the two-shot prompt design established by LLM4PDDL [*REF*] 
+-  Fine-tuning: Code-llama-7b-instruct model, trained for code instruction tasks, was fine-tuned using the approach proposed by Plansformer [*REF*]. 
+-  Naive Baselines: We added two naive approaches: (1) Random, samples a subsequent action from a list of applicable actions; and (2) Goals Completed Heuristic, a GBFS with a heuristic considering the number of fulfilled goals.
+
+
+Elaborate details are provided in Appendix [E]. Since all test problems used in our experiments are already known to be 100% solvable by classic planners, we did not include classic planners as baselines. This choice was deliberate to ensure that problems are within the realm of solvable scenarios. Our research goal is to evaluate the effectiveness of language model-based planning approaches under conditions where traditional solutions are already effective.
+
+
+TABLE 2
+
+
+Experimental Setup. All models are trained using instances from the simple configuration and are then tested separately on unseen instances from the simple and complex configurations. To produce comparable results we set a fixed number of next action predictions based on the number of states that a classic planner expanded, further elaborated in Appendix [E.2]. Following PlanBench [*REF*] we measured the model&apos;s ratio of solved problem instances.
+
+
+Results
+
+
+The results, outlined in Table [2], demonstrate that SimPlan achieves high success rates across multiple domains. These results confirm that language models when augmented with best-first search algorithms and external world modeling tools, can serve as effective heuristics in planning tasks. However, SimPlan struggles in the Depots domain, which is recognized as the most complex domain (Section [3.1]). Nevertheless, SimPlan either outperforms or matches all baseline models in both simple and complex configurations.
+
+
+As anticipated and aligned with the expectations established in Section [3], the in-context learning baselines struggle in tackling simple and complex problem instances. This finding diverges from the results reported by Silver et al. [*REF*], which demonstrated strong generalization capabilities within the Grippers domain. We attribute this discrepancy to the increased complexity of our Grippers setup, featuring five rooms compared to the two employed in LLM4PDDL (see Appendix [D]).
+
+
+Analyzing the Plansformer baseline, we find that fine-tuning on simple configurations is beneficial for managing unseen problems within these settings, in line with the observations of Pallagani et al. [*REF*]. However, fine-tuning fails to generalize to more complex settings. These insights suggest that our SimPlan search strategy is significant for planning applications, beyond the world modeling capabilities which can be attained using fine-tuning.
+One exception is observed with Plansformer&apos;s performance in the Minigrid domain. This can be explained by observing the Random&apos;s baseline performance gap between simple and complex Minigrid tasks, which is not significant. This observation suggests a fundamental similarity in task demands across these settings, a factor that likely contributes to Plansformer&apos;s effective handling of both.
+
+
+The Goals Completed baseline exhibits strong performance in both the Ferry and the Grippers domains, highlighting the potential benefits of a simple goal-counting heuristic in specific domains, particularly in such domains where there is no necessary goal-ordering. Conversely, the Blocksworld domain favors the Random baseline over the goal-oriented approach, underscoring the critical role of goal-ordering. Overall, these results reinforce the observations made in Section [3.1], indicating that each domain presents unique goal-ordering challenges.
+
+
+Ablations
+
+
+We conducted an ablation study to evaluate the individual contributions of key components within our SimPlan architecture, including hard negatives, data augmentation, and the state updates mechanism. Detailed implementation specifics can be found in Appendix [F].
+
+
+TABLE 3
+
+
+The results are presented in Table [3]. We find that eliminating state updates led to poor performance, highlighting the difficulty for language models to manage world modeling. We can observe that data augmentation was also crucial for generalization, as its removal hindered handling previously unseen object indices. Hard negatives, however, only provide small improvements in the results.
+
+
+Related work
+
+
+Previous studies demonstrated that LLMs fail to plan effectively in classical planning domains [*REF*, *REF*, *REF*]. PlanBench [*REF*] introduced a benchmark for evaluating LLM-based planners, concluding that such models generally perform poorly. AutoPlanBench [*REF*] prompts LLM to employ a step-by-step reasoning approach. Hao et al. [*REF*] have the LLM describe changes in state after each action, an approach closer to ours. Valmeekam et al.
+[*REF*] suggest that models should self-critique and revise their plans. However, these studies often find that models still struggle with such complex reasoning tasks. Our analysis investigates whether these failures are attributable to the world modeling challenges inherent in these domains.
+
+
+Recognizing the limitations of LLMs, others have explored hybrid approaches that combine LLMs with traditional planning tools.
+Valmeekam et al. [*REF*] tested the use of a planning verification tool -- a tool that assesses the feasibility of generated plans -- to provide feedback instead of relying solely on LLM output.
+Silver et al. [*REF*] introduced LLM4PDDL, which uses a planning verification tool to identify and correct inapplicable actions. Pallagani et al. [*REF*] introduced Plansformer, where a classic planner is used to create a large dataset of solved problems, which was then used to fine-tune code models for planning. Our research adopts this hybrid methodology, integrating planning tools to serve as world models, a concept elaborated upon in Section [4].
+
+
+Other innovative approaches to planning include Searchformer [*REF*], which fine-tunes a model to emulate the procedure of the A search algorithm, focusing specifically on achieving optimal planning solutions. In contrast, our work prioritizes finding feasible solutions, without necessarily aiming for optimality. This approach is particularly crucial in dealing with the large problem instances addressed in this paper, where optimal planners often struggle with scalability [*REF*, *REF*]. Our SimPlan architecture shares similarities with the Tree of Thoughts (ToT) [*REF*] method, which systematically explores various planning scenarios, improving the model&apos;s ability to handle complex tasks. Nevertheless, the ToT method operates under the assumption that the feedback capabilities of LLMs are robust, an assumption found to be flawed [*REF*]
+
+
+Limitations
+
+
+While SimPlan significantly outperforms the baselines in the complex Blocksworld domain setting, these results diminish as the number of blocks increases beyond 20. This degradation highlights a significant challenge: even our approach struggles with scalability issues when goals have interdependencies. Also, there is a diverse range of other planning variants, including numeric and optimal planning. Our study focuses on five domains that we identified as particularly interesting (Section [3.1]), but it is not an exhaustive evaluation of planning capabilities.
+
+
+Conclusions
+
+
+In this work, we demonstrate through detailed experimentation that language models lack essential search and world modeling capabilities, which we identify as a fundamental issue in their application to planning tasks. Despite the encouraging outcomes achieved by our hybrid SimPlan approach, a notable gap exists between the efficiency of traditional planners and language model-based planners.

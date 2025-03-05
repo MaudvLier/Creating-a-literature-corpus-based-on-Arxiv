@@ -1,0 +1,248 @@
+MultiPLY: A Multisensory Object-Centric Embodied Large Language Model in 3D World
+
+
+Introduction 
+
+
+Human beings inhabit an extraordinary multisensory world - one in which we constantly explore and interact with the 3D environment, collecting and analyzing a mélange of sensory data to accomplish various tasks [*REF*]. Picture yourself situated within an embodied environment depicted as Figure. To reason about the question &quot;is the donut ready for eating&quot;, you begin by hearing the microwave beep.
+Subsequently, you decide to investigate whether the donut is inside the microwave. Once you locate the donut, you may touch it, sensing its hardness and coldness, leading you to the conclusion that the donut is not yet ready.
+
+
+Existing multi-modal large language models (e.g., LLaVA [*REF*], Flamingo [*REF*], BLIP-2 [*REF*], PaLM-E [*REF*]) excel at numerous vision-language tasks. However, they mainly focus on 2D scene understanding, struggling to reason about and interact with 3D environments. Recent works such as 3D-LLM [*REF*] take preliminary steps to encode holistic 3D point clouds as inputs and show impressive results on 3D reasoning tasks, while suffering from expensive training and inefficient reasoning for objects. More importantly, these models fall short of the ability to capture multisensory information that goes beyond vision and language.
+
+
+Efforts have been made to bind representations from different modalities [*REF*], and adapt them to pre-trained LLMs [*REF*; *REF*]. However, they often focus on a single object [*REF*] or 2D image [*REF*], unable to encode a large 3D environment and interact with the 3D embodied environment. For example, to address a question illustrated in Figure, a human would need to touch the donut to sense its softness and temperature, a capability well beyond the current scope of multi-modal LLMs.
+
+
+Looking ahead, challenges inevitably exist for building embodied multisensory large language models. The first challenge resides in the paucity of multisensory interaction data for training such an LLM. The next challenge lies in the appropriate representations of the 3D scenes and multisensory information of the objects. Humans could hold a coarse impression of the scene by abstracting the scene as an object-centric representation and attending to the object details when further interacting with the objects. It&apos;s essential for LLMs to also be able to flexibly switch between an abstracted object-centric representation and detailed multisensory information of the objects. Lastly, existing LLMs are not tailored for instruction tuning with interaction data. They often take passive data as inputs and generate single-step outputs, incapable of connecting the words, actions, and percepts to engage with an embodied environment.
+
+
+To this end, we propose MultiPLY, a multisensory embodied LLM that could encode multisensory object-centric representations, including visual, audio, tactile, and thermal information, by deploying an LLM-powered agent to engage with the 3D environment. We first collect Multisensory Universe, a large-scale multisensory dataset comprising 500k data collected by an agent actively engaging with 3D embodied environments.
+We utilize the 3D environments from Habitat-Matterport 3D (HM3D) dataset [*REF*], and enrich the environments by adding interactive objects with rich sensory data from ObjectFolder [*REF*] and Objaverse [*REF*]. We prompt ChatGPT to create the input and output data of tasks ranging from multisensory captioning, question answering, dialogue, manipulation, task decomposition, and so on. An embodied agent explores the environment and interacts with the objects in the environment to get multisensory observations of these tasks.
+
+
+To perform instruction tuning on such generated data, we first encode the 3D scene as an abstracted object-centric representation, informing the LLM of what objects are in the scene. We further devise an additional set of action tokens such as &apos;NAVIGATE&apos;, &apos;OBSERVE&apos; (for obtaining object point cloud), &apos;TOUCH&apos; (for tactile and thermal information), &apos;HIT&apos; (for getting the impact sound) to denote that the agent takes the actions to explore the environment and interacts with the objects. By interacting with the objects, more detailed multisensory information could be unveiled as outcomes of the actions and encoded via a set of state tokens. All sensory observations are encoded by different sensor encoders and connected to the LLM using sensor-to-image adapters.
+
+
+In the inference time, MultiPLY could generate a series of action tokens through the LLM, instructing the agent to take the action and receive the outcome of the action as the next-state multisensory observation.
+The observation is then appended back to the LLM, enclosed by a set of state tokens, facilitating the next-step generation. Our MultiPLY, trained on Multisensory Universe, outperforms baseline models by a large margin on object retrieval, tool use, multi-modal captioning, and task decomposition.
+
+
+To sum up, the contributions of this paper are:
+
+
+- We propose Multisensory Universe, a large-scale multisensory dataset comprising 500k data collected by an agent engaging with the 3D embodied environment, covering a diverse set of tasks involving multisensory captioning, question answering, dialogue, manipulation, task decomposition, and so on.
+
+
+- We propose MultiPLY, a multisensory embodied LLM that could encode multisensory object-centric representations with a novel set of action tokens and state tokens for the end-to-end instruction tuning of a pre-trained LLM.
+
+
+- Experimental results on object retrieval, tool use, multisensory captioning, and task decomposition show that MultiPLY outperforms baselines by a large margin.
+
+
+Related Works
+
+
+Multisensory Learning Multisensory learning aims to learn from information from different sensors, including cameras, microphones, tactile sensors, etc. For visual-audio learning, the datasets collecting visual-audio pairs in real-world [*REF*; *REF*] or rendering sounds in simulators [*REF*; *REF*; *REF*] promote the development of this field of research. Earlier works seek to combine audio and visuals information for audio-visual event localization [*REF*; *REF*; *REF*; *REF*], sound source localization in visual frame [*REF*; *REF*; *REF*; *REF*; *REF*], visual-guided sound editing [*REF*; *REF*; *REF* -sound], and visually-aligned sound generation [*REF*; *REF*; *REF*; *REF*].
+As for visual-tactile learning, many works focus on building realistic tactile simulation system [*REF*; *REF*] or collecting tactile data of real objects [*REF*; *REF*]. With these tactile data, researchers combine visual and tactile data for cross-modal retrieval [*REF*; *REF*], robotic manipulation [*REF*; *REF*; *REF*], and 3D reconstruction [*REF*; *REF*; *REF*].
+Different from the previous works, our MultiPLY aims to combine visual, audio, tactile, and thermal information in an interactive 3D environment for diverse embodied tasks.
+
+
+Multi-modal Large Language Models LLMs [*REF*; *REF*; *REF*; *REF* -2] demonstrate prowess across numerous domains. Recent works [*REF*; *REF*; *REF*] attempt to empower LLMs with visual understanding ability using large-scale image-text pair data and apply the trained models on downstream tasks like visual question-answering, image captioning, and multi-modal dialogue.
+Researchers [*REF*; *REF*; *REF*; *REF*] also focus on incorporating 3D visual information into LLMs to empower spatial reasoning abilities. In addition to incorporating visual information into LLMs, recent works [*REF*; *REF*] attempt to enable LLMs to understand multi-modal information. AnyMAL [*REF*] presents a unified model that aligns multi-modal information including text, image, video, audio, and IMU motion reading. However, these works process passive information rather than actively interact with the environment. In contrast, our work focuses on an embodied large language model, which could actively interact with the multi-modal 3D world by navigating in the environment, touching objects to get tactile and thermal information, hitting objects to get impact sound, etc.
+
+
+The Multisensory-Universe Dataset
+
+
+In this section, we illustrate the process of collecting the Multisensory-Universe dataset. As presented in Figure [1], we begin by explaining how we input interactive objects into the scene to construct object-centric 3D scenes for our dataset in Section [3.1].
+Subsequently, we outline the methodology for obtaining sensor data from these objects in Section [3.2]. Moving on to Section [3.3], we describe the deployment of an embodied agent tasked with proposing tasks and exploring the environment to solve them. The resulting interaction data are collected as paired interaction-language data, which serves as training input for the LLM.
+
+
+FIGURE
+
+
+Inputting Interactive Objects into 3D Scenes 
+
+
+We build our scenes on top of the Habitat-Matterport 3D (HM3D) semantics dataset [*REF*; *REF*], which has 216 3D spaces and 3,100 rooms within those spaces. However, the existing objects in HM3D scenes, with insufficient sensor data and limited diversity, are not interactive in Habitat-sim [*REF*]. Thus, we propose to add new interactive objects to the scenes, allowing agents to interact with them using Habitat-sim. The objects we add to the scenes are from two sources: 1) ObjectFolder [*REF*; *REF*], which contains 1k object meshes, with impact sounds of these objects stored in implicit neural fields, and annotated with object materials. 2) Objaverse [*REF*] is a universe of 800K 3D objects spanning rich categories. We select the objects that could appear in indoor scenes.
+
+
+We ask ChatGPT [*REF*] to choose 1-10 new objects from ObjectFolder and Objaverse, and generate the proper bounding boxes for these newly-added objects. ChatGPT is also required to specify objects&apos; material categories (e.g., ceramic, plastic, steel) and properties(e.g.,, deformation, elasticity hardness), as well as temperature labels (e.g., whether the objects are hot, cold, or the same as room temperature). Our prompt to GPT contains all existing objects in HM3D scenes and their bounding boxes, as well as several preferences: 1) Select some similar objects. For example, choose two bottles of similar appearances and specify one of them as plastic and the other one as steel. In this way, information from different sensors needs to be collected to resolve the ambiguity. 2) Select objects that are compatible with the environment and can be utilized together for interesting tasks. For instance, in a kitchen environment, we could put ingredients and tools for cooking. We also give some few-shot prompting examples to GPT.
+
+
+Object Sensor Data Acquisition 
+
+
+We illustrate how we collect sensor data of added objects.
+
+
+- Tactile We use DiffTactile [*REF*] which leverages MLS-MPM [*REF*] to simulate rigid, elastic, elasto-plastic objects. We put meshes of added objects into DiffTactile, which uses the bubble gripper with several position markers to touch the objects at pre-defined positions. The tactile readings are the initial and final positions of the markers, which represent how much the bubble deforms.
+- Ambient Sound Each object could emit ambient sound to facilitate navigation or reasoning, or serve as cues for informing the agents what&apos;s going on in the environment. We prompt ChatGPT to match the sounds from AudioSet [*REF*] with the semantic labels of the added objects. Given the Audioset description, ChatGPT needs to select objects in the candidate list that are possible to make this sound.
+- Impact Sound Impact sound represents the sound that we hear when we strike or hit an object, which is crucial for identifying the material of an object. We get the impact sounds of ObjectFolder objects by querying their implicit sound fields given a hitting position and a force.
+- Temperature Given the temperature label of the object, we ask ChatGPT for a proper temperature of each object.
+
+
+Embodied Agents for Data Collection 
+
+
+Inspired by [*REF*], we utilize LLM-powered embodied agents to collect the data in the constructed scenes. We first prompt ChatGPT to propose tasks. Then we place an embodied agent to interact with the objects in 3D environments to perform the task and collect interaction data.
+
+
+Generating Task Proposals We follow the box-demonstration-instruction-based prompting method proposed by [*REF*], and prompt ChatGPT to generate tasks. In addition to the ground-truth bounding boxes of objects, we also input the ground-truth materials, deformability, and hardness, as well as the ground-truth temperature labels of all objects. ChatGPT is provided with a list of actions to be performed in the environment. Then it generates specific tasks requiring interactions with objects, a sequence of words representing pseudo ground-truth actions, and language reasoning outputs which are deduced from the ground-truth feedback labels of the objects (note that ChatGPT has access to all material and temperature labels, so that it could generate a sentence like &quot;it feels cold&quot; after the &quot;touch&quot; action). We cover a diverse set of tasks including multisensory captioning, question answering, embodied dialogue, navigation, object manipulation, tool use, rearrangement, task decomposition, and so on. We append all prompts in Supplementary Material.
+
+
+Interaction Data Collection The embodied agent first randomly explores the environments to collect initial RGBD environment data.
+Given the actions, the agent executes the actions to interact with the objects in the environment and obtains the sensory feedback. For example, when the action is &quot;touching an object&quot;, the agent returns the tactile and temperature readings of it. We store all the interaction results of the actions. From one interaction, we could incrementally construct several input-output data, denoting the interaction at different steps, as shown in Figure [1].
+
+
+MultiPLY
+
+
+In this section, we introduce the MultiPLY framework. As in Figure, we first encode the scene as an abstracted object-centric representation, while multisensory details of objects are unveiled only when the agent executes an action and interacts with them.
+We devise a set of action tokens denoting the actions of agents to interact with the environment. Interaction results are appended back to the LLM via state tokens to generate subsequent text or action tokens.
+
+
+FIGURE
+
+
+Object-Centric Scene Representations 
+
+
+Our model first takes the features of the 3D environment explored by the agent as inputs to form an initial impression of what the scene looks like. We follow 3D-LLM and utilize 2D features to construct 3D scene features, so that the visual features could be seamlessly fed into a pre-trained vision-language model without adaption. However, the point cloud encoding of 3D-LLMs makes it hard for LLMs to process thousands of points at a time. Alternatively, when humans explore a 3D environment, we abstract over the scene and roughly form an idea of objects and their locations without remembering all the details. Likewise, we propose to represent the environment as an abstracted object-centric representation. We use concept graphs [*REF*] powered with a CLIP [*REF*] encoder to first encode the objects in the observed images, and fuse the outputs in images to 3D by multi-view association. We also add position embeddings to the visual features of objects. We finally get *MATH* features as an abstracted object-centric scene representation, where *MATH* is the number of objects. If there&apos;s an ambient sound emitted by an object in the 3D environment, we encode the sound using the CLAP [*REF*] audio encoder and get a *MATH* -dim feature.
+The object-centric scene representation and ambient sound representation serve as the initial inputs to the LLM, enclosed by tokens as &apos;&lt;SCENE&gt;&apos;, &apos;&lt;/SCENE&gt;&apos; and &apos;&lt;AMBIENT_SOUND&gt;&apos;, &apos;&lt;/AMBIENT_SOUND&gt;&apos;.
+
+
+Action Tokens
+
+
+We devise a set of action tokens that denote the agent&apos;s interaction with the environment, which are listed below:
+
+
+- &apos;&lt;SELECT&gt;&apos; token selects an object to interact with. The object is chosen by the attention between the language features (i.e., the last hidden state of the LLM of the &apos;SELECT&apos; token), and the CLIP visual features of the objects in the environment. It selects the object with the maximum attention score.
+- &apos;&lt;NAVIGATE&gt;&apos; token asks an agent to navigate to the selected object. Note that the navigation action could be executed by any pre-defined pathfinder module and is not the research focus of this paper.
+- &apos;&lt;OBSERVE&gt;&apos; token asks an agent to scrutinize an object that is chosen and get the object details (in the form of the detailed point cloud of the object).
+- &apos;&lt;TOUCH&gt;&apos; token allows the agent to touch the object that is chosen, to get the tactile and temperature information.
+- &apos;&lt;HIT&gt;&apos; token allows the agent to hit the chosen object to get the impact sound.
+- &apos;&lt;PICK-UP&gt;&apos;, &apos;&lt;PUT-DOWN&gt;&apos; tokens enable the agent to pick up or put down a chosen object.
+- &apos;&lt;LOOK-AROUND&gt;&apos; token allows the agent to rotate its head and get nearby objects.
+
+
+State Tokens
+
+
+We devise another set of state tokens to feed the interaction results back to the LLM.
+
+
+- &apos;&lt;OBJECT&gt;&apos; encodes the obtained object points when the agent &apos;&lt;OBSERVE&gt;&apos;s an object. Specifically, we get the 3D features aggregated from 2D CLIP features [*REF*] and add position embeddings to the 3D features. We build *MATH* object point cloud features where *MATH* is the number of points.
+
+
+- &apos;&lt;IMPACT_SOUND&gt;&apos; encodes the obtained impact sound when the agent &apos;&lt;HIT&gt;&apos;s an object. We use CLAP audio encoder to encode the sound and get *MATH* -dim impact sound representation. Since the CLAP features are not aligned with the LLM, we use a sound projector (one linear layer) to map to the feature space of the LLM.
+
+
+- &apos;&lt;TACTILE&gt;&apos; encodes the obtained tactile information when an object is being &apos;&lt;TOUCH&gt;&apos;ed by an agent. We transform the tactile reading as a heatmap and use CLIP to encode the heatmap. We mean-pool over the patches and get *MATH* -dim temperature features.
+We use a tactile projector (one linear layer) to map to the feature space of the LLM.
+
+
+- &apos;&lt;TEMPERATURE&gt;&apos; encodes the obtained temperature. We transform the temperature reading as a heatmap and use CLIP to encode the heatmap. We mean-pool over the patches and get *MATH* -dim temperature features. We use a temperature projector (one linear layer) to map to the feature space of the LLM.
+
+
+Training &amp; Inference
+
+
+Model Architecture We use LLaVA [*REF*] as our backbone multi-modal large language model. Since our visual features have been aligned to the same embedding space as LLaVA using ConceptGraphs [*REF*], we could directly use LLaVA&apos;s vision-to-language projector without pretraining on vision-language data. For other sensor modalities, we leverage a lightweight adapter, which is a one-layer linear projector to project the sensor features into the text token embedding space of LLaVA.
+
+
+Modality Alignment As stated above, the tactile, sound, and temperature representations are not aligned with the language features.
+In the first stage, we train the sensor-to-language adapter for multisensory feature alignment. For audio-language alignment, we use AudioSet [*REF*] and AudioCaps [*REF*]. For impact sound, tactile, and thermal data, we use ChatGPT to generate a one-sentence caption describing the material and the alignment between each sensor modality and language. We freeze the weight of the image encoder and the LLM for faster convergence and maintenance of language reasoning abilities.
+
+
+Instruction tuning with Multisensory Universe In the second stage, we tune LLaVA with our multisensory dataset. Our training loss consists of two parts. The first one is the LLM loss which is the same as the original LLaVA model. We add one more loss that forces the model to select the right object to attend to. Specifically, we calculate the attention between the last hidden state of the LLM of the SELECT token, and each abstracted object feature. The feature goes through a Sigmoid layer, and is optimized with a binary cross entropy (BCE) loss. We unfreeze the whole model for the training of this stage. We use FSDP on 128 V100 GPUS for efficient training.
+
+
+Inference At the inference time, our MultiPLY first takes the task prompt and abstracted scene representation as inputs and generates subsequent tokens. Once an action token is generated, an embodied agent is instructed to take the action in Habitat-sim [*REF*] and interact with the environment. The observation outcome of the agent is sent back to the LLM as inputs via state tokens. The LLM further generates next tokens based on the current state inputs.
+
+
+Experiments
+
+
+After training on our collected Multisensory Universe, we perform an evaluation in the simulator, where an agent could actually interact with the environment when the action tokens are generated by MultiPLY. Then, the LLM waits for the agent to complete the actions and send back the observations via state tokens to generate the next token. We provide four experimental settings: object retrieval, tool use, multisensory captioning, and task decomposition, and provide detailed task descriptions, baselines, and analysis for each task. We ensure that no scenes and objects in the Multisensory Universe appear in the evaluation setup. Due to space limits, we attach more ablative studies in the Supplementary Material, where we experiment with each possible combination of sensory inputs from different modalities, with or without interaction with the environment.
+
+
+Object Retrieval
+
+
+Task Decription We devise the object retrieval task where several similar objects are present in the 3D scene, and the agent needs to use multiple sensor data to retrieve the correct object. For example, the task input could be like &quot;retrieve the soft paper cup with hot water&quot;, while there could be distracting objects like &quot;hard paper cup with hot water&quot;, &quot;soft paper cup with hot water&quot;, &quot;soft plastic bowl with hot water&quot; or &quot;soft paper bowl with hot water&quot;, etc. The scene setup is different from the Multisensory Universe as we place more distracting objects to retrieve from (while in Multisensory Universe most scenes have two similar objects), and we include different sensor attribute combinations from Multisensory Universe objects. For example, in the training set, we saw a ceramic cup and a paper bowl, and in the evaluation, we query about a paper cup.
+
+
+Baselines We include a set of cross-modality retrieval models as our baselines, which return the similarity between aligned sensor embeddings. They can be categorized into 1) single-sensor language models, such as CLIP and CLAP. 2) 2D multisensory models, for which the embeddings of other modalities have been mapped to the same as 2D images like ImageBind [*REF*]. 3) 3D multisensory models, in which the embeddings of object point clouds are binded to other modalities, like PointBind [*REF*]. We first explore the environment and use concept graphs to represent the scene as a set of object features like MultiPLY, where the object features are visual embeddings from these retrieval models. The select action could be achieved by calculating the similarity between the object embedding and the language embedding, and the object with the highest score will be retrieved. As these models cannot interact with the environment to get the tactile, impact sound, and temperature data, we refine three setups for the baselines: 1) No interaction, and retrieve the object with the highest retrieval score. (For CLAP we assume that we have impact sounds of all objects) 2) Interact with the environment using oracle interactive actions. That is, we first retrieve the objects of interest via visual-language similarity, then we manually control the agent to interact with the objects to get impact sound, tactile and temperature information. The embeddings of all sensors are averaged and calculate the similarities with the language query, and the object with the highest score is retrieved. Since the action tokens are pre-defined and not generated, this oracle setting makes it easier to compete with MultiPLY. 3) Finetuned with a modified version of our Multisensory Universe tailored for multi-modal alignment and retrieval. Specifically, we first align the sensor data of the objects in Multisensory Universe to visual modality (like in ImageBind and PointBind), then we further align them with the modified language data in Multisensory Universe.
+
+
+For LLM-based methods, we include Pointbind-LLM, which uses the pointbind representations and performs instruction tuning with LLaMA [*REF*]. We also experiment with MultiPLY-2D, a 2D variant of our model, where we replace 3D features with 2D single-view features.
+
+
+TABLE
+
+
+Analysis Table [1] shows the object retrieval results. We could come to several conclusions. First, models that take multiple sensory inputs outperform models that handle single modality inputs by a large margin. CLIP, CLAP, as well as models that use the initial visual embeddings have a very low score in object retrieval, emphasizing the importance of integrating multisensory data for reasoning. Second, 3D-based models surpass 2D models, mainly because single-view images sometimes fail to provide enough information to reason about the objects due to view inconsistency and occlusion. Third, LLMs outperform similarity-based retrieval models. The reason could be that retrieval models fuse the multisensory embeddings into a whole, and do not disentangle the representation, or interact with the different sensors step by step. In general, our MultiPLY outperforms the baseline models a lot. That&apos;s probably because one weakness of the binding-based methods is that they bind everything to the visual modality, while one visual attribute could be mapped to several attributes from another modality (e.g., from the appearance of a cup, we could not tell whether it&apos;s made of ceramic or plastic, unable to align to different impact sounds for alignment). Our MultiPLY resolves ambiguity by interacting with and reasoning about the different sensor data individually.
+
+
+Tool Use
+
+
+Task Description In an embodied environment, multisensory data are crucial for finding an appropriate tool to solve a problem. One example is that when we are injured, we need to retrieve warm compresses or ice packs depending on the injured parts and how long we&apos;ve been injured. We could also find substitute tools if the common ones are not present. For example, we could use a steel spoon to replace the can opener, but we can&apos;t use a plastic spoon. Similar to the object retrieval task, we place some objects from different categories, and also objects from the same categories but with different materials/haptic/thermal information in the environment. We use one sentence to describe the current situation and the goal to be done, and ask the agent to retrieve the correct tool for dealing with the situation.
+
+
+Baselines We use the same baselines as the object retrieval experiment for tool retrieval. For LLM-based methods, we also need to give reasons when we select the tools.
+
+
+Analysis Table [2] shows the results of tool use. We could see that the binding-based methods have a very poor performance in tool use. It might be because that they treat the object sensory data as a whole, unable to disentangle the individual sensory information such as material from the representation, let alone reasoning about how this property could be utilized as a tool, and how to analyze and deduce the functionality of an object when the multisensory information is integrated.
+
+
+TABLE 
+
+
+Multisensory Captioning
+
+
+Task Description Different from traditional single-modality captioning tasks, multisensory captioning requires the model to describe the object in all senses. By giving semantic information about an object or ambient sound emitted by the object, the agent must first navigate to the object to interact with it and describe it.
+
+
+FIGURE
+
+
+Baselines For baseline models, we include LLaVA, which takes a holistic scene image as input and generates a caption about the queried object. 3D-LLM takes the scene point cloud as inputs, and uses dense captioning to describe the object. Both methods only use visual information. PointBind-LLM first retrieves the objects by modality alignment, and then interacts with the objects and integrates multisensory information to describe the queried object.
+
+
+TABLE
+
+
+Analysis Table [3] shows the result. From the table, we could see that 3D-based LLMs overall outshine 2D VLMs. LLaVA and 3D-LLM take the holistic representation as inputs, and thus fail to compete with models that could interact with the models to switch between representations. MultiPLY outshines Pointbind-LLM, probably because PointBind binds the representations of different modalities, making it difficult to disentangle the senses.
+
+
+Task Decomposition
+
+
+Task Definition Task decomposition focuses on decomposing a high-level task into smaller actions. In our setting, we focus on retrieving different things to prepare for a task. For example, to prepare for dinner, we need to first detect available foods in the kitchen, and gauge its temperature. If it&apos;s cold, we need to heat it in the microwave so we also need to retrieve a ceramic or glass container which is microwave-safe. We also need to prepare the utensils of the appropriate materials. In our setting, we place several possible choice combinations in the environment, we also place object combinations unseen from the Multisensory Universe. As long as the agent retrieves one of the correct combinations, the task is marked as success.
+
+
+Baselines We include LLaVA, a minimal 2D image version of our model.
+We output an image of the scene and ask the model to decompose the tasks into actions. We also utilize 3D-LLM since it&apos;s capable of performing task decomposition. In the original paper, we take the whole point cloud as input and generate low-level actions. Note that there is a domain gap between the task decomposition data 3D-LLM was trained on and our setting, which yields almost zero success rates of 3D-LLM without finetuning. Therefore, we finetune all models as baselines. For each baseline we have two variants: 1) wo Interaction: generate all actions all at once, and execute the actions sequentially in the environment; 2) w Interaction: generate an action one at a time, take the action feedback and generate the next action.
+
+
+TABLE
+
+
+Analysis Table [4] shows the task decomposition results. From the table, we observe that models without interaction have very poor results, probably because vision-language models have hallucination to a great extent. For example, the models could generate &quot;retrieve a bread&quot; when there&apos;s no bread in the scene. MultiPLY outperforms the baseline models by a large margin. One reason could be that MultiPLY leverages multisensory information while the other two leverage visual information. The other reason might be that baseline models take the whole scene as inputs, thus could not attend to the nuanced object in the scene.
+
+
+Qualitative Examples
+
+
+Qualitative Examples are shown in Figure, demonstrating the power of MultiPLY to interact with objects in the embodied environments and gather multisensory information. More examples can be found in the supplementary materials.
+
+
+Conclusion
+
+
+In this paper, we propose MultiPLY, a multisensory LLM that could incorporate multisensory interactive data into large language models. We introduce Multisensory Universe, a dataset comprising 500k multisensory data collected by an agent actively exploring and interacting with an environment. One limitation of our model is that currently MultiPLY does not involve detailed navigation and control policy, but utilizes pre-defined policies for carrying out the actions. We think that such aspects are orthogonal to our study, and could be explored and seamlessly integrated into our framework in the future.

@@ -1,0 +1,333 @@
+AutoGPT+P: Affordance-based Task Planning with Large Language Models
+
+
+I. Introduction
+
+
+The effectiveness of natural language interaction between humans and robots has been empirically confirmed as highly efficient [ *REF*]. For example, Kartmann et al. [ *REF*, *REF*] demonstrate the incremental learning of spatial relationships through demonstrations and reproducing the learned relationships through natural language commands, providing an intuitive way to manipulate scenes semantically. Despite the recent notable advancements in Natural Language Processing (NLP) and understanding, particularly with the emergence of Large Language Models (LLMs), which have gained significant attention in cognitive computing research and proven effective as zero-shot learners, these models still face limitations. Specifically, LLMs currently lack the ability to directly translate a natural language instruction into a plan for executing robotic tasks, primarily due to their constrained reasoning capabilities [ *REF*, *REF*].
+
+
+In this work, we introduce AutoGPT+P, a system that enables users to command robots in natural language and derive and execute a plan to fulfill the user&apos;s request even if the necessary objects to perform the task are absent in the immediate environment. AutoGPT+P exhibits dynamic responsiveness by exploring the environment for missing objects, proposing alternatives, or advancing towards a sub-goal when confronted with such limitations. For instance, if a user requests a glass of milk but no glass is detected in the scene, AutoGPT+P proposes replacing the glass with a cup, ensuring task completion by considering alternative objects suitable for the task. Moreover, AutoGPT+P endows the robot with the ability to seek assistance from humans when encountering problems while executing the actions needed to reach the goal, such as requesting help with opening a milk bottle.
+
+
+To formulate and execute plans effectively, AutoGPT+P relies on affordances, which encompass a range of action possibilities that an object or environment offers to an agent [ *REF*]. For instance, a knife affords cutting, grasping, or stirring. Leveraging the concept of affordances enables the dynamic deduction of viable actions within a given scene, facilitating the formation of a plan to achieve the user&apos;s objective.
+
+
+AutoGPT+P consists of two stages: the first involves perceiving the environment as a set of objects and extracting scene affordances based on visual data. To do so, we combine object detection and an Object Affordance Mapping (OAM), where the OAM describes the relations between object classes and the set of affordances associated with instances of those classes. Subsequently, the second stage is task planning based on the established affordance-based scene representation and the user&apos;s specified goal. Finally, AutoGPT+P utilizes an LLM to select tools that support generating a plan to complete the task.
+
+
+To summarise, the main contributions of this work are:
+
+
+(i) a novel affordance-based scene representation combining object detention and automatic object-affordance mapping (OAM) using ChatGPT (ii) task planning approach based on the established OAM and an LLM-based tool selection to generate plans, partial plans, explore and suggest alternatives in case of missing objects needed to achieve a task goal specified by the user in natural language, (iii) an evaluation of the approach in simulation using 150 scenarios with different tasks to accomplish like picking and placing, handover, pouring, chopping, heating, wiping, and sorting (iv) real-world validation experiments with the humanoid robots ARMAR-6 [ *REF*] and ARMAR-DE demonstrating a subset of these tasks.
+
+
+The remainder of this work is structured as follows: First, we provide a comprehensive review of related work for both affordances and LLMs in planning tasks in [Section II]. Then, in [Section III], we describe the general problem formulation and our proposed approach in [Section IV]. Subsequently, we discuss the results of our quantitative evaluation in simulation and our validation experiments on a humanoid robot.
+
+
+II. Related Work
+
+
+A. Affordances in Planning
+
+
+The use of affordances in PDDL planning domains was initially proposed by [ *REF*] in a limited case study of using a crane-like robot to trigger switches with toy blocks. They do not distinguish between objects in their approach but only identify affordances so that specific objects cannot be selected. PDDL is a generic planning language used to define planning domains and problems within those domains. When combined with a classical planner, this PDDL goal allows generating a plan using a classical planner. The authors in [ *REF*, *REF*] expand the principle with a more sophisticated affordance segmentation approach to define the initial state of their PDDL problem, which is then solved to generate a plan using affordances.
+Their experiments in three real-world manipulation tasks demonstrate the potential of combining detected affordances to design an affordance-based PDDL domain. The work of Xu et al. [ *REF*] trained an end-to-end model that learns to generate a PDDL goal, consisting of (action, subject, object), from an input image and a natural language command, enabling the model to solve relatively simple tasks using an off-theshelf task planner. All previously mentioned works use an affordance-based PDDL-domain, which implicitly allows them to replace objects with those of the same affordance. In contrast to classical planning, the acquisition of relational affordances through probabilistic learning, used alongside a probabilistic planning algorithm that maximizes the likelihood of reaching the goal rather than minimizing plan length, was demonstrated in [ *REF*]. Relational affordances present a generalized affordance representation as a joint probability distribution over all objects, actions, and effects. The authors of [ *REF*] suggest using the (object, action, effect) relationship in task learning using reinforcement learning. Using actions only when the effect is relevant to achieving the goal reduces the search space and improves task learning in real-world navigation tasks. The work of [ *REF*, *REF*, *REF*] focuses mainly on affordance-based object replacement in planning tasks. Using a modified Hierarchical Task Network planning algorithm, they achieve flexible explicit object substitution based on functional affordances extracted by crawling dictionary definitions.
+
+
+To the best of our knowledge, our work is the first to use affordance-based planning in everyday long-horizon tasks while employing implicit and explicit substitutions in planning. An overview of the related work can be found in [Table] I. For the comparison, we define long horizon tasks as tasks that need more than seven actions to be fulfilled, similar to [ *REF*].
+
+
+FIGURE 1
+
+
+B. Large Language Models in Planning
+
+
+Recently, LLMs have demonstrated remarkable new capabilities and outperformed humans in various domains. However, their coherent reasoning skills remain somewhat lacking [ *REF*]. Nevertheless, countless recent examples of using LLMs in robotic applications exist. According to the authors of [ *REF*], three general operation modes exist: subtask evaluation mode, full autoregressive plan generation, and step-by-step autoregressive plan generation. However, this classification is only sufficient when using the LLM as the planner. Recent studies, exemplified by [ *REF*] and [ *REF*], introduced a different paradigm where LLMs are used as symbolic goal generators in conjunction with a planner. This section aims to distinguish between the different approaches and their respective categories, for which an overview is provided in [Fig. 1].
+
+
+1) Subtask Evaluation: In each step of plan generation, all possible actions are scored partly based on a probability provided by the LLM. The action with the best score is selected. One of the most well-known works on LLM-based task planning SayCan [ *REF*] utilizes a combination of a Reinforcement Learning-based affordance function and an LLM to predict the likelihood of an action. This affordance function describes the feasibility of an action in the given environment and differs from the previously described affordances. The plan is generated incrementally by selecting the action with the highest score resulting from multiplying the two functions. SayCan is expanded on in [ *REF*] by assessing the next-best action greedily and performing a tree search. They propose improving Monte Carlo Tree Search planning by incorporating an LLM that utilizes the context of the world state in the form of a common-sense heuristic policy.
+
+
+2) Full Autoregressive Plan Generation: In this mode, the entire plan is generated based on the user-specified task. The works of Wu et al. [ *REF*] and Wake et al. [ *REF*] provide a straightforward grounding method for the LLM by identifying objects in the scene, eliminating duplicates, and simply appending the object list to the prompt. The prompt instructs the LLM on what actions to generate and only permits using the provided objects when generating the plan. Song et al. [ *REF*] improve on that general idea by utilizing dynamic in-context example retrieval to enhance performance and enable the LLM to replan in the event of an error. The authors of [ *REF*] reduce problem complexity by not giving the LLM all objects but filtering out irrelevant objects by traversing a 3D scene graph via collapsing and expanding notes before letting the LLM output a plan. Zhou et al.
+[ *REF*] first translate the problem in natural language into a PDDL domain and problem using the LLM. Then, based on this PDDL domain, they let the LLM generate a plan, which the LLM itself can validate and a more precise external off-the-shelf PDDL validator. The LLM can then use this feedback again to correct itself. A hybrid approach between subtask evaluation and full plan generation is introduced in [ *REF*], combined with a semantic checking of whether the goal condition is fulfilled. Their approach iteratively attempts to generate the entire plan. If the goal is not satisfied, a greedy step is taken to select the best next step according to a mixture of the LLM score and the skill feasibility.
+
+
+TABLE 1
+
+
+3) Step-By-Step Autoregressive Plan Generation: In contrast to the previous mode, the plan is generated one action at a time, which allows for feedback from the execution of the action to improve the planning success rate. Huang et al. [ *REF*] addresses the issue of the LLM not being grounded in the actual scene and robot capabilities by introducing a twostep process: Firstly, a planning-LLM generates an ungrounded plan, which is then translated to the robot&apos;s abilities by a Translation-LLM. In a follow-up work [ *REF*], they first proposed generating the plan step-by-step with the LLM and continuously injecting feedback after each step to enhance the performance. The works of [ *REF*, *REF*, *REF*] handle plan generation similarly but take advantage of the code generation capabilities of LLMs by letting it generate the plan as Python code. In Progprompt [ *REF*], feedback is injected with Python error messages to correct code that does not work due to syntactic or semantic errors. Tidybot [ *REF*] additionally enables customization of preferences with a two-step method where the LLM initially identifies patterns from prior Python code and then generates new Python code with those patterns and supplementary instructions. Wang et al. [ *REF*] propose a 4-step approach: describe, explain, plan, and select, where the LLM is responsible for the describe and explain steps. In a feedback loop, the LLM iteratively generates plans that are executed until a failure occurs. Each time the plan fails, the descriptor describes the current state of the goal and the failed action in natural language. The explainer reasons why the plan failed, which is then fed to the planner, which returns a corrected plan. The selector prioritizes the actions in the plan to optimize its execution time.
+
+
+4) LLM With Planner: The authors of [ *REF*] introduce the concept of utilizing a pre-trained LLM to translate natural language commands into PDDL goals. They argue that while LLMs are not adept at reasoning, which is essential for proper planning, they excel at translation. The conversion of natural language into a PDDL goal can be seen as such a translation task. They demonstrate that LLMs are proficient in extracting goals from natural language in commonplace tasks. However, their accuracy diminishes with increasing task complexity. LLM+P [ *REF*] extends this idea beyond goal generation by generating the entire problem and using a classical planner to solve the task. They also improve the success rate by providing minimal examples for a similar goal state within the given domain. Guan et al. [ *REF*] do not only use the LLM to generate the problem but also the domain itself using syntactic feedback to correct errors. Additionally, they propose a hybrid planning approach that uses plans generated by the LLM as a starting &quot;heuristic&quot; to speed up planning with a local search planner. The creators of AutoTAMP [ *REF*] explore a similar direction, but instead of PDDL, they use Signal Temporal Logic Syntax to define the goal state. Furthermore, they use an automatic syntactic and semantic checking loop that verbalizes the error to the LLM and tells it to correct it. In their case, a semantic error is defined as the resulting plan not being sufficient to solve the goal, which the LLM evaluates. In the work of [ *REF*], the LLM is used to expand the domain to be able to handle open worlds as PDDL problems are specified under the closed-world assumption. This allows the system to handle situations not explicitly intended by the domain designer. Using a variety of prompts, they let the LLM generate augmentations of the PDDL domain by defining new actions or changing allowed parameter types of actions like replacing a cup with a bowl containing water.
+This is functionally similar to affordance-based planning, except that in our case, the replacement of one object with another is implicitly given by their shared affordance.
+
+
+III. Affordance-based Scene Representation
+
+
+The problem we address in this section is to obtain an affordance-based scene representation from an RGB image of the scene, which is used as grounding for the planner. Since we focus on symbolic planning in this work, a simple representation of the objects and their affordances is sufficient. To this end, we represent the scene S as a set of object-affordance-pairs pi, where each object has one or more affordances assigned to it as in [Equation 1].
+
+
+EQUATION
+
+
+Our definition of affordances is in line with the representationalist view, as discussed in [ *REF*]. We do not use Gibson [ *REF*] initial proposal, as we do not factor in the agent&apos;s capabilities or rely on visual features to identify affordances.
+Instead, we use a knowledge-based approach to extract affordances by detecting object classes. To this end, we detect the affordances of the object as a whole rather than identifying which specific parts of the object possess a particular affordance. We can separate our approach into two distinct stages, as seen in [Fig. 2]. The first stage is object detection, and the second is the creation of an Object Affordance Mapping (OAM). In the object detection stage, the goal, as defined in [Equation 3], is to find a set of object instances oˆ = (o, k) ∈ O × N0 with their bounding boxes b ∈ [0, 1] in normalized coordinates given an image I ∈ I.
+
+
+EQUATION
+
+
+LLMs have the ability to reproduce real-world knowledge when prompted in natural language. This is especially true for commonsense knowledge [(*REF*)], including interaction possibilities with everyday objects. We exploit this by employing different strategies for querying an OAM from the LLM-based chatbot ChatGPT, which we describe in the following. We omit the formatting instructions for the LLM in the prompts for brevity.
+
+
+- List-Affordances: In this strategy, we iterate over all objects we want to get the affordances for and ask the LLM which affordances the object has. As context, we give the LLM a list of affordances with a short description for each affordance. This has the advantage of using only a few tokens and is relatively fast. However, it lacks accuracy, possibly because the descriptions of affordances are sometimes unclear.
+- Yes/No-Questions: In this strategy, we define a prompt formulated as a yes-no question for each affordance. We then query ChatGPT to answer the question with only yes or no without an explanation. In contrast to the first strategy, we can describe precisely what an affordance means. This improves accuracy as ChatGPT only needs to generate the answer to a binary question.
+However, we need significantly more tokens and time for the task.
+- Yes/No-Questions + Logical Combinations: Early experiments showed that ChatGPT cannot handle logical combinations of questions very well. Therefore, in this strategy, queries contain multiple questions divided into atomic prompts, only containing one question each. This approach has the advantage of being more accurate than all other approaches. Still, it has the disadvantage of consuming even more tokens than the yes/no questions, as it often requires multiple questions per affordance.
+
+
+IV. AUTOGPT+P
+
+
+To generate plans from a user command, AutoGPT+P uses a tool-based architecture. Given the scene&apos;s current state, the main planning loop queries an LLM to decide which tool should be selected next. Therefore, the loop generates a context from the robot&apos;s memory, which includes objects in the scene and their relations, as well as prior knowledge about the environment. A general overview of our approach can be seen in [Fig. 3].
+
+
+A. Problem Formulation
+
+
+In the following, let RS be the set of all possible object relations in the scene S and Λ be the space of natural language. The overall planning task can be specified as given a scene description S ∈ S, object relations R ∈ RS, explorable locations L, and a task in natural language λ ∈ Λ, the system should return an action sequence or plan P = (α1,..., αn) that fulfills the task. An action αi ∈ A is defined as the executed capability c by the agent π with the arguments ρ = (ρ1,..., ρn). Here, A refers to the set of all available actions, and a capability defines the symbolic parameters of an action with their logical preconditions and effects. Each agent has a set of capabilities Cπ that are dynamically loaded at run-time and are derived from the available skills, which are the programs for low-level action execution on the robot. S can be updated during the process by exploring a location l ∈ L and adding the object-affordance-pairs pˆ = OAD(I) to S with the image I taken at l.
+
+
+FIGURE 2
+
+
+Two relevant sub-tasks during planning are the closed-world planning problem and the alternative suggestion problem. The closed-world planning based on tasks in natural language can be described as follows: Given the fixed scene representation S ∈ S, object relations R ∈ RS, and the user-specified task λ ∈ Λ, we need to generate a plan P = (α1,..., αn) that fulfills the given task. This can be written as *MATH*.
+
+
+Alternative suggestion is the problem of suggesting an alternative object alt ∈ O, where O is the set of object classes present in the scene, given a user-specified task λ in natural language and a missing object class o ∈ O needed to fulfill that task. This can be written as *MATH*.
+
+
+B. AutoGPT+P Feedback Loop
+
+
+AutoGPT+P is a hybrid planning approach that combines two planning paradigms introduced in [Section II-B:] Step-ByStep Autoregressive Plan Generation for tool selection and an LLM With Planner in the Plan Tool [Section IV]-D. The tool selection process was inspired by the GitHub project AutoGPT, hence the name AutoGPT+P.
+
+
+The tool selection is the central part of the main feedback loop of AutoGPT+P. It can be specified as ToolSelection: Λ × M → T, (8) where M is the space of memory configurations and T ={t1,... tn} is the set of tools. So based on the user prompt λ ∈ Λ and the current memory state M ∈ M, the tool selection returns a tool t ∈ T. The memory M = (S, R, L, lΠ, λˆ, Alt, p) consists of an affordance-based scene representation S, a set of object relations R, locations L, current agent locations lΠ, instruction history λˆ, known alternatives Alt ∈ (O × O) and most recent plan p. With M expressed in natural language, the LLM chooses from the following tools:
+
+
+- Plan: solves the problem expressed in [Equation 6]
+- Partial Plan: solves the problem expressed in [Equation 6] in the best way possible with the restrictions of S.
+
+
+ALGORITHM 1
+
+
+- Suggest Alternative: solves the problem expressed in [Equation 7]
+- Explore: move the robot to an unexplored location l ∈ L, extracts the object-affodance-pairs from the camera image and updates the scene representation: S ← S ∪OAD(I).
+
+
+After t is selected, it is executed to update the memory M. The generated plan is executed if either the Plan or Partial Plan Tool is selected. These steps are repeated until a final plan is generated via the Plan Tool, or no tool is selected, which is interpreted as a failure. The entire loop is given in [Algorithm 1].
+
+
+C. Affordance-Based Alternative Suggestion
+
+
+One of the reasons we chose an affordance-based scene representation was that affordances allow us to reason about the functionality of an object. We leverage this reasoning for the alternative suggestion task defined in [Equation 7]. If an object that the user explicitly requests is missing in the scene, we can suggest an alternative based on the object affordance using an LLM.
+
+
+Our method uses a handcrafted Chain-of-Thought process [ *REF*] consisting of two main steps, detailed in [Algorithm 2]. First, we query the LLM which of the affordances of the missing object class affm are relevant to the task λ specified by the user. We can now filter out all objects in the scene that do not have all these affordances and get the most relevant, which we heuristically assume is the rarest affordance in the scene a∗. Now, we query the LLM to find out which of the objects is the most similar to the missing object concerning this affordance. If no objects have all the affordances, or the LLM returns an object not present in the scene, the fallback strategy is to query the LLM, to suggest the best replacement for the missing object without explicit affordance reasoning.
+
+
+FIGURE 3
+
+
+ALGORITHM 2
+
+
+D. Affordance-Based Planning using LLM with Planner
+
+
+Inspired by [ *REF*], this aspect of our approach aims to create a system mapping user-specified tasks in natural language into a sequence of parameterized actions αi under a closed-world assumption as defined in [Equation 6]. A key difference to the approach of [ *REF*] is that we only generate the goal state from natural language and not the entire problem formulation as we derive the initial state from the given scene representation.
+
+
+To achieve this, we let the LLM generate the desired goal state Γ in PDDL syntax from the user-specified task λ. Therefore, we need to generate a PDDL domain ∆ = (Θ, Φ, A) and problem without the desired goal state Ξˆ = (ω, ι) as a reference for the LLM as explained in [Section IV-D1]. The generated goal Γ is then checked for semantic and syntactic correctness as seen in [Section IV-D2]. If there is an error within the goal, the LLM is fed an error message error ∈ Λ and queried to correct the goal state. If the goal is correct, a classical planner is invoked with the generated domain and problem. This process is repeated until a plan is found or the maximum number of iterations has been reached. It is more formally described in [Algorithm 3] and visualized in [Fig. 4].
+
+
+We use the method for both the Plan and Partial Plan Tool. The only difference between the tools is the prompt used to query the goal state from the LLM, which explicitly allows for an incomplete goal state. A significant advantage of this method is that if the symbolic goal representation accurately represents the given user-specified task, the generated plan will be optimal regarding the number of actions.
+
+
+1) Dynamic Generation of Affordance-based Domain and Problem: For the LLM to generate the desired goal state based on the user-specified task, it needs a PDDL domain ∆ and problem Ξ without the goal state as context.
+
+
+In PDDL, types are defined by listing all subtypes of a given type. Our domain has three top-level types: object, agent, and location. As it should be possible to navigate to another agent too, for example, to hand over an object, the agent is a subtype of location. Let sub(θ) define the subtypes of a given type. To build the type hierarchy, we first need to declare all affordances as object subtypes, so sub(object) = A. Then we reverse the OAM so it maps from affordances to all object classes that are present in the scene O that also have that affordance. So for all affordances a ∈ A [Equation 9] holds.
+
+
+FIGURE 4
+
+
+ALGORITHM 3
+
+
+To allow for human-robot collaboration, we need to define the different agent types, robot and human, and dynamically assign costs to them based on user preference.
+
+
+The actions can be derived directly from the capabilities by adding an agent of the corresponding capability type to the parameters and adding an action effect to increase the total costs based on the agent type. By associating specific costs for agents in the initial state specification of the PDDL problem, we can influence the participation of each agent.
+For example, by setting the cost of a human to 1000 and of the robot to 1, the robot will execute all actions that it can perform with its capabilities and will only ask the human for help if there is no other possibility.
+
+
+To define the problem&apos;s initial state, we add each object instance with its type to the problem&apos;s object definition. The initial state can be directly derived from R; only the current agent locations are given by lπ. Finally, the goal state is queried from the LLM to complete the problem.
+
+
+The advantage of using affordances in our domain is that we only need to define one logical action for all objects with which the action can be performed. Without affordances, we would need a place action for all combinations of objects on which other objects can be placed. This would make the domain far more complex.
+
+
+2) Self-Correction with External Feedback: The work of
+
+
+[ *REF*] demonstrated that conversational agents using LLMs can correct themselves when an external program gives an expressive error message. We leverage this capability by detecting syntactic and semantic errors within the goal state. A syntactic error can be a wrong use of parenthesis, non-existent predicates, non-existing objects, or predicates with objects of the wrong type or quantity. When parsing the goal state, those errors can be easily checked by matching the predicate names and object names and types with those of the domain and initial state.
+
+
+Semantic errors refer to the logical feasibility of multiple predicates being true simultaneously. This contrasts to [ *REF*], where a semantic error is defined as an action sequence that does not fulfill the user-specified task according to the LLM. For example, the object apple cannot be on the table and the counter at the same time, so the goal state and (on apple table) (on apple counter) is semantically incorrect.
+
+
+ALGORITHM 4
+
+
+We designed a collection of evaluation scenarios, each consisting of the user&apos;s task, the formal goal state to be achieved, and the specifications of the scene, including the objects, relations, and locations. The primary evaluation criterion was whether the generated plan achieves the objective that meets the desired goal state. This can be verified by simulating the plan&apos;s actions using Prolog, transforming the goal into its DNF, and assessing whether the set of literals that comprise a substate of the DNF is a subset of the literals that describe the scene state after executing the plan.
+
+
+A. Object Affordance Mapping using ChatGPT
+
+
+To evaluate the object affordance mapping, the relevant metrics are precision (prec), recall (rec), and f1-score (f1) logic and check whether a goal matches a semantic condition in the logic programming language Prolog, which is an implementation of first-order predicate logic. In the following definition let the disjunctive normal form of Γ be DNF (Γ) = OR(γ1,..., γn) with γi = AND(φi,1,..., φi,mi). We define a goal state Γ to be sufficient to the set of semantic conditions of the domain Σ∆ if there exists γi where γi is sufficient to all conditions in Σ∆.
+
+
+Therefore, we transform the goal state Γ into its DNF and map all sub-states γi to Prolog-Predicates. We then evaluate all semantic conditions for these predicates. If no sub-state matches all semantic conditions, we return the manually specified error message of the condition of the sub-state with the fewest errors to the LLM to correct itself.
+
+
+V. Evaluation and Validation
+
+
+In this section, we first evaluate the performance of our Object Affordance Mapping (OAM) on our proposed affordances. Then, we assess the success rate of our Suggest Alternative Tool against a naive alternative suggestion. Furthermore, we compare the Plan Tool on its own against SayCan on the SayCan instruction set and our own evaluation set before evaluating the whole AutoGPT+P system with scenarios focused on tool selection. In this evaluation, GPT-3 refers to the gpt-3.5-turbo-0613 model, and GPT-4 refers to the gpt-4-0613 model accessed by the OpenAI API.
+
+
+The quantitative evaluation is conducted via simulation wherein a scene is represented through symbolic object relations, and actions are executed by applying their respective action effects to the scene. For evaluating the Plan Tool, all objects in the scene are known from the beginning, unlike AutoGPT+P, where this is not always the case.
+Exploration was simulated by changing the robot&apos;s location and adding all objects designated to the explored location to the robot&apos;s memory.
+We use Fast Downward [ *REF*] as the planner with a time limit of 300 seconds.
+
+
+f 1 = 2 × precision + recall, (13) where in our case
+
+
+- TP is the number of true positives, so object-affordance-pairs (OAP) that are both in the ground truth (GT) and were detected - FP is the number of false positives, so OAPs that were detected but not the GT - FN is the number of false negatives, which is the number of OAPs that are in GT but were not detected
+
+
+An independent &quot;training set&quot; of 30 object classes was used to optimize the prompts. The evaluation involved a test set comprising 70 object classes, each labeled with their respective affordances. These were also used to evaluate the Plan and Suggest Alternative Tool. We examined the metrics for different affordance extraction methods listed in [Section III-A] with our 40 proposed affordances that can be seen in the appendix.
+
+
+TABLE 
+
+
+As the results in [Table II] indicate, GPT-4 outperforms GPT-3 in most cases. The data suggests that the most effective method is the combination of yes/no questions and logic.
+
+
+TABLE 
+
+
+B. Suggest Alternative Tool
+
+
+For the Suggest Alternative Tool, we compare our approach with a naive alternative suggestion approach. This approach asks the LLM to determine which object from the scene can best replace the missing object without any further reasoning. We evaluate the performance of both methods using 30 predefined scenarios. Each scenario includes the missing object, the user-specified task, the objects in the scene, and a list of allowed alternative objects. The task is considered accomplished if the method provides one of the permitted alternatives.
+
+
+We use 30 scenarios with three difficulty levels, each based on the number of objects present in the scene. The first level is simple and involves five objects. The medium level has twenty objects, whereas the complex level has 70 objects, with one missing. Our rationale behind this setup is that as the number of objects in a scene increases, it becomes more challenging to identify the missing object accurately. Our approach and the naive approach were assessed using GPT-3 and GPT-4, and the results are available in [Table III].
+
+
+We found that as the number of objects in the scene increases, all approaches experience decreased accuracy. However, compared to the naive approach, which experiences a significant drop in accuracy from 0.73 to 0.33 for GPT-3 and from 0.9 to 0.67 for GPT-4, our approach has only a slight drop in accuracy from 0.9 to 0.8 and from 0.87 to 0.8, respectively. In addition, unlike the naive approach, there is only a slight difference in accuracy between GPT-3 and GPT-4 when using our approach. This could be because the LLM is guided through the replacement process by a directed chain-of-thought process, eliminating incorrect answers.
+
+
+C. Plan Tool
+
+
+Our Plan Tool was assessed using two sets of scenarios. The first set comprised scenarios from SayCan [ *REF*], which was utilized to draw comparisons between our method and SayCan, a state-of-the-art planning approach using LLMs. We created the second set of scenarios to find the limitations of the LLM&apos;s reasoning capabilities for understanding the user&apos;s intentions. Therefore, we created five subsets of scenarios, each of them containing 30 prompts with a wide variety of goal tasks from cutting, heating, cleaning, pouring, opening, or moving objects. The Simple Task and Simple Goal subsets contain simple user requests using either a verb to express the goal or the goal in the form of a state. Complex Goal increases complexity compared to Simple Goal by logically connecting the subgoals with phrases like &quot;and&quot;, &quot;or&quot;, &quot;if&quot;, etc.
+The other two sets Knowledge and Implicit contain more difficult-to-understand tasks. Knowledge requires commonsense knowledge to derive the goal state, while the Implicit set does not directly contain a task but more implicitly phrased user intentions like &quot;I am thirsty&quot;.
+
+
+TABLE 
+
+
+TABLE
+
+
+As shown in [Table IV], our method performs equally or better than SayCan in all categories when using GPT-4 but performs worse when using GPT-3. Utilizing GPT-4, our approach outperforms SayCan, especially in the Embodiment and Long Horizon instruction categories. This is likely owed to our method solely creating a goal state from the user&apos;s statement rather than the entire plan. Thus, instructions that require knowledge of the robot&apos;s position or current state, or those that require extensive planning, are not as constrained by LLM&apos;s limited reasoning capabilities, as the planner generates the plan in a rule-based manner. It should be clarified that SayCan is designed to optimize the plan&apos;s execution, not just the plan itself.
+Furthermore, we utilize a more recent LLM as opposed to SayCan&apos;s use of PaLM.
+
+
+We can see from [Table VI] that the planner performs without failure for the Simple Task and Simple Goal subsets but has more problems with complex goals and the more vague tasks in the Knowledge and Implicit subsets. GPT-3 seems to have even more problems interpreting vague user instructions to translate them to goals. Additionally, as the planner always finds the minimal plan for the generated goal, most of the found plans are also minimal. The reason for a generated plan not being minimal is primarily a generated goal that is too restrictive. For example, if the task is &quot;Bring me an apple or a banana&quot; and the generated goal is inhand apple0 human0 instead of or (inhand apple0 human0) (inhand banana0 human0), the generated plan will not be minimal if it requires more actions to bring the banana than the apple.
+
+
+The results also show that the self-correction with external feedback improves the success rate slightly from 0.35 to 0.43 for GPT-3 and 0.76 to 0.78 for GPT-4. Notably, GPT-4 is so good at translating simple tasks and goals that it does not even need self-correction, as it only performs worse for one scenario in the two sets. This shows that the current auto-correction is only helpful with GPT-3, and with GPT-4, the difference is insignificant in our dataset. This could be improved by more specific error messages with more direct hints to improve the previous answer. However, on the SayCan instruction set, the difference between GPT-4 with and without self-correction is far more significant, showing an improvement from 0.78 to 0.98, as can be seen in [Table V]. It is mostly caused by the Structured Language instruction family and can be mostly explained by semantic error correction. For example, for the task &quot;Pick up the apple and move it to the trash&quot;, ChatGPT answers with and (inhand apple0 robot0) (in apple0 trash_can0) which is recognized by the semantic error detection and responded with the error message &quot;There is a logical contradiction in the goal. An object that is in the hand of an agent cannot be in another hand or at another place. Please correct your answer&quot;. ChatGPT then corrects its answer to in apple0 trash_can0.
+
+
+Overall, the results show that even though simple and explicit tasks can be translated well by GPT-4, it struggles to correctly interpret the user&apos;s intentions when the goal is more indirectly stated. Contextual cues from the environment must be considered to understand the user&apos;s goal, as most humans would be able to do.
+
+
+D. AutoGPT+P
+
+
+As the planning process for AutoGPT+P involves several steps beyond just planning, using previous scenarios and metrics alone is inadequate. A crucial aspect of AutoGPT+P is selecting the appropriate tool for each situation and only calling tools other than the Plan Tool if they are not in the scene. Therefore, we have incorporated an evaluation metric to determine the optimal number of tools and evaluated the rate of successful plans that use the optimal number of tools. This metric is referred to as minimal tools in [Table VII].
+
+
+We designed five scenario sets to assess performance, each containing 30 scenarios. Four of these sets concentrate on individual tools, while the final set requires combining all tools to accomplish complicated tasks.
+We randomly picked scenarios from the prior segment for the Plan subset. Meanwhile, we crafted entirely new scenarios for the Explore and Partial Plan subsets. For the Explore set, hints were partially provided regarding the location of objects, such as &quot;Bring me the cucumber from the fridge&quot;. The Suggest Alternative and Combined sets feature the same scenarios with the exception that for the Combined set, only the initial location of the robot is explored. The results can be viewed in [Table VII].
+
+
+TABLE 
+
+
+TABLE
+
+
+As can be seen from the Plan and Partial Plan set, introducing a prior tool selection process does not make the performance worse compared to the scenarios from the planning evaluation. With exploration involved, the success rate gets slightly worse, with the most common mistake being planning before having explored all relevant locations.
+The Suggest Alternative set also has a similar lowered success rate, caused mainly by invalid alternative suggestions. This is expected as the success rate of the medium-sized scenes was 0.83 for the Suggest Alternative Tool. The success rate for the Combined set is 0.07 lower than the Suggest Alternative set, which shows that the addition of exploration does lead to a lower success rate than just using the Suggest Alternative Tool alone. Reviewing the data, the most common reason for failure is planning before all necessary objects or replacements are determined.
+
+
+What can also be seen is that the tool usage is often minimal when only one tool needs to be used, with the exception of the Partial Plan set where the Suggest Alternative Tool is often called or the tool selection gets stuck in a loop of selecting Partial Plan. From the Explore scenarios, we can observe that when given a hint of the location of an item, the tool selection never fails to explore the correct location. However, when not given any clues, the tool selection seems to randomly explore locations even if, from the name of the location, it can be inferred that the relevant objects are unlikely there. For example, the system tries to explore the window location to search for vegetables.
+
+
+In contrast to GPT-4, GPT-3 mostly fails at the tool selection task. For Plan and Partial Plan sets, it performs in the same success range as in the Plan Tool scenarios. However, the tool selection is not optimal even for those, as seen from the minimal tools rate. If it needs to use the Explore and Suggest Alternative tools, it seemingly chooses the tools randomly and thus has a low success rate.
+
+
+Overall, the results show the viability of the tool selection process to solve tasks with missing objects and partially unexplored scenes.
+However, issues like preemptive calling of the Plan Tool or inadequate calls of the Suggest Alternative Tool remain. Furthermore, as the evaluation set is limited in scope, the results should be approached with caution.
+
+
+E. Validation Experiments on ARMAR-6 and ARMAR-DE
+
+
+To validate the feasibility of our system, we performed several experiments on the humanoid robots ARMAR-6 [ *REF*] and ARMAR-DE. As our approach primarily focuses on object affordance detection and planning, we made several assumptions to ease the integration on the robot. We relied on predefined object models for manipulation tasks like grasping, placing, and pouring. Additionally, the locations the robot could navigate to and the environment model are entirely known. However, we dynamically detect the locations of all objects that can be manipulated. Furthermore, to detect liquids inside containers, we assume a predefined liquid is in every liquid container.
+The object relations are estimated based on the related objects&apos; affordances, and the spatial relations of the object poses are estimated by a fine-tuned MegaPose model [ *REF*]. For object detection, we used the yolov5 object detector [ *REF*] that was fine-tuned on our predefined object set.
+For pouring, we used an affordance keypoint detection method [ *REF*] to detect the opening of the source container and assume that the target container is symmetric, so moving the object&apos;s keypoint above the center of the target object is sufficient. We avoided using real liquids during the experiments to avoid damage to the robot.
+We performed four kinds of tasks with varying formulations of our user requests and objects, including picking and placing, pouring, wiping, and handover tasks. All of these require different levels of human-robot collaboration. Whereas the robot needs no help executing the pick and place and wiping tasks, it needs to ask for help for the pouring tasks to open the liquid container. In handover tasks, the human and the robot are equally part of the task. Our proposed system, AutoGPT+P, exhibits proficiency in generating executable plans on our robot. Subsequent investigation of failure cases revealed that most of these cases could be attributed to false positive detection of objects or the robot&apos;s inability to accurately grasp the target object.
+
+
+VI. Conclusion and Future Work
+
+
+In this work, we propose representing objects in the scene as a set of object-affordance-pairs. The scene representation is generated through combined object detection and Object Affordance Mapping, where object classes are associated with their affordances. Our work demonstrates the utility of Chat-GPT in automatically deriving Object Affordance Mappings for novel classes based on a fixed set of predefined affordances. On our newly proposed set of affordances for planning, we achieved an f1-score of 89%.
+
+
+We utilized the scene representation in AutoGPT+P, our proposed planning system, which uses the concept of affordances for planning and alternative suggestions. It consists of an LLM-based tool selection loop that chooses from one of four tools to solve the user-specified task: Plan, Partial Plan, Explore, and Suggest Alternative. The Suggest Alternative Tool uses the affordances of a missing object to steer the LLM during the alternative suggestion process. Additionally, the Plan and Partial Plan Tool utilize the LLM to produce goal states in an affordance-based planning domain and generate a plan fulfilling the (partial) goal with a classical planner. The experiments demonstrate that the Plan Tool vastly surpasses SayCan on SayCan&apos;s set of instructions in terms of planning when not considering execution, improving the success rate from 81% to 98%. The self-correction of semantic and syntactic errors has a significant influence on this, raising the success rate from 79% to 98% when compared to the method without self-correction.
+
+
+Furthermore, our affordance-guided Suggest Alternative Tool outperforms a naive approach in scenes with 20 and 70 objects by 13%. When evaluating the system&apos;s overall performance, we reach an average success rate of 79% on our dataset containing 150 tasks. Difficulties persist mainly due to the LLM selecting incorrect tools. Therefore, a reevaluation of the tool selection process is necessary to address this issue. Our validation experiments show that the generated plans can be successfully executed on the robot and that the symbolic representation of objects from the planning domain can be transferred to the subsymbolic object representations needed for skill execution.
+
+
+In future work, probabilistic aspects should be integrated for improved accuracy in real-world deployment. This involves representing the OAM as a probabilistic function that can be updated incrementally based on user feedback or execution. Additionally, a probabilistic representation of the object-affordance-pairs, which includes the confidence level from the object detection, can be combined with this. The resulting probabilistic scene representation can then be used in conjunction with a planner that optimizes the probability of a plan&apos;s success rather than just plan length.
+
+
+Furthermore, a more versatile human-robot interaction would be beneficial. This involves equipping the system with the capability to seek clarification if the user&apos;s instruction is unclear and granting the user the ability to modify or terminate the plan during execution.

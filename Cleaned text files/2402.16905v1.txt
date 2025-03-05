@@ -1,0 +1,300 @@
+Enforcing Temporal Constraints on Generative Agent Behavior with Reactive Synthesis
+
+
+Introduction
+
+
+Large Language Models (LLMs) excel at acting as generative agents that should have some self-consistency in their behavior. One such example is the use of LLMs to create video game agents [*REF*; *REF*]. However, one limitation is in the ability to manage long-horizon behavioral consistency of such agents. Often, when relying solely on LLMs to control agent behavior, the agent will display behavior that is out of line with its previously established patterns [*REF*]. While a certain amount of agent evolution can increase the depth of player experience [*REF*], players also expect in-game agents to have some consistency over time [*REF*]. Prior work has attempted to address the issues of agent memory by logging an input-response history which can be used in future calls to a LLM for content (e.g. NPC script). While these approaches have been shown to create more natural conversation flows, for example with chain-of-thought frameworks [*REF*], the core problem of enforcing temporal consistency remains unaddressed.
+
+
+Enforcing temporal consistency for our work means to give structure to the long-horizon behavior of an LLM. As an example, we may want to ensure that an LLM-based teaching assistant for a CS101 class does not give example code with nested conditionals before explaining what a conditional is and how it functions. In order to convey such constraints on an LLM-based agent, users must compose extensive prompts, scrutinize responses for potential factual inaccuracies, biases, or content misaligned with their intentions, adjust their prompts accordingly, and repeat the process. This creates the &quot;Gulf of Execution\&quot; [*REF*], representing the divide between users&apos; intentions and the system&apos;s ability to fulfill them, leading to excessive back-and-forth in crafting prompts for users to guide LLMs toward desired outputs. In addition, there is the &quot;Gulf of Evaluation\&quot; between the system&apos;s output and users&apos; comprehension of how well these outputs align with their intentions. This lack of interpretability of the model necessitates additional effort from the user to understand how and why the LLM-based agent came up with its responses.
+
+
+To bridge these two gulfs and to enforce temporally consistent agent behavior in LLMs, we turn to temporal logic and program synthesis. We combine LLMs with logic-based program synthesis techniques to build a system for creating generative agents that are guaranteed to obey particular temporal properties of the generative content. In this system, users provide a specification of the temporal behavior to which their agent should adhere, and we synthesize an interpretable system that structures LLM queries of the agent.
+
+
+The key design goal of our approach is to provide a system which has three main features: 1) adherence, 2) interpretability and 3) modularity. First, we want to make sure the system adheres to the provided specification. Second, the user should be able to identify the root cause of decisions made by the agent. Third, the user should be able to build upon their specification in modular way, such that properties can be added to the system without needing to explore an invisible trade-off space between the properties.
+
+
+Recognizing these design priorities, and that generative agents are at their core reactive systems that consume input and produce output while maintaining some internal state, we turn to the world of reactive synthesis. Reactive synthesis allows us to take a specification of the long-horizon behavior of an agent and generate a state machine that gives instructions (as a prompt modifier) to the LLM on each state transition of how to generate its response. To make decisions on how to transition between states, the LLM makes queries on its own output and the user&apos;s prompts at each time step. Interestingly, despite using a self-evaluative model, we are able to achieve significantly better results than state-of-the-art approaches that only rely on an LLM.
+
+
+The key contributions of this work are as follows:
+
+
+1. A formalization of our generative agent and its properties of adherence, interpretability, and modularity
+2. A prototype system that uses Temporal Stream Logic to impose temporal constraints on generative agents
+3. An evaluation of this framework measuring temporal consistency compared to existing chain-of-thought memory models.
+
+
+Motivating Example 
+
+
+To explore a more in-depth example of where temporal consistency of an LLM-agent is required, consider a simple choose-your-own-adventure game.
+Ideally, we could use LLMs to generate dynamic story passages for interactions with players, but we also want to require that the player visits three different locations along their journey: a town, a market, and a cave. We also want to ensure that the player visits a town and a market before they can visit a cave. To create such an agent, we will use a combination of LLM calls and Temporal Stream Logic (TSL) [*REF*]. TSL allows us to write properties about the temporal behavior of an agent, and then automatically generate code that is guaranteed to meet those properties. Although we have not yet formally introduced TSL, the specification of the player&apos;s adventure is straightforward to understand, as shown in Fig [1].
+
+
+FIGURE
+
+
+There are no guarantees about the behavior of the component functions in this specification, but by using TSL, we can construct an automaton that governs the times when these functions are called. In this way, we allow the story to change over time, and how the player navigates the story to change over time, but the relationship between when these things happen will remain consistent.
+
+
+Preliminaries
+
+
+Limitations of LLMs in Co-creation 
+
+
+Based on user prompts, a form of text-based input, Large Language Models(LLMs) excel at generating high-quality content for specific topics, tasks, or styles [*REF*; *REF*; *REF*]. Collaborating with an LLM, especially given its exceptional generative capacity, requires users to relinquish partial control over the generated content.
+Consequently, the creative results become a collaborative effort through interactions between the individual (human) and the non-human agent (LLM) [*REF*], resulting in a form of human-AI co-creation [*REF*]. A defining feature of human-AI co-creation is the substantial contribution of non-human input to the creative process, complementing the inputs from human users. Co-creation occupies the space between pure computational creativity, where a non-human agent creates without human involvement, and creative support tools, software systems and interfaces assisting human users by enhancing their abilities and offering new possibilities [*REF*]. Aligning LLM output with user intentions poses a critical challenge for both engineers designing and developing the language model and users seeking improved results.
+
+
+Due to its text-mediated interface and the black-box nature of artificial neural nets, LLMs have several limitations in the context of human-LLM co-creation.
+
+
+1. Adherence: Despite explicit instructions in prompts, the LLM might still generate content that clearly violates the instructions -- this challenge has been termed loss of authorial control [*REF*].
+2. Interpretability: Understanding why an LLM returns a particular block of text can be difficult through the black-box internal workings of the model. When an LLM produces an unexpected or undesired outcome, it can be hard to pinpoint the cause from a series of interactions and correct accordingly.
+3. Modularity: LLMs fall short of representing a non-linear information structure that involves more complex components such as conditionals and parallelism. This is particularly an issue for enabling the iterative creation users require for building complex systems.
+
+
+Reactive Synthesis and Temporal Stream Logic 
+
+
+At the core of our work is the use of reactive synthesis [*REF*].
+Reactive synthesis focuses on the temporally infinite interaction between the system and its environment, and automatically constructs control strategies that ensure that the system reacts to any possible move by the environment in a way that adheres to the specification&apos;s requirements. In the classical synthesis setting, using specification languages such as Linear Temporal Logic [*REF*], time is discrete and inputs and outputs are given as vectors of Boolean signals.
+Temporal Stream Logic (TSL) [*REF*] is a specification language that provides an extra layer of abstraction that can be applied to input and output values of arbitrary type (as opposed to only Boolean as in LTL). Specifically, TSL introduces predicate terms, *MATH*, which are used to make observations on the environment, and function terms, *MATH*, which are used to construct output values. Additionally, TSL introduces the notion of cell values - values which are outputted by the system and piped back as input in the following timestep. The grammar of a TSL formula, *MATH*, is an extension to the grammar of LTL: *MATH* *MATH* *MATH* where *MATH* is an input stream or cell value, and *MATH* is an output steam or cell value. Together, all the available predicate names *MATH* and all the available function names *MATH* form the set of function symbols *MATH*. A TSL formula describes a system that consumes input *MATH* and produces output *MATH*.
+
+
+The realizability problem of TSL is stated as: given a TSL formula  *MATH*, is there a strategy  *MATH* mapping a finite input steam (since the beginning of time) to an output (at each particular timestep), such that for any infinite input stream *MATH*, and every possible interpretation of the function symbols (some concrete implementation) *MATH*, the execution of that strategy over the input *MATH* satisfies *MATH*, i.e., *MATH* *MATH* *MATH* If such a strategy  *MATH* exists, we say that *MATH* realizes *MATH*. The key insight here is that in TSL we specify a temporal relation of predicate evaluations to function applications - abstracting away from what these predicates and functions actually do to any underlying data. In TSL synthesis, this model *MATH* can be turned into a block of program code that describes a Mealy machine [*REF*], where the transitions represent function and predicate terms. For a full exposition of the formalism of TSL we refer the reader to [*REF*].
+
+
+Generative Agents
+
+
+The goal of this work is to build correct-by-construction generative agents. To ground our notion of correctness, we need a formal definition of a generative agent. We are specifically interested in generative agents that take actions at discrete timesteps as a reaction to observations on their environment and the history of prior environmental observations. In this work we focus on a model where the environment and actions are all text-based, though our approach is not specific to this (any datatype, such as JSON objects, would also be fine).
+
+
+This model of a generative agent matches closely with that of a reactive system, and specifically a reactive system with a layer of data abstraction as modeled by TSL. In our setting, a generative agent, *MATH*, is a reactive system which first consumes a stream of inputs *MATH* in the form of environmental text inputs (inputs *MATH*) and its own prior outputs (cells *MATH*). At each timestep, the generative agent may make queries about these inputs (predicate terms). In our system, these predicates are LLM queries (e.g. &apos;inCave(storySummary)&apos; - cf.
+Sec. [5.1]). After observing the environment, the agent then should take an action. In our text-focused model, this action is that of generating a new block of text - using the terminology of TSL, the action would be framed as updating an output signal with a function term. In particular, this function term is also a call to an LLM, asking for the next passage of the story (e.g.
+&apos;toCave(storySummary)&apos; - cf.
+Sec. [5.1]). Thus, for our work, a generative agent *MATH* is a tuple of a strategy *MATH* and an implementation *MATH* of the function and predicate terms (*MATH*) provided in the specification. The implementation *MATH* in our case, corresponds to a particular version of an LLM. We briefly note that we also need to fix a random seed [*REF*] in the LLM to ensure each generation is deterministic and is a pure function (the same input gives the same output every time) to match the model of TSL [*REF*].
+
+
+Critically, a synthesized strategy realizing a TSL specification must be valid for any implementation of the function and predicate terms. This universal quantification of data manipulation is particularly well-suited for the context of LLMs, where the LLM behavior is treated as a black-box. The correctness of synthesis is in this way divorced from the inner-workings of the LLM.
+
+
+System Overview
+
+
+Our proposed system combines reactive synthesis with an LLM, using reactive synthesis to control the high-level temporal reasoning while leaving the low-level details of each response to the LLM. In this way, the reactive synthesis (and specifically the resulting automaton) controls the top level of the system, while LLM calls make up the computations that should happen at each transition step of the automaton.
+
+
+We note that adhering to temporal properties (reactive synthesis) is in some ways fundamentally the same problem as probabilistic token-by-token generation (LLMs). In both cases, we care about the relation of generated values in sequence. The key contribution of the automata as mediating systems for LLM generation is that, with TSL, we can directly encode our desired long-horizon temporal behavior. In contrast, when using an LLM we must use prompt engineering to communicate our desired behavior in natural language - which is an error-prone, time-consuming task that still gives unreliable results. Conceptually we expect this strategy to work well, as the structure of an automaton is relatively simple (even a few hundred states compares favorably to billions of parameters), lightening the load on the LLM. By leveraging a hybrid of formal methods and LLMs, we can drive content generation in a way that allows the LLM to focus on a shorter context window.
+
+
+Although the automaton is the key mediator of the LLM behavior, using specifications to generate this automaton through reactive synthesis is a critical part of the system and usability design. In particular, with the temporal logic specification, we are able to deliver modularity to users. That is, a user can add a new line of specification to their system and still be guaranteed that the system will preserve the behavior of the prior system as well as integrate the new behavior. This modularity is notoriously difficult to achieve with natural language prompt engineering [*REF*].
+
+
+In Fig. [2], we provide an overview of our system in action on a choose-your-own-adventure specification. The system first determines a content prompt for generating new text content based off of an self-evaluation of previously generated passages. These prompts are passed to the LLM. Second, the LLM generates passages and player choices according to the given content prompt. Third, the LLM proofreads its own output and judges its alignment with users&apos; intention based on the evaluation prompt. These self-evaluations are then used in the next time step and the process is repeated indefinitely.
+
+
+FIGURE
+
+
+Predicates and function terms 
+
+
+In our system, function terms like &apos;toCave()&apos;, &apos;toMarket()&apos;, and &apos;toTown()&apos; from Sec. [2] represent calls to the LLM. In this example, these functions take a summary of previous &apos;storyPassage&apos;s, and query the LLM for a new passage where the player visits a cave, market, or town. An example function term prompt for &apos;toCave(storySummary)&apos; is: *MATH* *MATH* *MATH* The &apos;storySummary&apos; is also determined by a call to the LLM asking for a new summary based on the previous summary and the most recent &apos;storyPassage&apos;. An example summarization prompt is: *MATH* *MATH* *MATH*.
+
+
+Our system determines predicates like &apos;inCave(), inMarket(),&apos; and &apos;inTown()&apos; from Sec. [2] using a self-evaluation method. In this example, after receiving a new &apos;storyPassage&apos; from the function terms, the LLM is queried to evaluate if, based on that new passage, the player is in a cave, market, or town. An example predicate evaluation prompt for &apos;inCave(storySummary)&apos; is: *MATH* *MATH* *MATH* The LLM&apos;s responses become the new values of each of the predicates used in the next time step.
+
+
+Generative Agent Correctness
+
+
+Our architecture aims to address the aforementioned limitations of LLMs from Sec. [3.1] -- adherence, interpretability, and modularity.
+These properties are not well-defined concepts for LLMs and their generated content [*REF*]. We again leverage the separation of data and control that TSL provides, and define these metrics &quot;up to&quot; the data level - taking a correctness modulo models approach. That is, we can provide a guarantee on the adherence, interpretability, and modularity on the control level of the generative agents we create using TSL synthesis, even if we we cannot guarantee these properties on the underlying models that are used as subcomponents in TSL.
+
+
+Adherence 
+
+
+To formalize adherence we introduce two complementary concepts of procedural adherence and point-in-time adherence. Point-in-time adherence captures the goal of self-consistency over one time step. That is, given a request for generative content, a self-reflection on the output of that request will match the original intent. As an example, if our generative agent is prompted for a passage where the user visits a cave, then when the agent assesses its response, it will evaluate that the generated content is in a cave. Through the framework of TSL, point-in-time adherence is a property of a generative agent *MATH* that focuses on the implementation of the function and predicate terms *MATH*. Specifically, it is that, given a some abstract property *MATH* (e.g. in a cave), and a function *MATH* that should generate content with that property, the output of that function can be checked by a complementary predicate *MATH*. This is captured by the TSL formula *MATH*.
+An agent *MATH* has point-in-time adherence if all function and predicate terms have point-in-time adherence.
+
+
+In contrast to point-in-time adherence, procedural adherence is a property relating the strategy *MATH* of an agent *MATH* to the specification *MATH* from which it was synthesized. Intuitively, the idea of procedural adherence is that given a history of self-reflections (i.e. predicate evaluations), the generative agent will attempt to generate a response (i.e. select an update term) that matches the specification. Again, through the framework of TSL, procedural adherence corresponds directly to the correctness of the synthesis automaton from some specification *MATH*. As long as the synthesis procedure used to generate a strategy *MATH* is sound, the resultant agent *MATH*, will have procedural adherence with respect to *MATH*, regardless of the choice of *MATH*.
+
+
+Interpretability 
+
+
+We also aim to improve the interpretability of a black box autonomous agent by using TSL to provide a layer of abstraction between the long-horizon, procedural control and the point-in-time decisions.
+Causality is commonly used as a way to formalize one aspect of the interpretabilty of machine learning models [*REF*; *REF*; *REF*] - a system is interpretable when causality of its output can be identified. For our system, we refer to the recent work on temporal causality for reactive systems by Coenen et al. [*REF*], which builds upon the formalization of causality from Halpern and Pearl [*REF*] by extending the definition of causality to reactive systems that run on infinite streams of input. Core to the notion of causality is that &quot;a cause is an event such that, if it had not happened, the effect would not have happened either&quot; [*REF*]. We remark that the definition of an event itself is critical to the understanding of interpretability in our system. In our system, the strategy  *MATH* of an agent *MATH* is interpretable because for any given choice of an update term, we can identify a predicate evaluation (or a set of) such that if the predicate evaluation had been different, we would have made a different choice of the update term. We know that we can indeed always identify such a cause for our system because Coenen et al. show that causality for reactive systems is decidable [*REF*]. This gives us a high-level procedural interpretabilty. Related work seeks to address this lower level of interpretability [*REF*]
+
+
+Modularity
+
+
+The modularity of our system means that given two realizable TSL formulas *MATH*, and *MATH*, with minimal effort, we can compose these two formulas together to get a third realizable formula, *MATH*, that satisfies both *MATH* and *MATH*.
+*MATH* *MATH* *MATH* To enable an iterative creation process, users can build upon existing versions of their specifications by modifying or adding one component at a time. This allows users to break their ultimate goal into smaller sub-goals in making sure that each iteration produces a functional version of their desired program. The modular design of TSL also supports re-using of specifications, allowing the user to scale successful design patterns. We note that while we could have adherence and interpretability with manual automata construction (as opposed to using TSL synthesis), it is TSL as a specification language that gives us modularity.
+
+
+Evaluation
+
+
+In this section, we present a preliminary evaluation on the efficacy of imposing temporal constraints on generative agents with Temporal Stream Logic (TSL). We expand upon our motivating example in Sec [2] by evaluating our system architecture in the context of an agent that generates choose-your-own-adventure games. This evaluation demonstrates the adherence and modularity of our system as opposed to a pure LLM-based system.
+
+
+Methods 
+
+
+We measured how well the choose-your-own-adventure agent satisfied three story-building tasks given by specifications written in TSL and the natural language equivalent. The three tasks that the agent had to follow are shown below.
+
+
+1. &quot;The player must visit a town and a market before they can visit a cave.&quot;
+2. &quot;The initial story setting must be a forest.&quot;
+3. &quot;If the player makes three safe choices along their journey and they are in a cave, they must visit a town.&quot;
+
+
+The first and second tasks resemble the TSL specification from the motivating example in Section [2] and serve as a baseline comparison between the two systems. The third task evaluates how well the TSL and natural language-based approaches adhere to their guarantees for more complicated systems. The concrete TSL specifications and natural language prompts corresponding to each task can be found in Appendix [11].
+
+
+We played 75 games with each system using the GPT-4 API for 20 time steps. We then analyzed the percentage of games that resulted in hallucinations andor arithmetic errors vs. games where all guarantees were consistently satisfied for all time steps with each method of specification. If a system guarantee was violated in one time step of a run, e.g., if the player visited a cave before either a town or market, the whole game was marked as a violating game. We chose 75 games due to budget constraints.
+
+
+Results
+
+
+TABLE
+
+
+In Table [1], we provide an evaluation of our system on the storytelling agent described in Sec. For each task, the TSL-based system achieved high adherence, meaning that the game agent generated passages that consistently behaved according to its tasks. While the TSL-based system is still at risk of hallucinations, it is generally more reliable than the alternative. For Task 1 and 2, the agent also did fairly well at adhering to its pure LLM-based specification and only hallucinated a cave or failed to generate a forest on the first passage 13.4% and 10.67% of the time.
+
+
+The benefits of TSL&apos;s modularity are demonstrated in Tasks 3 and 4. Task 3 involves the combination of two distinct specifications, which regulate the locations the player visits during the game and the impact of their choices on gameplay. Task 4 is the combination of all three specifications outlined in Sec [7.1]. Combining two TSL specifications that impact different aspects of the gameplay had no observable effect on how well the agent satisfied the system&apos;s guarantees.
+
+
+In contrast, the pure LLM-based agent encountered challenges when tasked with managing multiple objectives. In Task 3, the agent demonstrated an increased tendency to hallucinate a cave in approximately 21% of the games, compared to 13% in Task 1. This 8% rise in cave hallucinations illustrates that as the pure natural language prompts become more verbose, the consistency of the generated output diminishes.
+
+
+Table [2] highlights another significant finding: the pure LLM-based agent exhibited simple arithmetic errors more than twice as often as hallucinations. These errors involved inaccurately updating the count of safe choices the player had made during their game, either by inconsistently increasing the count or doing so when the player was not in a town. It is worth noting that large language models often encounter challenges when generating responses to numerical and mathematical queries, and this weakness has been deemed an research area of critical importance [*REF*]. As an alternative, TSL and reactive synthesis offer a formally correct approach.
+
+
+One clear limitation of this evaluation is the quality of the natural language prompt we gave the pure LLM-based agent and its equivalency to the TSL specification. However, it is worth noting that it took us less time to engineer all TSL specifications than it took to engineer satisfactory natural language prompts that ensured semi-consistent behavior from the pure LLM-based agent for each task.
+
+
+Overall, our preliminary evaluation suggests that the TSL-based approach offers an adherent, modular, and interpretable solution for constraining generative agent behavior in complex scenarios, outperforming pure LLM-based agent specifications especially when dealing with computations.
+
+
+Generalizability 
+
+
+Our system&apos;s properties of adherence, interpretability, and modularity are critical for domains other than choose-your-own-adventure games.
+More generally, imposing temporal constraints on an autonomous agent could be used to improve performance in any domain where an LLM-based chatbot must continuously respond to input while keeping track of many variables influencing the conversation, or when interacting with other autonomous agents.
+
+
+Educational Chatbot
+
+
+The same design can be used on an educational chatbot that assists students as they learn from a math textbook. There are many different ways to solve a problem, and it is important that the chatbot does not give a student an answer that contains material that is covered in a chapter that the student has not covered yet. This property could be written as a TSL constraint like so:
+
+
+guarantee { chapter1content(response) W chapter1complete; (! (chapter2content(response))) W chapter1complete; }
+
+
+The chatbot should only respond using material covered in Chapter 1 of the textbook until the student completes that chapter. The chatbot should not respond using material from Chapter 2 until the student completes Chapter 1. These constraints must extend to every chapter in the textbook, resulting in many complex interactions that would be difficult for an LLM to manage without help from formal methods.
+
+
+At the same time, the chatbot may need to keep track of how many hints to a sample problem it gives the student before it reveals the answer.
+For example, using TSL, we can impose a threshold of three hints:
+
+
+guarantee { (! (giveAnswer(response)) W (hintCount = 3); G (hint(response) &lt;-&gt; [hintCount &lt;- hintCount + 1]); }
+
+
+Conversational generative agents
+
+
+Generative agents powered by LLMs have had impressive performance of improvising conversations based on their environment and previous conversations [*REF*]. TSL can be fused with such a system to offer guarantees in the temporal priority of topics being mentioned in a conversation by different speakers. Conceive a conversation between Alice and Bob. We use speakA to represent Alice, and speakB for Bob.
+For example, the following specification expresses that Alice always eventually talks about work:
+
+
+always guarantee { F ([speakA &lt;- workTopic(summary)]); }
+
+
+To impose a constraint on the selection of topics, various expressions can be used to prescribe the arrangement of one topic over another. For example, we can use the *MATH* (weak until) temporal operator to offer a conditional preference, such as &quot;Alice talks only about personal topics after the conversation topic is about cats&quot;.
+
+
+always guarantee { (! [speakA &lt;- personalTopic(summary)] W isCatTopic(summary)); }
+
+
+The following specification provides a more detailed example conversation.
+
+
+always guarantee { Alice always eventually talks about work F ([speakA &lt;- workTopic(summary)]);
+
+
+Alice talks only about personal topics  after the conversation topic is about cats (! [speakA &lt;- personalTopic(summary)] W isCatTopic(summary));
+
+
+Alice will eventually talk about future plans after talking about work (isWorkTopic(summary) -&gt; F ([speakA &lt;- futurePlans(summary)]));
+
+
+Bob always follows with a joke when talking about future plan isFuturePlanTopic(summary) -&gt; [speakB &lt;- joke(summary)]; }
+
+
+Threats to validity
+
+
+The threats to the internal validity of our evaluation correspond to the lack of more complex prompt engineering techniques, a limited budget, and the general complexity of LLMs. Each task could have been evaluated over more games to allow for broader assertions about LLM behavior and hallucinations. Conceivably, we could have improved our prompt engineering and paired the LLM with a monitor to check each response before outputting it to the user. This would have enabled us to regenerate the response if it failed to adhere to its specifications. To partially mitigate these threats, we chose to use GPT-4 to compare against the state-of-the-art. We could have implemented and evaluated adherence for each of the domains described in [7.3] if the cost of GPT-4 queries were not a concern. Additionally, prior work has shown that it is also difficult to evaluate LLM performance due to the lack of transparency and complexity of the model [*REF*].
+
+
+One threat to the external validity of our work is the well-studied problem of program synthesis and temporal logic usability [*REF*; *REF*; *REF*; *REF*].
+There is still a barrier to writing TSL and other specification languages for program synthesis, as they do not share syntax with common programming languages and are semantically complex. One way to solve this is to provide better tools for writing specifications. Prior work proposed a visual scripting tool to make it more usable and approachable for programmers of all skill levels [*REF*]. The next phase of our work involves the seamless integration of tools to enhance TSL usability within the current architecture.
+
+
+Furthermore, the efficacy of our framework is contingent upon its design, rendering it more suited for certain tasks than others. Since TSL introduces temporal logic, users must articulate their intentions within the framework of TSL semantics. Consequently, tasks involving temporal operations or possessing sequential properties stand to gain greater advantages from the incorporation of temporal logic.
+
+
+A threat to the construct validity of our work is the indeterminacy of point-in-time adherence and interpretability. For our purposes, we formalize procedural adherence and interpretability in Secs [6.1] and [6.2] as they pertain to our definition of generative agents, but their complementary point-in-time concepts remain undefined in the NLP field.
+
+
+Despite these limitations, our results serve as a targeted case study and proof of concept for the combination of formal methods and LLM generation. Even with tweaked prompt engineering to improve the adherence of LLM generated responses, the problems of interpretability and modularity still remain. Further research and experimentation will be essential for a comprehensive understanding of the strengths and limitations of our approach.
+
+
+Related Work
+
+
+Program synthesis and LLMs.
+
+
+One current research direction in the intersection between program synthesis and Large Language Models is to generate formal language specifications, such as Linear Temporal Logic (LTL) formulae, using LLMs. These language models are able to translate natural language into executable robot plans for tasks including navigation [*REF*], carrying out cooking recipes [*REF*] and arranging objects [*REF*]. They are verified to achieve near -- or equal -- accuracy when compared to human-generated specifications. This body of work is primarily motivated by automating the formalism so that humans are not required in the synthesis process, which is distinct from our goal to facilitate co-creation between humans and LLMs. Because the measure of success in this line of work is often the accuracy of LTL formulae, some of these approaches [*REF*] trained specialized language models to acquire significant knowledge about LTL.
+
+
+Another active area of work is text-to-code generation, using LLMs to synthesize programs from natural language descriptions, in a sense in place of specification languages [*REF*; *REF*; *REF*].
+Despite generating functionally correct programs after few-shot learning, these models fall short of understanding the semantics, as measured by successfully predicting program output given specific inputs, of the programs they generated. While this approach lowers the barrier of entry to program synthesis by allowing users to input natural language only, the similar issue of the evaluation gulf in directly interacting with LLMs persists.
+
+
+Our work is distinct from existing lines of research in the intersection of program synthesis and LLMs in the aspects of system design and design goals.
+
+
+Increasing adherence in LLMs.
+
+
+Hallucinations in LLM outputs -- namely, the plausible yet ungrounded information [*REF*] -- can lead to inconsistency and factual errors in conversations and generated explanations [*REF*; *REF*; *REF*].
+Verification methods, whether executed and planned internally by the LLM (referred to as self-critique) [*REF*; *REF*; *REF*], coordinated among different LLMs to find agreement [*REF*], or completed outside the LLM framework entirely [*REF*], contribute diverse approaches to addressing hallucinations. Enhancing the reasoning capacity of LLMs, including arithmetic, symbolic, and commonsense reasoning, is another way to reduce hallucinations. In this context, our work can be understood as adding a reasoning component to LLMs for verifying temporal consistency in its outputs. Compared to previous work that enhances reasoning ability in specific domains, such as reading comprehension [*REF*] and mathematics [*REF*; *REF*], our work aims to facilitate reasoning of LLMs in the temporal domain, irrespective of the nature of tasks.
+
+
+Conclusion
+
+
+This paper presents a working system that combines formal logic-based program synthesis with Large Language Model (LLM) content generation.
+Supported by Temporal Stream Logic (TSL), this system allows for the imposition of temporal constraints on LLM generated content, extending the application of reactive synthesis. In the evaluation of our system, we demonstrated its efficacy in constraining the behavior of a choose-your-own-adventure game agent through a set of predefined tasks.
+The benefits of TSL&apos;s modular nature were highlighted in the successful simultaneous adherence to a combination of tasks.
+
+
+Furthermore, our proposed system addresses the challenges and limitations associated with human-AI co-creation, particularly in the context of LLMs. Through a cyclical process, our architecture provides users with guaranteed control over coherency in LLM generation, ensuring that user intentions are effectively translated into the final outputs.
+The introduction of procedural interpretabiliity in the system architecture allows users to comprehend and explain decision-making processes at both high and low levels. Furthermore, the iterative creation process facilitated by our architecture empowers users to refine and experiment with their specifications incrementally.

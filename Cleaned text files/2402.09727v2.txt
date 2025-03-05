@@ -1,0 +1,287 @@
+A Human-Inspired Reading Agent with Gist Memory of Very Long Contexts
+
+
+Introduction 
+
+
+Transformer-based Large Language Models (LLMs) are highly capable of language understanding, but the amount of text that LLMs are able to read at one time is constrained. Not only is there an explicit context length limitation, but it has also been found that performance of LLMs tends to decline with increasingly long inputs even when they don&apos;t actually exceed the explicit context window [*REF*; *REF*]. In contrast, humans can read, understand, and reason over very long texts, such as a series of interrelated books.
+
+
+FIGURE
+
+
+We posit that an underlying reason for this gap is inherent in the differences in reading approaches. Typically, we use LLMs to consume the exact given content word-by-word and the process is relatively passive.
+On the other hand, humans read and reason over long text differently.
+First, the exact information tends to be forgotten quickly, whereas the fuzzier gist information, i.e. the substance irrespective of exact words, from past readings lasts much longer [*REF*; *REF*; *REF*].
+Second, human reading is an interactive process. When we need to remind ourselves of relevant details in order to complete a task, such as answering a question, we look them up in the original text.
+
+
+We think that using the fuzzy gist memory to capture global context and attending to local details together enables humans to reason over very long context efficiently, in terms of how much information to process at once, and is also important for comprehension. For example, if we were to infer the intention of a fictional character&apos;s specific action described on a page in a novel, besides focusing on the surrounding pages, we likely also need to understand the overall story and the character&apos;s personality from reading the whole book (see [8] for more analysis).
+
+
+Motivated by these observations, we propose ReadAgent, an LLM agent system that handles long content inspired by the human approach.
+ReadAgent is simple to implement and can be built entirely by prompting a previously-trained LLM. As illustrated in [1], it takes three primary steps: (1) episode pagination, where we prompt the LLM to decide where to pause in reading contiguous text; the content between pause points becomes an episode, which we refer to as pages in this work; (2) memory gisting, where we prompt the LLM to compress each page into a shorter gist and associate the gist with a corresponding context (e.g. which page the gist was from) -- this gives the episodic gist memory; (3) interactive look-up, where the LLM looks at the given task and the complete set of gists in-context, makes decision on what page(s) to look up, combines the gists with these raw pages, and solves the task.
+
+
+We evaluate ReadAgent by comparing against using only the gist memory without interactive look-up, using full text for datasets that can fit in the context window, and using retrieval methods to look up pages.
+ReadAgent outperforms all baselines across three challenging long-document comprehension tasks -- QuALITY, NarrativeQA and QMSum -- while increasing the effective context length significantly compared to the original LLM. On NarrativeQA Gutenberg test set, whose average length is 71k words and whose maximum is 343k words, ReadAgent improves the LLM rating ([4.1]) by 12.97% and ROUGE-L by 31.98% over the best retrieval baseline and increases the effective context length by *MATH*. On QuALITY, where the articles can fit in an 8K context window, ReadAgent outperforms using full text with a *MATH* effective context length.
+
+
+Finally, in [9], we adapt ReadAgent to web navigation, which is a fundamentally very-long context agent setting. We find that ReadAgent is simple to adapt to this setting and shows promising performance.
+
+
+Our primary contributions are:
+
+
+- ReadAgent, our human-inspired LLM agent that generates gist memories and looks up information as needed for solving tasks on long contexts ([3]).
+
+
+- Demonstration of significant performance advantages and scalability through a comprehensive experimental evaluation on challenging long-context benchmarks, comparisons against popular baselines, and analysis ([4]).
+
+
+Related Work 
+
+
+Long-Context LLMs
+
+
+The most direct way to improve LLM long-context performance is to train or fine-tune LLMs with longer context windows [*REF*; *REF*; *REF*; *REF*; *REF*.1145/3530811; *REF*].
+Another approach is to explore new architectures or efficient implementations of the Transformer [*REF*] attention layers to reduce the need of long-context fine-tuning [*REF*; *REF*; *REF*; *REF*; *REF*].
+However, LLM performance tends to decline with increasingly long inputs even when they don&apos;t exceed the specified context length [*REF*].
+LLM performance is also shown to be sensitive to distracting information in the context [*REF*]. Thus, the effective context length could be shorter than the explicit limit. Our approach is complimentary to these approaches, scaling the effective context length of the underlying model while reducing the amount of distracting information in context, and requiring neither architectural changes nor training.
+
+
+Retrieval
+
+
+Retrieval Augmented Generation (RAG) techniques [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*] allow an LLM to query task-relevant information from a large database of documents or document pieces. Our work implements a form of retrieval by reasoning over a contextualized gist memory, all with zero-shot LLM prompting. This rethinking of retrieval directly leverages the strength and flexibility of LLM language understanding to reason about which documents to retrieve. Our approach is well-suited to densely-correlated long-document pieces, such as a series of books or a conversation history, but the database cannot scale arbitrarily, since the size of the gist memory is limited by the LLM&apos;s context length, and the gist memory&apos;s length correlates with the size of the database. In contrast, conventional retrieval approaches can handle larger databsases than our approach. In this work, we compare against retrieval systems that use exactly the same set of documents as our approach.
+
+
+LLM Agents for Long Texts
+
+
+LLMs can be used as agents to interactively handle very long texts.
+WebGPT [*REF*] and WebShop [*REF*] learn browsing actions to search for the requested answer on the internet, despite not being designed to understand long documents. The PEARL [*REF*] system proposes action plans for better long-document comprehension through iterative prompting. Self-note [*REF*] amortizes reasoning steps and interleaves intermediate notes with the original documents to improve reasoning. *REF* generates long outputs through iterative reasoning. However, these methods cannot address long input texts that exceed the LLM&apos;s context length. Similar to this work, MemWalker [*REF*] also reads long documents interactively through iterative prompting. It traverses a tree of different levels of summaries to search for task-related information.
+However, the hierarchical summary structure makes it difficult to reason over related but distant information at the same granularity (see [11] for more discussion).
+
+
+ReadAgent 
+
+
+[1] shows an overview of ReadAgent, which we describe in detail below.
+
+
+Gist Memory 
+
+
+A gist memory is an ordered collection of short gists of chunks of text from the original long context. Building a gist memory has two steps: pagination and memory gisting, described in turn below.
+
+
+Episode Pagination
+
+
+When ReadAgent reads through a long text, it makes decisions on what content to store together in a memory episode by choosing where to pause reading. At each step, we provide the LLM some text that begins from the previous pause point and ends when it reaches a &apos;max_words&apos; limit. We prompt the LLM to choose which point between paragraphs would be a natural point to pause, and then treat the content between the previous and current pause points as an episode, which we also refer as a page.
+This is episode pagination, which we implement with the following prompt.
+
+
+TABLE
+
+
+As shown in the prompt, possible pause points are inserted between paragraphs as numbered tags (e.g. *MATH*), making this a multiple choice question for the LLM. We only start inserting these numbered tags after a &apos;min_words&apos; threshold to make sure that each page has at least &apos;min_words&apos;.
+
+
+Memory Gisting
+
+
+For each page, we prompt the LLM to shorten the exact content into a gist, or summary, as follows.
+
+
+TABLE
+
+
+We subsequently prepend a page tag to each gist (e.g. *MATH*) to contextualize it (indicate where the gist was from), and then concatenate all gists. This gives us the gist memory. We use the word &quot;shorten&quot; in the prompt to generate these summarizing gists as it tends to help preserve the narrative flow, making it more natural to concatenate. Using the word &quot;summarize&quot; tended to produce a restructured summary in our experiments.
+
+
+The original page size is a key factor for how compressed the gist is.
+Let&apos;s say the smallest unit of text that we consider is a paragraph.
+Intuitively, a paragraph likely has some amount of mutual information with its neighbors. Thus, the larger chunk of text we group together, the more duplicated information we can remove. Empirically, compressing larger chunks of text with LLMs also tends to remove more details, which could affect performance. We control the page size by changing &apos;min_words&apos; and &apos;max_words&apos; in pagination. This trade-off is studied in [6].
+
+
+Parallel and Sequential Interactive Look-Up 
+
+
+For a given task about a long document, we want ReadAgent to take actions to look up relevant details in the original text in addition to using its gist memory. As the gist memories are contextualized with page numbers, we simply prompt the LLM to answer which page(s) it would like to look up and read again given the specific task. In the following we discuss two look-up strategies: looking up all pages at once in parallel (ReadAgent-P) and sequentially looking up one page at a time (ReadAgent-S).
+
+
+ReadAgent-P
+
+
+As in the following example prompt for question-answering, typically we give it a maximum number of pages that it can look up but also instruct it to use as few pages as possible to avoid unnecessary computational overhead and distracting information. The following prompt shows parallel look-up, where the model requests multiple pages in response to a single prompt.
+
+
+TABLE
+
+
+The selected raw pages replace the gist(s) at the corresponding positions in memory, preserving the overall narrative flow. Then we prompt the LLM again with the task and the updated memory and ask it to solve the task.
+
+
+ReadAgent-S
+
+
+We also study the sequential look-up strategy, where the model requests one page at a time, up to some maximum number of pages. In sequential look-up, the model gets to see the previously expanded pages before deciding which page to expand. This gives the model access to more information than parallel look-up, so we might expect it to perform better in some situations. However, the larger number of interactions with the model increases the computational cost, so sequential look-up should only be used on tasks where it provides clear benefits.
+
+
+TABLE
+
+
+Computational Overhead and Scalability 
+
+
+Episode pagination, memory gisting and interactive look-ups require iterative inference, which is a possible computational overhead.
+However, as we show in the following, the overhead is bounded linearly by a small factor, making our approach scale well with input length. As look-up and response are mostly conditioned gists instead of full text, the more tasks we have on the same context the cheaper it becomes.
+
+
+Pagination: In theory, an LLM could read a document and directly provide the pagination in a single pass, so the minimum number of words the LLM must process is the length of the document. Our pagination algorithm splits the document into chunks of at most &apos;maxwords&apos;, and then guarantees that at least &apos;minwords&apos; are consumed at each step.
+Thus, the ratio *MATH* gives an upper bound on how many times the word length of the document the LLM must process using our algorithm. Gisting: Memory gisting is one additional pass of the raw input words, since each page is gisted independently. Look-ups: Parallel look-ups are conditioned on gists instead of the full text, and thus will be much shorter than one pass of the raw input words. Each step of a sequential look-up is similar to parallel look-ups and the overall cost is capped with the maximum number of look-ups allowed. Response: Finally, answering is also similar to parallel look-ups. There is additional overhead from the prompt templates, of course.
+
+
+For example, in our QMSum ReadAgent-P 6 page experiments, *MATH*, the gist memory is less than *MATH* the original context and the retrieved pages increase that to *MATH*, so the LLM processes *MATH* the original words, assuming there&apos;s only one question.
+
+
+ReadAgent Variants 
+
+
+In [10], we discuss variants of ReadAgent that can be useful in different problem settings, including when the target task is known prior to reading the long document. In [9], we describe adapting ReadAgent to work in the web navigation setting.
+
+
+Experiments 
+
+
+We evaluate ReadAgent&apos;s long-document reading comprehension ability on three long-context question-answering challenges: QuALITY [*REF*], NarrativeQA [*REF*] and QMSum [*REF*]. Although ReadAgent does not require any model training, we develop the proposed method on the training sets and test on the validation, test and/or development sets to avoid any risk of overfitting system hyperparameters.
+
+
+In this work, we primarily use the instruction-tuned PaLM 2-L [*REF*] for our experiments and evaluation. The context length of PaLM 2-L is 8K tokens. Details of the model can be found in *REF*. Additionally, we provide GPT-3.5 results in [7], and experimental results on the web navigation setting in [9].
+
+
+One important performance measure of the techniques considered here is the compression rate (CR). We define this as *MATH* at the final query.
+
+
+LLM Raters 
+
+
+NarrativeQA and QMSum both have one or more free-form reference responses. They are typically evaluated using syntactic matching metrics such as ROUGE [*REF*] F-Measure. We additionally evaluate these datasets using an automatic LLM Rater as an alternative to human evaluation similar to  *REF* [*REF*; *REF*; *REF* -lee-2023-large].
+
+
+In our implementation, we prompt the LLM to look at the question or instruction and compare the model&apos;s answer to the reference answer. The &quot;Strict LLM Rater Prompt&quot; shown below is for judging whether there is an exact match, and the &quot;Permissive LLM Rater Prompt&quot; is for judging whether there is an exact match or a partial match. We apply both prompts to all model responses. If either rater decides there is an exact match, we count it as an exact match. If the strict rater is negative but the permissive rater detects a partial match, we count it as a partial match. Otherwise, it&apos;s not a match. In the case that there are multiple reference answers, the response is compared against each reference answer in turn, and the highest rating is returned.
+
+
+Based on these raters, we define two different scores: LLM-Rating-1 (LR-1) is a strict evaluation score, where we count the percentage of exact matches over all examples; LLM-Rating-2 (LR-2) is permissive, where we count the percentage of exact and partial matches.
+
+
+TABLE
+
+
+Baseline Methods 
+
+
+Retrieval-Augmented Generation (RAG)
+
+
+As discussed in [2], RAG [*REF*] is a popular approach to extend access to a large amount of text beyond what can fit in the LLM context window. In this paper we compare ReadAgent to RAG baselines using conventional retrieval methods to find relevant &quot;pages&quot; in a long text, where we reuse the pages generated by ReadAgent. We consider two relevance methods: Okapi BM25 [*REF*] and neural retrieval based on the Gemini API embedding model (models/embedding-001). The neural retrieval relevance score is defined as the dot product between the question embedding vector and each page (or gist memory embedding vector in the case of NarrativeQA, see [4.3.2]). For reading comprehension tasks, the pages are ranked by relevance to each question, and we prompt the LLM to look at the top- *MATH* pages as context for answering the question. In most retrieval settings, the database of documents is quite large, which makes the retrieval task more challenging. In our setting, ReadAgent and retrieval methods all use a per-document database, rather than per-dataset. For example, in QuALITY, there are hundreds of articles, each with multiple questions. The database for retrieval in each question is only the extracted pages from the corresponding article (typically less than 20 pages), rather than the thousands of pages from the entire dataset.
+
+
+Full or Truncated Text Content
+
+
+The maximum length of QuALITY dev articles is *MATH* 6,000 words, which can fit into the PaLM 2-L context window. This allows us to evaluate ReadAgent against directly using the full long document for long-context reading comprehension. The maximum length of QMSum is over 26,000 words. Consequently, we choose to truncate the text to close to the context window limit (6,000 words for PaLM 2-L experiments) to ensure that the truncated text fits in the LLM&apos;s context, though this would generally be a weaker baseline.
+Finally, since the average length of NarrativeQA documents significantly exceeds the context window, it is less meaningful to perform the truncated-context comparison.
+
+
+Gist Memory 
+
+
+We can also attempt to solve the given task by reasoning directly over the gist memory. Doing so helps us understand not only the importance of interactive look-up but also how using the LLM-compressed information alone compares to the full content and retrieval baselines.
+
+
+Long-Context Reading Comprehension 
+
+
+QuALITY 
+
+
+QuALITY [*REF*] is a four-way multiple choice question answering challenge with text data from several different sources.
+QuALITY is evaluated using accuracy, with 25% corresponding to chance performance.
+
+
+The dev set has an average length of 4,122 words and a maximum of 5,967.
+The gist memory has an average length of 650 words and a maximum of 1,264. [2] shows the word statistics for the original text and the gists. The compression rate of the gists is 84.24%. See [12] for QuALITY pagination hyperparameters.
+
+
+FIGURE
+
+
+[1] shows the experimental results on QuALITY, where ReadAgent (Look up 1-5 pages) gives the best results with a compression rate of 66.97% (meaning that *MATH* as many tokens can fit in the context window after gisting). The performance increases as we increase the maximum number of pages allowed for look-up, up to 5 pages. At 6 pages, we see that the performance starts to degrade slightly, indicating that allowing 6 pages of context may be increasing the rate of distracting information.
+
+
+Notably, ReadAgent outperforms using the full original text, which could have been an upper bound on the performance -- every other method reduces the amount of text the LLM considers before generating its response. However, this is not a surprising result. Prior work shows that current LLMs are not able to effectively use the full long context window [*REF*], potentially due to training data sparsity, and distracting information can also reduce performance [*REF*; *REF*].
+
+
+TABLE
+
+
+NarrativeQA 
+
+
+NarrativeQA [*REF*] has the longest context length on average among the three reading comprehension datasets we choose. The dataset is divided into books (Gutenberg) and move scripts. The Gutenberg test set have 70,619 words on average, and the maximum is 343,910 words; the movie scripts test set have 29,963 on average, and the maximum is 63,957 words. As the reference answers are free-form, we evaluate based on ROUGE [*REF*] and the LLM Ratings ([4.1]). The original main texts are replaced with the HTML-stripped version from SCROLLS [*REF*].
+
+
+Because of the length of NarrativeQA articles, in order to fit the gists into the context window, we significantly expand the page size, resulting in stronger compression ([3.1]). For example, the Gutenburg gists from the test set have 2,217 words on average and the maximum is 6,471 words, whereas the movie script gists have 2,155 words on average and the maximum is 4,511 words.
+FIGURE (appendix) show the word statistics for the original text and the gists in Gutenberg and movie scripts respectively. The compression rate of the gists is 96.80% for Gutenberg texts and 91.98% for movie scripts. See APPENDIX for NarrativeQA pagination hyperparameters and more details.
+
+
+For the neural retrieval models, we use the gist memory embedding vectors rather than the page embedding vectors because the Gemini API embedding model is limited to 10,000 characters (or less than 2,000 tokens, in expectation), which is too short for embedding full pages in our NarrativeQA experiments. However, using those embedding vectors, we then return the original pages to the LLM context as normal, and use those pages as described in [4.2].
+
+
+Because the Gutenberg texts and the movie scripts have significantly different distributions, we present the results separately. The results in TABLE. ReadAgent again outperforms all the baselines across all subsets of NarrativeQA.
+
+
+TABLE
+
+
+QMSum
+
+
+QMSum [*REF*] consists of meeting transcripts on various topics and associated questions or instructions. We use the concatenated version of QMSum provided by SCROLLS [*REF*]. The transcripts tend to be quite long, ranging in length from 1,000 to 26,300 words, with an average length of about 10,000 words.
+[6] shows the histograms of word counts for the QMSum training set. The answers are free form text, so the standard evaluation metric is ROUGE F-Measure. We additionally evaluate using our LLM Ratings ([4.1]). See APPENDIX for hyperparameters and additional results.
+
+
+In TABLE, we see that performance improves as the compression rate decreases, so techniques that look up more pages tend to do better than techniques that look up fewer pages. We also see that ReadAgent-S substantially outperforms ReadAgent-P (and all baselines). This performance improvement comes at a cost of up to six times as many requests in the retrieval phase. Since other datasets don&apos;t have such a strong performance improvement, we suspect that QMSum is in some sense a more challenging dataset, requiring the model to actively search through the gisted transcript to locate relevant information. This hypothesis seems reasonable, as meeting transcripts are much less structured than the documents, books, and movies found in QuALITY and NarrativeQA.
+
+
+A large fraction of the tasks in QMSum are a request to provide a summary, rather than a concrete question about some content in the meeting. For many of these, the LLM refuses to look up any pages, instead responding with &quot;I don&apos;t need to look up any pages. I can summarize the whole meeting based on what I already remember.&quot;, for example. Consequently, the average number of pages looked up for ReadAgent is much lower than the maximum allowed. However, on the tasks that actually involve a question, ReadAgent tends to use most or all of the available lookup pages.
+
+
+In TABLE, the ROUGE scores by themselves don&apos;t always show a clear trend. This is because as the length of the texts increase (corresponding to the compression rates decreasing), the response lengths increase as well. Longer response lengths result in lower ROUGE precision values, which pushes down the F-Measures. Consequently, for the ROUGE scores to increase as text length increases, the improvement to recall must be more substantial than the reduction to precision. This happens to some extent, but the effect size is small. Furthermore, including gists in the text substantially increases the response length, as is the case for GistMem and all the ReadAgent approaches. This increase is in spite of the fact that all models use the same question-answering prompt, so there is no prompt difference to cause the increased response lengths. This makes it much more challenging for GistMem and ReadAgent to outperform the retrieval methods in ROUGE score. Nevertheless, ReadAgent-S manages to have the highest ROUGE scores as well as the highest LLM ratings.
+Because of these issues with ROUGE, we consider the LLM ratings to be more informative for comparisons between these runs. However, the LLM ratings do not make it easy to compare with results using a different LLM to rate, such as GPT, and they also do not allow for easy comparisons with other works. The same observation applies to the NarrativeQA results above.
+
+
+Ablation Study and Analysis 
+
+
+We provide additional ablation studies in [6].
+
+
+Retrieval Quality
+
+
+In [2], we compare using GistMem with neural retrieval to look up one page with using ReadAgent to look up one page. This is equivalent to replacing ReadAgent&apos;s prompt-based retrieval with neural retrieval. ReadAgent&apos;s retrieval performs better here.
+
+
+TABLE
+
+
+Conclusion
+
+
+We have presented ReadAgent, a simple interactive prompting system to mitigate the context length and context use limitations of current LLMs.
+ReadAgent outperforms other strong zero-shot (i.e., not trained or finetuned on the training set) baselines across standard performance metrics of accuracy or ROUGE scores. These results demonstrate that LLMs are capable of generating compressed textual representations of long contexts that are useful for tasks that humans think are important, even without knowing those tasks ahead of time. I.e., the LLM can generate broadly useful gist memories even before knowing what questions are going to be asked about the text that is being gisted. The results also demonstrate that LLMs are capable of reasoning interactively over such compressed representations, using them to decide what information needs to be retrieved to most effectively perform a known task. This method can increase the effective context length by up to *MATH* while outperforming conventional retrieval techniques. However, this approach does not give infinite context lengths, nor does it guarantee good performance when the gist memory itself is extremely long. Future work will need to address these fundamental limitations in LLMs.

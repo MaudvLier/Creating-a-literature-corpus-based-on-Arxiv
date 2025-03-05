@@ -1,0 +1,547 @@
+Task-conditioned adaptation of visual features in multi-task policy learning
+
+
+Introduction
+
+
+Vision is one of the most important modalities for agents interacting
+with the world and is almost indispensable for dexterous manipulation or
+locomotion, as no other sensor can provide information as rich and
+versatile. The inherent flexibility of the sensor comes with a high
+price, the high dimensionality of the information, and the complexity of
+the processes necessary to extract useful information. Humans and other
+biological agents are capable of adapting their perception systems to
+the task at hand. There is indeed evidence for bottom-up and top-down
+processes in human vision, with the latter guiding attention to regions
+determined by the requirements of the task *REF*.
+
+
+There is a growing need for a similar versatility in artificial systems,
+and general neural networks have been trained from large-scale data in
+different domains such as natural language processing (NLP), computer
+vision (CV), and, more recently, robotics. A single general vision model
+coupled with a neural policy would be an appealing choice if it could
+allow an easy generalization to new domains or tasks. The wide adoption
+of attention mechanisms in several domains has made it easier for
+trained models to adapt their behavior to the requirements of different
+tasks without changing parameters, and it has been shown that attention
+plays a crucial role in specialization on a specific instance in
+language models *REF* and vision and language models
+*REF*. However, even powerful generally pre-trained
+models can benefit from parameter adaptations to specific tasks, either
+through fine-tuning *REF* or by adding additional trained
+adapter layers to a frozen model *REF*.
+
+
+In robotics, prior work on the generalization capabilities of agents has
+focused on large-scale end-to-end training *REF* or,
+targeting vision specifically, on pre-trained visual models required to
+generalize to various different policies *REF*. In this work, we argue and
+will show that a single policy can be trained for a large number of
+different tasks including manipulation, locomotion, and that the
+adaptation of visual features is highly beneficial, beyond the inherent
+adaptation capabilities of attention-based models. In particular,
+different tasks require diverse types of invariances and symmetries.
+While in principle it should be possible to learn to disentangle a
+sufficiently wide set of factors of variation in a captured
+representation such that it optimally performs on a wide variety of
+tasks, we will show that this is not the case for the arguably dominant
+pre-training method, masked auto-encoding (MAE) *REF*.
+
+
+We propose task-conditioned adaptation, which allows leveraging the
+high-quality representations of generally pre-trained large vision
+models, while keeping the required flexibility to address a wide variety
+of tasks, and also new (unseen) tasks. We introduce a set of
+task-conditioned visual adapters that can be inserted inside a
+pre-trained visual Transformer *REF* -based backbone.
+The task is characterized by an embedding space, which is learned from
+supervision during training. We show that this embedding space captures
+regularities of tasks and demonstrate this with few-shot capabilities:
+the single policy and (adapted) visual representations can address new
+unseen tasks, whose embedding is estimated from a few demonstrations.
+
+
+FIGURE
+
+
+The contributions of this work can be summarized as follows: (i)
+task-conditioned visual adapters to flexibly modulate visual features to
+a specific task; (ii) a single multi-task policy solving tasks with
+different embodiments and environments; (iii) a task embedding
+optimization procedure based on a few demonstrations of a new task
+(unseen at training time) to adapt the model in a few-shot manner
+without any weight fine-tuning; (iv) quantitative and qualitative
+results assessing the gain brought by the different novelties.
+
+
+FIGURE
+
+
+Related Work
+
+
+Pre-trained visual representations for robotics 
+
+
+Backbone models pre-trained on large and diverse data have shown great promises in NLP *REF*,CV *REF*, and more recently,
+robotics *REF*. *REF* study visual pre-training methods for
+visuo-motor control, showing the quality of self-supervised
+representations. *REF* introduce R3M, a general vision model
+pre-trained on egocentric video data to capture temporal dynamics and
+semantic features, improving downstream manipulation performance.
+*REF* employ the well-known MAE framework *REF* 
+to pre-train a single vision encoder applied to robots in the real
+world. *REF* pre-train a visual model with a self-supervised value
+function objective on egocentric human videos to improve control
+policies. Finally, recent work *REF* has
+shown the great promise of pre-trained models, either
+CLIP-based *REF* or self-supervised *REF*, in visual navigation.
+
+
+The most related work is *REF* which studies the impact of
+pre-trained vision models on a diversity of tasks gathered in a
+benchmark named Cortexbench. They introduce a Vision Transformer
+(ViT) *REF* backbone, VC-1, pre-trained from a set
+of out-of-domain datasets with a focus on egocentric visual frames. We
+believe that visual features should be task-dependent and study how the
+VC-1 model can be adapted to improve the performance of a single
+multi-task policy on a subset of Cortexbench tasks, which is also
+different from previous work focusing on single-task policies.
+
+
+Transformer adapters
+
+
+Transferring Transformer *REF* -based pre-trained models to new
+tasks or domains is an important topic. Methods involving adapter
+modules were introduced in NLP *REF* to
+allow a fast and parameter-efficient transfer. Recent works employ the same methods in robotics *REF*.
+*REF* insert visual adapters in a Vision Transformer
+(ViT) *REF* pre-trained model. They introduce
+different types of adapter blocks located at diverse places in the visual model and show that combining
+them improves performance. *REF* also show the positive
+impact of inserting task-specific adapters, trained with imitation
+learning, in a pre-trained Transformer-based model to adapt to robotics tasks.
+
+
+While prior work learns a specific set of adapters for each task, we
+argue that tasks share similarities and explore these regularities with
+a single set of task-conditioned adapters.
+
+
+Multi-task robotics policies
+
+
+Having a single policy performing a
+wide range of tasks is a long-standing problem in robotics. With Deep
+Learning-based solutions becoming more popular, some prior work focuses
+on training multi-task neural agents. Approaches like
+BC-Z *REF*, RT-1 *REF*, RT-2 *REF* or
+Gato *REF* study the scaling abilities of neural models
+to large-scale datasets. Trained generalist agents show strong
+performance on a wide set of tasks, and can generalize to some extent to novel tasks.
+
+
+In contrast, our work leverages pre-trained vision models but does not
+assume access to a large set of robotics data. Instead, we focus on how
+to adapt visual features with reasonable computation requirements and
+train a single multi-task policy from only a few expert demonstrations.
+We also show promising few-shot adaptation to new unknown tasks without
+requiring very diverse training data. Somewhat related to our work is
+also TD-MPC2 *REF*, which introduces a model-based RL
+algorithm to learn general world models and studies task embeddings to
+condition a multi-task policy. However, the latter does not act from
+vision while we specifically study how to modulate visual features conditioned by a task embedding.
+
+
+Task-conditioned adaptation
+
+
+All tasks considered in this work are sequential decision-making
+problems, where at each discrete timestep *MATH* an agent receives the last
+*MATH* visual frames as an observation
+*MATH*, where *MATH* and *MATH* are the height and width of images, and a proprioception input
+*MATH*, and predicts a continuous action
+*MATH*, where *MATH* is the dimension of the action space, which depends on the task at hand. We are provided
+with a training dataset of expert demonstrations to train a single
+policy, and for inference we study two different setups:, where we a
+priori know the task to be executed, and, where the trained policy
+must be adapted to a new unseen task without fine-tuning only given a small set of demonstrations.
+
+
+Known tasks
+
+
+Following *REF*, we consider *MATH* 
+robotics tasks from *MATH* benchmarks, Adroit *REF*,
+Deepmind control suite *REF* and MetaWorld *REF*.
+The set of all known tasks is denoted as *MATH*,
+where *MATH* is a 1-in-K vector encoding a known task, and is illustrated in Figure *REF*.
+
+
+Unknown tasks
+
+
+The ability of our method to adapt to new skills
+is evaluated on a set of *MATH* tasks from MetaWorld *REF*,
+for which we artificially generate demonstrations with a process
+described in section *REF*. The set of all unknown tasks is denoted as
+*MATH*, where *MATH* is a 1-in-U vector encoding
+an unknown task, and is illustrated in Figure *REF*. Most importantly, *MATH*.
+
+
+Base agent architecture
+
+
+Following a large body of work in end-to-end training for robotics, the
+agent directly maps pixels to actions and decomposes into a visual encoder and a policy.
+
+
+Visual encoder without adapters
+
+
+Following *REF*, the visual encoder, denoted as *MATH*, is a ViT
+model *REF* pre-trained with masked auto-encoding
+(MAE). We keep pre-trained weights from VC-1 in *REF*, which
+are publicly available. However, we change the way the representation is
+collected from the pre-trained model. Unlike *REF*, the
+representation is not taken as the embedding of the &apos;CLS&apos; token, which
+we consider to be undertrained by the MAE pretext task. Instead, we
+train a fully-connected layer *MATH* to aggregate all the token
+representations of the last layer of the ViT except the &apos;CLS&apos; token. The
+visual observation *MATH* associated with timestep *MATH* is thus encoded as
+*FORMULA*, where *MATH* and *MATH* are weights parametrizing
+*MATH* and *MATH* respectively. *MATH* as it contains the
+*MATH* -dim encoding of each of the *MATH* last visual frames processed as a
+data batch, where *MATH* is the output dimension of *MATH*.
+
+
+As this will be relevant later, we recall here that a ViT *MATH* is
+composed of a sequence of *MATH* self-attention blocks, where *MATH* is
+the layer at index *MATH*. If we denote the internal hidden representation
+predicted at layer *MATH* as *MATH*, and omit the weights of *MATH* for simplicity, we have, *MATH*.
+
+
+TABLE
+
+
+Single-task policy 
+
+
+Following *REF*, the policy *MATH*  is implemented as an MLP predicting actions from the input which is a
+concatenation of the current frame, two frame differences and the proprioception input *MATH*, *FORMULA*.
+
+
+Adaptation
+
+
+Our key contributions are visual adapter modules along with a multi-task
+policy, which are all conditioned on the task at hand. This is done with
+a specific task embedding for each task, taken from an embedding space
+of dimension *MATH*, which is aimed to have sufficient regularities to
+enable few-show generalization to unseen tasks. Importantly, the
+different adapters and the multi-task policy are conditioned on the same
+task embedding, leading to a common and shared embedding space. For the
+known task setting, where the ground-truth label of the task is
+available, the task embedding is projected from a 1-in-K vector with a
+linear function *MATH* trained jointly with the adapters and the policy
+with the downstream loss (imitation learning). In the Few-shot
+setting, at test time a new unknown task is described with a few
+demonstrations, and a task embedding is estimated through optimization,
+as will be detailed in subsection *REF*. Figure *REF* outlines the architecture, its details will be given in the appendix.
+
+
+Conditioned on a task embedding we denote as *MATH*, the proposed
+adaptations are based on &quot;middle&quot; and &quot;top&quot; adapters following *REF*.
+
+
+Middle adapters
+
+
+We add one trainable adapter after each ViT
+block to modulate its output. We introduce a set of middle adapters
+*MATH*, where *MATH* is a 2-layer MLP. In
+the modified visual encoder *MATH*, each adapter modulates the output
+of the corresponding self-attention block and is conditioned on the task
+embedding *MATH*. Its output is combined with the one of the
+self-attention layer through a residual connection. If we denote the
+internal hidden representation predicted at layer *MATH* as
+*MATH*, and omit references to the weights of *MATH* 
+and *MATH* as in eq. *REF* for simplicity, the associated forward pass of a given layer becomes, *FORMULA*.
+
+
+Top adapter
+
+
+A top adapter *MATH*, also conditioned on the task
+at hand, is added after the ViT model, to transform the output of the
+aggregation layer *MATH* to be fed to the multi-task policy (presented
+below). *MATH* has the same architecture as a single middle adapter
+*MATH*. The prediction of *MATH*, equivalent to
+*MATH* in the non-adapted case, can be written as, *FORMULA* here *MATH* and *MATH* are the weights parametrizing
+the middle adapters (each middle adapter has a different set of weights) and the top adapter respectively.
+
+
+Multi-task policy 
+
+
+We keep the architecture of the single-task
+policy in eq. *REF*, as in  *REF*. However, instead
+of re-training a policy for each downstream task of interest, we train a
+single multi-task policy *MATH*, whose action space is the union of the
+action spaces of the different tasks. During training we apply a masking
+procedure on the output, considering only the actions possible for the task at hand.
+
+
+Let&apos;s denote *MATH* as the input to the policy derived
+from the adapted representation *MATH* and the proprioception
+input *MATH* as done in eq. *REF*. The conditioning on the task is done by
+concatenating *MATH* with the task embedding *MATH*, giving
+*FORUMLA*, where *MATH* are weights parametrizing *MATH*.
+
+
+FIGURE
+
+
+Training
+
+
+We train the model by keeping the weights of the pre-trained
+vision-encoder model *MATH* frozen, only the weights of the
+adapter modules *MATH*, aggregation layer
+*MATH*, embedding layer *MATH* and multi-task policy
+*MATH* are trained, cf. Figure *REF*. Lets&apos; denote by
+*MATH* he set of optimized weights. We train with imitation learning, more
+specifically Behavior Cloning (BC): for each known task *MATH*, we
+have access to a set of *MATH* expert trajectories that are composed of
+*MATH* discrete steps, including expert actions. The optimization problem is given as
+*MATH* *FORMULA* where *MATH* and *MATH* are the
+predicted and ground-truth actions for a given step in a trajectory, and
+*MATH* is the Mean Squared Error loss.
+
+
+Few-shot adaption to new tasks
+
+
+For the setting cf. Figure *REF*, the task embedding *MATH* is
+unknown at inference and needs to be estimated from a set of *MATH* 
+example demonstrations *MATH* where *MATH* 
+is composed of observations and actions, with *MATH* being the length of
+each demonstration. We exploit the conditioning property of the policy
+itself to estimate the embedding *MATH* as the one which
+obtains the highest probability of the demonstration actions, when the
+policy is applied to the demonstration inputs, i.e.
+*FORMULA*, *MATH* where *MATH* is
+the representation extracted from the demonstration input
+*MATH*, and which itself depends on
+*MATH* (not made explicit in the notation). The minimization is
+carried out with SGD from an embedding initialized to zero. It is
+important to note that only the task embedding is optimized, no neural
+weight is fine-tuned during the adaptation.
+
+
+FIGURE
+
+
+Experiments
+
+
+Training
+
+
+All variants involving adapters and/or a multi-task
+policy rows (b)-(f) in Table *REF* were trained for *MATH* epochs with
+behavior cloning, cf. *REF*, following training hyper-parameters
+in *REF*. Between *MATH* and *MATH* expert trajectories are
+available depending on the task. We used the datasets of trajectories from *REF*.
+
+
+Evaluation
+
+
+To better handle possible overfit on hyper-parameter
+selection, our evaluation setup is slightly different
+from *REF* as we perform *MATH* validation rollouts to select
+the best checkpoint of each model, and then test the chosen model on
+*MATH* test rollouts. For our multi-task policy, the best checkpoint is
+the one with the highest average validation performance across all
+tasks. Single-task policies are validated only on the task they were
+trained on, giving them an advantage, and for this reason, they are
+reported as &quot;soft upper bounds&quot;. We report the average performance and
+standard deviation among *MATH* trained models (3 random seeds) for each variant as mean *MATH* std *REF*.
+
+
+In total, we conduct evaluations of our method on *MATH* different tasks,
+*MATH* known and *MATH* unknown, with varying environments, embodiments, and
+required sub-skills. This allows to evaluate the adaptation and
+generalization abilities of the multi-task policy.
+
+
+Evaluation metrics 
+
+
+Following *REF*, we consider a rollout success (*MATH* if the
+task was completed properly, *MATH* otherwise) for tasks in the Adroit and
+MetaWorld benchmarks, and report the normalized return for DMC. Episodes
+have a maximum length of *MATH* steps and each step reward is comprised
+between *MATH* and *MATH* in DMC, normalization is therefore done by
+dividing the agent&apos;s return by *MATH*. For all tasks, performance is averaged across rollouts.
+
+
+Impact of visual adapters
+
+
+Table *REF* presents a detailed comparison of
+different methods on the known task setting. The baseline in row (a)
+follows the setup in *REF* to train single-task policies
+(one per task) from non-conditioned VC-1 features. For this variant, we
+use the representation of the &apos;CLS&apos; token as the vector fed to the
+policy as done in *REF*, while all other baselines use our proposed token aggregation layer.
+
+
+Row (b) is our multi-task policy without any adapter. As expected there
+is a performance drop compared to the specialized policies in row (a),
+as the problem to solve has become more difficult. Adding adapters and
+conditioning them on the task embedding, shown in rows (c)-(f), brings a
+boost in performance, both for middle and top adapters. In particular,
+conditioning adds a further boost compared to non-conditioned adapters,
+with all choices enabled, row (f), obtaining the best average performance.
+
+
+Rows (g) and (h) are ablation experiments evaluating the impact of
+choosing random task embeddings, row (g), or of taking a random choice
+between the 12 learned embeddings, row (h). In both cases, the performance collapses.
+
+
+A particularly important conclusion that can be drawn from the
+experiments outlined in Table *REF* is that the proposed multi-task
+approach (row (f)) outperforms the single-task policies without adapters
+(row (a)). This shows that a multi-task policy can perform well on a
+series of tasks while being trained on a limited set of demonstrations.
+Figure *REF* presents *MATH* successful test rollouts of our multi-task approach on diverse known tasks.
+
+
+Figure *REF* visualizes the per-task test
+performance on known tasks of single-task policies (row (a) in
+Table *REF*), our approach without any adapter
+(row (b) in Table *REF*) and with conditioned middle and top
+adapters (row (f) in Table *REF*). The proposed adapters lead to a
+performance gain on most tasks compared with the solution without
+adapters, and the multi-task solution is competitive with single-task
+policies, even outperforming them on half the tasks.
+
+
+FIGURE
+
+
+FIGURE
+
+
+Additional ablation studies are presented in the appendix
+(Sections B and C). Section B shows that conditioning the policy when
+using task-conditioned adapters is not necessary, that our aggregation
+layer works better than using the &apos;CLS&apos; token as input to the policy and
+further highlights the impact of both middle and top adapters. Section C
+shows that our adapters improve visual embeddings extracted by two
+state-of-the-art pre-trained backbones, i.e.
+PVR *REF* and MVP *REF*, confirming the conclusions drawn from experiments on VC-1.
+
+
+Adaptation to new tasks without finetuning model weights is an
+important ability of any general policy, which we evaluate with the
+following experiments: for each task within a set of unknown tasks (cf.
+Figure *REF*), we collect only *MATH* demonstrations used to
+optimize a task embedding specific to this task with the method detailed
+in section *REF*. We then evaluate the method conditioned on
+the optimized embedding on *MATH* test rollouts.
+
+
+To generate the set *MATH* of unknown tasks, we select tasks from the
+MetaWorld dataset that do not belong to CortexBench, and are thus not
+part of the set of training known tasks *MATH*. We collect demonstrations
+using single-task policies from TD-MPC2 *REF* that were
+specifically trained on each task of MetaWorld independently. To ensure
+high-quality demonstrations, we only consider tasks where TD-MPC2
+policies reach a success rate higher than *MATH*. Furthermore, to be
+compatible with the setup in CortexBench authors, in particular, to keep
+the same camera locations, we filter out the tasks where the goal is not
+always visible in the camera FOV. This leads to a set of *MATH* unknown
+tasks that are quite different from the tasks in the training set *MATH* 
+as they involve different objects (handle press, faucet, plate, door,
+window, etc.) and types of manipulation (sliding an object, lowering a
+press, opening a window, etc.). Each collected demonstration is a
+sequence of visual frames, proprioception inputs, and expert actions.
+The optimization of the task embedding is performed independently for
+each task *REF*. We use the AdamW optimizer and a learning
+rate of *MATH* during the task embedding search.
+
+
+Figure *REF* presents the per-task performance in this setting. Despite the large variations between the
+new tasks in *MATH* and the ones in the training set *MATH*, the
+multi-task policy can adapt to many of them, without requiring any
+weight finetuning. Interestingly, the method performs particularly well
+on the Drawer Close task, which could be related to the presence of
+the time-inversed Drawer Open task in the training set. This provides
+some evidence that the method can exploit regularities between tasks,
+which seem to be captured by the task embedding space, making it
+possible to generalize to unseen variations.
+Figure *REF* (a) shows qualitative
+examples of successful rollouts on the new tasks. The policy manipulates
+new objects (faucet, plate, window) and performs new moves (rotating
+the faucet or sliding the plate) not seen during training.
+
+
+Finally, Figure *REF* (b) shows failure cases
+on unknown tasks. As seen on the first row, the policy avoids the wall,
+reaches the button, and starts pushing it, but fails to push it fully.
+This particular behavior was also observed on other rollouts, explaining
+the low success rate on this button-press-wall task while mastering a
+part of the required sub-skills. On the second row, the policy is able
+to move the cube but fails to bring it to the goal location (green dot).
+This gives some indication of the difficulty of the few-shot
+generalization case: exploiting regularities in the task space requires
+that tasks be performed more than just approximately, as often the
+success metric is sparse, and rollouts only count to the metric when
+they are executed fully and correctly.
+
+
+Visualizing the influence of task-conditioned adaptation
+
+
+Sequences of visual frames used in this experiment are taken from a
+held-out set of expert trajectories not used at training time. We
+visualize here the attention map of the last layer of the vision
+encoder. To this end, we sum attention maps for all tokens and all
+heads, and normalize them between *MATH* and *MATH*. These visualizations are
+shown in Figures *REF*. The first row shows a sequence
+of visual frames and below, for each model variant (No Adapter, Middle
+Adapter (NC), Middle Adapter (C)), one can see the attention map
+overlaid on top of the visual frame and displayed below as a colored
+heatmap. As can be seen, the middle adapters help focus the attention on
+the most important parts of the image compared with vanilla VC-1
+attention without adapters. When adapters are not conditioned (NC), they
+tend to produce very narrow attention. Conditioning on the task at hand
+keeps the focus on important regions and leads to covering the entire
+objects of interest and important agent parts. Most importantly,
+Figure *REF* shows that, when adapters are
+conditioned on the task embedding, more attention is put on the final
+goal in all frames, while this is not the case for unconditioned
+adapters. Another visualization is shown in Figure *REF* in the appendix.
+
+
+Conclusion
+
+
+Perception and action are closely tied together, and studies of human
+cognition have shown that a priori knowledge about a downstream task
+guides the visual system. We follow this direction in the context of
+artificial agents by introducing task-conditioned adapters that modulate
+the visual features of a pre-trained neural backbone. Such adapters,
+conditioned on a learned task embedding, improve the performance of a
+multi-task policy across benchmarks and embodiments. Even more
+interesting is the use of task embeddings to adapt in a few-shot manner,
+i.e. from a small set of demonstrations, to new tasks unseen at training
+time. We propose an optimization procedure to estimate a new task
+embedding and achieve generalization to unseen tasks, involving new
+objects and manipulation sub-skills, providing evidence for regularities in the learned embedding space.

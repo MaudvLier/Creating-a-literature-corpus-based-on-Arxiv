@@ -1,0 +1,485 @@
+Grounding LLMs For Robot Task Planning Using Closed-loop State Feedback
+
+
+Introduction 
+
+
+LLMs, trained on corpora of internet-sourced text, have demonstrated
+capabilities akin to artificial general intelligence
+*REF*. The inherent world knowledge of LLMs, combined with
+their in-context learning ability is paving a new direction in robotic
+task planning. Prior work showed that LLMs can generate step-by-step
+instructions for tasks without needing gradient updates *REF*.
+Despite promising results in diverse domains, grounding LLMs in a given
+environment is an open problem. Consider the task &apos;making coffee.&apos;
+LLMs can decompose this task into a sequence of steps -- &apos;1. Walk to
+fridge,&apos; &apos;2. Grab milk,&apos; and so on, through to &apos;9. Serve cup of coffee.&apos;
+Yet, these steps are not directly executable in real-world environments
+with physical constraints. Additional actions like &apos;Switch on microwave&apos;
+or &apos;Open microwave doors,&apos; are essential for task completion. Moreover,
+limitations like absence of milk or water should not hinder task
+execution. Robots must adapt to the environment, refining plans towards successful task completion.
+
+
+Thus, grounding LLMs in real-world scenarios is essential. Incorporating
+environmental feedback into task planning allows for modification of
+steps in real-time, enhancing robot robustness and
+utility *REF*. Prior research focused on real-world
+alignment by integrating feedback from environmental
+assertions  *REF* and vision-based grounding  *REF*. However, current algorithms lag human
+benchmarks due to two main issues: i) inability to adapt to changing
+environmental conditions and ii) difficulty in recovering from execution
+errors. Our algorithm addresses these challenges by using a dual-LLM
+system. The simplicity of our method, synchronizing LLMs and grounding
+them with feedback, makes it replicable across various simulation
+environments and real robot scenarios. Our contributions are:
+1. A novel planning algorithm that uses a Dual-LLM system to derive
+executable actions from natural language instructions, leveraging a
+closed-loop state feedback mechanism for error resolution *REF*.
+2. Improving task-oriented success rate by 35% average over existing
+state-of-the-art techniques in the VirtualHome Embodied Control
+environment (using a dataset of 80 tasks), and achieving execution
+score of 85%, surpassing competing approaches and nearing human-level (94%).
+3. Deployment and testing of our LLM based planner on the Franka
+Research 3 robotic arm, for 7 tasks of varied difficulties using a
+realistic physics simulator for this robot arm along with real robot experiments.
+
+
+Background and Related Work 
+
+
+Foundational Models
+
+
+Designing deep learning systems capable of comprehending and generating
+natural language has long been an attractive yet challenging task in the
+AI community. The emergence of transformers *REF* and the
+success of pre-trained language models such as BERT
+*REF* have paved the way for more advanced foundational models known as Large Language Models *REF*. These LLMs are
+trained on extensive textual data using masked language modeling and
+autoregressive text prediction. The discovery of in-context learning
+capabilities, a feature absent in earlier models, has laid the
+foundation for various applications of LLMs *REF*. In
+this study, we exploit these capabilities, particularly prompt
+engineering, which requires no gradient updates in the foundational model.
+
+
+LLMs in Robotic Task Planning
+
+
+LLMs are promising candidates for robot planning tasks, as task planners
+can benefit from the external world knowledge present within these
+models. *REF* was among the first to fine-tune LLMs for task planning. However, fine-tuning LLMs is
+resource-intensive and requires significant expertise. As a result,
+recent works have turned to the in-context learning abilities of LLMs
+for planning *REF*. Incorporating feedback from the
+environment during run-time has shown to significantly improve task
+planning *REF*, as it grounds the LLMs for realistic plan generation. LLM outputs can
+also be combined with affordance functions to improve grounding and alignment with the real world *REF*.
+
+
+Methods that use environmental feedback for task planning can be
+classified into two broad categories: static and dynamic planners.
+Static planners use feedback to check whether the robot&apos;s environment
+satisfies the necessary conditions outlined in the generated plan, thus
+preventing execution errors. In this case, the feedback does not alter
+the generated plans *REF*. On the other hand,
+dynamic planners use feedback from the system to assert necessary
+conditions and to alter the plans, improving their execution *REF*.
+
+
+Our approach distinguishes itself from conventional dynamic planners by
+employing a Dual-LLM system designed to assimilate error messages and
+environmental data in tandem for enhanced task planning. This allows our
+planner to understand the error better and generate corrected plans
+towards successful execution. To the best of our knowledge, we are the
+first to implement a dynamic planning algorithm for the Virtual Home Simulator and Franka Research 3 arm.
+
+
+Generating action primitives that robots can realize is a challenging
+aspect of developing LLM-based robotic planners. These action primitives
+must follow strict syntactic rules, as errors in these control
+statements can lead to downstream execution problems. A popular solution
+involves designing control functions in known programming languages like
+Python, which are then translated into rule-based action
+primitives  *REF*. The most relevant work  *REF* highlights the difficulties in translating
+natural language into action primitives using LLMs. Our proposal is
+distinct in its strategy for converting steps into action primitives and
+in how it uses feedback from the robot environment.
+
+
+FIGURE
+
+
+Our Proposal: Brain-Body LLM 
+
+
+The human brain is a sophisticated information processing system
+comprising of a network of billions of neurons. Although artificial
+neural networks aim to mimic brain functions, a significant difference
+lies in the information processing method: the human brain functions
+continuously, in contrast to the discrete operation of computer algorithms *REF*. To emulate critical
+cognitive functions of the human brain, particularly in terms of
+feedback mechanisms and adaptability, we developed the Brain-BodyLLM algorithm.
+
+
+*MATH* where *MATH* denotes the function integrating the two LLMs, *MATH* 
+represents a given high level task, and *MATH* captues the closed loop
+feedback mechanism. This formula reflects how the Brain-BodyLLM system
+dynamically re-calibrates, akin to the brain&apos;s control over muscle
+movements. The straightforward nature of our formulation enables
+integration of any LLM as the foundation for our Brain and Body models.
+
+
+Brain-LLM 
+
+
+Central to our proposal is the Brain-LLM *MATH*, responsible
+for generating low level plans *MATH* based on task description *MATH* and refining these plans using feedback *MATH*:
+
+
+*MATH*. This process is informed by an iterative
+feedback mechanism *MATH*, drawing from error signals *MATH* and
+state information *MATH* relayed by the Perception module *MATH*: *MATH*. 
+
+
+Brain-LLM plays a pivotal role in devising an initial, step-by-step
+plan, which is updated iteratively based on the feedback received. This
+reflects the adaptability of our algorithm, analogous to the brain&apos;s
+dynamic control of movement, which adapts to the motion&apos;s current state  *REF*.
+
+
+Prompt Engineering and Feedback Integration: To optimize Brain-LLM&apos;s
+functionality, we design two distinct prompts: the planning_prompt and
+the feedback_prompt. The planning_prompt, bolstered by a master prompt
+that establishes the environment, leverages example pairs of task
+descriptions and planning steps for in-context learning. The
+feedback_prompt, conversely, aims to refine the initial plan using error
+messages and feedback from the perception module, incorporating
+simulated examples of errors and feedback for generating revised plans.
+This method, inspired by the Chain-Of-Thought prompting technique
+*REF*, enhances the logical and structured thinking
+abilities of LLMs and includes explanations for each output for improved
+debugging during run-time. Addressing common issues identified in
+Section *REF*, such as LLMs&apos; propensity for hallucinations and ineffective use of execution errors, our methodology
+integrates a closed-loop feedback system between the LLMs and the
+perception module. This integration helps stabilize and ground the LLMs,
+reducing hallucinatory outputs, and allows the Brain-LLM to receive
+error messages and state information. Consequently, it enables the
+formulation of more realistic and executable plans by considering the
+relative positions of objects and their static properties, like on/off or closed/open statuses.
+
+
+Body-LLM 
+
+
+Body-LLM translates plans *MATH* generated by Brain-LLM into precise
+robotic commands *MATH* for task execution: *MATH*. 
+This translation is governed by a function *MATH*, mapping
+natural language steps to syntax for robot control. The Body-LLM learns
+*MATH* through in-context examples provided during prompting,
+i.e., it utilizes prompts comprising natural language steps paired with
+simulator commands, enabling it to identify syntactic patterns and rules
+essential for crafting precise robotic commands. For each command
+*MATH*, the feasibility is evaluated, with a pass token
+*MATH* being generated for infeasible steps:
+
+
+FORMULA
+
+
+The Body-LLM is crucial in the execution phase, where its output can
+potentially trigger feedback loops due to errors, hence the importance
+of the *MATH* token in preventing state oscillation. This
+methodology underscores the importance of robust textual feedback in
+robots, setting the stage for complex sensor integration in subsequent
+research *REF*. Figure *REF* illustrates an example task and the functioning of Brain-LLM and Body-LLM for task planning.
+
+
+FIGURE
+
+
+Experiments with VirtualHome 
+
+
+To evaluate our Brain-Body approach, we first employ a simulator and a
+perception module that executes commands generated by our LLMs. We use a
+widely-used robotic task simulation software, providing details to replicate our results.
+
+
+VirtualHome: Simulator For Embodied Control
+
+
+VirtualHome (VH) serves as our robotic control software, simulating a
+Human-In-A-Household scenario with support for multiple agents
+*REF*. The simulator features a variety of interactive
+household objects with predefined states like &quot;open,&quot; &quot;closed,&quot; &quot;on,&quot;
+and &quot;off.&quot; It represents the agent as a humanoid avatar capable of
+interacting with these objects via high-level commands. Additionally,
+the simulator includes an in-built perception module that provides
+real-time information about objects in the scene, their states, and
+positions. For our experiments, we use the latest VirtualHome v2.3.0.
+
+
+Dataset
+
+
+We observed that many tasks from the original VH dataset, which were
+manually annotated, are no longer executable in the latest simulator
+version. Therefore, we utilize the train-validation-test subset of
+samples as used in *REF*. Each sample comprises a tuple: a task
+description in natural language, a step-by-step plan in natural
+language, and corresponding VH commands. The dataset is divided into
+training, validation, and test splits, containing 35, 25, and 10 tuples,
+respectively. Our prompts are based on the training set samples, and we
+evaluate our model using the unseen test set.
+
+
+Models Used
+
+
+Since our approach relies on pre-trained LLMs to use real-world
+knowledge, we use three LLMs trained on huge amounts of data -- PaLM 2
+text-bison-001 *REF*, GPT-3.5 *REF* and GPT-4 *REF*. They are accessed via their API calls.
+
+
+Baselines
+
+
+For comparative analysis, we selected baseline approaches that were
+tested in similar scenarios. Our study benchmarks against two recent
+works that use LLMs for agent control in the VH environment
+*REF*. These works provide context for
+assessing effectiveness of our approach. Additionally, we developed a
+baseline model (Baseline-LLM) to translate task descriptions, expressed
+in natural language, into VH commands for execution. Unlike the
+BrainBody-LLM, the Baseline-LLM uses a single LLM and operates without
+an iterative feedback, but with the same training dataset. Comparisons
+will highlight the efficacy of our BrainBody-LLM in the context of LLM-based embodied control.
+
+
+Evaluation Metrics
+
+
+To align with literature, we use three metrics for evaluating the plans produced by our Brain-Body LLM.
+
+
+Executability (EXEC)
+
+
+Executability measures the proportion of steps in the plan that are
+executable within the VH environment. This metric does not assess
+correctness of individual action plans in achieving the final goal.
+Thus, while Executability primarily evaluates performance of the
+Body-LLM, the Brain-LLM generated plans influence this score, as
+unrealistic plans result in misaligned commands.
+
+
+Goal Conditions Recall (GCR)
+
+
+is the difference between the desired final state and the state achieved
+after executing all generated commands. This metric uses two variables:
+Unsatisfied Goal Conditions (UGC), which tracks the disparities between
+the predicted and actual final states, and Total Goal Conditions (TGC),
+which records the differences in object states and relations from initial to final state: *MATH*.
+
+
+Success Rate (SR)
+
+
+quantifies the rate of successful tasks completed by an algorithm. For a
+task to be counted as successful, all task-relevant goal conditions
+should be satisfied. In other words, the SR of a task is 1 if and only
+if its GCR is 1. To calculate the overall SR, an average is taken over the SR of the tasks in a dataset.
+
+
+Addressing a Key Limitation of Evaluation Metrics: The SR metric
+above considers relations amongst all objects in the scene, rendering it
+a stringent measure. However, true success rate should only account for
+changes in objects pertinent to the task. For instance, in the task
+&quot;Make a Sandwich,&quot; if the robot alters the state of the light, and such
+an action is not part of the ground truth plan, the plan should not be
+penalized. Thus, we introduce Corrected Success Rate (CSR),
+considering only relations and states from required objects for the
+task. We annotate these objects for each task in the test set. CSR more
+accurately reflects effectiveness and is a better indication of success rate.
+
+
+FIGURE
+
+
+Observations and Results
+
+
+In this subsection, we delve into observations and outcomes from our
+experiments in the VH environment. This encompasses quantitative
+results, as per the metrics established and qualitative insights that
+enhance our understanding of state-of-the-art LLMs in robotic task
+planning. For each experiment, we run our algorithm five times with a
+temperature of 0.5 and report average scores across the runs.
+
+
+A comparative analysis was performed between our BrainBody-LLM and other
+LLM-based methods *REF* applied to the VH
+dataset. We also compare our algorithm&apos;s performance with and without
+feedback, to gauge the influence of state information and closed-loop
+feedback on improving plan generation. The quantitative scores of all
+approaches are given in Table *REF*. The Brain-BodyLLM exhibited
+enhancements in SR and GCR metrics. Furthermore, models incorporating
+state feedback consistently outperformed those without feedback. Among
+the LLMs, GPT-4 was the top performer, followed by PaLM 2 text-bison-001
+and GPT-3.5. Despite initial concerns that a dual-LLM system might lower
+EXEC scores due to increased likelihood of hallucination, our grounding
+principles countered this issue. The Codex model exhibits performance on
+par with our GPT-3.5 model due to its specialized ability to output
+high-level, Pythonic robotic commands. This proficiency stems from its
+fine-tuning for generating high-quality Python code. Nevertheless, Codex
+is deprecated, which precludes its use in our experiments. Table
+*REF* provides a comparison between the executability scores across algorithms. Human level executability score
+is calculated using the manually annotated examples in the test set. Our
+algorithm, BrainBody-LLM with feedback achieves an EXEC of 85% which is
+just under the Human level EXEC of 94%, demonstrating efficacy of the approach in generalizing to unseen tasks.
+
+
+TABLE
+
+
+Brain-BodyLLM works best with GPT-4 backend and with feedback, with a
+perfect score in 7-out-of-10 tasks (Table *REF*). Improved task-object mapping
+(plate *MATH* plate and not dish bowl, bread *MATH* 
+breadslice) and spotting non-executable commands (using
+*MATH* token) boosts EXEC. GPT-4 plus feedback-enhanced
+planning reveals creative problem-solving. Figure
+*REF* (LHS) shows how feedback reinforces task planning in VH environment. By utilizing error messages
+from the simulator, GPT-4 can generate revised plans that avoid
+repeating previous mistakes. The extensive world knowledge embedded in
+these models empowers them to not only comprehend the problem but also
+to formulate innovative and unexpected solutions, surpassing human
+intuition in certain cases. We encountered issues with the simulation
+software concerning the design and properties of objects, leading to
+oscillation of the plan as the LLM tended to repeat previous steps. With
+realistic object properties, our model could likely succeed in the remaining tasks.
+
+
+Ablation Study on the Impact of Feedback Loops: We introduce an
+ablation study to assess the role of feedback loops in our proposed
+algorithm, which facilitates the interaction between the Brain-LLM and
+Body-LLM. This interaction is crucial for refining actions through state
+feedback and environmental grounding. We hypothesize that a higher
+number of feedback loops could enhance the planning process and success
+rates. However, this might lead to a trade-off with executability and
+planning efficiency, due to intermediate hallucinations. To investigate
+this, we vary parameter *MATH*, representing the number of feedback loops.
+Our results indicate a consistent improvement across all evaluation
+metrics as the number of feedback loops increases, without significant
+fluctuations, as depicted in Figure *REF*.
+
+
+FIGURE
+
+
+Experiments with the Franka Robotic Arm 
+
+
+TABLE
+
+
+FIGURE
+
+
+In this section, we illustrate how Brain-BodyLLM extends to real-world
+robot task planning using the industrially significant Franka Research 3
+robotic arm. This arm known for its versatility and safety in research
+and education *REF* has 7 Degrees of Freedom (DOF). Our experiments integrating the Franka
+Research 3 with advanced LLMs like PaLM 2, GPT-3.5, and GPT-4 show
+promising results for robotic task planning and execution.
+
+
+Task Design
+
+
+We use 7 pick-and-place tasks for the Franka arm, using basic shapes
+like cubes and cylinders. These tasks required the LLM to use its
+inherent world knowledge to give the correct commands to the Arm to
+arrange objects into specific configurations. Along with the task,
+environment information about the objects and target locations in scene
+is given to the Brain-LLM. To mimic the changing environment, some of
+the objects and the target locations in the environment information may
+be unreachable by the arm. Therefore, these tasks not only tested the
+precision and spatial reasoning of the task planners but also their
+adaptability to errors, evaluating the feasibility of an end-to-end robotic system.
+
+
+The tasks in Table *REF* vary in whether unreachable objects or
+locations are presented to them. The tasks in which the Brain-LLM is not
+provided with any unreachable objects or locations, i.e. the first two
+tasks listed in the table, do not necessitate a feedback step, while it
+is likely that at least one feedback step is required to complete the
+remaining tasks in the table. We classify these tasks into three levels
+of difficulty --- Easy, Medium, and Hard based on the minimum iterations for successful task completion.
+
+
+Results on Franka Research 3 Simulation Environment
+
+
+As a first step, this study used the simulation environment for the
+popular Franka Research 3 robotic arm, which incorporates differential
+optimization and control barrier functions for motion
+control  *REF*. We leveraged a GitHub repository to customize
+experimental setups with MuJoCo-formatted objects *REF* 
+and developed scripts for API integration with three LLMs --- PaLM 2,
+GPT-3.5, and GPT-4 --- synchronizing with simulation updates for optimal planning and execution.
+
+
+For physical experiments, we set up a tabletop environment with colored
+cubes for task execution, deliberately placing certain objects and areas
+out of the Franka arm&apos;s workspace, unknown to the planners. This setup
+tested the LLM-based planner&apos;s ability to adapt to out-of-workspace
+errors in real-time and revise plans accordingly. Extensive trajectory
+testing was conducted to avoid singularity points. We used a
+Python-based control repository[^4] for the Franka arm. Our results show
+that GPT-4 excelled in all tasks, GPT-3.5 completed 2 out of 7 tasks,
+and PaLM 2 achieved 3 out of 7 tasks. All models managed the first,
+simpler task without feedback loops. Figure *REF* (RHS) demonstrates one of the
+tasks successfully completed by our algorithm.
+
+
+Results on the Franka Robotic Arm
+
+
+A key demonstration involved arranging cubes to form a plus sign
+(Create a plus sign in the working space using the cubes from table
+*REF*), testing the planners&apos; logical and spatial
+reasoning and error resolution effectiveness. We chose this task since
+it involved multiple feedback steps with higher difficulty than the
+other tasks. Figure *REF* shows the setup and GPT-4&apos;s successful
+task execution, illustrating its capability to control a 7 DOF robotic arm in object manipulation tasks.
+
+
+GPT-3.5 struggled with plan adjustments after feedback, often failing to
+correct or wrongly modifying plans. Conversely, PaLM 2, while
+occasionally generating incorrect plans, adeptly revised plans
+post-feedback, as seen in the third and fourth tasks in Table
+*REF*. These outcomes highlight PaLM 2&apos;s planning
+and error correction strengths, GPT-3.5&apos;s spatial reasoning, and GPT-4&apos;s
+proficiency in logical reasoning, spatial understanding, and task execution.
+
+
+Conclusion and Future Work 
+
+
+We introduced an algorithm for robotic task planning that leverages
+reasoning and dynamic error correction capabilities intrinsic to LLMs.
+Our approach is yielding a marked improvement in both the success rate
+of task execution and the recall of goal conditions, which positions it
+favorably against current baselines within the VH simulator. The design
+and conceptual framework of our algorithm are practical and readily
+adaptable for real-world implementation as shown through our experiments
+using Franka Research 3 Robotic Arm in Section
+*REF*. Future work will dissect and mitigate
+the phenomenon of closed-loop oscillations and hallucinations witnessed
+in LLM-generated plans. This will involve using multi-modal feedback
+through advanced encoder models, ensuring more grounded and realistic
+task planning. Our goal is to evaluate and refine the efficacy of LLM
+planning algorithms, accelerating their adoption for robotics applications.

@@ -1,0 +1,737 @@
+Augmenting Replay in World Models for Continual Reinforcement Learning
+
+
+Introduction
+
+
+Typically, RL settings focus on one individual task that does not change
+during learning. In continual RL, new tasks are experienced one after
+another, which is more challenging due to the well known issue of
+catastrophic forgetting [*REF*; *REF*] but represents
+many real-world scenarios [*REF*]. A simple approach
+to learning multiple tasks is to learn them simultaneously, but in
+continual RL, there are often too many environments for that to be
+practical and tasks are unavailable until others have completed.
+Additionally, tasks may change subtly or silently over time, so the
+system should not require explicit task identifiers
+[*REF*].
+
+
+One approach to continual RL is to store experiences of all tasks, so
+that the system may &apos;remember&apos; and retain knowledge to prevent
+catastrophic forgetting [*REF*]. This is often done
+through a replay buffer, implemented as a generic first-in-first-out
+(FIFO). However, the requirement to store all experiences from all
+tasks, demands very high storage capacity, reducing scalability and
+accessibility of the algorithm [*REF*].
+
+
+The inspiration for many replay-based methods comes from Complementary
+Learning Systems (CLS) [*REF*; *REF*], which
+describes learning in mammalian brains. The hippocampus memorises recent
+observations and replays them to the neocortex, which is a slow
+statistical learner. Replay is interleaved with new experiences, thus
+mitigating catastrophic forgetting. Interestingly, the neocortex is
+understood to form a &apos;world model&apos; whose purpose is to predict the
+consequences of our actions [*REF*].
+
+
+The idea of world models has been exploited in model-based RL
+algorithms, where a world model is capable of predicting the effects of
+actions on the environment [*REF*; *REF*] and
+the more recent state-of-the-art DreamerV1 to V3
+[*REF*; *REF*; *REF*]. To
+our knowledge, world model approaches have not been applied to continual
+RL. However, they are an intuitive choice, as they naturally support
+off-policy learning; retaining the world model&apos;s knowledge of a task is
+likely sufficient for preserving performance. Although CLS describes
+replay to a &apos;world model&apos;, traditionally replay in RL is used in Model
+Free RL to improve the policy, rather than a world model directly.
+
+
+In this paper, we take DreamerV3 [*REF*], add a
+memory-efficient replay buffer [*REF*], and apply it to
+continual RL. Hence, we present World Models with Augmented Replay
+(WMAR).
+
+
+We applied WMAR to two settings. First, where each task has a distinct
+environment and reward function. This is the most comment setting used
+in continual RL, and Atari games are often used. In the second setting,
+there is commonality between tasks, and learned knowledge can be
+leveraged to perform subsequent tasks. This is referred to as tasks with
+&apos;shared structure&apos; [*REF*]. Often a video game is
+used, but the conditions such as movement dynamics or spacing of
+features in the environment change over time e.g.
+[*REF*]. Many potential real-world applications exist
+within the &apos;shared structure&apos; setting. For example a robot assistant
+that should be able to acquire new and related tasks within a home like
+cleaning with a broom and then a mop.
+
+
+We used Procgen (procedurally generated games) from OpenAI to create
+similar tasks with &apos;shared structure&apos;, and Atari games for dissimilar
+tasks &apos;without shared structure&apos;. Our analysis is not restricted to
+catastrophic forgetting but includes forgetting and backward/forward
+transfer of skills between tasks.
+
+
+For background and related work, see
+Appendix [7]; including methods to counteract
+catastrophic forgetting in CL [*REF*; *REF*; *REF*]
+and continual RL [*REF*; *REF*; *REF*].
+
+
+Desiderata
+
+
+Using a neural network, policy updates arising from the need to learn
+the current task often prove detrimental to preserving knowledge and
+performance on previous tasks. On the contrary, humans are able to
+accumulate knowledge to benefit performance on multiple related tasks
+simultaneously. Hence, a successful CL agent should be able to exhibit
+the following qualities [*REF*; *REF*]:
+- Stability The agent avoids forgetting and losing performance on
+previously learnt tasks when learning new tasks.
+- Backward Transfer The agent can increase its performance on
+previously learned tasks after training on new, similar tasks.
+- Plasticity The agent, when encountering a new task unlike any of
+the previous, does not learn it any slower compared to learning it
+independently.
+- Forward Transfer When encountering a new task that is similar to
+previously learnt tasks, the CL agent can learn it faster compared
+to learning it independently.
+
+
+Another challenge of continual RL is the lack of explicit task
+boundaries. Realistically, tasks may change unexpectedly, or evolve
+slowly over time. In these cases, a task oracle is either not available
+or not applicable. Further, practical considerations regarding CL such
+as its scalability and the wall time of experiments are a relevant point
+of interest. Therefore, the CL algorithm should also possess the
+following properties:
+- Simple Integration of multiple systems supporting CL is a
+possibility in future research. WMAR proposes a simple and direct
+method of using replay within the context of RL with learned world
+models which may be combined easily with other approaches.
+Furthermore, WMAR is simple to implement and imposes minimal
+modification to the underlying RL algorithm, DreamerV3
+[*REF*].
+- Scalable The solution should be able to scale to support CL on a
+large number of tasks. In order to do so, memory and computational
+constraints are necessary to ensure the wider accessibility and
+practicality of the solution.
+- Does not require a task oracle A task oracle provides exact
+knowledge of which task is currently being trained, which may not be
+possible in practice. The requirement of a task oracle decreases the
+applicability of the solution.
+
+
+Contributions
+
+
+The primary contributions include: a) applying &apos;world model&apos; DreamerV3
+based architectures to the problem of continual RL for tasks with and
+without shared structure and b) enhancing the replay buffer of
+DreamerV3.
+
+
+World Models with Augmented Replay (WMAR)
+
+
+WMAR uses world models and augmented replay buffers to learn tasks
+sequentially. The world model builds on developments in DreamerV3 which
+is state-of-the-art in single-GPU RL benchmarks in a number of tasks.
+The off-policy nature of the algorithm allows a replay buffer to prevent
+forgetting. Furthermore, world models naturally support a memory-based
+continual learning approach as the strength of the final policy is
+largely contingent on the quality of the world model&apos;s accuracy in
+simulating the environment. Hence, preventing forgetting within the
+world model through any means should retain agent performance in past
+environments. World models are also task-agnostic and labels specifying
+the task/environment are not required.
+
+
+The system consists of the World Model for modelling the environment, an
+Actor-Critic Controller to act on the environment, and a Replay Buffer.
+The Replay Buffer is used to train the World Model, and the World Model
+is able to &apos;dream&apos; experiences, which are used to train the Controller.
+Each is described below, and more details are found in
+Appendix [8].
+
+
+The source code is available at WEBSITE.
+
+
+World Model
+
+
+The World Model, see Figure [1], learns a Recurrent State-Space Model
+(RSSM) [*REF*] to predict environment dynamics. At
+timestep *MATH*, the RSSM contains a deterministic hidden state *MATH* and
+stochastic state *MATH*, either predicted by output of a variational
+autoencoder *MATH* or by the dynamics
+predictor from *MATH* in
+open-loop prediction. RSSM models the stochastic representation of the
+next state given current and previous observations *MATH* and actions
+*MATH*. It achieves this through a recurrent layer in the GRU,
+predicting the deterministic state *MATH* 
+and the stochastic state *MATH*.
+
+
+Following DreamerV3, the stochastic state *MATH* consists of 32 discrete
+stochastic units with 32 categorical classes each. Should the RSSM be
+able to accurately predict the environment dynamics (i.e.,
+*MATH*), it follows that the deterministic and
+stochastic states together form a Markovian representation of the hidden
+environment state. During open-loop prediction, stochastic state
+posteriors *MATH* do not exist, and the priors are taken for the
+posteriors instead (i.e. *MATH*). We used the standard
+implementation of the GRU with Tanh activation, as we did not observe a
+significant improvement at the cost of extended wall time.
+
+
+At timestep *MATH*, the model state of the trained world model is a
+Markovian representation of the environment and is the concatenation of
+the deterministic state *MATH* and stochastic state *MATH*. The world
+model is trained by reconstructing input images, rewards and episode
+continuation flags (*MATH* depending on whether the episode
+terminates after the observed state) from the model state. The RSSM
+component is trained through KL balancing [*REF*],
+which allows the dynamics predictor to model the transition between
+states.
+
+
+FIGURE
+
+
+Actor Critic
+
+
+The actor and critic (Figure [5], Appendix
+[8.2]) are MLPs that map the state of the model
+to actions and value estimates. They are trained entirely on
+trajectories generated stochastically by the world model, which is
+referred to as &apos;dreaming&apos; or &apos;imagining&apos;. Starting from model states of
+inputs sampled from the replay buffer, the actor acts within states
+predicted by the world model, producing a sequence of states, actions,
+rewards, and continuation flags. We followed DreamerV3 in training the
+actor and critic on-policy on these imagined trajectories using
+reinforcement [*REF*]. As such, inevitable changes in
+distribution within the model state space are not an issue since
+imagined trajectories are cheap to generate and do not require
+interaction with the actual environment, allowing this process to be run
+to convergence of the actor and critic.
+
+
+Replay Buffer
+
+
+A key objective of WMAR is to limit the size of the replay buffers.
+While Dreamer maintained a single FIFO buffer containing the last *MATH* 
+observations, we empirically chose a size of *MATH* K
+observations for each buffer, as it is significantly (about *MATH*)
+smaller than that of Dreamer&apos;s, without noticeably costing performance.
+We also introduced spliced rollouts, which are a simple and sometimes
+necessary alternative to storing entire episodes, enabling smaller
+buffer sizes. The buffer types are shown in
+[2] and described below.
+
+
+FIGURE
+
+
+Short-Term FIFO Buffer
+
+
+A FIFO buffer with a capacity of *MATH* samples contained the most
+recent rollout observations. The retention of a short-term FIFO buffer
+follows CLS theory, suggesting that multiple separate structures within
+a system are required for learning and CL. This buffer also allowed the
+world model to train on all incoming experiences and biased the training
+samples to those more recently collected, thus improving convergence
+properties on the current task.
+
+
+Long-Term Global Distribution Matching (LTDM)
+
+
+LTDM Buffer
+
+
+Matching the global training distribution even with limited capacity in
+the replay buffer has been shown to be a suitable method to reduce
+catastrophic forgetting [*REF*]. We used a long-term
+global distribution matching buffer, also with a capacity of *MATH* 
+samples that contained a uniformly random subset of 512 spliced
+rollouts. This buffer used the reservoir sampling strategy by assigning
+a random value for each rollout chunk as a key in a size-limited
+priority queue, preserving experiences with the highest key values, and
+discarding the remainder.
+
+
+Spliced Rollouts
+
+
+Restricting the size of the replay buffer can cause it to become full
+with only a few episodes, especially since the duration of the episodes
+may be in the thousands. Containing too few unique episodes may cause
+the training data to become highly unrepresentative of the general
+environment states, thus reducing the world model&apos;s accuracy in
+modelling the environment and likely causing a subsequent loss of
+performance from the actor. This is especially relevant for the
+long-term global distribution matching buffer, which may store
+relatively few samples from each environment.
+
+
+Hence, while typical implementations store complete rollouts, we spliced
+rollouts into smaller chunks of size 512 where necessary, which did not
+adversely affect performance. The implication is that the long-term
+global distribution matching buffer operated over the spliced rollouts
+rather than entire rollouts, thus providing a guarantee on the
+granularity for its sampling of data.
+
+
+Remainders of rollouts with fewer than 512 states are concatenated prior
+to the next episode with an appropriate reset flag indicating the start
+of a new episode. To improve the efficiency of the rollout process, we
+truncated episodes after a fixed number of steps, so that the final
+number of environment steps was identical in every training iteration.
+We found spliced rollouts to be a simple solution to control granularity
+in the distribution matching buffer, especially when episodes are
+extremely long.
+
+
+Augmented Replay Buffer
+
+
+We combined the equally sized short-term FIFO buffer *MATH* 
+with the long-term global distribution matching buffer *MATH* 
+by using both in parallel. Data from both buffers were uniformly sampled
+for each training minibatch (Algorithm).
+
+
+Task Agnostic Exploration
+
+
+Exploring new environments may pose a challenge, as policies that have
+already been trained on previous tasks may lack the randomness required
+to adequately explore the state space of a new task. To address this
+challenge, we used developments from the DreamerV3 algorithm, including
+the introduction of a world model regulariser and scaling of returns in
+the actor-critic training step. These developments enabled mitigation of
+the exploration challenge with a fixed entropy regulariser and produced
+strong results without the addition of an exploration-orientated
+learning system such as Plan2Explore
+(Appendix [8.4]). Avoiding the need to train and run
+inference on an ensemble of predictors also benefits wall time.
+
+
+Experiments
+
+
+We conducted an empirical study to evaluate the efficacy of WMAR for
+continual RL in a set of challenging OpenAI Procgen and Atari
+environments [*REF*; *REF*]. We
+selected them because they are commonly used as RL benchmarks, can be
+extremely similar for the case of shared structure (Procgen) or
+dissimilar in the case of without shared structure (Atari), and they
+were computationally feasible on the available hardware.
+
+
+We compared WMAR (with augmented replay buffer) with a baseline model
+equivalent to DreamerV3, referred to as &apos;WMAR (FIFO Only)&apos;. The
+comparison measures the efficacy of the long-term distribution matching
+buffer. To validate our implementation, we compared also to an open
+source implementation of DreamerV3 by the author WEBSITE, see
+Appendix [10.1].
+
+
+To measure baseline performance, used for normalisation of other
+results, we also ran experiments on individual tasks, and compared WMAR
+with the most similar model-free and model-based RL algorithms. We chose
+proximal policy optimisation (PPO)
+[*REF*; *REF*] for the
+model-free RL algorithm and used the CNN-LSTM network architecture, as
+it most closely resembles the WMAR architecture.
+
+
+Experimental setup
+
+
+All WMAR experiments are trained on one Nvidia A40 40GB GPU with all
+single task benchmarks running within 0.25 days and continual learning
+benchmarks running within 1 day of wall time, making these experiments
+widely available and reproducible across research labs.
+
+
+For more details on experimental parameters and execution time, see
+Appendix [9.2].
+
+
+Evaluation
+
+
+We evaluated the performance by normalising episodic reward to the
+performance provided by the world model agent&apos;s baseline and that of a
+random agent. This enables a normalised comparison in order to measure
+the relative performance during CL. These results also enable a natural
+evaluation of forgetting and forward transfer for all environments in
+each CL suite. More details are given in the following subsections.
+
+
+For each CL experiment, we define an ordered suite of tasks
+*MATH*. We define the performance of the agent on task *MATH* 
+after *MATH* environment steps as *MATH*.
+
+
+Baseline Normalisation
+
+
+We performed 2 evaluations of each environment to be considered as
+&apos;baseline&apos; performance. For each task in the experimental suite
+*MATH*, we find the average episodic reward
+of a random policy *MATH* and the average episodic reward
+of the agent on only task *MATH* after *MATH* environment steps
+*MATH*. The normalised score of subsequent agents will be
+such that a score of *MATH* is equal to random performance, and a score of
+*MATH* is equal to the final performance.
+
+
+*MATH*.
+
+
+Average random performance and average final performance of WMAR, when
+trained on a single task, were used for score normalisation. A score
+equal to the random performance corresponds to 0, and a score
+corresponding to the average final performance corresponds to 1.
+
+
+Continual Learning Assessment
+
+
+We followed [*REF*] in evaluating the efficacy of a
+continual learning method in forgetting, measuring stability and
+backward transfer, and forward transfer, also acting as a measure for
+plasticity. These measurements were recorded for each environment in the
+experiment suite *MATH*. We trained
+the agent on each task for *MATH* environment steps. As such, the reference
+score for task *MATH* is given by *MATH*.
+
+
+Forgetting and Backward Transfer
+
+
+The average forgetting for each task is the difference between its
+performance at the end of training all tasks and its reference score.
+
+
+*MATH*.
+
+
+A lower value for forgetting is indicative of improved stability and a
+better continual learning method. A negative value for forgetting would
+imply that the agent has managed to gain performance on earlier tasks,
+thus exhibiting backward transfer.
+
+
+Forward transfer
+
+
+The forward transfer for each task is the expected ratio of average
+normalised scores between its performance in the continual learning and
+single task experiments.
+
+
+*MATH*.
+
+
+The larger the forward transfer, the better the continual learning
+method. A positive value for forward transfer implies that the system
+effectively uses learnt knowledge from previous environments and has
+accelerated learning in the current environment as a result. When each
+task is not related to the others, no positive forward transfer may be
+expected. In this case, a forward transfer of 0 would represent optimal
+plasticity, and negative values would indicate a barrier to learning
+newer tasks from previous tasks.
+
+
+Environments
+
+
+We explored the performance of WMAR within the context of transfer
+between tasks with and without shared structure, which we define as two
+tasks having similar environment state and observations, action
+dynamics, and rewards. To investigate the performance on tasks with
+shared structure, we use OpenAI Procgen&apos;s CoinRun environment and apply
+visual perturbations to create differences between tasks. For evaluating
+the performance on tasks without shared structure, we selected 4 Atari
+tasks.
+
+
+Results
+
+
+Tasks without Shared Structure
+
+
+We chose a subset of Atari environments in which the world model agent
+can achieve reasonable performance with little training and followed
+[*REF*] in using sticky actions. We ran the CL
+experiment with arbitrary ordering of the environments as testing each
+permutation would be prohibitively expensive. We found that significant
+divergence between environment dynamics in visual differences, reward
+scale, and game mechanics pose a significant challenge to CL.
+Furthermore, without a task oracle, we found predetermined reward scales
+(Table) for each individual environment
+necessary to allow continual learning.
+
+
+Baseline Performance (Single Tasks)
+
+
+WMAR&apos;s performance remains competitive against other common RL
+algorithms on single tasks (see
+Appendix [10.2] for parameters and results). The &apos;Random&apos; and
+&apos;WMAR&apos; scores are used as normalisation baselines for each task.
+
+
+Continual Learning
+
+
+The normalised performance is plotted in
+[3] (tabular results in Section [10.3]). WMAR is capable of continual RL,
+whereas it is clear that WMAR (FIFO only) the DreamerV3 equivalent, is
+not; it only performs well when it is actively training on a given task.
+
+
+Forgetting and Backward Transfer
+
+
+In all tasks except the last, WMAR (FIFO only) loses virtually all
+performance before the following task has finished training. This is in
+direct contrast to WMAR, where instead the agent can maintain much of
+its performance on previously learnt tasks, see
+[1]. In summary, WMAR shows
+significantly improved stability. This difference in forgetting
+emphasises that the distribution matching buffer is necessary to prevent
+forgetting when tasks are significantly different, as the learning of
+new tasks causes knowledge of previously learnt tasks to be lost from
+the world model. As training progresses, samples from the first task
+have a decreasing probability of being drawn. This is to the point
+where, by the end of training, samples from the first task have a 12.5%
+probability of being drawn. Despite this, our results show that WMAR is
+capable of holding much of its performance on the earliest of tasks.
+Notably, this observation does not apply to all tasks, as we find that
+the &apos;Crazy Climber&apos; task exhibits the worst overall performance and
+forgetting even with the distribution matching buffer.
+
+
+Forward Transfer
+
+
+Reduced forgetting comes at the cost of also reduced forward transfer --
+effectively trading some plasticity for a significant amount of
+stability -- as the agent is unable to learn later tasks as
+effectively. We observe a decreasing trend in the agent&apos;s normalised
+score as it learns more tasks, most apparent in the WMAR experiment,
+where the agent achieves a normalised score of only *MATH* in
+the &apos;Crazy Climber&apos; environment, substantially lower than the expected
+1.0 of the first environment &apos;Ms Pacman&apos; and empirical *MATH* of
+&apos;Boxing&apos;, which is already well below 1.0. The system performs worse
+when learning new tasks after learning unrelated tasks, suggesting that
+the system is limited by its learning capacity in either the world model
+or the policy. This limitation thus results in plasticity being
+gradually lost as training progresses. Furthermore, the negative forward
+transfer shown by experiments with and without the distribution
+matching buffer suggests that the agent learns newer tasks slower when
+it has already learnt a previous task compared to if it were randomly
+initialised, further suggesting that plasticity is a practical
+constraint in continual RL with world models.
+
+
+FIGURE
+
+
+TABLE
+
+
+Tasks with Shared Structure
+
+
+The CoinRun environment provides a number of simple visual
+perturbations. While the environment&apos;s mechanics remain identical, the
+environments share both subtle and substantial visual differences, which
+poses significant challenges. However, we found that WMAR enables
+constructive interference and positive forward transfer of skills
+between these environments.
+
+
+Baseline Performance -- Single Tasks
+
+
+The performance of WMAR is approximately 15% better in all tasks
+compared to the PPO (CNN-LSTM) algorithm, but worse compared to
+DreamerV3, likely due to implementation differences. Again, the &apos;Random&apos;
+and &apos;WMAR&apos; scores are used as the normalisation baselines for each task.
+See Appendix [10.2] for parameters and detailed results.
+
+
+Continual Learning
+
+
+The normalised performance is shown in [4] (tabular results in
+Appendix [10.3]). The terminology that denotes the
+variant of the CoinRun environment is as follows. NB = no background, RT
+= restricted themes, and MA = monochrome assets (see
+Appendix [9.1]). Both models can learn continuously and
+improve in performance and have approximately equal peak performance on
+each task. However, WMAR is noticeably more consistent than WMAR (FIFO
+Only).
+
+
+Forgetting and Backward Transfer
+
+
+Regardless of the choice of replay buffer, the agent exhibits desirable
+forgetting and backward transfer. However, WMAR has a slight advantage
+over WMAR (FIFO only), where almost no backward transfer is observed;
+see [2]. Further, WMAR shows more
+consistent performance across tasks with fewer fluctuations in
+performance during training, which may be a desirable property if there
+is a need to take a model snapshot and use the agent at arbitrary points
+during training.
+
+
+Forward Transfer
+
+
+There is no evidence of inhibition to the strength of the agent when
+learning multiple tasks. Rather, we find little difference on the
+resulting forward transfer regardless of the inclusion of the
+distribution matching buffer; see [2]. We found significant forward
+transfer on all tasks after the first, greatly lowering the amount of
+time required for a task to reach a certain performance. Importantly,
+the ordering of the tasks is such that levels in later tasks are either
+subsets of, or different to levels in earlier tasks. This is so that the
+agent cannot completely generalise on earlier tasks just by learning
+later tasks. Crucially, our results show that strong forward transfer
+also holds for tasks that are not subsets of earlier tasks.
+
+
+FIGURE
+
+
+TABLE
+
+
+Discussion
+
+
+WMAR has the ability to perform CL with reduced memory requirements
+compared to DreamerV3. On tasks with shared structure, it exhibits
+improved forward and backward transfer, and on tasks without shared
+structure, it exhibits dramatically reduced forgetting. However, fully
+achieving all desiderata of stability and plasticity under all
+conditions (with or without shared structure) remains a challenge.
+Specifically, we show that tasks without shared structure, lacking
+visual similarity and having different mechanics, may be learnt less
+effectively if they are learnt later.
+
+
+Overall, these results were made possible by taking advantage of a
+distribution matching buffer running alongside a typical FIFO buffer.
+This change, coupled with the world model approach to RL, enables
+improved sample efficiency and can operate with significantly smaller
+replay buffers.
+
+
+Our results reiterate findings of world model approaches as strong
+baselines for continual RL problems, which we attribute to their natural
+ability to support off-policy experience replay. Our methods are also
+largely orthogonal to previous state-of-the-art approaches to combating
+catastrophic forgetting such as EWC and P&amp;C which work over network
+parameters, and CLEAR which utilises replay but typically operates over
+model-free approaches and uses behaviour cloning of the policy from
+environment input to action output. Yet, we show that WMAR remains
+capable of eliminating catastrophic forgetting across a diverse set of
+environments.
+
+
+Generalisation of Tasks
+
+
+While we observed positive forward and backward transfer on tasks with
+shared structure, it was not the case for tasks without. We posit this
+is due to reliance on the convolutional feature extractor, which could
+benefit from commonality in the visual domain only. Much more abstract
+similarities or changes in the controls between tasks are likely to
+negatively impact the forward transfer, causing lower average and
+maximum performance of later tasks. For example, changes such as
+inverting the colours and permuting the controls is likely to induce
+negative forward transfer.
+
+
+Reward Scaling without Task Oracle
+
+
+We found that approximate reward scaling is required to learn multiple
+tasks which naturally have extremely different reward scales. While WMAR
+is sufficiently robust in learning multiple tasks without forgetting
+even when reward scales are somewhat different, we found that this
+property did not hold when reward scales differed significantly (e.g. by
+a factor of *MATH*), where only the task with the higher reward scale
+will be learnt. We believe that without a task oracle, this limitation
+affects all continual RL. It is likely a result of the different rewards
+and subsequent returns causing poorly scaled advantages when training
+the actor, resulting in the actor only learning tasks with the highest
+return magnitudes. Experiments with automatic scaling of advantages
+through non-linear squashing transformations proved to hurt learning on
+individual tasks, so a static, linear, reward transformation was used.
+
+
+Memory Capacity
+
+
+Despite the benefits and improved memory capacity of WMAR, a key
+limitation of any buffer-based method is finite capacity. In our case,
+as more tasks are explored and previous tasks are not revisited, an
+increasing number of samples from previous tasks will inevitably be
+lost, leading to forgetting. Indeed, we observe some variance in the
+amount of forgetting to which each task is susceptible. Results from the
+experiments on tasks without shared structure
+([3]) suggest that the latter tasks which may
+have been learnt poorly due to insufficient plasticity in the learning
+system may experience more forgetting than even earlier tasks.
+
+
+Conclusion and Future Work
+
+
+We extended a well-known model-based &apos;world model&apos; architecture,
+DreamerV3, with an improved memory buffer, and applied it to the problem
+of continual RL in two settings: a continuous stream of tasks with and
+without shared structure i.e. commonalities between the tasks that could
+be leveraged by the agents. Performance was evaluated for forward and
+backward transfer, in addition to the common practice of measuring only
+forgetting. We found that model-based agents are capable of continual
+learning on tasks with shared structure, with some minor benefits to the
+enhanced buffer in WMAR. And in tasks without shared structure, the
+improved buffer in WMAR conferred substantial improvements. In both
+cases, WMAR has substantially reduced memory requirements. The results
+suggest that model-based RL using a world model with a memory-efficient
+replay buffer can be an effective and practical approach to continual
+RL, justifying future work.
+
+
+We expect future developments to the concepts shown here, or for
+existing techniques like behaviour cloning in CLEAR, to be combined with
+our method for further performance gains. Such an adaptation could
+counter shifts in the latent distribution as the world model trains and
+where the actor is frozen. Further, we posit the possibility of tuning
+the hyperparameters and configuration of WMAR to increase sample
+efficiency and model capacity for further improvements. We also propose
+a difference in learning tasks with and without shared structure, where
+later tasks may be dissimilar in input, control, and reward scale, and
+hope for future research to explore the effect of such difference on CL
+within supervised and non-supervised tasks.

@@ -1,0 +1,137 @@
+Middleware for LLMs: Tools Are Instrumental for Language Agents in Complex Environments
+
+
+Introduction
+
+
+Large language models (LLMs) have demonstrated revolutionary language capabilities, demonstrating a human-like mastery over text ([OpenAI 2023a,b]; [Touvron et al. 2023]; [Jiang et al. 2024]). However, the true ambition of AI extends well beyond the realm of text. The goal is to ultimately empower LLMs to act as generalist language agents that can aid humans across the multitude of complex real-world tasks ([Yao et al. 2022]; [Schick et al. 2023]; [Gu et al. 2023]), which often involve handling complex environments, whether it be browsing intricate webpages ([Deng et al. 2023]) or managing vast databases with millions of entries ([Li et al. 2023a]).
+
+
+FIGURE 1
+
+
+For LLMs to effectively serve as agents that ground human instructions into accurate actions within the environment, they must develop a robust understanding of the environment. The most direct method to achieve it is to linearize the environment into a sequence of tokens that fit into the LLM&apos;s short-term memory (i.e., its input window) and have the LLM process the environment based on the linearized description ([Tai et al. 2023]; [Shridhar et al. 2021]; [Liu et al. 2023]). However, such a method faces steep challenges in scaling to more complex environments, primarily due to the input size limitations of LLMs. Also, discrete token descriptions may not reflect the most natural perception of the environment. Recent work has explored using tools to extend the boundary of the LLM&apos;s capacity ([Li et al. 2023b]; [Qin et al. 2023b]; [Schick et al. 2023]). The core idea is that LLMs can actively decide a proper tool to use, using language as a powerful vehicle of thought ([Su 2023]). For example, the LLM may invoke a calculator when facing a computationally intensive math task. Intuitively, we can also equip the LLM with tools that enable navigating complex environments, so that the LLM can proactively invoke different tools to explore the environment, thus circumventing limitations posed by its short-term memory (Figure [1]). However, this promising paradigm has been thus far underexplored. In this paper, we aim to delve into this paradigm and answer an intriguing question: How effectively can LLMs handle complex environments with the aid of tools?
+
+
+Answering this question requires equipping the LLM with a suite of tools designed to meet a wide range of needs within the target environment. In this paper, we carefully develop such tailored tools for two exemplar complex environments, i.e., databases and knowledge bases (KBs). Unlike readily available Web APIs ([Qin et al. 2023b]) used in prior research, our tools have to be manually invented from scratch. In crafting these tools, we capitalize on the intuition of human informationgathering behaviors -- such as performing keyword searches to identify a relevant database column or investigating the connections of a KB entity -- to fulfill complex tasks in these intricate environments (Section [3.1]). Ideally, these tools are designed to function as a middleware layer between the LLM and the environment, shielding the LLM from environmental complexity. With these specialized tools in place, we adapt ReAct ([Yao et al. 2022]), a standard framework that enables the LLM to synergistically combine reasoning with tool usage, as our reasoning algorithm to allow the LLM to effectively leverage the provided tools (Section [3.2]).
+The combination of the crafted tools and the reasoning algorithm allows the LLM to actively explore the environment and ground human instructions into accurate actions. We call this framework FUXI (i.e., flexible gro[u]nding with e[x]ploration).
+
+
+With FUXI, we evaluate different LLMs on benchmarks featuring complex tasks over the target environments, including a newly curated benchmark for the KB. The outcomes of our experiments are revealing: LLMs equipped with customized tools demonstrate a significant enhancement in their ability to engage with complex environments, markedly surpassing the prior art. In particular, despite its simplicity, FUXI allows GPT-4 ([OpenAI 2023a]) to achieve 2.8× the performance (i.e., 38.3% vs. 13.8%) of the best baseline in tasks requiring access to database content and 2.2× (i.e., 59.3% vs. 27.1%) in KB tasks. Our findings underscore the integral role of tool augmentation in enabling LLMs to handle complex environments.
+
+
+Our main contributions are as follows: a) We develop FUXI, a new framework with customized tools for two complex environments, to investigate the role of tools in handling complex environments with LLMs; b) We extensively evaluate six different LLMs on our carefully chosen benchmarks; c) Our analysis highlights a critical takeaway: augmenting LLMs with tools is crucial for successfully tackling complex environments, opening new possibilities to progress LLMs as generalist language agents for practical applications.
+
+
+Related Work
+
+
+Interface Complex Environments with LLMs. Existing methods that feed the environment directly into the LLM for grounding ([Chandu et al. 2021]) would fail in complex environments due to scalability issues. Specifically, these methods process the environment by linearizing it into discrete tokens ([Hwang et al. 2019]; [Shridhar et al. 2021]; [Yu et al. 2023]; [Liu et al. 2023]; [Tai et al. 2023]; [Song et al. 2023]). However, linearizing expansive environments like databases with millions of entries ([Li et al. 2023a]) or lengthy webpage HTML code ([Deng et al. 2023]) can often exceed an LLM&apos;s input length constraints. Alternative studies bypass the LLM&apos;s direct interaction with complex environments by generating ungrounded draft plans for post-processing grounding ([Li et al. 2023c]; [Nie et al. 2023]) or by using the LLM to assess grounded plans created via predefined rules ([Gu et al. 2023]). Such strategies do not fully utilize the LLMs&apos; innate reasoning potential in actively navigating complex environments. In this paper, we explore a new paradigm where we can bypass these issues by equipping LLMs with a suite of comprehensive tools to actively gather necessary information about the environment upon demand, leveraging the LLMs&apos; inherent reasoning capabilities. The most closely related work to ours is StructGPT ([Jiang et al. 2023b]). However, the narrow tool selection of StructGPT (i.e., only two tools for KBs and three schema-level tools for databases) largely constrains its flexibility in perceiving the complex environment when handling diverse tasks.
+
+
+Tool Learning. Tools are essential for enhancing the capabilities of LLMs ([Schick et al. 2023]; [Qin et al. 2023a]; [Mialon et al. 2023]; [Hao et al. 2023]). Existing research, such as ToolLLM ([Qin et al. 2023b]) and API-Bank ([Li et al. 2023b]), focuses on open-domain applications with a wide array of readily available RESTful APIs. In contrast, this paper specifically aims to study the potential of tools in augmenting LLMs to effectively execute tasks within complex environments, where we carefully craft the specialized tools for different environments by ourselves. In addition, research focusing on RESTful APIs typically displays shallow reasoning, while practical tasks within a complex environment typically entail a long sequence of actions (e.g., querying a KB or browsing a webpage).
+To enable tool use in more intricate settings within a more specific complex environment, StructGPT ([Jiang et al. 2023b]) employs a predefined sequence of tool invocations; Chameleon ([Lu et al. 2023]) functions in an open-loop setting where the LLM directly produces a sequence for tool usage before any execution occurs. Both of them fail to seamlessly integrate the reasoning capacity of the LLM with the use of tools. In this paper, we build on ReAct to tightly synergize the generation of a reasoning step and corresponding tool use. Additionally, we introduce two simple yet effective strategies aimed at improving the accuracy of action prediction.
+
+
+Fuxi
+
+
+FUXI equips LLMs with a suite of tools specifically tailored to support an extensive variety of operations and cater to the diverse needs within a complex environment E. These tools can serve as a feature-rich middleware layer between the LLM and E, abstracting the LLM from having to directly interact with all of its intricacies (Section [3.1]). Furthermore, to fully unleash the inherent planning capabilities of LLMs in invoking proper tools, FUXI builds on ReAct ([Yao et al. 2022]) to seamlessly integrate chain-of-thought (CoT) reasoning ([Wei et al. 2022]) with tool use, with novel strategies to enhance action accuracy (Section [3.2]). This unified framework allows us to reliably investigate the potential of LLMs in handling complex environments with the aid of tools.
+
+
+Tools for Complex Environments
+
+
+To evaluate the potential of LLMs in handling complex environments when equipped with tools, we need to first carefully craft the necessary tools for the environments. These tools should meet two essential criteria: 1) They should offer comprehensiveness, encompassing a broad spectrum of operations and needs. Broad coverage of tools is crucial for maximizing the potential of LLMs in planning.
+2) The tools should prioritize ease of use, enabling the LLM to invoke them mostly with straightforward slot filling, thus shielding the LLM from the implementation details of the tools.
+
+
+Databases In production scenarios, databases typically feature dozens of tables, with each table containing thousands of rows or more. A key task in such environments is performing data analysis through SQL queries. To bridge the gap between natural language instructions and SQL, LLMs are employed to automate the generation of SQL queries (i.e., text-to-SQL parsing ([Yu et al. 2018]; [Li et al. 2023a])). To support the LLM in crafting complex SQL queries, we introduce a set of specialized tools designed for interaction with intricate databases. These tools are divided into two main categories: navigational and functional. Navigational tools help the LLM to explore the environment (e.g., get_distinct_values() and find_columns_containing_value()), while functional tools help check each SQL clause composed by the LLM. For example, where() verifies the legality of the WHERE clause and determines if the specified conditions can match any entries in the database. In total, we craft 12 tools for databases (Appendix [A.1]). The development of these tools is grounded in our domain expertise in SQL and databases.
+
+
+KBs Modern KBs, such as FREEBASE ([Bollacker et al. 2008]), are vast repositories storing billions of facts as triples ⟨h, r, t⟩. These KBs cover a wide array of domains and support complex information-seeking tasks, including answering questions that require multi-hop reasoning. To support the LLM in engaging the extremely massive KB environments, we also devise a toolset tailored for KBs. Similarly, tools for KBs also include navigational tools and functional tools. The navigational tools facilitate efficient exploration of the KB by the LLM (e.g., get_relations() and get_attributes()), while the functional tools support the LLM in executing precise operations, such as counting and intersecting two sets (e.g., intersection() and count()). Both are critical for completing complex reasoning tasks on KB. A key concept in tools for KBs is a variable, representing a set of entities and typically generated as an intermediate result through the execution of functions like get_neighbors() or intersection(). The use of variables facilitates multi-hop reasoning across KBs, as it enables the natural linkage of a sequence of tool executions. In total, we implement 7 tools for KBs (Appendix [A.2]). Our design of KB tools tightly adheres to the common needs in knowledge base question answering (KBQA) ([Gu et al. 2021]; [Cao et al. 2022]).
+
+
+FIGURE 2
+
+
+Reasoning with Tools
+
+
+We leverage ReAct to enable the LLM to effectively invoke our crafted tools. Unlike existing methods relying on rigid, human-defined workflows that follow fixed tool usage sequences ([Jiang et al. 2023b]), ReAct allows the LLM autonomy in proactively determining tool selection using CoT. Thus, ReAct allows us to tap into the full potential of the LLM&apos;s reasoning capabilities.
+
+
+Formally, at each step t, the LLM makes predictions following a policy that maps a current context to an output: *MATH*, where *MATH* at aˆt is the concatenation of a rationale rt (i.e., a thought in CoT) and a concrete tool use at (e.g., in Figure [2], aˆ1 is the concatenation of Thought 1 and Act 1), while ot is an observation from the environment (i.e., the execution result of at). In ReAct, the LLM jointly decodes aˆt based on ct for each step. However, originally designed for simpler tools like the Wikipedia Search API, ReAct is more susceptible to producing an invalid at that is unfaithful to rt when applied to more nuanced tool usage. We propose two simple strategies to remedy this issue. The first strategy is to simply amplify ReAct by providing detailed error feedback in case of incorrect tool usage by the LLM, followed by a prompt to retry based on these messages (see Figure [2](a)). This relies on the LLM&apos;s capacity for self-correction through feedback ([Gou et al. 2023]; [Chen et al. 2023]), which may not always be reliable when the underpinning LLM is weak, potentially leading to the repetition of the same mistakes ([Guan et al. 2023]).
+Additionally, we present decoupled generation, where the LLM&apos;s policy π is split into two sequential phases (i.e., π ∝ π1 ◦ π2), allowing for more nuanced control of its actions. Initially, the LLM only decodes a thought rt following π1(rt\|ct). Subsequently, the LLM predicts an action at in a separate context, incorporating both the thought rt and a set of simple rules M that determines permissible actions of this step. This is further guided by π2, formulated as at ∼ π2(at\|rt, M). M encapsulates the governing rules of the environment (e.g., the relation argument for get_neighbors() must be derived from the output of get_relations(), which is applied to the specified entity argument in prior steps), infusing prior knowledge into the LLM&apos;s decision-making process (see Figure [2](b)). The concrete prompts used by us are shown in Appendix [C].
+
+
+Benchmarks
+
+
+The predominant tasks for databases and KBs are text-to-SQL parsing and KBQA. However, popular benchmarks for them may fall short for evaluating language agents out-of-box. Specifically, the majority of questions in popular KBQA datasets like WEBQSP ([Berant et al. 2013]; [Yih et al. 2016]) are one-hop or two-hop questions, for which we can effectively handle with existing semantic parsing methods ([Gu et al. 2022]). Additionally, the databases featured in SPIDER ([Yu et al. 2018]) and WIKISQL ([Zhong et al. 2017]) have limited complexity in terms of both schema design and the number of rows in the tables. This over-simplification enables the direct feeding of the database schema to the LLM, achieving strong performance without the need to access the actual content of the database ([Rajkumar et al. 2022]). Therefore, we need different benchmarks with complex environments and instructions that better mirror the real-world situations language agents must handle (see statistics of our benchmarks in Appendix [B]).
+
+
+Databases For databases, we leverage BIRD ([Li et al. 2023a]), which is a recent dataset notable for its complexity, featuring intricate instructions over highly complex databases. There are originally two different settings in BIRD: with and without oracle knowledge, where the oracle knowledge supplies specific information about the target database needed to fulfill each task. For instance, &quot;Exclusively virtual refers to Virtual = &apos;F&apos;&quot;. With such oracle knowledge, the complexity of the environments is substantially mitigated; it offers a shortcut for the task and eliminates the necessity for deep engagement with the database. This cheating setting is also unrealistic for practical applications. As a result, we stick to the setting without oracle knowledge. For each of the 1534 questions in BIRD&apos;s dev set, we manually label whether accessing the database content is necessary to compile the SQL queries, noting that access is unnecessary if all mentioned values in a question exactly match database cells. This facilitates decomposing the language agent&apos;s performance based on questions that require deeper database engagement (496 questions) versus not (1038 questions) and enables fine-grained insights into the LLM&apos;s performance. In addition to execution accuracy (EX) used in BIRD, which determines if the execution results of the predicted SQL match those of the ground truth SQL, we also evaluate whether the predicted SQL is a valid SQL query (VA).
+
+
+KBs We curate KBQA-AGENT, a new test set sourcing from existing KBQA datasets that contain complex questions. In particular, we selected 500 diverse questions that involve at least three relations, or two relations coupled with an aggregation function (i.e., Counting or Superlative). For each question, we annotate it with a ground truth sequence of actions based on the toolset defined by us. Specifically, KBQA-AGENT comprises questions from three KBQA datasets on FREEBASE: GRAILQA ([Gu et al. 2021]), COMPLEXWEBQ ([Talmor and Berant 2018]), and GRAPHQ ([Su et al. 2016]), ensuring a wide range of question types and sources. KBQA-AGENT is designed to be more representative of challenging, real-world scenarios compared to existing benchmarks (Appendix [B]). It offers an ideal testbed for evaluating language agents in interacting with massive KBs. We assess this through two metrics: F1 of answer entities and Validity (VA), a binary metric evaluating the LLM&apos;s ability to find an answer, whether correct or not.
+
+
+TABLE 1
+
+
+TABLE 2
+
+
+Experiments
+
+
+Setup
+
+
+Implementation To concretely instantiate our tools for the two environments, we employ standard query interfaces for databases and KBs, specifically SQLite for databases and Virtuoso for KBs. We then prompt the LLM with the tool descriptions together with the input task instructions (Appendix [C]). Each environment exhibits its own unique characteristics and challenges. In KBQA, the arguments for each function are either a variable or an item from the KB schema (i.e., a relation or an attribute). In contrast, in text-to-SQL parsing, the arguments can be more varied, ranging from a part of a SQL query to a complete query. This makes listing potential actions, as needed in decoupled generation, much more complex for text-to-SQL parsing.
+Therefore, we implement error feedback solely for text-to-SQL parsing.
+
+
+FIGURE 3
+
+
+StructGPT ([Jiang et al. 2023b]), which represents an advanced text-to-SQL parsing method leveraging tools.
+For all methods on text-to-SQL parsing, we adopt the zero-shot setting. Unlike textto-SQL parsing, directly prompting LLMs does not generate reasonable outputs for KBQA due to the massive size of the KB schema. Instead, existing KBQA methods based on LLMs typically follow two paradigms: either first generating an ungrounded program and then grounding the program to the KB schema afterwards ([Li et al. 2023c]; [Nie et al. 2023]), or gradually constructing a complex program and grounding it step by step ([Gu et al. 2023]). We compare FUXI with the most
+
+
+FIGURE 4
+
+
+For the underlying LLMs, we primarily compare FUXI with baseline methods using two of the most advanced LLMs -- GPT-3.5-turbo ([OpenAI 2023b]) and GPT-4 ([OpenAI 2023a]) -- since our goal is investigating the full potential of toolenhanced LLMs operating within complex environments. In addition, we also explore four open-source LLMs to more comprehensively evaluate our framework: Llama2-7B-Chat, Llama2-13B-Chat ([Touvron et al. 2023]), Mistral-7B-Instruct-v0.2 ([Jiang et al. 2023a]), and Mixtral 8×7B-Instruct-v0.1 ([Jiang et al. 2024]).
+
+
+Baselines To fully understand the potential of tool augmentation for assisting LLMs in handling complex environments, we compare FUXI against an array of strong baselines. For text-to-SQL parsing, LLMs demonstrate a strong ability to compose SQL queries when properly prompted with the database schema (i.e., API docs prompting ([Rajkumar et al. 2022])). This also represents the current state-of-the-art prompting-based method when oracle knowledge is not available on BIRD&apos;s leaderboard. In addition, we experiment with representative work from each paradigm, namely KB-Binder ([Li et al. 2023c]) and Pangu ([Gu et al. 2023]). We also include StructGPT as an additional baseline for tool use. For all KBQA methods except KB-Binder, we provide a one-shot demo to obtain more meaningful results.
+
+
+Main Results
+
+
+As shown in Tables [1] and [2], equipping LLMs with customized tools leads to significant improvement over previous standards, almost doubling or tripling the performance under multiple metrics. Specifically, API docs prompting can only feed the schema information to the LLM due to the vast amount of database content. As a result, it fails catastrophically on examples that require database content to compose the SQL query. In contrast, FUXI equips the agent with tools to actively navigate the database to collect relevant information for composing a SQL query. As a result, FUXI significantly closes the gap between performance on questions requiring database content and questions not requiring it when using GPT-4 (i.e., 45.1% vs. 38.3%). Additionally, we notice that FUXI minimizes the gap between with and without oracle knowledge from 15.5% to 4.0% using GPT-4 and 11.7% to 3.3% using GPT-3.5-turbo. Finally, StructGPT demonstrates a similar trend to API docs prompting because its tools do not provide any information about the database content. For KBQA, FUXI demonstrates uniformly superior performance across different question types and significantly outperforms Pangu with both GPT-3.5-turbo and GPT-4. In particular, when equipped with GPT-4, FUXI + decoupled generation outperforms Pangu by 32.2% in F1. As for the other two baselines, KB-Binder and StructGPT, both fail miserably on our challenging setting. On the one hand, KB-Binder only retrieves relations within two hops from the entities for grounding.
+However, most questions in KBQA-AGENT involve more than two relations. As a result, many of its drafted programs are unable to ground, which explains its low VA. On the other hand, StructGPT is heavily limited by its constrained toolset and cannot handle complex questions in KBQA-AGENT. Therefore, StructGPT frequently refuses to provide an answer (as revealed by its low VA) due to insufficient information. The strong performance of FUXI underscores that tools are instrumental for language agents in complex environments.
+
+
+Experiments with Open-Source LLMs
+
+
+To gain a more thorough insight, we also include experiments with four open-source LLMs (Figure [3]). Our findings indicate that Llama2 models generally underperform compared to other LLMs, aligning with trends observed in other LLM leaderboards, such as Chatbot Arena ([Zheng et al. 2023]).
+Specifically, we find Llama2 models struggle with even generating grammatical tool use following our instruction. On the other hand, Mistral and Mixtral demonstrate much better performance than Llama2.
+In particular, Mixtral represents an advanced mixture-of-experts model that has demonstrated superior performance and even surpasses GPT-3.5-turbo on Chatbot Arena ([Zheng et al. 2023]). However, different from answering open-ended questions featured in Chatbot Arena, properly engaging with the complex environment demands the language agent to produce more precise actions that strictly conform to the task specification.
+There is still a performance gap between Mixtral and GPT-3.5-turbo in terms of predicting valid actions over intricate environments. Compared to GPT-3.5-turbo, Mixtral tends to output invalid actions more frequently. This also explains why decoupled generation, where the output space is strictly constrained to a list of valid actions, helps weaker models more. With FUXI + decoupled generation, using Mistral can almost match the best baseline performance with GPT-3.5-turbo, and using Mixtral can even match the best baseline with GPT-4. While stronger models like GPT-4 can effectively recover the mistake via error feedback, weaker models tend to benefit more from decoupled generation.
+
+
+Tools as A Middleware Layer
+
+
+To deepen our understanding of the integral roles of tools in aiding LLMs in accessing complex environments (i.e., KB triples and database rows in our setup), we conduct further analysis by comparing FUXI with prompting baselines with different amounts of data items directly sampled from the environment (Figure [4]). For the KB, we sample 10, 50, 100, and 200 triples from FREEBASE based on the three-hop neighborhood of each entity in a question. These triples are the top-ranked ones using a sentence-BERT retriever ([Reimers and Gurevych 2019]) based on their similarity with the input question. We prompt the LLM directly with these sampled triples and request it to generate an answer to the given question. Given the extensive size of FREEBASE, accurately representing the environment with a mere subset of samples proves to be exceedingly difficult. Consequently, both GPT-3.5 Turbo and GPT-4 consistently yield an F1 score close to 0. For the database, we similarly augment API docs prompting with 1, 5, and 10 sampled rows for each table and evaluate on 100 random questions from BIRD that require accessing database content. Additionally, we also augment FUXI with the same sampled rows in the database setting. We observe that including more database rows initially boosts baseline performance but eventually decreases it. With FUXI, prompting the LLM with sampled rows yields minimal gain, and the standard setting without sampled rows already significantly outperforms all baselines. These results further confirm that the LLM, when augmented with tools, can effectively engage with complex environments, flexibly gathering the necessary information on demand and bypassing the limitations on the amount of data it can handle (e.g., around 200 triples or 10 rows per table).
+
+
+Conclusion
+
+
+A pioneering vision is for language agents to assist humans in tackling intricate real-world tasks. This paper demonstrates that with meticulously-crafted tools acting as middleware between LLMs and complex environments, LLMs can substantially exceed current solutions. Our results spotlight these specialized tools&apos; indispensable role in unlocking the potential of LLMs within complex real-world tasks previously posing immense challenges.

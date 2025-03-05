@@ -1,0 +1,262 @@
+Graph-enhanced Large Language Models in Asynchronous Plan Reasoning
+
+
+Introduction 
+
+
+As large language models (LLMs) show unprecedented capabilities, claims surge that artificial general intelligence is close [*REF*].
+Planning is an important property of human intelligence [*REF*; *REF*], and it is also vital in many downstream tasks such as developing autonomous robotic agents [*REF*; *REF*]. While symbolic processors have been historically used for handling plan design [*REF*; *REF*], LLMs have recently emerged as a relevant complementary approach [*REF*; *REF*; *REF*]. Although LLMs generate reasonable elementary planning steps when informed with appropriate guidance [*REF*; *REF*], they cannot combine those units effectively and develop optimal plans without external processors [*REF*; *REF*; *REF*]. This might be an issue if LLMs are deployed for related tasks.
+
+
+FIGURE
+
+
+This work explores the reasoning ability of LLMs in naturalistic asynchronous planning, which we define as complex planning tasks involving both sequential and parallel actions. Given a set of steps for a task, the time required for each step, and step ordering constraints, we ask whether LLMs can compute the shortest possible time needed for an optimal plan for the task (Figure [1]). We note that asynchronous planning problems involve (i) time summation (correctly adding time durations), (ii) time comparison (correctly making time duration comparisons), and (iii) constrained reasoning (correctly solving constrained optimization problems) --- this compositionality of skills makes asynchronous planning a challenging task, and it is yet unclear whether LLMs are capable of solving it. To enable a large-scale evaluation of LLMs, we automatically generate a new benchmark, Asynchronous WikiHow (AsyncHow), with *MATH* high-quality instances for real-life tasks.
+
+
+We use AsyncHow to evaluate GPT-3.5, GPT-4 [*REF*], Cohere Command, LLaMA-2-70B-chat [*REF*] and Mistral-7B-Instruct-v0.2 [Mistral-7B-Instruct; *REF*] on asynchronous planning. We find that while GPT-4 with few-shot task solution illustrations dominates other models in terms of accuracy, all models perform poorly without illustrations about how to solve the task.
+However, even with few-shot illustrations, model performance is unsatisfactory, with the LLMs failing on instances trivial for humans.
+To remedy this, we propose a novel prompting technique, namely Plan Like a Graph (PLaG; Figure ), to instruct models to represent a planning problem like a graph. By converting naturalistic questions to equivalent graph problems, we find that our method boosts the performance of all tested models. Moreover, it can be applied off the shelf to models such as GPT-4 to achieve new state-of-the-art (SOTA) results and consistently improve on all task complexity levels (Figure [2], lower). Despite this, we find that improved models still suffer from drastic performance degradation on complex planning tasks.
+
+
+In summary, the main contributions of this paper are:
+- We automatically generate a high-quality naturalistic benchmark for asynchronous plan reasoning, AsyncHow, and open-source it.
+- We show that LLMs cannot efficiently execute asynchronous plans unless they are supplied with detailed solution illustrations.
+- We propose PLaG, an off-the-shelf method to consistently boost SOTA model performance across all considered task complexities.
+- We show that despite the performance boost, SOTA LLMs suffer from drastic degradation with increasing task complexity, which indicates that there are limits to using LLMs as digital devices.
+
+
+The paper is structured as follows.
+Section [2] introduces our asynchronous planning task, and formally defines its complexity as an optimization problem and our technique. Section [3] describes benchmark generation.
+Section [4] lays out the experiment setting and main results. Results are analyzed in more detail in Section [5]. We review relevant works, and conclude the article with our main contributions and potential impacts in Sections [6] to [8].
+
+
+Preliminaries: Naturalistic Asynchronous Planning 
+
+
+Problem Definition
+
+
+We define our task as follows: assuming infinite resources (e.g. as many agents and tools as needed to achieve optimal parallelism are available) for a naturalistic task with a set of compulsory steps, the time needed for each step, and step ordering constraints, we assess whether LLMs can compute the optimal time needed for the task. Formally, we can cast this as the problem to find the longest path on a Directed Acyclic Graph (DAG). A key advantage of doing so is that we can easily estimate the complexity of our task despite the fact that it is a natural language processing problem (Section [2.2]), which distinguishes our work from many other studies. We empirically prove that our complexity measure predicts LLM behavior in all prompt settings (Figure [2] and Section [5.1]), with variance explained in Section [5.4].
+
+
+FIGURE
+
+
+Since our task is essentially similar to DAG search, it sheds light on the limits of LLMs as digital devices [*REF*] and, specifically, as solvers of discrete optimization problems on graphs [*REF*].
+It also serves as (i) a reference of an optimal, succinct routine that an LLM can implement internally [*REF*] to solve a planning problem and (ii) a baseline to measure the loss induced by specifying a problem in natural language, namely an LLM&apos;s language divide. We present the formal illustration of our problem below.
+
+
+Complexity of Optimal Planning on a DAG 
+
+
+We briefly introduce the complexity measure for our task in this subsection, which we will later show correlates with LLM behavior. With infinite resources, the formalism of a DAG captures the complexity of finding the optimal execution order of compulsory actions *MATH* in a plan *MATH* to minimize the time cost *MATH*. A DAG *MATH* representing *MATH* can be defined as  *MATH*, where *MATH* is a set of nodes *MATH*, each representing an action *MATH* in the planning problem, including auxiliary START (*MATH*) and END (*MATH*).
+*MATH* is a directed set of flow relations *MATH* representing ordering constraints, while *MATH* is a function that assigns a weight to all edges in the graph *MATH*. Each flow relation *MATH* is associated with a positive number *MATH* to express that node/action *MATH* is connected to node/action *MATH* and requires *MATH* time to be completed. The edges also represent causal links in that the precondition for an action/node *MATH* is met if and only if all actions/nodes linked to and preceding *MATH* are performed.
+For simplicity, we denote *MATH* as *MATH* in the remaining part of the paper.
+
+
+In this setting, finding the time cost for an optimal plan *MATH* in a planning problem is equivalent to finding the longest path *MATH* on *MATH* and can be cast as the following optimization problem on a subgraph *MATH*: *MATH* *MATH* *MATH* In this formulation, *MATH* are vertices in *MATH* that are successors of *MATH*.
+
+
+Exhaustively searching a graph and comparing every path&apos;s length can deterministically find the gold answer. On series-parallel graphs [*REF*], which are sufficient to describe planning tasks with infinite resources, the average time complexity is *MATH*  [*REF*], i.e., it is linear with respect to the number of nodes and edges in *MATH*. We define our task complexity accordingly.
+
+
+Methodology
+
+
+In the following, we follow *REF* to formally present our method. Suppose *MATH* is the vocabulary space of an LLM. Given a prompt *MATH*, an LLM *MATH* of parameters *MATH* generates an output *MATH*, conditioned on the input value *MATH*, namely *MATH*. A score function *MATH*, which we want to maximize, measures how well *MATH* fits *MATH*: *MATH**MATH*. *MATH* To maximize *MATH*, we can optimise *MATH* or *MATH*. Fine-tuning directly modifies *MATH* by changing a Language Model&apos;s internal states *MATH*  [*REF*; *REF*]: such an approach tends to be difficult, if not infeasible, with close-sourced LLMs. On the other hand, prompt engineering maps *MATH* to *MATH* by changing the input representation via a mapping function *MATH*. It is easier to deploy in both closed and open-source models [*REF*; *REF*; *REF*]. After engineering prompt, we get: *MATH*.
+
+
+FIGURE
+
+
+In our work, we propose a novel prompting technique *MATH* called Plan Like a Graph (PLaG, Figure), for which we will show that *MATH* is higher than *MATH* in all tested models. Taking inspiration from  *REF* and  *REF*, PLaG includes a graph representation in the prompt, where we give models k-shot illustrations with graphs describing the task and instruct them to either reason based on a given graph (i.e., explicit graph) or to generate a graph themselves and then reason about it [i.e., Build a Graph/BaG; *REF*]. We prompt models with/instruct models to produce graph representations of the naturalistic question, then use the information to solve relevant tasks.
+
+
+Suppose *MATH* to be a set of questions of complexity *MATH*; we show that our method achieves a consistent performance boost over standard Input-Output (IO) prompting in SOTA models (Figure [2], lower). We have that:
+
+
+*MATH* *MATH* *MATH* where *MATH* groups varying complexities of our task instances.
+
+
+The AsyncHow Benchmark for Planning 
+
+
+Since there is no existing dataset appropriate for our defined task, we generate a new naturalistic asynchronous planning benchmark called Asynchronous WikiHow (AsyncHow). This section describes and validates an automatic method for generating this benchmark.
+
+
+On top of existing data in ProScript [*REF*], an end-to-end human-annotated partial-order plan dataset, we use WikiHow [*REF*; *REF*] to collect the planning tasks we need. In line with recent works, we use LLMs as data annotators [*REF*; *REF*]. Specifically, we use the GPT models for part of pre-processing, time annotation, and step dependency annotation as they exhibit impressive annotation capabilities [*REF*], yet we stress that (i) any LLM (or equivalent algorithmic procedure) can be used as an annotator and (ii) the LLM used to annotate is not involved in the ground truth answer generation, where we use deterministic procedures such as the longest path on a DAG. This process culminates with AsyncHow, a curated list of *MATH* data points for asynchronous planning. We report an overview of the benchmark structure in Figure.
+
+
+We now briefly describe the data generation process, with more details in Appendix [10.2].
+
+
+First, we preprocess the dataset to collect high-quality plans rated by WikiHow users. Then, given our task definition (e.g. all steps need to be executed, etc.), we filter out plans with optional steps and others that do not fit into our research goal by both matching keywords and prompting GPT-3.5 to answer relevant questions (e.g. Are all steps needed in this plan?). Then, we use GPT-3.5 to estimate the time duration per step and exclude instances whose step durations cannot be quantified numerically. Next, we use GPT-4 to annotate step dependencies with the dot language. After removing redundant dependencies (e.g. in an answer saying ‘step 1 &#13;ightarrow step 2’, ‘step 2 &#13;ightarrow step 3’, ‘step 1 &#13;ightarrow step 3’, we remove ‘step 1 &#13;ightarrow step 3’), we keep data points that have at least four consistent answers that form asynchronous plans and discard the others.
+
+
+After the above steps, we combine all asynchronous instances with complete time annotation for all meaningful steps in ProScript with our generated asynchronous instances from WikiHow, after which we obtain a collection of *MATH* instances. We then generate natural language prompts based on the task information in dot language, as users tend to use natural language descriptions to specify such a task. We have ten trivially different plausible templates with their succinct use cases in our dataset (e.g. ‘step 1 -&gt; step 2, step 1 -&gt; step 3’ may be expressed as ‘Step 1 must precede step 2, step 1 must precede step 3’, and succinctly as ‘Step 1 must precede step 2 and 3’) to allow for relevant robustness studies [*REF*].
+
+
+Last, we generate equivalent DAGs representing the workflow and compute the optimal time duration for a plan by calculating the time duration for the longest one. Each planning task is eventually accompanied by four types of graph representations: the adjacency and the edge list, the adjacency matrix, and the compressed sparse row (csr), which can be used to aid LLMs in structural reasoning and assess LLMs&apos; robustness against different graph representations.
+
+
+TABLE
+
+
+Quality Check 
+
+
+On top of the intermediate quality-check stages in the above process (e.g., filtering out inconsistent answers and low-scored scripts, etc.), we finally perform two other rounds of quality checks to ensure high data quality further.
+
+
+First, we assess step dependency annotation quantitatively: in three randomized experiments, we sample *MATH* instances from the ProScript dev and test sets. Following  *REF*, we compare the pair-wise precision, recall, and F1 score of our generated dependency annotations with human performance. Our annotation method has near human-level performance, as reported in Table.
+
+
+In addition, we randomly sample *MATH* instances with a mixture of LLM and human-annotated data and qualitatively survey experts without informing them which data points are human-annotated. We follow the &apos;subjective&apos; approach in  *REF* by instructing them to consider the acceptability of the task time estimations and step ordering constraints. Generally, human-annotated and LLM-generated instances receive similar levels of acceptability.
+
+
+Benchmarking Experiment 
+
+
+In our benchmarking experiment, we are interested in answering the questions outlined below:
+
+
+First, can a model efficiently solve asynchronous planning tasks with existing prompting techniques such as k shot [*REF*] and Chain of Thoughts [CoT; *REF*]? Second, can we develop a better method to prompt models to improve their performance? Third, how do the &apos;scale effects&apos; apply by varying the problem complexity and the model size? Last, is an LLM&apos;s performance robust to trivially different linguistic or graphical prompts?
+
+
+We design experiments accordingly.
+
+
+Experimental Setting and Design 
+
+
+We conduct experiments with GPT-3.5, GPT-4, and Command, representatives of closed-source LLMs, as well as open-source models including LLaMA-2-70B-chat and Mistral-7B-Instruct-v0.2.
+
+
+First, we experiment with different language descriptions of our referenced problem in a zero-shot setting with *MATH* sampled prompts (see details in Appendix [10.7]) and use the best-performing one for the successive experiments.
+
+
+We then benchmark our models in full scale in four prompting regimes: (i) zero shot: only prompting models with task descriptions without additional information or training; (ii) k shot [*REF*]: prompting with k in-context-learning (ICL) instances with desired outputs preceding the task description; (iii) zero shot with Chain of Thought [0 shot+CoT; *REF*]: prompting the model with task description along with CoT instruction Let&apos;s think step by step, and (iv) k shot with CoT [k shot+CoT; *REF*]: prompting the model with k ICL instances with CoT illustrations for problem-solving process and desired outputs preceding the task description with CoT.
+
+
+Then, we experiment by sampling 100 instances for the adjacency list, edge list, adjacency matrix, and csr in the setting of PLaG (explicit graph). We use the best type for full-scale PLaG experiments (explicit graph/BaG). Prompt examples are in Appendix [10.8].
+
+
+Experiment Results 
+
+
+We evaluate each model&apos;s performance by the accuracy of correctly reporting the shortest time needed for different plans. Main results are in Table .
+
+
+The strongest performance is obtained by GPT-4 with PLaG (BaG). This is surprising given that GPT-3.5 does better than GPT-4 (though not very well) on the 0 shot, 0 shot+CoT, and k-shot settings, which lack explicit illustrations. A solid performance gap divides open-source models from GPT models, although Mistral-7B-Instruct performs better in our task despite being much smaller than LLaMA-2-70B-chat.
+
+
+PLaG (our method) successfully boosts the performance of all models.
+Surprisingly, PLaG with BaG, which does not require external processing to supply new graphs explicitly in every task description, improves the performance of the most capable models (GPT-3.5 and GPT-4) across all complexity levels off the shelf. These results suggest that PLaG benefits LLMs by adding graph information and indicates the potential of boosting capable models&apos; performance in planning without external processors.
+
+
+Next, we report our experiment results on different text prompts and graph types. As we report in Figure [4], different text prompts and graph types induce variations in model performance, and models have different preferences for these variables. Using more succinct and more natural expressions (see Appendix [10.2.4]) tends to downgrade model performance, a hint that models cannot adapt to slight variations of the same prompts (results are reported in Appendix [10.10]).
+
+
+FIGURE
+
+
+Further analysis of GPT-3.5/4 Results 
+
+
+This section investigates which factors influence the most potent models in our task, namely GPT-3.5 and GPT-4.
+
+
+We first relate an LLM&apos;s accuracy with task complexities, then provide an ablation study to identify the salient characteristics that make a planning problem inherently complex. Next, we use a synthetic dataset that covers and goes beyond the distribution of AsyncHow to estimate model performance in the potential scenarios that might fall out of the distribution of our benchmark. Last, we perform a qualitative analysis to provide further rationales for surprising phenomena observed in our results.
+
+
+Accuracy vs. Complexity 
+
+
+In Figure [2] (Section [1]), we plot the accuracy of GPT-3.5 and GPT-4 as a function of the task complexity *MATH*. Generally, the accuracy negatively correlates with the complexity of the task for all models and all settings, with graphs of complexity *MATH* that already result in challenging problems for the most capable model and best setting. The complexity measure also predicts model accuracy trends well in settings without graphs. We notice a little jump at complexity *MATH*, for which we will discuss possible reasons in Section [5.4].
+
+
+Without our method, GPT-4 with k shot + CoT consistently outperforms any other settings by a solid margin, while all the other settings have comparable performances independently from the number of illustrations provided or the model employed (Figure [2], upper).
+
+
+Our method (PLaG) consistently improves over k shot+CoT, the best method without PLaG, among tasks of all complexities (Figure [2], lower) for both GPT-3.5 and GPT-4. In line with what was observed before, the accuracy drops significantly with complex planning tasks, once again proving LLMs are not yet robust enough to be deployed as generally intelligent agents in planning.
+
+
+Ablation Study
+
+
+FIGURE
+
+
+Solving our planning task requires a certain degree of compositionality in combining time comparison, time summation, and constraint reasoning correctly. We perform an ablation study to identify which skills LLMs lack. We sample *MATH* sequential planning tasks (i.e., the optimal time calculation only requires summation) and fully parallel tasks (i.e., the optimal time calculation only requires comparison) from the non-asynchronous part in our generated dataset. We sample equal numbers of plans per step with a minimum of three steps and a maximum of seven, as smaller plans are trivial while higher ones are sparse in AsyncHow, which can potentially lead to sampling bias. We experiment with k shot + CoT and compare model performance across step numbers in different plan types in Figure [5].
+
+
+While GPT-3.5 and GPT-4 have similar accuracy in parallel tasks requiring time comparison, GPT-4 outperforms GPT-3.5 on sequential tasks, i.e., at time summation, especially when the step number increases. Our results suggest a sensible performance gap between parallel/sequential and asynchronous plans for both models. We conclude that reasoning about task constraints adds special difficulty on top of time comparison and summation for LLMs.
+
+
+Out-of-distribution Probing
+
+
+FIGURE
+
+
+We estimate LLMs&apos; performance on out-of-distribution data points whose complexities fall out of the data-rich part (i.e., complexity *MATH*) of AsyncHow. As our naturalistic planning problem can be cast into longest-path graph search (refer to formalism in Section [2]), we generate a synthetic dataset of *MATH* data points evenly distributed between complexity 10 to 40 for prototypical shortest-path graph search (we can cast the longest-path search to shortest-path search by negating edge weights). By prototypical, we refer to formulating prompts for dynamic programming problems where an LLM is queried to compute the longest path on a graph with numerical edge weights to simulate time durations for each node the edge starts from. For consistency, we sample the graphs as similar to AsyncHow data as possible (see details in Appendix, Section [10.11]). We prompt GPT-3.5 and GPT-4 in 0 shot + CoT with their respective best graph representations found in Section [4.2]. We compare its accuracy with the accuracy in 0 shot + CoT in the naturalistic experiment.
+
+
+We report results in Figure [6]: graph search accuracy shows a down-going trend similar to the in-domain naturalistic data, which indicates that model performance in naturalistic planning tasks is likely to follow the pattern of synthetic data and continue to drop with complexity further increasing. We consider it a hint that LLMs are unreliable routine simulators [*REF*].
+
+
+Interestingly, although solving essentially the same task, GPT-4 performance is much higher in the prototypical setting than the naturalistic one. In comparison, GTP-3.5 derives little benefit from the prototypical setting. We impute this gap to several concurrent factors.
+First, computing the optimal plan with durations expressed as numbers is easier than naturalistic time conversion (we will discuss this in the next subsection). Second, naturalistic planning requires turning language into an effective procedure, which adds to the difficulty of processing prototypical graphs. The results also shed light on the reasons behind PLaG boost of performance, i.e., PLaG points a model to a setting it is already familiar with and better masters.
+
+
+Qualitative Study 
+
+
+Last, we qualitatively overview the failures and successes of LLMs on planning tasks, which shed light on edge cases that are of interest to understanding their limits and capabilities.
+
+
+Wrong answers in easy problems.
+
+
+Even for low-complexity planning instances, GPT-4 may incur trivial errors. It emerges that errors tend to fall into a few macro-categories: (i) parallelism error where LLMs cannot efficiently parallelize as many steps as possible: e.g., when step 3 (10 min) can be done together with step 1 (5 min) and 2 (15 min), the model only parallelizes 1 and 3 but schedules step 2 to follow them; (ii) time unit conversion error where LLMs cannot efficiently convert time units to common measures for calculation: e.g., 3 weeks and 1 hour is wrongly converted to be 5041 hours (essentially 30 weeks and 1 hour) in the final answer. Our findings are in line with *REF* and *REF* in that LLMs tend to prefer linear pattern matching and are prone to mistakes in time carries [*REF*].
+
+
+Correct answers in hard problems.
+
+
+For graphs of complexity *MATH*, GPT-3.5 and GPT-4 perform slightly better than that at *MATH*, which have lower-class complexity. We impute this phenomenon to (i) the sparsity of graphs for higher complexities and (ii) an implicit bias of our benchmark towards easier data conversions for more complex planning tasks. See a more in-depth discussion of this phenomenon in the Appendix [10.12].
+
+
+Why is BaG better than explicit graph?
+
+
+A symbolic processor deterministically generates correct graph representations, while BaG prompts a model to generate its internal representation of the problem with no promise of complete correctness.
+However, among PLaG methods, BaG performs slightly better than explicit graphs (i.e., generated algorithmically). We sample some instances and find that BaG-generated graphs are of the same format as we provided in k-shot prompt, and we thus impute the performance gap to a sub-optimal positioning of the graph in the former setting [*REF*; *REF*]: the explicit graph prompt setting expresses the prompt in the form ‘[Task description with graph] Answer:’, with the graph that tends to appear in the middle of the context and can be ignored by the model, while for BaG, it is ‘[Task description] Answer: [Graph]’, with the graph in the latter case generated at a successive step.
+
+
+Related Work 
+
+
+LLMs for planning.
+
+
+Works focusing on automatically generating plausible plans for daily tasks show that LLMs can be used to develop reasonable and ordered actions or goals [*REF*; *REF*; *REF*].
+The work most similar to ours is  *REF*: they collected *MATH* ordered plans via crowdsourcing for ProScript. However, the dataset is insufficient to serve as a benchmark for asynchronous planning as relevant data points are sparse and lack diversity.
+
+
+Another line of work focuses on finding the optimal plan for domain-oriented tasks such as robotics. Although LLMs can be readily deployed to parse natural language into logical elements, they alone cannot develop optimal plans to accomplish a given goal without external symbolic processors [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+While these works focus on domain-oriented tasks using external symbolic processors, we close the gap between structured and naturalistic tasks and show the potential of using LLMs only for these tasks.
+
+
+LLMs for graph reasoning.
+
+
+Two complementary lines of work inform LLMs with graphs and can be categorized into implicit and explicit methods. Implicit methods help decompose task goals into atomic steps [*REF*; *REF*; *REF*] and help explain complex reasoning processes [*REF*; *REF*; *REF*; *REF*].
+Works on explicit graphs incorporate external knowledge and reason about more complex problems such as multi-hop question answering [*REF*; *REF*; *REF*]. Our work shows that instructing LLMs to consider problems like graphs can improve LLMs&apos; performance in planning. It also complements recent discoveries suggesting that LLMs&apos; performances negatively correlate with the complexity of graph problems [*REF*; *REF*; *REF*] by showing that the conclusion also holds in relevant naturalistic tasks.
+
+
+Conclusion 
+
+
+In this paper, we automatically generate a benchmark and assess LLMs for their performance in asynchronous plan reasoning. We find that if not provided with a detailed illustration of the task solution process, all models behave extremely poorly in our task. We propose a method PLaG that consistently boosts SOTA model performance across all task complexity levels off the shelf. Despite this, we find that model performance still drastically downgrades with increasing task complexity, which calls into question using them as digital devices or generally intelligent agents.

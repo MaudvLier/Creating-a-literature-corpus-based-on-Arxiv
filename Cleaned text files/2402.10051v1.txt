@@ -1,0 +1,190 @@
+SwissNYF: Tool Grounded LLM Agents for Black Box Setting
+
+
+Introduction
+
+
+Significant advancements in Large Language Models (LLMs) like GPT [Radford et al. 2018; Radford et al. 2019; Brown et al. 2020; Achiam et al. 2023] and PaLM [Chowdhery et al. 2023; Anil et al. 2023] have demonstrated profound abilities in reasoning and following instructions over an extensive array of tasks [Huang &amp; Chang 2023]. The recent shift towards leveraging LLMs to interact with external tools for addressing complex real-world challenges marks a significant area of interest [Hao et al. 2023; Zhang et al. 2023a; Zhuang et al. 2023b; Yang et al. 2023; Schick et al. 2023; Lu et al. 2023a]. In addressing intricate problems, autonomous agents powered by LLMs employ an amalgamation of LLMs and various external tools (APIs), crafting solutions that necessitate a sequence of intermediate reasoning steps [Schick et al. 2023; Lu et al. 2023a; Lu et al. 2023a; Patil et al. 2023; Qin et al. 2023]. When presented with a problem, These agents&apos; primary objective is to identify and execute a series of API function calls sequentially, leading to a coherent solution. These approaches are ineffective when queries lack transparency or when the APIs are irreversible.
+
+
+FIGURE 1
+
+
+We coin the term &quot;black-box&quot; settings in the context of tool planning as scenarios where the outcomes of an API or tool are not observable. This framework is especially pertinent in systems where using certain APIs poses risks, such as those causing inconsistencies by deleting or updating database entries, canceling jobs, or performing similar operations. It&apos;s also relevant where API experimentation incurs high costs or when APIs require considerable time to execute, ensuring clarity and comprehensive coverage without redundancy, making it challenging to interpret their outcomes. We present a taxonomy of such systems Fig. [1] into three branches:
+
+
+1. White Box Systems: In these settings, planners can invoke the API, receive responses, access the source code and understand its complex logic. This access enables the system to navigate complex inputs, intricacies and use cases efficiently.
+2. Gray Box Systems: Planners in these environments have descriptions of the tools at their disposal and the capability to call the API and receive responses. The system&apos;s planning relies solely on the limited descriptions provided and the responses for each tool.
+3. Black Box Systems: In the most challenging scenarios, planners are confined to tool descriptions without access to actual tool outputs. Here, the planner must decipher the dynamics of each tool based solely on its description, making it a particularly demanding task to formulate responses to queries.
+
+
+The [Zhuang et al. 2023a] and [Qin et al. 2023] methods excel in straightforward scenarios where an agent can iterate over tools to identify the optimal path, yet they lack efficiency and necessitate extensive exploration. Approaches like [Yao et al. 2022] and [Parisi et al. 2022], subsets of this exploratory paradigm, offer enhanced efficiency yet frequently falter due to their constrained directionality in tool search, making them suitable predominantly for straightforward API challenges. In contrast, the [Zhang et al. 2023b] approach is efficient regarding API execution costs by constraining the number of calls.
+However, it omits any form of verification for its proposed trajectory, diminishing its precision in practical applications.
+
+
+These methodologies in tool application present a dichotomy between accuracy and computational overhead. While generally unsuitable for black-box settings, the Reverse chain approach exhibits potential for adaptation within such frameworks. On the other hand, program synthesis-based algorithms have been instrumental in exalting reasoning and decision-making capabilities within LLMs, offering a more naturally associative decision-making process than that afforded by mere text. Works like The Chain of Code [Li et al. 2023] and Program-of-thoughts [Chen et al. 2022] are great examples of using code generation to improve decision-making for answering general open-domain questions. To this end, few works also upheld the reasoning capability of LLMs using code like &quot;TORA: A Tool-Integrated Reasoning Agent for Mathematical Problem Solving&quot; [Gou et al. 2023], &quot;Solving challenging math word problems using gpt-4 code interpreter with code-based self-verification&quot; [Zhou et al. 2023b] and &quot;PAL: Program-aided Language Models&quot; [Gao et al. 2023] have exploited code interpreters for zero-shot verified solving, substantially surpassing few-shot learning benchmarks by enabling semi-verification of proposed solutions.
+
+
+However, works like [Paranjape et al. 2023], which employs code synthesis for tool usage, are restricted by their limited toolset and the scalability challenge posed by the need for extensive human feedback and interventions and the need for the human expert to be familiar with the whole toolset.
+Similarly, works such as [Xu et al. 2023], which deploys language models for real-time code generation and command execution within controlled environments, are limited by their narrow tool range and a deficit in generalizability. The state-of-the-art approaches on HumanEval [Chen et al. 2021] and HumanEval-X [Zheng et al. 2023] datasets for code generation, like Reflexion [Shinn et al. 2023] and LATS [Zhou et al. 2023a], which iterate upon code based on interpreter outputs and reflect over them, these approaches have yet to be experimented with in other domains associated with LLMs.
+
+
+To bridge these gaps, we introduce the TOPGUN (Tool Orchestration and Program synthesis for Generalizing over UNknown systems) framework, which unifies code generation, reasoning, and strategic tool planning designed for complex tasks. TOPGUN also verifies the execution plans and does so with exceptional efficiency in API cost, effectively addressing the limitations of preceding models.
+
+
+FIGURE 2
+
+
+Key contributions of our work are summarized as follows:
+
+
+1. To the best of our knowledge, we are the First to coin the term Black Box setting for API usage and developed a suite to encourage the development of algorithms for such scenarios.
+2. We leverage the program synthesis capabilities of Large Language Models (LLMs) to augment their efficacy in tool usage substantially, showcasing a notable enhancement in performance.
+3. We present a robust and cost-efficient framework for scalable solutions across a wide array of open-domain queries, even when faced with limited knowledge of user data/tools. It is also publically hosted to demonstrate the same.
+
+
+This paper details our methodology and its evaluation by first elucidating the background on Tool planning [2.1] and Code generation using LLM [2.2] followed by detailing individual components of the pipeline [3]. Our evaluation is bifurcated into two segments: initially, we undertake a gray box [4.1] across principal datasets, and subsequently, we delve into a black box setting [4.2]. For the latter, we have curated a bespoke dataset employing Toolbench prompts, intentionally adjusting the dataset to include only limited documentation of widely used libraries. This adjustment aims to validate the generalizability of our approach. Additionally, we juxtapose our methodology with a tailored variant of the Reverse Chain method to scrutinize performance disparities.
+
+
+Preliminaries
+
+
+1. Problem Formulation
+
+
+Tool planning within the context of a Large Language Model (LLM), denoted as ρ, involves leveraging a selection of tools from a pool of n candidate tools in the corpus C, represented as C = {t0, t1,..., tn}, to effectively address a user&apos;s query q. The primary goal is to formulate a meticulous plan, known as the Solution Trajectory St, for the orchestration of these tools.
+The Solution Trajectory St, which outlines the sequential execution of tools, is crafted to directly address the query q. The LLM agent, or planner G, is responsible for planning or generating St from C, formalized as St ← G(q, ρ, C). This process ensures a structured and coherent response strategy, aligning the tools&apos; capabilities with the query&apos;s specific requirements for an effective solution.
+
+
+2. Code Generation
+
+
+The integration of Reflexion [Shinn et al. 2023] with Large Language Models (LLM) ρ and Python Interpreter I has significantly advanced coding tasks by enabling iterative code refinement. This approach leverages feedback F to iteratively address exceptions and enhance initial code output c, guided by test cases dynamically generated by ρ itself. This ensures comprehensive verification and refinement within a Function Call module, leading to a finalized code cn. This methodology enhances code quality and aligns with contemporary standards, marking a leap in automated code development and verification. This process of iterative code generation can be mathematically denoted as Eq. [1]
+
+
+FIGURE 3
+
+
+In this section, we introduce SwissNYF, a suite that enables LLM-based agents to efficiently navigate the action space to identify a valid solution for problem-solving in a black box scenario. SwissNYF is composed of five major components i.e., Function Signature Generation P, Corpus &amp; Retriever C, Planner G, Verifier F and Parser K as in Fig. [2]. We explain individual components of the pipeline in the subsequent subsections.
+
+
+2. Function Signature Generation
+
+
+Function signatures, conceptualized as pseudo APIs, serve to emulate the behaviour of real API functions based on given tool descriptions.
+This emulation is crucial for two primary reasons in our tool planning methodology: firstly, they act as stand-ins for actual API calls, thereby enabling LLMs to plan and execute tasks with higher efficiency; secondly, they are treated as pre-defined functions, facilitating the transformation of tool augmentation into a task akin to code generation, using these pseudo functions. These function signatures are distinguished by their docstrings and an example return object that aligns with the tool description, equipping the planner with the necessary means to effectively address user queries. In the context of our SwissNYF implementation, we have adopted a straightforward yet effective method for generating these function signatures, termed CodeSynth. The efficacy of this approach is further analyzed in [4.3].
+
+
+1. CODESYNTH
+
+
+For a given set of tool descriptions t ∈ T, we direct the Large Language Model (LLM) ρ to generate pseudo-function implementations, denoted as tˆ. Our primary objective is to ensure that the arguments and return types of these pseudo-functions remain consistent with their descriptions. Additionally, we craft detailed docstrings for each pseudo-function to facilitate subsequent processes. A critical aspect of CodeSynth is the inclusion of an example return value, which is designed to mimic all potential operations the returned object might undergo during the verification process. The output generated by CodeSynth is illustrated in Fig. [4a]. Moreover, the code generation facilitated by this block benefits from validation through Reflexion, as outlined in Eq. [1]. Ultimately, the methodologies applied within CodeSynth can be encapsulated in Algo.
+[1].
+
+
+FIGURE 4
+
+
+Utilizing the Function Calling module alongside the Interpreter, we rigorously test the pseudo-functions against a wide range of real-world scenarios. This approach guarantees that the test cases are comprehensive and reflective of actual function usage, allowing us to gather detailed feedback on the pseudo-functions&apos; performance. Such feedback is vital for the iterative improvement of the pseudo-functions, significantly enhancing their reliability and applicability in practical settings. Prompts for CodeSynth can be documented in [A.1].
+
+
+ALGORITHM 1
+
+
+3. Corpus and Retriever
+
+
+The function signatures, crucial components of our methodology, are systematically stored within a corpus for future utilization by any planning system. This corpus facilitates the indexing of tool descriptions, enabling the precise retrieval of the most appropriate tool based on the index. Notably, the literature documents several advanced retrieval systems designed for this purpose, demonstrating exceptional accuracy. These include ToolBench IR [Qin et al. 2023], APIRetriever [Zan et al. 2022], Instructor-XL [Su et al. 2022], and GEAR [Lu et al. 2023b]. Our framework incorporates these retrievers, with Instructor-XL set as the default option, owing to its proven efficacy. Furthermore, we are actively exploring the integration of AnyTool&apos;s Hierarchical API Retriever [Du et al. 2024], anticipating significant enhancements to our tool retrieval capabilities. This strategic inclusion of multiple retrievers ensures our system remains versatile and effective in identifying the most suitable tools for a given task, aligning with the latest advancements in retrieval technology.
+
+
+4. Planner
+
+
+We have implemented two planning approaches in our framework. The first leverages a modified Reverse Chain [Zhang et al. 2023b] to support multiple end function calls by decomposing tasks into subtasks and creating sub-trees with the original reverse chain technique. The second, TOPGUN, is our proposed code-driven planning algorithm, designed for speed, efficiency, consistency, and accuracy, especially in black box scenarios. TOPGUN offers a streamlined alternative to traditional planning methods, optimizing for complex system navigation and task execution with greater reliability and cost-effectiveness.
+
+
+FIGURE
+
+
+1. TOPGUN
+
+
+TOPGUN, an acronym for Tool Orchestration and Program synthesis for Generalizing over UNknown systems, redefines the approach to addressing user queries q by framing the challenge as a task of code generation. Utilizing pseudo-functions Tˆ as functions available to TOPGUN enables the agent to construct an accurate sequence of function calls c0 ← ρ(q, Tˆ, C), effectively depicted in Fig. [4b]. Leveraging Reflexion detailed in [Eq.1], the framework iteratively refines responses to the query. The synthesis of these components into the comprehensive algorithm is presented in Algo. [2] showcases TOPGUN&apos;s capability to navigate through various solution paths. Unlike traditional traversal-based techniques, TOPGUN capitalizes on the inherent code-generation capabilities of LLMs, facilitating a more direct and efficient solution process. This distinction not only enhances efficacy by pinpointing issues with precision but also ensures adaptability in black box scenarios, simultaneously optimizing performance in gray box settings. A detailed pipeline overview with TOPGUN in place is given in [Fig.4b]. With prompts documented in [A.1].
+
+
+ALGORITHM 2
+
+
+5. Verifier
+
+
+Verification is closely linked to the functionality of the Planner G, relying on both the nature of G&apos;s output and its ability to incorporate feedback. Although verification initially serves as a preparatory step prior to parsing, it also plays a crucial role in refining outputs by providing feedback that G can use for subsequent iterations.
+
+
+In our framework, we leverage Reflexion [Shinn et al. 2023], detailed in Eq. [1] and depicted in Algo. [2], to seamlessly integrate verification and feedback within the TOPGUN methodology. This eliminates the requirement for an additional function call module, concentrating instead on directly executing code pertinent to the user query. This approach is illustrated in Fig. [5], providing a visual representation of the concept.
+
+
+6. Parser
+
+
+The Parser K, akin to the Verifier F, is intrinsically dependent on the Planner G for its functionality. Its pivotal output is a well-defined Solution Trajectory St, mapping out the sequence of tool applications devised to address the query. In employing the Reverse Chain technique, our methodology involves synthesizing individual sub-trees into a singular, comprehensive tree through the capabilities of LLM ρ. The process&apos;s efficacy is markedly improved by the judicious reuse of elements from the individual trees during their amalgamation.
+
+
+Conversely, for the TOPGUN methodology, we adopt the established Abstract Syntax Tree (AST) paradigm [Fischer et al. 2007] to segment the program into fundamental function calls, alongside specifying their arguments and return values. This segmentation is instrumental in constructing a systematic series of tool invocations. This meticulously arranged series, denoted as St, is succinctly formalized as St ← K(cn).
+
+
+The entire pipeline, as depicted in Figure [3], emerges from the integration of various components designed to effectively address user queries through the strategic orchestration of tools within the SwissNYF framework.
+
+
+TABLE 1
+
+
+Tool planning datasets, while diverse, often fall short in supporting multi-turn and multi-call dialogues, as seen in works by [Schick et al. 2023] and [Tang et al. 2023], and lack precise evaluation metrics, complicating thorough assessments. Even comprehensive datasets like ToolBench by [Qin et al. 2023] struggle with aligning to black-box settings, presenting significant challenges for evaluating tool planning in such scenarios.
+
+
+Our evaluation employs the ToolBench benchmark [Qin et al. 2023] and a specially curated dataset for unchar codebases, assessed in both gray [4.1] and black box [4.2] settings. We benchmark our TOPGUN approach against existing methods using win rate, token count, and success rate. Additionally, we scrutinize CodeSynth&apos;s (P) impact on the Planner&apos;s (G) performance and independently evaluate its ability to generate effective function signatures, acting as pseudo functions, detailed in Section [4.3].
+
+
+1. Gray Box Evaluation
+
+
+To assess the performance of TOPGUN and compare it with other gray box methodologies such as ReACT and DFSDT, we maintain the integrity of our pipeline while adapting the evaluation process to incorporate actual functions in place of pseudo functions within the output solution trajectory. This approach effectively leaves our black box pipeline intact while converting it into a gray box evaluation framework. The necessity of responses and Final answers for evaluation purposes has led us to adopt this hybrid strategy. In practical scenarios, this mirrors the process where a generalist planner delivers a strategy to the client, who then substitutes pseudo-function implementations with their real functions for execution. For this evaluation, we employ ToolBench, as detailed by [Qin et al. 2023], and conduct our analysis across all problem categories provided in the dataset. Further elaboration on the precise evaluation methodology and the application of ToolBench is documented in [A.2].
+
+
+TABLE 2
+
+
+Results: Win Rate comparisons for ToolLLaMa-ReACT, ToolLLaMA-DFSDT, ChatGPT-DFSDT, GPT4-DFSDT, and GPT4-TOPGUN against ChatGPT-ReACT and GPT4-TOPGUN are summarized, with averages taken from 7 runs per model pair, detailed in Tables [1] and [2]. TOPGUN significantly surpassed ReAct and DFSDT in all categories, achieving win rates of 80.27% versus GPT4-ReACT, 78.59% against GPT4-DFSDT, and 86.54% against ChatGPT-ReACT, showing improvements of 22.54% and 16.14% respectively. These results highlight TOPGUN&apos;s superior ability to create tool plans that align with preference evaluation criteria across various conditions.
+
+
+2. Black Box Evaluation
+
+
+FIGURE 6
+
+
+Utilizing the Data Generation pipeline from [Qin et al. 2023], we constructed a blackbox scenario dataset featuring 36 LLaMa-Hub [LlamaIndex 2023] tools and unique functions from private libraries. Following [Zan et al. 2022], we converted Pandas and Numpy into Monkey and BeatNum packages, renaming all internal functions and structures to test planner generalizability without LLM prior knowledge. This dataset, detailed at [A.1], focuses on accuracy of the solution trajectory, with each query designed for a single correct path. After manual annotation, it comprises 100 queries and 162 tools, with samples and TOPGUN outcomes at [A.3.2] and [A.5.2].
+
+
+Results: The black-box evaluation, featuring TOPGUN and a revised Reverse Chain, utilizes P function signatures for a comprehensive black-box methodology. TOPGUN surpasses evaluations, emphasizing output trajectories. Success rates, derived from exact trajectory matches with the ground truth and averaged over ten iterations, are documented in Table [3]. Figure [6] details the Average Token usage for each algorithm per query, underscoring TOPGUN&apos;s effectiveness and efficiency in generating precise and resourceful tool plans in black-box scenarios, demonstrating its adaptability across diverse datasets.
+
+
+Note: A black-box evaluation using ToolBench is infeasible, as ToolEval&apos;s metrics, such as pass rate and win rate, rely on intermediate tool responses and the final answer.
+
+
+3. CodeSynth Evaluation
+
+
+To assess the quality of function signatures produced by CodeSynth, we adopt neuro-symbolic representations, as proposed by [Parisotto et al. 2017] and [Nye et al. 2021]. These representations aim to capture the abstract semantic essence of a given program, aligning well with our objectives. Our evaluation spans the Python subset of HumanEval-X [Zheng et al. 2023] and MBPP [Austin et al. 2021] dataset. Inspired by the semantic probing model introduced by [Ma et al. 2023], we construct semantic representations of both synthesized pseudo functions and ground truth code. Utilizing the tree-sitter [Brunsfeld et al. 2024] package, we form the Abstract Syntax Tree, focusing our computation of the F1 score exclusively on the Function Definition block while excluding the body block. Hence, the final metric is precisely representative of our objective with CodeSynth. The appendix [A.4.1] can be referred to for function signature examples synthesized with the HumanEval-X dataset.
+
+
+Results: We evaluate CodeSynth across multiple reflection cycles, tracking the F1 score for each cycle to illustrate consistent enhancements in function signature quality, as depicted in Table [4]. CodeSynth significantly improved F1-scores on both HumanEval-X and MBPP datasets, achieving a perfect score of 1.0 by the fifth iteration from initial scores of 0.844 and 0.912, respectively. These findings highlight CodeSynth&apos;s ability to produce function signatures closely resembling the semantics of the target function.
+
+
+TABLE 4
+
+
+5 Conclusion
+
+
+In this work, we address the challenge of tool planning in black-box settings, where direct access to API calls and their implementations is not feasible, raising concerns about cost efficiency and privacy in API interactions. We introduce SwissNYF, a comprehensive framework designed to equip Large Language Models (LLMs) with the ability to navigate these scenarios effectively. Central to SwissNYF is the ingenious function signature generation that allows the planner to rely on tool descriptions, circumventing the need for actual API executions. We further introduce TOPGUN, a code-driven planning approach leveraging LLMs&apos; code generation capabilities to offer a robust solution for black-box environments. Our extensive evaluation across various toolsets and settings demonstrates the superior performance of our methodology against traditional tool planning strategies, validating its effectiveness and reliability. Through SwissNYF and TOPGUN, we establish an exciting and emerging paradigm in tool planning, We envision SwissNYF as a central hub for black-box tool usage, encouraging future advancements in developing strategies for black-box scenarios, thus making a significant leap towards efficient, privacy-conscious tool planning in the realm of LLM-enhanced applications.

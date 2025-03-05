@@ -1,0 +1,651 @@
+Introduction
+
+
+Generative AI and Large Language Models (LLMs) have shown unprecedented
+success on NLP tasks [*REF*; *REF*; *REF*; *REF*].
+One of the forthcoming advancements will be to explore how LLMs can
+autonomously act in the physical world with extended generation space
+from text to action, representing a pivotal paradigm in the pursuit of
+Artificial General Intelligence [*REF*; *REF*].
+
+
+Games are suitable test-beds to develop LLM-based
+agents [*REF*; *REF*] to interact with the
+virtual environment in a way resembling human behavior. For example,
+Generative Agents [*REF*] conducts a social experiments
+with LLMs assuming various roles in a &quot;The Sims\&quot;-like sandbox, where
+agents exhbit behavior and social interactions mirroring humans. In
+Mincraft, decision-making agents [*REF*; *REF*; *REF*] are
+designed to explore the world and develop new skills for solving tasks
+and making tools.
+
+
+FIGURE
+
+
+Compared to existing games, tactical battle games [*REF*] are
+better suited for benchmarking the game-playing ability of LLMs as the
+win rate can be directly measured and consistent opponents like AI or
+human players are always available. Pokémon battles, serving as a
+mechanism that evaluates the battle abilities of trainers in the
+well-known Pokémon games, offer several unique advantages as the first
+attempt for LLMs to play tactical battle games:
+(1) The state and action spaces are discrete and can be translated
+into text losslessly. Figure [1] is an illustrative example for a Pokémon
+battle: At each turn, the player is requested to generate an action to
+perform given the current state of Pokémon from each side. The action
+space consists of four moves and five possible Pokémon to switch; (2)
+The turn-based format eliminates the demands of intensive gameplay,
+alleviating the stress on the inference time cost for LLMs, making
+performance hinges solely on the reasoning abilities of LLMs; (3)
+Despite its seemingly simple mechanism, Pokémon battle is strategic and
+complex: an experienced player takes various factors into consideration,
+including species/type/ability/stats/item/moves of all the Pokémon on
+and off the field. In a random battle, each Pokémon is randomly selected
+from a large candidate pool (more than 1,000) with distinct
+characteristics, demanding the players both the Pokémon knowledge and
+reasoning ability.
+
+
+Scope and Contributions: The scope of this paper is to develop an
+LLM-based agent that mimics the way a human player engages in Pokémon
+battles. The objective is to explore the key factors that make the
+LLM-based agent a good player and to examine its strengths and
+weaknesses in battles against human players. To enable LLMs play game
+autonomously, we implement an environment that can parse and translate
+battle state into text description, and deliver generated action back to
+the server. By evaluating existing LLMs, we identify the presence of
+hallucination, and the panic switching phenomenon.
+
+
+Hallucination: The agent can mistakenly send out Pokémon at a type
+disadvantage or persist in using ineffective moves against the opponent.
+As a result, the most advanced LLM, GPT-4, achieves a win rate of 26%
+when playing against a heuristic bot, compared to 60% win rate of human
+players. To combat hallucination, we introduce two strategies: (1)
+In-context reinforcement learning: We provide the agent with text-based
+feedback instantly derived from the battle, serving as a new form of
+&quot;reward\&quot; to iteratively refine the action generation policy without
+training; (2) Knowledge-augmented generation: We equip the agent with
+Pokédex, an encyclopaedia in Pokémon games that provides external
+knowledge like type advantage relationship or move/ability descriptions,
+simulating a human player searching for the information of unfamiliar
+Pokémon.
+
+
+Panic switching: We discover that when the agent encounters a powerful
+Pokémon, it tends to panic and generates inconsistent actions like
+switching different Pokémon in consecutive turns to elude the battle, a
+phenomenon that is especially pronounced with Chain-of-Thought [*REF*]
+reasoning. Consistent action generation alleviates the issue by voting
+out the most consistent action without overthinking. This observation
+mirrors human behavior, where in stressful situations, overthinking and
+exaggerating difficulties can lead to panic and impede acting.
+
+
+Online battles demonstrate [PokéLLMon]&apos;s human-competitive
+battle abilities: it achieves a 49% win rate in the Ladder competitions
+and a 56% win rate in the invited battles. Furthermore, we reveal its
+vulnerabilities to human players&apos; attrition strategies and deceptive
+tricks.
+
+
+In summary, this paper makes four original contributions:
+- We implement and release an environment that enables LLMs to
+autonomously play Pokémon battles.
+- We propose in-context reinforcement learning to instantly and
+iteratively refine the policy, and knowledge-augmented generation to
+combat hallucination.
+- We discover that the agent with chain-of-thought experiences panic
+when facing powerful opponents, and consistent action generation can
+mitigate this issue.
+- [PokéLLMon], to the best of our knowledge, is the first
+LLM-based agent with human-parity performance in tactical battle
+games.
+
+
+LLMs as Game Players
+
+
+Communicative games: Communicative games revolve around
+communication, deduction and sometimes deception between players.
+Existing studies show that LLMs demonstrate strategic behaviors in board
+games like Werewolf [*REF*], Avalane [*REF*], WorldWar
+II [*REF*] and Diplomacy [*REF*].
+
+
+Open-ended games: Open-ended games allow players to freely explore
+the game world and interact with others. Generative
+Agent [*REF*] showcases that LLM-based agents exhibit
+behavior and social interactions mirroring human-like patterns. In
+MineCraft, Voyager [*REF*] employs curriculum mechanism to
+explore the world and generates and executes code for solving tasks.
+DEPS [*REF*] proposes an approach of &quot;Describe, Explain,
+Plan and Select\&quot; to accomplish 70+ tasks. Planing-based frameworks like
+AutoGPT [*REF*] and MetaGPT [*REF*]
+can be adopted for the exploration task as well.
+
+
+Tactic battle games: Among various game types, tactical battle
+games [*REF*; *REF*] are particularly suitable for
+benchmarking LLMs&apos; game-playing ability, as the win rate can be directly
+measured, and consistent opponents are always available. Recently, LLMs
+are employed to play StarCraft II [*REF*] against the built-in AI
+with a text-based interface and a chain-of-summarization approach. In
+comparison, [PokéLLMon] has several advantages: (1)
+Translating Pokémon battle state into text is lossless; (2) Turn-based
+format eliminates real-time stress given the inference time cost of
+LLMs; (3) Battling against disciplined human players elevates the
+difficulty to a new height.
+
+
+Background
+
+
+Pokémon
+
+
+Species: There are more than 1,000 Pokémon
+species [*REF*], each with its unique ability, type(s),
+statistics (stats) and battle moves.
+Figure [2] shows two representative Pokémon:
+Charizard and Venusaur.
+
+
+Type: Each Pokémon species has up to two elemental types, which
+determine its advantages and weaknesses.
+Figure [3] shows the advantage/weakness
+relationship between 18 types of attack moves and attacked Pokémon. For
+example, fire-type moves like &quot;Fire Blast\&quot; of Charizard can cause
+double damage to grass-type Pokémon like Venusaur, while Charizard
+is vulnerable to water-type moves.
+
+
+Stats: Stats determine how well a Pokémon performs in battles. There
+are four stats: (1) Hit Points (HP): determines the damage a Pokémon can
+take before fainting; (2) Attack (Atk): affects the strength of attack
+moves; (3) Defense (Def): dictates resistance against attacks; (4) Speed
+(Spe): determines the order of moves in battle.
+
+
+Ability: Abilities are passive effects that can affect battles. For
+example, Charizard&apos;s ability is &quot;Blaze&quot;, which enhances the power of
+its fire-type moves when its HP is low.
+
+
+FIGURE
+
+
+Move: A Pokémon can learn four battle moves, categorized as attack
+moves or status moves. An attack move deals instant damage with a power
+value and accuracy, and associated with a specific type, which often
+correlates with the Pokémon&apos;s type but does not necessarily align; A
+status move does not cause instant damage but affects the battle in
+various ways, such as altering stats, healing or protect Pokémon, or
+battle conditions, etc. There are 919 moves in total with distinctive
+effect [*REF*].
+
+
+Battle Rule 
+
+
+In one-to-one random battles [*REF*], two battlers face
+off, each with six randomly selected Pokémon. Initially, each battler
+sends out one Pokémon onto the field, keeping the others in reserve for
+future switches. The objective is to make all the opponent&apos;s Pokémon
+faint (by reducing their HP to zero) while ensuring that at least one of
+own Pokémon remains unfainted. The battle is turn-based: at the start of
+each turn, both players choose an action to perform. Actions fall into
+two categories: (1) taking a move, or (2) switching to another Pokémon.
+The battle engine executes actions and updates the battle state for the
+next step. If a Pokémon faints after a turn and the battler has other
+Pokémon unfainted, the battle engine forces a switch, which does not
+count as the player&apos;s action for the next step. After a forced switch,
+the player can still choose a move or make another switch.
+
+
+FIGURE
+
+
+Battle Environment
+
+
+FIGURE
+
+
+Battle Engine: The environment interacts with a battle engine server
+called Pokémon showdown [*REF*], which provides a
+web-based GUI for human players, as well as web APIs for interacting
+with message in defined formats.
+
+
+Battle Environment: We implement a battle environment based
+on [*REF*] to support LLMs autonomously play Pokémon battles.
+Figure illustrates how the entire framework
+works. At the beginning of a turn, the environment get an action-request
+message from the server, including the execution result from the last
+turn. The environment first parses the message and update local state
+variables, and then translates the state variables into text. The text
+description primarily consists of four parts: (1) Own team information,
+including the attributes of Pokémon both on-the-field and off-the-field;
+(2) Opponent team information including the attributes of opposing
+Pokémon on-the-field and off-the-field (some are unknown); (3) Battle
+field information like the weather, entry hazard and terrain; (4)
+Historical turn log information, including previous actions of both side
+Pokémon, which is stored in a log queue. LLMs take the translated state
+as input and output an action for the next step. The action is sent to
+the server and executed alongside the action chosen by the human player.
+
+
+Preliminary Evaluation
+
+
+To gain insights into the challenges associated with Pokémon battles, we
+evaluate the abilities of existing LLMs, including GPT-3.5 [*REF*],
+GPT-4 [*REF*], and LLaMA-2 [*REF*].
+
+
+Pokémon Battles
+
+
+Placing LLMs in direct competitions against human players is
+time-consuming as human needs time to think (4 minutes for 1 battle in
+average). To save time, we adopt a heuristic bot [*REF*]
+to initially battle against human players in the Ladder competitions,
+and then use the bot to benchmark existing LLMs. The bot is programmed
+to use status boosting moves, set entry hazards, selecting the most
+effective actions by considering the stats of Pokémon, the power of
+moves, and type advantages/weaknesses.
+
+
+TABLE
+
+
+The statistic results are presented in
+Table [1], where the battle score is defined
+as the sum of the numbers of the opponent&apos;s fainted Pokémon and the
+player&apos;s unfainted Pokémon at the end of a battle. Consequently, the
+opponent player&apos;s battle score is equal to 12 minus the player&apos;s battle
+score. Random is a simple strategy that randomly generates an action
+every time, and MaxPower chooses the move with the highest power value.
+Obviously, GPT-3.5 and LLaMA-2 are just slightly better than Random and
+even GPT-4 cannot beat the bot, let along well-disciplined human players
+from the Ladder competitions.
+
+
+By observing LLMs play battles and analyzing the explanations generated
+with their actions, we identify the occurrence of
+hallucination [*REF*; *REF*]: LLMs can
+mistakenly claim non-existent type-advantage relationships or, even
+worse, reverse the advantage relationships between types like sending a
+grass-type Pokémon to face with a fire-type Pokémon. A clear
+understanding of type advantage/weakness is crucial in Pokémon battles,
+as choosing a Pokémon with a type advantage can result in dealing more
+damage and sustaining less.
+
+
+Test of Hallucination
+
+
+To assess hallucination in the outputs of LLMs, we construct the task of
+type advantage/weakness prediction. The task involves asking LLMs to
+determine if an attack of a certain type is A. super-effective (2x
+damage), B. standard (1x damage), C. ineffective (0.5x damage) or D. no
+effect (0x damage) against a certain type of Pokémon. The 324 (18x18)
+testing pairs are constructed based on Figure [3].
+
+
+Table shows the three confusion matrices of
+LLMs, where their performance is highly related to their win rates in
+Table [1]. LLaMA-2 and GPT-3.5 suffer from
+severe hallucination problems, while GPT-4 achieves the best performance
+with an accuracy of 84.0%, we still observe it frequently making
+ineffective actions, which is because in a single battle, LLMs need to
+compare the types of all the opponent&apos;s Pokémon with types of all their
+Pokémon, as well as types of moves.
+
+
+[PokéLLMon]
+
+
+Overview: The overall framework of [PokéLLMon] is
+illustrated in Figure [4]. In each turn, [PokéLLMon] uses
+previous actions and corresponding text-based feedback to iteratively
+refine the policy, and also augments the current state information with
+external knowledge, such as type advantage/weakness relationships and
+move/ability effects. Given above information as input, it independently
+generates multiple actions and selects the most consistent ones as the
+final output for execution.
+
+
+FIGURE
+
+
+In-Context Reinforcement Learning (ICRL)
+
+
+Human players make decisions based not only on the current state but
+also on the (implicit) feedback from previous actions, such as the
+change in a Pokémon&apos;s HP over two consecutive turns following an attack
+by a move. Without feedback provided, the agent can continuously stick
+to the same erroneous action. As illustrated in
+Figure [5], the agent uses &quot;Crabhammer&quot;, a
+water-type attack move against the opposing Toxicroak, a Pokémon with
+the ability &quot;Dry Skin&quot;, which can nullify damage from water-type moves.
+The &quot;Immune&quot; message displayed in the battle animation can prompt a
+human player to change actions even without knowledge of &quot;Dry Skin&quot;,
+however, is not included in the state description. As a result, the
+agent repeats the same action, inadvertently giving the opponent two
+free turns to triple Toxicroak&apos;s attack stats, leading to defeat.
+
+
+Reinforcement Learning [*REF*; *REF*; *REF*]
+requires numeric rewards to evaluate actions for refining policy. As
+LLMs can understand languages and distinguish what is good and bad,
+text-based feedback description provides a new form of &quot;reward&quot;. By
+incorporating text-based feedback from the previous turns into the
+context, the agent is able to refine its &quot;policy&quot; iteratively and
+instantly during serving, namely In-Context Reinforcement Learning
+(ICRL).
+
+
+In practice, we generate four types of feedback: (1) The change in HP
+over two consecutive turns, which reflects the actual damage caused by
+an attack move; (2) The effectiveness of attack moves, indicating
+whether they are super-effective, ineffective, or have no effect
+(immunity) due to type advantages or ability/move effects; (3) The
+priority of move execution, providing a rough estimate of speed, as
+precise stats for the opposing Pokémon are unavailable; (4) The actual
+effects of executed moves: both status and certain attack moves can
+cause outcomes like stat boosts or debuffs, recover HP, inflict
+conditions such as poison, burns, or freezing, etc.
+Figure presents several instances of generated
+text-based feedback for ICLR.
+
+
+FIGURES 
+
+
+TABLE
+
+
+Table [2] shows the improvement brought by ICRL.
+Compared to the original performance of GPT-4, the win rate is boosted
+by 10%, and the battle score increases by 12.9%. During the battles, we
+observe that the agent begins to change its action if the moves in
+previous turns do not meet the expectation, as shown in
+Figure [6]: After observing that the opposing Pokémon is
+immune to the attack, it switches to another Pokémon.
+
+
+Knowledge-Augmented Generation (KAG)
+
+
+Although ICRL can mitigate the impact of hallucination, it can still
+cause fatal consequences before the feedback is received. For example,
+if the agent sends out a grass-type Pokémon against a fire-type Pokémon,
+the former is likely be defeated in a single turn before the agent
+realize it is a bad decision. To further reduce hallucination,
+Retrieval-Augmented Generation [*REF*; *REF*; *REF*]
+employ external knowledge to augment generation. In this section, we
+introduce two types of external knowledge to fundamentally mitigate
+hallucination.
+
+
+Type advantage/weakness relationship: In the original state
+description in Figure, we annotate all the type information of
+Pokémon and moves to let the agent infer the type advantage relationship
+by itself. To reduce the hallucination contained in the reasoning, we
+explicitly annotate the type advantage and weakness of the opposing
+Pokémon and our Pokémon with descriptions like &quot;Charizard is strong
+against grass-type Pokémon yet weak to the fire-type moves&quot;.
+
+
+TABLE
+
+
+FIGURE
+
+
+Move/ability effect: Given the numerous moves and abilities with
+distinct effects, it is challenging to memorize all of them even for
+experienced human players. For instance, it&apos;s difficult to infer the
+effect of a status move based solely on its name: &quot;Dragon Dance&quot; can
+boost the user&apos;s attack and speed by one stage, whereas &quot;Haze&quot; can reset
+the boosted stats of both Pokémon and remove abnormal statuses like
+being burnt. Even attack moves can have additional effects besides
+dealing damage.
+
+
+We collect all the effect descriptions of moves, abilities from
+Bulbapedia [*REF*; *REF*] and
+store them into a Pokédex, an encyclopaedia in Pokémon games. For each
+Pokémon on the battlefield, its ability effect and move effects are
+retrieved from the Pokédex and added to the state description.
+
+
+Table [3] shows the results of generations augmented
+with two types of knowledge, where type advantage relationship
+(KAG\[Type\]) significantly boosts the win rate from 36% to 55%,
+whereas, Move/ability effect descriptions also enhance the win rate by 4
+AP. By combining two of them, KAG achieves a win rate of 58% against the
+heuristic bot, approaching a level competitive with human.
+
+
+With external knowledge, we observe that the agent starts to use very
+special moves at proper time. As an example shown in
+Figure [7], a steel-type Klefki is
+vulnerable to the ground-type attack of the opposing Rhydon, a
+ground-type Pokémon. Usually in such a disadvantage, the agent will
+choose to switch to another Pokémon, however, it chooses to use the move
+&quot;Magnet Rise&quot;, which levitates the user to make it immune to ground-type
+moves for five turns. As a result, the ground-type attack &quot;Earthquake&quot;
+of the opposing Rhydon becomes invalid.
+
+
+Consistent Action Generation
+
+
+Existing studies [*REF*; *REF*; *REF*; *REF*; *REF*]
+show that reasoning and prompting can improve the ability of LLMs on
+solving complex tasks. Instead of generating a one-shot action, we
+evaluate existing prompting approaches including Chain-of-Thought [*REF*]
+(CoT), Self-Consistency [*REF*] (SC) and Tree-of-Thought [*REF*] (ToT). For
+CoT, the agent initially generates a thought that analyzes the current
+battle situation and outputs an action conditioned on the thought. For
+SC (k=3), the agent generates three times of actions and select the most
+voted answer as the output. For ToT (k=3), the agent generates three
+action options and picks out the best one evaluated by itself.
+
+
+TABLE 
+
+
+Table [4] presents the comparison results of the
+original IO prompt generation and three algorithms. Notably, CoT results
+in a performance degradation by a 6 AP drop in the win rate. In
+comparison, SC brings a performance improvement, with the win rate
+surpassing human players. Beyond the results, our greater interest lies
+in understanding the underlying reasons for these observations.
+
+
+FIGURE
+
+
+As introduced in Section [3.2], for each turn there is single action can
+be taken, which means if the agent chooses to switch yet the opponent
+choose to attack, the switch-in Pokémon will sustain the damage. Usually
+switching happens when the agent decides to leverage the type advantage
+of an off-the-battle Pokémon, and thus the damage taken is sustainable
+since the switch-in Pokémon is typically type-resistant to the opposing
+Pokémon&apos;s moves. However, when the agent with CoT reasoning faces a
+powerful opposing Pokémon, its actions become inconsistent by switching
+to different Pokémon in consecutive turns, which we call panic
+switching. Panic switching wastes chances of taking moves and leading
+to the defeat. An illustrative example is shown in
+Figure [8]: starting from turn 8, the agent chooses
+to continuously switch to different Pokémon in three consecutive turns,
+giving the opposing Pokémon three free turns to boost its attack stats
+to four times and take down the agent&apos;s entire team quickly.
+
+
+TABLE
+
+
+Table [5] provides statistical evidence,
+where CS1 represents the ratio of active switches where the last-turn
+action is a switch and CS2 rates represent the ratio of active switches
+here at least one action from the last two turns is a switch, among all
+active switches, respectively. The higher the CS1 rate, the greater the
+inconsistency of generation. Obviously, CoT largely increases the
+continuous switch rate, whereas, SC decreases the continuous switch
+rate.
+
+
+Upon examining the thoughts generated by CoT, we observe that the
+thoughts contain panic feelings: the agent describes how powerful the
+opposing Pokémon is and the weaknesses of the current Pokémon, and
+ultimately decides to switch to another Pokémon, as in &quot;Drapion has
+boosted its attack to two times, posing a significant threat that could
+potentially knock out Doublade with a single hit. Since Doublade is
+slower and likely to be knocked out, I need to switch to Entei
+because\...&quot;. Action generation conditioned on panic thoughts leads the
+agent to continuously switch Pokémon instead of attacking. In
+comparison, consistent action generation with SC decreases the
+continuous switch ratio by independently generating actions multiple
+times and voting out the most consistent action as shown in
+Figure [4], leading to a higher win rate. The
+observation is reflecting: when humans face stressful situations,
+overthinking and exaggerating difficulties lead to panic feelings and
+paralyze their ability to take actions, leading to even worse
+situations.
+
+
+Online Battle
+
+
+To test the battle ability of [PokéLLMon] against human, we
+set up the eighth-gen battles on Pokémon Showdown, where the agent
+battled against random human players for the Ladder competitions from
+Jan. 25 to Jan. 26, 2024. Besides, we invited an human player who has
+over 15 years of experience with Pokémon games, representing the average
+ability of human players to play against [PokéLLMon].
+
+
+Battle Against Human Players
+
+
+TABLE
+
+
+Table [6] presents the performance of the agent against
+human players. [PokéLLMon] demonstrates comparable
+performance to disciplined Ladder players who have extensive battle
+experience, and achieves a higher win rate than the invited player. The
+average number of turns in the Ladder competitions is lower because
+human players sometimes forfeit when they believe they will lose to save
+time.
+
+
+Battle Skill Analysis
+
+
+FIGURE
+
+
+Strength: [PokéLLMon] seldom make mistakes at choosing
+the effective move and switching to another suitable Pokémon due to the
+KAG strategy. As shown in Figure [9], in one battle, the agent uses
+only one Pokémon to cause the entire opponent team fainted by choosing
+different attack moves toward different Pokémon.
+
+
+Moreover, [PokéLLMon] exhibits human-like attrition
+strategy: With some Pokémon have the &quot;Toxic&quot; move that can inflict
+additional damage every turn and the &quot;Recover&quot; move that can recover its
+HP, the agent starts to first poisoned the opposing Pokémon and
+frequently uses the &quot;Recover&quot; to prevent itself from fainting. By
+prolonging the battle, the opposing Pokémon&apos;s HP is gradually depleted
+by the poisoning damage. Using attrition strategy requires an
+understanding of moves like &quot;Toxic&quot;, &quot;Recover&quot; and &quot;Protect&quot;, as well as
+the right timing for their use (such as when there&apos;s no type-weakness or
+when having high defense). An example with battle animation can be found
+at: WEBSITE.
+
+
+FIGURE
+
+
+Weakness: [PokéLLMon] tends to take actions that can
+achieve short-term benefits, therefore, making it vulnerable to human
+players&apos; attrition strategy that requires long-term effort to break. As
+shown in the two battles in Figure [10], after many turns, the agent&apos;s
+entire team is defeated by the human players&apos; Pokémon, which have
+significantly boosted defense and engage in frequent recovery.
+Table [7] reports the performance of [PokéLLMon] in battles where
+human players either use the attrition strategy or not. Obviously, in
+battles without the attrition strategy, it outperforms Ladder players,
+while losing the majority of battles when human play the attrition
+strategy.
+
+
+TABLE
+
+
+The &quot;Recover&quot; move recovers 50% HP in one turn, which means if an attack
+cannot cause the opposing Pokémon more than 50% HP damage in one turn,
+it will never faint. The key to breaking the dilemma is to firstly boost
+a Pokémon&apos;s attack to a very high stage and then attack to cause
+unrecoverable damage, which is a long-term goal that requires joint
+efforts across many turns. [PokéLLMon] is weak to the
+long-term planing because current design does not keep a long-term plan
+in mind across many timesteps, which will be included in the future
+work.
+
+
+FIGURE
+
+
+Finally, we observe that experienced human players can misdirect the
+agent to bad actions. As shown in
+Figure [11], our Zygarde has one chance to use an
+enhanced attack move. At the end of turn 2, the opposing Mawile is
+fainted, leading to a forced switch and the opponent choose to switch in
+Kyurem. This switch is a trick that lures the agent uses a dragon-type
+move in turn 3 because Kyurem is vulnerable to dragon-type attacks. In
+turn 3, the opponent switches in Tapu Bulu at the beginning, a Pokémon
+immune to dragon-type attacks, making our enhanced attack chance wasted.
+The agent is fooled because it makes decision only based on the current
+state information, while experienced players condition on not only the
+state information, but also the opponent&apos;s next action prediction.
+
+
+Seeing through tricks and predicting the opponent&apos;s next action require
+the agent being disciplined in the real battle environment, which is the
+future step in our work.
+
+
+Conclusion
+
+
+In this paper, we enable LLMs to autonomously play the well-known
+Pokémon battles against human. We introduce [PokéLLMon], the
+first LLM-based agent that achieves human-competent performance in
+tactical battle games. We introduce three key strategies in the design
+of [PokéLLMon]: (i) In-Context Reinforcement Learning, which
+consumes the text-based feedback as &quot;reward&quot; to iteratively refine the
+action generation policy without training; (ii) Knowledge-Augmented
+Generation that retrieves external knowledge to combat hallucination and
+ensures the agent act timely and properly; (iii) Consistent Action
+Generation that prevents the panic switching issue when encountering
+powerful opponents. The architecture of [PokéLLMon] is
+general and can be adapted for the design of LLM-based agents in many
+other games, addressing the problems of hallucination and action
+inconsistency.
+
+
+Online battles show that [PokéLLMon] demonstrates human-like
+battle ability and strategies, achieving 49% of win rate in the Ladder
+competitions and 56% of win rate in the invited battles. Furthermore, we
+uncover its vulnerabilities to human players&apos; attrition strategies and
+deception tricks, which are considered as our future work.

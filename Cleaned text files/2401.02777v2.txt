@@ -1,0 +1,343 @@
+From LLM to Conversational Agent: A Memory Enhanced Architecture with Fine-Tuning of Large Language Models
+
+
+Introduction
+
+
+The landscape of Artificial Intelligence (AI) is continuously evolving, with Large Language Models (LLMs) emerging as pivotal components in the advancement towards Artificial General Intelligence (AGI) [*REF*; *REF*; *REF*].
+These models, exemplified by GPT-4 [*REF*] and similar architectures, have demonstrated remarkable proficiency in a range of tasks, from conversation and reasoning to complex problem-solving in various domains. The versatility of LLMs has been further enriched by innovative prompting strategies and the integration of external tools, enhancing their capabilities beyond basic language processing.
+
+
+However, a significant challenge in the realm of LLMs lies in their integration into conversational agents [*REF*; *REF*; *REF*; *REF*]. While these models exhibit high levels of performance in isolated tasks, creating an agent that can sustain coherent, context-aware, and purpose-driven conversations remains an intricate endeavor. The need for a more sophisticated framework that leverages the strengths of LLMs while addressing their limitations in conversational settings has become increasingly apparent.
+
+
+In response to this need, we introduce the RAISE (Reasoning and Acting through Scratchpad and Examples) architecture. RAISE represents a refined enhancement of the existing ReAct [*REF*] framework, specifically designed to augment the capabilities of conversational agents. This paper presents a detailed exploration of RAISE, highlighting its unique components and the benefits it offers in the development of conversational agents.
+
+
+The cornerstone of RAISE is its incorporation of a dual-component memory system, analogous to the human brain&apos;s short-term and long-term memory functions. The Scratchpad component functions as a transient storage, capturing and processing key information and conclusions from recent interactions, akin to short-term memory. In parallel, the retrieval module operates as the agent&apos;s long-term memory, sourcing and incorporating examples relevant to the current conversational context.
+This enhanced memory mechanism can flexibly bolster the capabilities of conversational AI, and also provides a convenient interface for humans to customize and control the behavior of conversational AI systems.
+
+
+FIGURE
+
+
+Furthermore, the RAISE architecture is founded on a comprehensive agent construction scenario, emphasizing the creation of conversational agents from scratch to ensure authenticity and relevance in real-world interactions. This paper delineates the RAISE methodology, encompassing a sequence of meticulously orchestrated phases. These include Conversation Selection, Scene Extraction, CoT (Chain of Thought) [*REF*] Completion, and Scene Augmentation, all leading up to the pivotal LLMs Training phase. This structured approach is instrumental in developing agents that excel not only in language processing but also in contextual awareness and adaptability, catering to a spectrum of conversational dynamics.
+
+
+Our experimental evaluations, conducted on a specialized in-house dataset focused on real estate sales, demonstrate the superiority of RAISE over conventional conversational agents. The results showcase RAISE&apos;s ability to handle complex, multi-turn conversations with enhanced context awareness and adaptability. While our experiments are centered on the real estate domain, the principles and methodologies underpinning RAISE are universally applicable, making it a versatile framework for various applications.
+
+
+In summary, this paper presents the following contributions:
+
+
+- We introduce RAISE, a refined enhancement of the ReAct framework, which utilizes scratchpad and retrieved examples to augment the agent&apos;s capabilities.
+- We propose a fine-tuning scenario for Large Language Models (LLMs) within RAISE, which, compared to the use of prompts alone, not only enhances the controllability of the agent but also improves its effectiveness and efficiency.
+- Through experiments conducted on our in-house dataset, we demonstrate RAISE&apos;s superiority as a conversational agent. While our experiments are concentrated on real estate sales, the underlying principles and methodologies of RAISE have wide-ranging applications and can be adapted to various domains, highlighting its versatility.
+
+
+Agent Framework 
+
+
+Inspired by ReAct [*REF*], we introduce RAISE architecture, as shown in Figure. The architecture primarily encompasses the following components.
+
+
+Dialogue
+
+
+The dialogue module serves as the core interface for user-agent communication. It handles incoming user queries and delivers tailored responses formulated by the agent.
+
+
+LLMs
+
+
+As the agent&apos;s brain, the LLMs requires capabilities for perception, task-specific planning, tool usage, and summarization. These skills can be developed on the LLMs using either prompt engineering [*REF*] or fine-tuning methods [*REF*].
+Our study has conducted comparative experiments to stimulate these capabilities, utilizing models such as GPT-4 [*REF*], GPT-3.5 [*REF*.5], and Qwen-14B-Chat [*REF*]. This paper explores the strengths and limitations of each model in handling specific task types and provides concrete metrics for evaluating their performance.
+
+
+Memory
+
+
+The memory module in RAISE framework stores information perceived from its environment and facilitates the agent&apos;s future actions. The memory includes the following components:
+
+
+System Prompt Includes profiles (detailing role identity, objectives, and behaviors), task instructions, tool descriptions, and few-shot learning elements for optimizing model performance. Flexibly designed, system prompt can either remain static or dynamically adjust to accommodate various stages of a dialogue and differing query types.
+
+
+Context Includes conversation history and task trajectory.
+Conversation history records all query-response pairs within the dialogue, providing a complete context for more accurate agent perception. Task trajectory documents the decision-making trajectory, including plan designation, tool selection, and execution, guiding the agent&apos;s future planning.
+
+
+Scratchpad Logs background information, knowledge generated by reasoning and observations from previous tool usage, essential for efficiency in multi-turn interactions.
+
+
+Examples Comprises query-response pairs used for recalling relevant examples to supplement the model&apos;s and tools&apos; knowledge gaps and to customize agent behavior and expression.
+
+
+These four components collectively form the working memory of RAISE, with conversation history and scratchpad being dialogue-level, while examples and task trajectory are turn-level.
+
+
+Tool
+
+
+The tool module enriches LLMs after pretraining and Supervised Fine-Tuning (SFT) by integrating external knowledge sources and resources. This module incorporates a diverse array of tools, including but not limited to databases for data retrieval, APIs for system interactions, sophisticated recommendation systems, and collaborative frameworks involving other LLMs or agents. The description file for a tool typically needs to include the tool&apos;s name, its function, essential parameters, optional parameters, and may also include some usage examples. This descriptive file aids agents in better planning, tool selection, parameter generation for tools, and execution of those tools.
+
+
+Controller: Control Agent Loop
+
+
+The controller module connects the aforementioned modules through preset trigger conditions. Upon receiving a new query, the agent executes the loop of perception, planning, tool selection, and tool execution. The specific process is as follows.
+
+
+Memory Update At the beginning of a conversation, the Scratchpad records the context of the dialogue, including user and agent roles, date, time, etc.
+
+
+During the conversation, each time a user query is received, the system will: (1) Add the user&apos;s query to the Conversation History; (2) Recall top- *MATH* relevant examples from the Example Pool for the current task, based on the historical and current query, using vector retrieval; (3) Update the current entity information in the Scratchpad if the user&apos;s query contains a product link; (4) Update the agent&apos;s trajectory in the Task Memory and the results of tool usage in the Scratchpad during task execution; (5) Post-task completion, include the agent&apos;s final output in the Conversation History.
+
+
+FIGURE
+
+
+Task Planning After collecting the above information, it is combined into a complete task inference prompt according to the designed template, as illustrated in Figure [1].
+An example of the complete prompt is available in Table of the Appendix. The LLM utilizes the information within the prompt for perception and planning, subsequently outputting actions in accordance with the format outlined in the prompt.
+If an action involves invoking a tool, it should specify the tool&apos;s name and input parameters.
+
+
+Tool Execution This phase involves executing the tool selected in the previous step. The command for tool execution may either be directly output by the agent or correspond to a manually crafted function specific to each tool. The output of the execution is formatted as predetermined.
+
+
+Summary The agent, synthesizing all the information gathered from the environment, decides whether it can respond to the user&apos;s query.
+Termination criteria might include having gathered sufficient information, exceeding a preset number of loops, or encountering a system error. Upon meeting any of these conditions, the agent can proceed to summarize its findings and provide a response.
+
+
+Agent Tuning
+
+
+Section [2] presented the RAISE architecture, establishing a hardware base for agents in complex dialogues. This section shifts focus to software enhancements for RAISE, particularly activating LLMs as the agent&apos;s core. Despite the success of open-source LLMs in various tasks, studies [*REF*] reveal their limitations in real-world scenarios, especially compared to GPT-3.5 [*REF*] and GPT-4 [*REF*]. Addressing this gap, this paper introduces a versatile finetuning method suitable for complex agent applications.
+
+
+Build Datasets 
+
+
+FIGURE
+
+
+The creation of training data entails significant costs. Our objective is to finetune the model efficiently using a compact yet high-quality dataset that precisely aligns with specific role-based behavioral logic.
+The dataset must fulfill these criteria:
+
+
+Authenticity It should closely mimic real-life scenarios.
+
+
+Diversity The data should encompass a wide range of scenarios.
+
+
+High Quality The data must have an accurate Chain of Thought (CoT) process, encompassing aspects like planning, tool utilization, and response formulation.
+
+
+As shown in Figure [3.1], our proposed pipeline comprises several stages, including Conversation Selection, Scene Extraction, CoT Completion, and Scene Augmentation. The details of each stage are as follows:
+
+
+Conversation Selection
+
+
+To emulate specific roles in real scenarios, we start by filtering conversations from authentic dialogues based on criteria such as scene completion, a minimum number of dialogue turns, high conversation quality, and a threshold for user message ratio. These selected dialogues are then anonymized for further processing, as shown in Figure [3.1](a).
+
+
+Scene Extraction
+
+
+Each round of interaction serves as a segmentation point, dividing the previously selected dialogues into multiple samples, as shown in Figure [3.1](b). Each sample is an original scene (defined as *MATH*). Assuming the user query at time *MATH* is defined as *MATH* and the character&apos;s response as *MATH*, *MATH* comprises the following components: *MATH* *MATH* *MATH*.
+
+
+Subsequently, to ensure diversity, we perform sampling based on dialogue turn counts and the intents behind user queries, resulting in a dataset rich in varied scene types.
+
+
+CoT Completion
+
+
+In refining the training data for the RAISE framework, the next phase involves enhancing the original scenes with a CoT process, which bridges the gap between user queries and character responses. This CoT process encompasses perception, planning, tool selection, and execution.
+Studies [*REF*] have demonstrated GPT-4&apos;s efficacy in generating high-quality CoT prompts for intricate scenarios. In this study, we initially utilize GPT-4 for automated generation, followed by meticulous manual validation of the output. To assist GPT-4 in consistently generating CoT processes, we incorporate additional elements such as predefined profiles, tools, and few-shot examples into the original scene, which collectively shape the construction of the prompt, as shown in Figure [3.1](c). The refined complete scene thus includes the following elements: *MATH* *MATH* *MATH*. 
+
+
+Scene Augmentation
+
+
+While the Scene Extraction phase ensured diversity through actual data sampling and the CoT Completion phase added the necessary CoT intricacies, two critical challenges still need addressing:
+
+
+Role Hallucination LLMs, endowed with vast domain knowledge from pre-training and fine-tuning, exhibit extensive capabilities. However, if left unchecked, our trained agents might retain these broad skills, which could conflict with their intended functional roles. For example, an agent designed to provide sales services might erroneously possess skills like coding in Python or offering recipe advice. To counter this, we introduce specific scenarios that teach the agent its capability limits, essentially making it &apos;unlearn&apos; the general abilities of LLMs within these defined contexts.
+
+
+FIGURE
+
+
+Knowledge Hallucination This phenomenon involves creating unrealistic or incorrect statements due to inadequate or misapplied knowledge acquired during pre-training. To mitigate this, we incorporate scenarios where the agent, despite tool utilization, still lacks essential factual knowledge, resulting in inability to respond accurately. In instances requiring factual accuracy, the agent should base its responses on knowledge acquired from its working memory or through tool interaction, rather than relying on its pre-trained database.
+
+
+To overcome these issues, we perform data augmentation on these two categories of data, which are not included in the real online datasets, as demonstrated in Figure [3.1](d).
+
+
+LLMs Training
+
+
+Following the previous phase, we have acquired a dataset characterized by both high quality and diversity. Each sample in this dataset, identified as *MATH* and combined with a *MATH*, constitutes a complete training *MATH*: *MATH* *MATH* *MATH*.
+
+
+These instances are then processed into a format conducive for full-parameter fine-tuning of open-source LLMs. Our experiments have led to an encouraging discovery: by constructing a modest amount (*MATH*) of high-quality, representative data, the RAISE framework achieved impressive results.
+
+
+Experiments
+
+
+To demonstrate the effectiveness of the RAISE architecture and the fine-tuning method proposed in this paper in complex real-world scenarios, we conducted experiments in a real estate online Instant Messaging (IM) dialogue setting. In this scenario, the user is a customer inquiring about real estate purchases, and the agent assumes the role of a real estate consultant. A detailed introduction to the dataset, toolset, and the method of activating agent capabilities in LLMs is provided below.
+
+
+Datasets
+
+
+To ascertain the effectiveness of the RAISE framework, we conducted comparative evaluations with various architectures, including Act-Only, ReAct, ReAct+Scratchpad, ReAct+Examples, and RAISE.
+This comparison aimed to ensure fair evaluation across different models, maintaining uniform dialogue scenarios and consistent additional knowledge in identical training samples across various datasets. The full trajectories for a single scenario under each architecture are depicted in Figure.
+
+
+Initially, we generated the ReAct architecture dataset following the procedure outlined in Section [3.1].
+We then modified this data to create training sets for the other architectures. The methodologies applied were as follows:
+
+
+Act-Only This architecture was formed by removing the &apos;thought&apos; process from ReAct, allowing for straightforward generation through coding.
+
+
+ReAct+Scratchpad Building upon ReAct, the initial Scratchpad distribution comprised 20% empty, 30% partially informative, and 50% fully informative content. The ReAct data, when combined with varying output requirements, served as prompts for the regeneration of the CoT process using GPT-4.
+
+
+ReAct+Examples Similar to ReAct+Scratchpad, with the distribution of Examples set at 20% empty, 30% partially informative, and 50% fully informative. The ReAct data, merged with diverse output requirements, were reformulated into prompts for GPT-4-driven CoT regeneration.
+
+
+RAISE This model integrated aspects of both ReAct+Scratchpad and ReAct+Examples. The CoT process was similarly regenerated using GPT-4.
+
+
+This structured approach enabled a thorough evaluation of each architectural element within the RAISE framework, clearly demonstrating the incremental benefits introduced by each component.
+Following the outlined procedure, a total of 948 scenes were generated.
+Out of these, 100 were randomly selected to serve as the evaluation set, while the remaining 848 instances were used for fine-tuning the model.
+
+
+Tools
+
+
+Based on real estate online IM conversations, we have abstractly defined the following 12 tools, each including the tool name, input parameters, and functions:
+
+
+- Real Estate Consultant Information *MATH*: Retrieves the consultant&apos;s name, contact details, WeChat ID, ranking, performance metrics, and more.
+- House Information *MATH*: Offers essential details about a property, including its size, price, floor level, school district presence, and renovation status.
+- Community Information *MATH*: Provides insights into the community, covering aspects like green spaces, property management, building specifications, proximity to subway stations, schools, and medical facilities.
+- House Layout Analysis *MATH*: Analyzes the strengths and weaknesses of a property&apos;s layout.
+- House Price Changes *MATH*: Tracks price fluctuations for a specific property.
+- Community Price Changes *MATH*: Reports on average price trends within a particular community.
+- Community Transactions *MATH*: Accesses recent transaction data from the same community.
+- Tax Policy *MATH*: Updates on the latest tax regulations and implications.
+- Loan Policy *MATH*: Delivers current information on loan policies.
+- Market Analysis *MATH*: Provides up-to-date real estate market insights.
+- Recommend Listings *MATH*: Suggests property listings to customers based on their conversation history and inferred needs, including rationale for each recommendation.
+- Value Report *MATH*: Generates a comprehensive value report card for a property, aimed at engaging customers and encouraging them to share their contact details.
+
+
+LLMs
+
+
+The models used in this study are as follows:
+
+
+OpenAI GPT We utilized GPT-4 for generating all fine-tuning data and employed both GPT-3.5 and GPT-4 for prompting purposes. Both models were operated in ChatCompletion mode as of November 2023, with the temperature set to 0.5.
+
+
+Qwen-14B-Chat An open-source conversational model from Alibaba Cloud, featuring 14 billion parameters, which has demonstrated exceptional performance in tool utilization [*REF*].
+Qwen-14B-Chat was used for both fine-tuning and prompting. The parameter configuration for the Supervised Fine-Tuning (SFT) is detailed in Table [2]. The hyperparameter settings for the prompting and fine-tuning methods during inference are identical, also shown in Table [2]. In the inference phase, we utilized an NVIDIA A100 GPU equipped with 80GB of memory, offering robust computational power and substantial memory capacity for efficient processing.
+
+
+Another distinction between prompting and fine-tuning methods is the use of one-shot guidance in prompting for structured output generation, whereas fine-tuning omits this step. Complete prompts for various architectures are detailed in the appendix [7].
+
+
+TABLE
+
+
+Evaluation
+
+
+In the challenging landscape of human-computer dialogue systems, the evaluation of agent performance necessitates a nuanced approach [*REF*; *REF*]. This is particularly pertinent when agents are tasked with engaging in direct conversations with human users, where the ultimate goal is to nurture a trust-based relationship.
+To achieve this, agents must exhibit a spectrum of qualities: they must be not only helpful and trustworthy but also responsive in a timely manner, and capable of understanding and articulating responses in a variety of contexts, akin to human interaction. This paper delineates seven sophisticated metrics designed to rigorously assess both the quality and efficiency of agent responses. The specific metrics and their corresponding scoring criteria are detailed in Table.
+
+
+For assessing quality, we leverage human-centric annotation methods that closely replicate human evaluative standards. Meanwhile, the efficiency metrics are derived through a systematic statistical analysis, providing concrete, quantifiable insights.
+
+
+Ablation Study
+
+
+To demonstrate the effectiveness of the RAISE framework and fine-tuning method proposed in this paper, we conduct several ablation experiments in this section. The experiments are divided into two main aspects: (1) Comparative Analysis of Different Frameworks: We evaluate the performance of various frameworks under the same capability activation method, comparing their results using both the prompting and fine-tuning methods. The evaluation results are presented in Table. (2) Comparative Analysis of Different Capability Activation Methods: We compare the performance of the prompting method and fine-tuning method within the same framework, with the evaluation results presented in Table.
+
+
+It&apos;s important to note that the inference speed of the OpenAI GPT API is subject to platform and network variations, so this metric was omitted from our analysis. The inference environment for Qwen-14B-Chat was kept consistent, utilizing an A100 GPU with 80GB memory.
+
+
+TABLE
+
+
+Upon analyzing the experimental outcomes, the following key conclusions emerge with respect to the efficacy and efficiency of different agent frameworks and methods:
+
+
+Framework Performance Ranking within the Same LLM The RAISE framework demonstrates superior performance, followed by ReAct+Examples, ReAct+Scratchpad, ReAct, and lastly, the Act-Only approach. This ranking indicates a clear gradient in effectiveness and efficiency, highlighting the incremental benefits of integrating additional elements like examples and scratchpads into the base ReAct model.
+
+
+Comparative Analysis of Capability Activation Methods within Identical Frameworks The fine-tuning approach outperforms the prompting method.
+This suggests that tailored training and customization of models to specific tasks or datasets result in more efficient and effective performance compared to using generalized prompt-based interactions.
+
+
+In the following parts, we delve into detailed analyses of these findings, examining the implications and potential applications of each framework and methodology.
+
+
+Chain of Thought (CoT): A Catalyst for Enhanced Comprehension and Response Accurac CoT significantly boosts AI&apos;s ability to deeply comprehend and precisely respond to complex queries. Our experimental findings reaffirm the importance of CoT in complex tasks. For instance, in comparative experiments across different frameworks, agents employing the Act-Only method showed substantially lower performance compared to those incorporating CoT. These findings underscore the critical role of CoT in promoting AI models to deliver depth-oriented and logically coherent responses, particularly in scenarios requiring complex reasoning.
+
+
+RAISE Architecture: Dual Benefits of Efficiency from Scratchpad and Examples The RAISE architecture, by harmonizing Scratchpad and Example mechanisms, attains a dual advantage in processing efficiency and output quality. The application of Scratchpad significantly enhances the efficiency in handling complex tasks, while the utilization of Examples simultaneously bolsters the response&apos;s naturalness, specificity, and efficiency. This dual advantage positions the RAISE architecture as a suitable choice for scenarios demanding rapid, accurate, and naturally interactive responses.
+
+
+Fine-tuning: A Lever for Enhancing Agent Performance Utilizing diverse, high-quality datasets for fine-tuning helps to better align AI models with human behavioral logic, potentially leading to notable improvements in specific application areas. This approach excels in specialized tasks, offering a high degree of professionalism and customization. For instance, in the RAISE framework under fine-tuning, the overall quality score reached 7.71, and inference efficiency was optimized. These results validate the effectiveness of fine-tuning in delivering precise, human-like and efficient outcomes, particularly suitable for scenarios requiring customized solutions, such as online real estate services.
+
+
+Fine-tuning: Enhancing Cost-Efficiency and Speed during Agent Inference Although fine-tuning may require higher initial investments, its long-term benefits in operational efficiency and precision can offset these costs. In application, fine-tuned models often necessitate fewer computational resources, thereby reducing operational costs and accelerating response times. This cost-effectiveness, coupled with improved performance, makes fine-tuning a prudent choice for specific, resource-intensive tasks.
+
+
+Strategic Deployment of Language Agents: When to Choose Fine-tuning Over Prompting The decision to opt for fine-tuning or prompting hinges on the specific requirements of the application. Fine-tuning offers superior performance and efficiency in specialized domains but may involve higher initial costs and training needs. In contrast, prompting is more flexible in handling a wide range of queries but may slightly lag behind fine-tuned models in specificity and stability. Strategic decision-making in this context involves balancing these factors against the specific needs of the application, budget constraints, and performance expectations.
+
+
+Related Work
+
+
+The exploration and advancements in AI agents have captivated the AI research community for some time. Defined as artificial entities capable of perceiving their surroundings, making decisions, and executing actions [*REF*; *REF*], AI agents represent a significant stride in artificial intelligence.
+
+
+The advent of Large Language Models (LLMs) has been a pivotal development, often regarded as a step towards the realization of Artificial General Intelligence (AGI) [*REF*; *REF*; *REF*].
+In recent years, there has been an influx of studies proposing intricate LLM-based architectures for AI agents [*REF*; *REF*; *REF*; *REF*].
+These architectures are crucial in enabling agents to navigate complex dialogue scenarios and effectively apply their acquired knowledge.
+
+
+This body of work primarily revolves around two core aspects:
+
+
+- Planning: Central to the functionality of dialogue agents is the concept of Chain-of-Thought (CoT) reasoning. This involves eliciting logical rationales via CoT prompts, as explored in [*REF*; *REF*; *REF*]. However, integrating this reasoning effectively into dialogues remains challenging. The ReAct framework [*REF*] presents an approach that guides LLMs in reasoning before planning actions, addressing this issue.
+- Tool Use: Another critical facet is the ability of LLMs to utilize external tools and resources. Studies such as [*REF*; *REF*; *REF*] have demonstrated the proficiency of LLMs in leveraging external tools and APIs. Moreover, the capacity to extract and integrate knowledge from external sources has been further exemplified by projects like WebGPT [*REF*] and ExpeL [*REF*].
+
+
+In addition to these areas, several works have focused on broader algorithmic frameworks for LLM-based agents. [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*] On the other hand, specific dialogue agents have also been a focal point. [*REF*; *REF*; *REF*; *REF*; *REF*].
+The fine-tuning of LLMs within agents is another critical area, with works like [*REF*; *REF*] exploring this aspect.
+
+
+These developments underscore the growing complexity and capabilities of LLM-based AI agents, highlighting both the challenges and the innovations shaping the field.
+
+
+Conclusions and Future work
+
+
+This study introduces RAISE, an advanced architecture enhancing Long Language Models (LLMs) like GPT-4 for conversational agents. Building on the ReAct framework, RAISE integrates a dual-component memory system, improving dialogue context retention and continuity. We also propose a fine-tuning method within RAISE, which enhances agent controllability and efficiency, particularly in real estate sales, though applicable in various domains.
+
+
+However, the study has limitations, including potential hallucination issues and challenges in handling complex logic problems, necessitating further research. Despite these limitations, RAISE presents a promising advancement in adaptable, context-aware conversational agents, offering a foundation for future developments in artificial intelligence.

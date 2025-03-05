@@ -1,0 +1,563 @@
+Introduction
+
+
+The capability of large language models (LLMs) to function as
+intelligent agents has been showcased across various domains, such as
+mathematical research *REF*, data science *REF*, software
+engineering *REF*, and geoscience *REF*. Given these
+developments, there is an increasing interest in enhancing their
+functionality in interactive decision-making
+contexts *REF*. Historically, the enhancement of LLMs
+has relied heavily on the crafting of precise prompts and the provision
+of high-quality examples for in-context learning or supervised fine-tuning (SFT) *REF*.
+Fortunately, employing reinforcement learning (RL) *REF* offers a dynamic approach for LLMs to
+actively participate and progressively refine their performance in
+task-specific environments through a process of exploration and
+feedback. This shift towards RL allows for a reduction in dependency on
+manually prepared examples and prompts, paving the way for more
+autonomous and adaptive learning capabilities in LLMs.
+
+
+Although RL is inherently designed for tackling problems in interactive
+environments, its direct application *REF* for fine-tuning language models encounters two significant gaps. The
+first pertains to a pronounced misalignment in learning objectives.
+Specifically, while the goal of language modeling is to approximate the
+probability distribution of tokens in the corpus, RL focuses on the
+maximization of quantified rewards (which in return has optimal
+state-action distribution, a.k.a. occupancy measure or policy, with
+maximized long-term discounted return). Such a focus, however,
+predisposes the model to overfitting risks *REF*. This
+fundamental divergence undermines the preservation of the original token
+distribution in language models, a critical aspect for maintaining
+linguistic coherence and diversity *REF*.
+
+
+The emergence of a second gap is attributed to the variations in
+optimization granularity. RL typically focuses on optimizing at the
+action level, whereas language modeling targets optimization at the
+token level. This discrepancy leads to two primary issues: 1) The action
+space for LLMs, consisting of sequences of tokens, is exponentially
+vast, leading to increased instability and convergence difficulties
+during the RL fine-tuning process *REF*. 2) The reward
+signals at the action level are overly sparse for sequences of tokens,
+complicating the provision of precise, fine-grained supervision for
+complex tasks. This results in obstacles in assigning credit to
+individual tokens and misalignment between token generation and action
+performance *REF*. For instance, RLHF *REF* seeks to bridge the first gap by integrating a
+KL divergence term within the reward signal. However, the effectiveness
+of this approach is heavily dependent on an additional reward model that
+delivers dense token-level reward signals. Despite this, applying RLHF
+with action-level rewards still encounters the aforementioned
+difficulties, which are elaborately analyzed in
+Section *REF*. Moreover, RLHF conceptualizes token
+sequences as temporal relations, which hinders its utility in multi-step
+interactive settings. This limitation stems from a confusion between
+assigning credit within a single action and across multiple actions.
+
+
+In this paper, we take several steps to bridge these gaps between RL and
+language modeling. Initially, to mitigate the risk of the LLM policy
+diverging excessively during RL fine-tuning, we incorporate interactive
+tasks within the entropy-regularized reinforcement learning (ERL)
+framework, which reinterprets the RL problems through the lens of
+probability theory and constrains the policy update with a given
+distribution *REF*. Thus we can naturally bridge the first gap in learning objectives, i.e.
+aligning the demand for improving task-specific performance with the
+objectives of language modeling. Then, to address the second gap
+concerning optimization granularity, we propose the per-token soft
+Bellman update and per-token policy update. They decompose the Q
+function *REF* and policy optimization within ERL
+from the action level to the token level, backed by theoretical proof
+affirming their consistency in optimization. This decomposition reduces
+the complexity growth of action space exploration as context length from
+multiplicative to additive, thus stabilizing the learning process.
+Besides, it provides fine-grained credit assignment, further ensuring
+that each token generation is directly correlated with action
+performance. Unlike RLHF, our method distinctly maintains the separation
+between intra-action and inter-action credit assignments during
+token-level policy updates, enhancing its effectiveness in multi-step interactions.
+
+
+As a natural outcome of our findings, we propose Entropy-regularized
+Token-level Policy Optimization (ETPO), a concrete RL algorithm that
+leverages the per-token soft Bellman update and policy update to enhance
+LLM agents&apos; capabilities within interactive environments. Our
+experiments confirm the effectiveness of ETPO in narrowing the gaps in
+both learning objectives and optimization granularity. We justify such a
+claim by evaluating ETPO in an environment that simulates data science
+code generation as multi-step interactive tasks; results show that ETPO
+achieves effective performance improvement on the CodeLlama-7B
+model *REF* and surpasses a variant PPO *REF* baseline inherited from RLHF.
+
+
+FIGURE 
+
+
+LLMs for Interactive Tasks
+
+
+In many works like Self-Refine *REF*, ReAct, Reflexion, or
+ProTeGi *REF*, they &quot;verbally&quot; tell the model how to
+iteratively improve the quality of what they generated. Reasoning via
+Planning (RAP) *REF* combines the Monte Carlo Tree Search
+(MCTS) with LLMs&apos; self-evaluation mechanism, to balance the exploration
+and exploitation in the vast reasoning space.
+Self-Rewarding *REF* allows LLMs to prompt themselves to
+provide rewards during training. These works excel in numerous tasks,
+yet their success hinges on the foundational models possessing robust inherent capabilities *REF*.
+
+
+RL4LMs *REF* build an open-source framework for
+optimizing language generators interactively with RL algorithms.
+CodeRL *REF* generates code as actions and optimizes in an RL
+framework using an actor-critic setup to debug programs given feedback
+from the runtime environment. To align the objective of token-level
+optimization with action-level optimization, GLAM *REF* 
+estimates the probability of possible actions with the conditional
+probability of tokens composing the actions, and updates the action as a
+whole with the PPO algorithm. Nevertheless, the effectiveness of these
+reinforcement learning-based approaches is constrained by the
+excessively large action space encountered during exploration and the
+lack of fine-grained supervision *REF*.
+
+
+Entropy-Regularized Reinforcement Learning
+
+
+methods *REF* are a subset of reinforcement learning that aims to search for the
+optimal stochastic policy under the constraints of a given distribution.
+ERL constrains the learned policy from deviating too far from a
+reference distribution by adding an entropy-regularized term to the
+reward function and optimizing with soft Bellman
+update *REF*. A concrete instance of ERL is the
+Soft Actor-Critic *REF* algorithm, which defines the *MATH* to be a uniform distribution to
+balance the trade-off between exploration (entropy maximization) and
+exploitation (reward maximization). While PPO and some other
+Actor-Critic methods *REF* also encourage exploration by
+adding an entropy term as a penalty to the loss function, this penalty
+only takes effect in the current time step. RLHF *REF* that
+adopts a variant of PPO with a KL term added to its reward function
+could also be seen as an approximation to ERL.
+
+
+Language-Augmented Sequential Decision-Making
+
+
+Sequential decision-making problems with linguistic inputs and outputs
+can be framed as a language-augmented Markov Decision Process (MDP) *REF* *MATH*.
+Given a vocabulary *MATH* and tokens *MATH* are
+the state space and action space respectively, which all consist of sequences of tokens. *MATH* is the
+state transition function. *MATH* is the reward function and *MATH* is the discounted factor.
+
+
+When we introduce an LLM as policy *MATH*, at time step *MATH*,
+*MATH* receives a textual state *MATH* from the environment
+as input and generates an action *MATH*. The action *MATH* 
+is normally a sentence or phrase that consists of a sequence of token
+*MATH* and generated in an auto-regressive
+manner token-by-token. Then, the generated textual action *MATH* will be
+mapped to the specific API call or command and executed in an
+interactive environment *REF*. After execution, the
+environment returns a reward signal *MATH* along with the next
+state *MATH*, according to the transition *MATH*.
+
+
+Entropy-Regularized Reinforcement Learning
+
+
+One gap between RL and language modeling is that they hold different
+learning objectives. While LLMs aim to model the probability
+distribution of tokens within a corpus *REF*,
+traditional RL focuses on maximizing the discounted cumulative return:
+*MATH* which is prone to overfitting *REF*.
+Directly applying RL to LLMs poses significant risks of disrupting the
+well-calibrated token distribution of LLMs and thus impairs the
+diversity and readability of language expressions that are essential for language models.
+
+
+Fortunately, there have been many studies *REF* 
+trying to couch the RL problem in the parlance of probability theory and
+develop a set of ERL methods. The expected entropy-regularized return
+which ERL targets to maximize is: *MATH* where *MATH* 
+is the KL divergence between the learning policy *MATH* and reference
+policy *MATH* is a scalar coefficient to balance the
+influence between reward signals and KL divergence. The corresponding
+soft Bellman update for the Q function is: *MATH*.
+Equation indicates that the objective of ERL is
+constrained with a given probability distribution *MATH*. Thus, by
+assigning the *MATH* with an original LLM *MATH* in
+Equation, we can smoothly bridge the gap in
+learning objectives between RL and language modeling, i.e. maximizing
+the cumulative return while maintaining the original token distribution as much as possible.
+
+
+Action-Level and Token-Level Policy Optimization 
+
+
+Another gap between RL and language modeling is the differences in the
+granularity of optimization. In most traditional reinforcement learning
+scenarios with discrete action spaces, actions are typically
+inseparable, thus rendering the action space *MATH*,
+where *MATH* is the number of available actions. However, as described in
+Section *REF*, when we introduce LLMs as policies, an
+action *MATH* consists of a sequence of tokens *MATH* 
+generated by the LLM. In this case, since each token has an independent
+search space with vocabulary size *MATH*, the action space
+will experience an exponential explosion as the length of the context
+increases: *MATH*, where *MATH* is the context
+length. Thus, directly optimizing for the entire action shown in
+Equation *REF* needs to explore an enormous action space, e.g.
+*MATH* and *MATH* in our experimental setting, and thus
+suffer from instability and difficulty in converging during RL
+fine-tuning. *MATH* Besides, a reward signal is obtained after executing a
+complete action, which is too sparse to provide fine-grained supervision
+for each token. Applying it to all tokens within an action as
+Equation *REF* might lead to a misalignment between token
+generation and action performance, where each token holds different
+importance in expressing the overall meaning and effectiveness of an
+action *REF*. *MATH* For instance, while a language model-generated code
+yielding positive returns doesn&apos;t imply that each line is beneficial,
+discarding certain useless or harmful segments could enhance overall
+outcomes, provided the algorithm identifies them during optimization.
+
+
+Inspired by the decomposition for high-dimensional continuous actions or
+multi-agent joint actions *REF*, we can
+consider sequentially decomposing the optimization from the action level
+into the token level as well. While reducing the growth of action space
+as the length of token sequence from *MATH* to
+*MATH* and enabling fine-grained credit assignment,
+we should ensure the consistency in the optimization process before and after decomposition.
+
+
+Entropy-Regularized Token-Level Policy Optimization
+
+
+FIGURE
+
+
+Based on the motivation discussed in
+Sections *REF* and *REF*, we propose a concrete token-level ERL
+algorithm that yields the highest expected entropy-augmented return,
+i.e. the Equation *REF*. The intuition behind our method is to
+decompose a textual action into a sequence of tokens and backpropagate
+proper credit for each token with a variant of soft Bellman update, i.e.
+the per-token soft Bellman update in
+Equation *REF*. That way, we can learn a
+token-level soft Q-function, bypassing the requirement to calculate a
+precise *MATH*. After learning the soft Q-function, we can update policy *MATH* by minimizing
+the KL divergence between it and the exponent of the learned soft
+Q-function, the per-token policy update in
+Equation *REF*. Figure *REF* illustrates the workflow of our proposed method.
+
+
+FIGURE
+
+
+Per-Token Soft Bellman Updates
+
+
+Decomposing an action into a sequence of tokens,
+*MATH*, where *MATH* is the tokens and *MATH* 
+is the length of the sequence, we extend the soft Bellman update in
+Equation *REF* to a per-token view of actions, and define
+a per-token soft Bellman update in
+Equation *REF*. For a time step *MATH*,
+*MATH* denotes the sequence of tokens in action *MATH* from the
+first token *MATH* to the *MATH* -th token *MATH*, i.e.
+*MATH*. Then we define the soft Q-value of the
+*MATH* -th token *MATH* conditioned on the textual state *MATH* and previous
+action tokens *MATH* in an auto-regressive manner, without
+discount when *MATH* (first line in the equation). When *MATH*,
+The reward *MATH* is applied to the last token (second line in the
+equation), as we do not receive any reward before executing the whole
+action. Besides, we discount the expected Q-value and KL-divergence
+which are conditioned on the next state *MATH* and the corresponding
+first token *MATH*. In short, we only discount Q-values between the
+time steps and keep the discounted factor at 1.0 for all but the last
+token within actions in each time step.
+
+
+After this decomposition, The most important thing is to make sure
+whether it will disturb the alignment between token generation and
+action selection. By decomposing each action into a sequence of tokens
+for the soft Bellman update following the
+Equation *REF*, we do not change the general
+optimization properties and the principle of the Bellman optimality
+still holds for a given MDP. We theoretically maintain the consistency
+between the objective of token-level optimization and action-level
+optimization, where the proof is left in Appendix *REF*.
+
+
+With this per-token soft Bellman update, we can ensure the generation
+process for each token toward maximizing the expected cumulative return,
+that is, predicting the next token is directly incentivized to solve the
+decision-making problem in an interactive environment currently.
+Additionally, we can bypass the calculation for precise
+*MATH* that suffers from an unmanageable computational complexity of *MATH*, instead, we just need
+to calculate *MATH* token-level expected values
+*MATH*, which enjoys a tractable complexity of *MATH*.
+
+
+Per-Token Policy Update
+
+
+After defining the soft Bellman backup, we develop an approach for the
+policy update, i.e. the per-token policy update. According to the
+definition of ERL *REF*, an optimal stochastic
+policy that refers to *MATH* and the Q-function could be presented as:
+FORMULA.
+
+
+Due to the discrete nature of vocabularies, we can explicitly calculate
+the *MATH* with *MATH* and current Q function
+*MATH*, and thus update the policy toward minimizing
+the KL-divergence between *MATH* and
+*MATH*, which is somewhat similar to the
+policy update process in SAC *REF*. Our
+per-token policy update scheme is to minimize the objective *MATH* in Equation *REF*.
+
+
+A Practical Algorithm
+
+
+In practice, we draw a concrete algorithm of ETPO with pseudo-code shown
+in the Algorithm *REF*. Since we don&apos;t want the learned strategy to
+deviate too far from the original LLM, we constraint the distribution to
+the original language model *MATH* by setting the reference policy
+*MATH*. As for pre-trained LLMs, their output distribution
+implies their preference for each token, thus the soft Q-network
+*MATH* is initialized with *MATH* as well. Besides, Our algorithm
+makes use of a target soft Q-network *MATH* to facilitate a
+stable learning process, whose parameters are updated softly.
+
+
+FORMULA
+
+
+Experiments 
+
+
+In this section, we evaluate our method by modeling data science code
+generation tasks as interactive decision-making environments and
+training a 7B CodeLlama model with ETPO. Based on the experimental
+results, we discussed the superiority of our method over several
+baselines in generating machine learning code to achieve the highest
+possible ROC AUC score *REF* with Scikit-learn
+module *REF*. We also showcase the convergence
+performance of ETPO, which is important for evaluating RL algorithms.
+Further, we analyze the difference between the generated code of vanilla
+CodeLlama-7B and the CodeLlama-7B fine-tuned by ETPO, giving insights
+about the behavioral emergence of LLMs with RL training. In the end, we
+examine the perplexity with the benchmarks of Github, Wikitext, and
+arXiv *REF* to confirm if ETPO can maintain the model&apos;s
+fundamental capabilities and stability. Ablation studies are conducted
+in Appendix *REF* to investigate the importance of multi-step
+reflection and per-token soft Bellman update separately.
+
+
+Environmental Setup 
+
+
+To make the experiment closer to real industrial scenarios, we build an
+interactive environment that models machine learning code writing and
+debugging tasks into a sequential decision-making problem. With the same
+testbeds as *REF*, we adopt 4 Kaggle datasets and 10
+OpenML datasets *REF*, with details in Table *REF*.
+
+
+TABLE
+
+
+To model the code generation tasks as MDPs, we define
+*MATH* to be the task description, *MATH* to
+be the runtime error message when generated codes are non-runnable,
+serving as reflection messages. In the beginning, our agent generates
+codes as an action *MATH* based on the initial state *MATH* where
+*MATH* is a prompting operation, then receives a reward *MATH* by executing
+the codes. The reward function *MATH* is defined as: *FORMULA* 
+When the codes are executed successfully, a done signal
+will occur immediately, along with a ROC AUC score *MATH*. If the
+codes run wrong, the agent receives a constant *MATH* as a reward, as
+well as the next state *MATH*.
+Appendix *REF* provides concrete examples of the prompts
+and generated codes. In addition to successful code execution, a done
+signal will also be received if *MATH* reaches a pre-set maximum step
+limit, e.g. *MATH* in our experiments.
+
+
+Adopting the same evaluation metrics as *REF*, for each
+dataset, we evaluate 5 repetitions, each with a different random seed
+and train-validation split to reduce the variance stemming from these
+splits *REF*. We split into *MATH* train and
+*MATH* validation samples and all methods used the same splits. We
+record the highest reward explored by each method within a given number
+of environment steps *MATH* as the main criteria for judgment, similar to evaluating AutoML tasks *REF*.
+
+
+Main Results
+
+
+FIGURE
+
+
+TABLE
+
+
+Figure *REF* shows the trends of average performance of
+ETPO and three related baseline methods across *MATH* datasets under
+different exploration intensities, i.e. *MATH*. More specifically,
+Table *REF* shows the highest reward explored by these
+methods for each dataset within *MATH* interactive steps. Among these
+baselines, the Reflection keeps the interactive pipeline of ETPO
+unchanged but removes the training process as a reference for LLMs&apos;
+initial performance. Besides, similar to RLHF, we also implement an
+action-level PPO with KL term in the reward function:
+*MATH*, based on the same framework as ETPO to fine-tune CodeLlama-7B model, i.e. PPO-KL.
+As an action-level algorithm, PPO-KL will assign the same credit to all tokens in an action.
+
+
+From Figure *REF*, we observe that the performance of the
+Reflections hardly changes as the number of exploration steps increases
+from *MATH* to *MATH*, which means *MATH* is enough to touch the caps of
+the Reflection with vanilla models. Comparing the Reflection with
+PPO-KL, we confirm that even action-level RL training can slightly
+improve the model&apos;s ability to generate better code for specific
+datasets. Further, ETPO outperforms both Reflection and PPO-KL in most
+of the experimental datasets, which verifies the effectiveness of our method.
+
+
+Convergence
+
+
+FIGURE
+
+
+In this section, we take four Kaggle datasets to further analyze the
+learning process of PPO-KL and ETPO in depth. To this end, we record the
+average reward of generated codes in each batch during the training
+process, instead of the best reward in the previous section. It is also
+an important indicator for evaluating the convergence performance and stability of RL algorithms *REF*.
+Figure *REF* shows the average performance on 4 Kaggle
+datasets achieved by PPO-KL and ETPO as well as the average rewards of
+Reflection with GPT-4 and CodeLlama-7B after 500 interactions.
+
+
+According to Figure *REF*, although the best codes explored by GPT-4
+and CodeLlama-7B enjoy similar rewards for each dataset in the previous
+section, it does not mean that CodaLlama-7B has equal capabilities to
+GPT-4. The huge gap between CodeLlama-7B and GPT-4 in average rewards
+shown in Figure *REF* implies that a significant portion of the
+code generated by CodeLlama-7B is non-runnable and therefore receives a
+-1 as a reward which brings down the average. This illustrates that
+vanilla CodeLlama-7B is more unstable than GPT-4 before training. Then,
+as training progresses, the average performance of PPO-KL and ETPO has
+improved significantly. Especially PPO-KL, because it allows all tokens
+in an action to share credit, it can backpropagate the impact of the
+reward signal to the front end of the token sequence earlier and thus
+enjoy faster performance improvements. However, the credit assignment
+granularity of PPO-KL is too large and not precise enough, which
+prevents further improvement of its performance and brings instability
+to the convergence process, as shown in the second half of the curve. In
+contrast, ETPO spreads the impact of reward signals token-by-token. Thus
+its performance improvement is relatively gentle in the early stage.
+But, benefit from its fine-grained credit assignment, its improvement
+process is more stable and converges to average performance exceeding
+PPO-KL even the Reflection with GPT-4.
+
+
+Behavioural emergence with RL training
+
+
+Let&apos;s take a deeper investigation into the behavior of LLM after RL
+training. In Figures *REF* and *REF* at
+Appendix *REF*, we demonstrate the difference of generated
+codes between the vanilla CodeLlama-7B and the CodeLlama-7B fine-tuned
+with ETPO. The code generated by the trained model in
+Figure *REF* indicates the effectiveness of
+entropy-regularized RL in preventing the policy from moving too far and
+losing the coherence and readability of generated text.
+
+
+In addition to the difference in code complexity, another significant
+difference between Figures *REF* and *REF* is that the code generated by the vanilla
+model is more in line with the prompt requirements, i.e. returning a
+Scikit model, while the code generated by RL trained model deviates
+from prompt to a certain extent, i.e. it builds a pipeline with data
+processing operation. This situation is similar to the
+hallucination *REF* issue in the text-generation tasks that
+needed to be avoided. However, this deviant code in fact achieves higher
+rewards for the corresponding dataset. From an RL perspective, this
+situation is easy to understand. Since RL algorithms encourage agents to
+further explore directions with higher rewards, even unexpected
+behaviors with high rewards will be continuously enhanced and improved
+in the subsequent training process. Finally, models are promoted to
+generate the complex and &quot;noncompliant&quot; code in
+Figure *REF*, which achieves better performance than
+code generated by repeated exploration without RL training.
+Figure *REF* gives a more detailed demonstration of how this process occurs.
+
+
+Further, this phenomenon inspires us an insight that we can filter the
+hallucination of LLMs with the exploration-exploitation
+manner *REF* of RL to boost the emergence of new
+behaviors or capabilities. Limited by token length, it isn&apos;t easy to
+encode all task-related information into prompts. The hallucination
+could be treated as supplemental explorations in an
+exploration-exploitation manner. we can filter out those that are
+beneficial to the specific task and reinforce them to promote new
+behaviors, instead of deliberately preventing it. On the other way, even
+those hallucinations that are useless for the current task may still be
+able to contribute to other tasks with techniques like hindsight
+relabelling *REF* to boost the emergence of new
+capabilities. In other words, for LLM agents with RL, hallucination is
+the source of creativity and innovation that drives agents&apos; performance
+improvement. By embracing the inherent uncertainty and variability in
+the outputs of LLMs, we can harness their potential with serendipitous discoveries.
+
+
+Affect on Perplexity
+
+
+We choose benchmarks Github, Wikitext, and arXiv introduced by
+memorizing transformers *REF* to observe the perplexity
+changes compared to the original model after training by ETPO.
+
+
+TABLE
+
+
+According to the experimental results in
+Table *REF*, the minor changes observed after training
+the CodeLlama-7B model using the ETPO method indicate that this method
+has a relatively small impact on the original language modeling. This
+slight variation suggests that although the ETPO method may introduce
+new optimization or training strategies, it does not fundamentally alter
+or disrupt the basic logic of language modeling. This is a positive
+outcome, as it means that while trying to improve model performance or
+introduce new training methods, the model&apos;s fundamental capabilities and stability are maintained.
+
+
+In the process of training and optimizing language models, maintaining
+the model&apos;s understanding of language structure is crucial. Minor
+performance improvements or changes indicate that your method may be
+effective in subtly adjusting the model to suit specific tasks or
+datasets without sacrificing the model&apos;s generality and foundational
+language abilities. This balance is very important, especially in the
+development of models that can be broadly applied across different linguistic tasks and domains.
+
+
+Conclusion
+
+
+In this work, we present the ETPO, a token-level optimization approach
+that leverages entropy-regularized reinforcement learning to train LLM
+agents for verbal sequential decision-making tasks. ETPO decomposes the
+optimization in action space to token space and theoretically proves
+their consistency. Our experiments also confirm the effectiveness of
+ETPO from different dimensions. Moreover, we acknowledge the existing
+limitations of ETPO, i.e. the requirement for a quantitative reward
+function, which is not easily attainable in some textual environment. To
+mitigate this issue, we envisage integrating ETPO with
+self-rewarding *REF* or hindsight relabeling *REF* techniques and leave detailed
+exploration for future research endeavors.
