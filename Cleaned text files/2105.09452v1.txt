@@ -1,0 +1,727 @@
+Minimum-Delay Adaptation in Non-Stationary Reinforcement Learning
+via Online High-Confidence Change-Point Detection
+
+
+Introduction
+
+
+Reinforcement learning (RL) techniques have been successfully applied to
+solve high-dimensional sequential decision problems. However, if the
+state transition and/or reward functions change unexpectedly, according
+to latent factors unobservable to the agent, the system is effectively
+tasked with optimizing behavior policies that maximize performance over
+a (possibly infinite) random sequence of Markov Decision Processes
+(MDPs). Each MDP is drawn from an unknown distribution and is henceforth
+referred to as a context. This is known as a non-stationary setting.
+Designing efficient algorithms to tackle this problem is a known
+challenge in RL [*REF*]. The key difficulties here result from
+(i) the need to quickly and reliably detect when the underlying system
+dynamics has changed; and (ii) the need to effectively learn and
+deploy adaptable prediction models and policies, specialized in
+particular contexts, while allowing the agent to (when appropriate)
+reuse previously-acquired knowledge. Non-stationary environments often
+result from systems whose dynamics are inherently time-dependent; from
+agents that are tasked with learning policies under noisy or missing
+sensors; or from problems where the agent faces sequences of
+unlabeled/unidentified tasks, each one with its own transition dynamics
+and reward functions.
+
+
+Non-stationary settings arise naturally in many situations. Humans, for
+instance, are capable of learning to solve sequences of tasks from few
+experiences while preserving knowledge from older experiences
+[*REF*]. Consider, for example, a person realizing the need to adapt
+their gait after an accident, learning novel gait patterns to use when
+walking with crutches, and then, after a period of recovery,
+successfully re-deploying normal walking gaits. This corresponds to a
+non-stationary scenario where the agent needs to learn specialized
+dynamics models and policies for tackling different contexts/learning
+scenarios.
+
+
+We introduce an algorithm that efficiently learns decision-making
+strategies in this setting. It assumes that an agent experiences random
+sequences of contexts (MDPs) drawn from some unknown distribution, and
+it is capable of optimizing behaviors even when a pre-training phase
+(during which the agent interacts with sample contexts) is not
+available. The agent&apos;s goal is to rapidly deploy policies that are
+appropriate for each randomly-arriving context --- even when the number of
+latent contexts is unknown and when the context distribution cannot be
+modeled nor controlled by the agent. We are particularly interested in
+the case where quick readaptation and sample efficiency are paramount to
+achieving good performance; for instance, in novel contexts where
+collecting experiences and acquiring policies from scratch is
+unfeasible.
+
+
+Many existing related works tackle non-stationary problems either by
+detecting when the underlying MDP changes, or via meta-learning
+approaches that construct a prior model (or policy) capable of rapidly
+generalizing to novel contexts. Hadoux et al., for example, introduced a
+technique based on change-point detection algorithms to deal with
+non-stationary problems with discrete state spaces
+[*REF*; *REF*]. We, by contrast, address the more
+general setting of high-dimensional continuous RL problems. Supervised
+meta-learning algorithms [*REF*] have also been recently combined
+with RL to enable fast adaptation under changing domains
+[*REF*; *REF*]. Nagabandi et al. introduced a
+model-based algorithm where a meta-learning technique is used to
+construct dynamics models capable of rapidly adapting to recent
+experiences --- either by updating the hidden state of a recurrent neural
+network [*REF*], or by updating the model parameters via a small
+number of gradient steps [*REF*]. Meta-learning methods typically
+assume disjoint training and testing phases, so that an agent can be
+pre-trained over randomly sampled contexts prior to its deployment. We,
+however, do not require a pre-training phase. Meta-learning methods also
+typically assume that the distribution over contexts experienced during
+training is the same as the one experienced during testing, so that
+agents can adapt to novel environments with structural similarities to
+those previously experienced. We, by contrast, do not require that
+contexts are sampled from a previously-seen distribution, nor that
+contexts share structural similarities with previously-experienced ones.
+
+
+To address these limitations, we introduce an algorithm that analyzes a
+possibly infinite stream of data and computes, in real-time,
+high-confidence change-point detection statistics that reflect whether
+novel, specialized policies need to be deployed to tackle new contexts,
+or whether a previously-optimized policy may be reused. We call our
+algorithm [M]odel-[B]ased RL [C]ontext [D]etection, or MBCD. We formally show
+that it minimizes the delay until unforeseen changes to a context are
+detected, thereby allowing for rapid responses, and that it allows for
+formal bounds on the rate of false alarm --- which is of interest when
+minimizing the agent&apos;s regret over random sequences of contexts. Our
+method constructs a mixture model composed of a (possibly infinite)
+ensemble of probabilistic dynamics predictors that model the different
+modes of the distribution over underlying latent MDPs. Our method is
+capable of optimizing policies based on streams of arbitrarily different
+contexts, with unknown boundaries, and which may be drawn from an
+arbitrary, unknown distribution.
+
+
+We evaluate our algorithm on high-dimensional continuous reinforcement
+learning tasks and empirically show (i) that state-of-the-art
+reinforcement learning algorithms struggle to deal with
+non-stationarity; and (ii) that our method outperforms
+state-of-the-art meta-learning methods specifically tailored to deal
+with non-stationary environments --- in particular, when the agent is
+faced with MDPs that are off-distribution with respect to the set of
+training contexts provided to the agent, or when novel contexts are
+structurally different from previously-observed ones.
+
+
+Problem Formulation 
+
+
+We define a non-stationary environment as a family of MDPs
+*MATH*. Each MDP *MATH* is a tuple
+*MATH*, where *MATH* is a (possibly continuous) state space,
+*MATH* is a (possibly continuous) action space, *MATH* 
+is a transition function specifying the distribution over next states,
+given the current state and action, *MATH* 
+is a reward function, *MATH* is the discount factor, and
+*MATH* is an initial state distribution. In what follows, *MATH*, *MATH*,
+and *MATH* are the random variables corresponding to the state, action,
+and reward at time step *MATH*. We assume that the agent observes a random
+sequence *MATH* of MDPs --- called
+contexts --- drawn independently from some unknown distribution. We
+assume that the number of contexts, *MATH*, is unknown.
+These definitions are similar to those discussed in [*REF*] and
+[*REF*]. Let *MATH* be a latent index variable indicating a
+particular MDP, *MATH*. We assume that each MDP&apos;s transition
+and reward function are parameterized by a latent vector *MATH*. Let
+*MATH* denote the joint conditional
+probability distribution over next-state and reward associated with MDP
+*MATH*. We do not impose any smoothness assumptions on how
+variations to *MATH* affect *MATH* and *MATH*:
+contexts may be arbitrarily different and share no structural
+similarities.
+
+
+Let the time steps in which context changes occur be an increasing
+sequence of integer random variables, *MATH*, for which a
+prior *MATH* is unknown or cannot be defined. We call each *MATH* a
+change-point. At every change-point *MATH*, the current context
+*MATH* is replaced by a new randomly drawn MDP. To perform
+well, an agent must rapidly detect context changes and deploy an
+appropriate policy. If a new random context differs significantly from
+previously-experienced ones, the agent may have to learn a policy from
+scratch; otherwise, it may choose to reuse previously-acquired knowledge
+to accelerate learning and avoid catastrophic forgetting.
+
+
+At each time *MATH*, when interacting with its environment, the agent
+selects an action *MATH* based on its state *MATH* according to a
+stochastic policy *MATH*. Let *MATH* be
+the value function associated with policy *MATH*, MDP *MATH*,
+and defined over a horizon *MATH*: *MATH*.
+
+
+To simplify our analysis, we first consider (without loss of generality)
+the simpler case of a family of MPDs *MATH*,
+where a context change occurs from *MATH* to *MATH* at
+some unobserved random time *MATH*. The mathematical arguments that follow
+can be extended to the more general setting with an arbitrary number of
+contexts. Let *MATH* be a policy that follows the optimal policy for
+*MATH*, *MATH*, before *MATH*, and the optimal policy for
+*MATH*, *MATH*, afterwards. This policy&apos;s value function is
+defined as: *MATH* where *MATH* denotes the distribution of states
+reachable after following policy *MATH* for *MATH* steps under MDP
+*MATH*. Notice that Eq. models the case when *MATH* starts in
+the (random) state where *MATH* terminated, that is,
+immediately prior to the random time *MATH*. This implies that
+*MATH*.
+
+
+By contrast, consider an alternative policy *MATH* that follows policy
+*MATH* only after a random time *MATH*, for *MATH*; that is, a
+policy that deploys the correct decision-making strategy for
+*MATH* with a delay of *MATH* steps. Its value
+function is given by: *MATH*. Notice that we can rewrite
+Eq. in the same form as Eq.: *MATH*. 
+
+
+We now define the regret *MATH* as the expected
+discounted sum of rewards lost due to the delay *MATH*,
+when changing from *MATH* to *MATH* only at time step *MATH*. This
+quantity is given by the difference between
+Eq. and Eq. Since we are interested in minimizing the
+delay *MATH*, we assume the adversarial case when policies *MATH* and
+*MATH* do, in the short-term (i.e., within the delay window *MATH*),
+have a nearly indistinguishable distribution over the states that are
+reachable in *MATH* steps. In particular, we assume that the KL
+divergence between *MATH* and *MATH* is bounded and small for small
+values of *MATH*. In this case, the regret can be approximated by: *MATH* as *MATH*.
+From Eq., it should be clear that to maximize the expected
+return over the random sequence of MDPs, one needs to minimize regret;
+and to minimize regret, one needs to minimize the random delay *MATH*.
+In the next section, we introduce a method capable of minimizing the
+worst-case delay until unforeseen changes to a stochastic process are
+detected, while also bounding the rate of false alarm --- i.e., the
+likelihood that the method will incorrectly indicate that a context
+change occurred.
+
+
+High-Confidence Change-Point Detection 
+
+
+Change-point detection (CPD) algorithms
+[*REF*; *REF*] are designed to detect
+whether (and when) a change occurs in the distribution generating random
+observations from an arbitrary stochastic process. These methods have
+been widely used in a variety of fields --- from financial markets
+[*REF*] to biomedical signal processing [*REF*]. Although
+CPDs have been applied to reinforcement learning problems
+[*REF*; *REF*], the application and formal analysis of
+such methods have been restricted to discrete state spaces settings.
+
+
+In the online CPD setting, a sequential detection procedure is defined
+to rapidly and reliably estimate when the parameter *MATH* of some
+underlying distribution or stochastic process has changed. Online CPD
+algorithms should produce high-confidence estimates, *MATH*, of the
+true change-point time, *MATH*. Notice that *MATH* is a random variable
+whose stochasticity results from the unknown stochastic prior over
+context changes, *MATH*, and from the fact that each MDP in
+*MATH* produces random trajectories of states, actions,
+and rewards.
+
+
+Suppose that at each time *MATH*, while the agent interacts with
+*MATH*, sample next-state and rewards are drawn from
+*MATH*, where *MATH* is the latent
+vector parameterizing *MATH* &apos;s transition and reward functions.
+At some unknown random change-point *MATH*, the context changes to
+*MATH*, and experiences that follow are drawn from
+*MATH*. We propose to identify such a
+change by computing high-confidence statistics that reflect whether
+*MATH* has changed. This can be achieved by introducing a minimax
+formulation of the CPD problem, as discussed by Pollak [*REF*]. In
+this formulation, the goal of a CPD algorithm is to compute a random
+estimate, *MATH*, of the latent change-point time *MATH*, such that (i)
+it minimizes the worst-case expected detection delay,
+*MATH*, associated with the random estimates *MATH* 
+produced by a particular CPD algorithm, when considering all possible
+change-points *MATH*; and (ii) bounds on the maximum false alarm rate
+(FAR) may be imposed. The worst-case expected detection delay,
+*MATH*, and the FAR, are defined as: *MATH*.
+
+
+*MATH* where the expectations in
+Eq. and Eq. are over the possible histories of experiences produced by the stochastic
+process, and where conditioning on *MATH* indicates the random
+event where the context never changes. Given these definitions, the
+objective of a high-confidence change-point detection process is the
+following: *MATH* where *MATH* denotes the desired upper-bound on the false alarm rate.
+
+
+When *MATH* and *MATH* are known, the Log-Likelihood Ratio (LLR)
+statistic can be used to recursively compute the CUSUM statistic
+[*REF*]. As we will discuss next, such a statistic can be used to
+construct a high-confidence change-point detection method. The LLR
+statistic, *MATH*, and the CUSUM statistic, *MATH*, are updated at each
+time *MATH* as follows: *MATH*. *MATH*. Importantly,
+notice that before the change-point *MATH* is reached,
+*MATH*, which implies that the expected value of *MATH* is
+zero. After the change-point *MATH* is reached, *MATH*, and
+therefore *MATH* will tend to increase. Higher values of *MATH*, thus,
+serve as principled statistics reflecting evidence that a change-point
+has occurred between *MATH* to *MATH*. The random time *MATH* 
+when a change-point is estimated to have happened is defined as the
+first time when the CUSUM metric *MATH* becomes greater than a detection
+threshold *MATH*: *MATH*.
+
+
+In [*REF*], Lorden shows that choosing *MATH* ensures
+that *MATH*. Furthermore, Lai
+demonstrated that the CUSUM detection time *MATH* is asymptotically
+optimum [*REF*] with respect to the problem specified in
+Eq. In particular, they showed that the worst
+expected detection delay (under *MATH*) respects the following
+approximation: *MATH*. In Eq., the denominator *MATH* 
+is the Kullback--Leibler divergence under *MATH*.
+Eq. implies that the larger the difference
+between the distributions *MATH* and *MATH*, the smaller
+the expected delay (*MATH*) for detecting a change-point.
+The above results allow us to construct high-confidence statistics
+reflecting whether (and when) a context has changed; importantly, they
+are both accurate and have bounded false alarm rate.
+
+
+Model-Based RL Context Detection
+
+
+In this section, we introduce an algorithm that iteratively applies a
+CUSUM-related procedure to detect context changes under the assumptions
+discussed in Section [2]. The algorithm incrementally builds a library
+of models and policies for tackling arbitrarily different types of
+contexts; i.e., contexts that may result from quantitatively and
+qualitatively different underlying causes for non-stationarity --- ranging
+from unpredictable environmental changes (such as random wind) to robot
+malfunctions. Our method can rapidly deploy previously-constructed
+policies whenever contexts approximately re-occur, or learn new
+decision-making strategies whenever novel contexts, with no structural
+similarities with respect to previously-observed ones, are first
+encountered. Unlike existing approaches (see Section [6]), our
+method is capable of (i) optimizing policies online; (ii) without
+requiring a pre-training phase; (iii) based on streams of arbitrarily
+different contexts, with unknown change-point boundaries; and (iv)
+such that contexts may be drawn from an arbitrary, unknown distribution.
+
+
+We now introduce a high-level description of our method
+([M]odel-[B]ased RL [C]ontext [D]etection, or MBCD). In subsequent subsections, we provide
+details for each of the method&apos;s components. As the agent interacts with
+a non-stationary environment, context changes are identified via a
+multivariate variant of CUSUM [*REF*], called MCUSUM. MCUSUM-based
+statistics inherit the same formal properties as those presented in Section [3]. In
+particular, they formally guarantee that MBCD can detect context changes
+with minimum expected delay, while simultaneously bounding the false
+alarm rate. As a consequence, MBCD can effectively identify novel
+environmental dynamics while ensuring, with high probability, that new
+context-specific policies will only be constructed when necessary.
+
+
+As new contexts are identified by this procedure, MBCD updates a mixture
+model, *MATH*, composed of a (possibly infinite) ensemble of probabilistic
+context dynamics predictors, whose purpose is to model the different
+modes of the distribution over underlying latent MDPs/contexts. New
+models are added to the ensemble as qualitatively different contexts are
+first encountered. The mixture model *MATH* associates, with each
+identified context *MATH*, a learned joint distribution
+*MATH* over next-state dynamics and rewards associated. Let
+*MATH* be the number of context models currently in the mixture. After each
+agent experience, MBCD identifies the most likely context, *MATH*, by
+analyzing a set of incrementally-estimated MCUSUM statistics (see
+Section [4.2]). Whenever a novel context --- one with
+dynamics that are qualitatively different from those
+previously-experienced --- is observed, a new model is added to the
+mixture. Context-specific policies, *MATH*, are trained via a
+Dyna-style approach [*REF*] based on the corresponding learned
+joint prediction model of *MATH*, *MATH* (see
+Section [4.3]). We provide details in the next
+subsections. Pseudocode for MBCD is shown in Algorithm.
+
+
+Stochastic Mixture Model of Dynamics 
+
+
+In this paper, we assume that *MATH*, the joint distribution
+over next-state dynamics and rewards associated with context
+*MATH*, can be approximated by a multivariate Gaussian
+distribution. In particular, following recent work on model-based RL
+[*REF*; *REF*], MBCD models the dynamics of a given environment *MATH*, *MATH*,
+via a bootstrap ensemble of probabilistic neural networks whose outputs
+parameterize a multivariate Gaussian distribution with diagonal
+covariance matrix. The bootstrapping procedure accounts for epistemic
+uncertainty (i.e. uncertainty about model parameters), which is crucial
+when making predictions about the agent&apos;s dynamics in regions of the
+state space where experiences are scarce. For each context
+*MATH* identified by MBCD, an ensemble of *MATH* stochastic neural
+networks is instantiated and added to the mixture model *MATH*. Each
+network *MATH* in the ensemble is parameterized by *MATH* and
+computes a probability distribution, *MATH*, that
+approximates *MATH* by predicting the mean and covariance over
+next-state and rewards conditioned on the current state and action:
+*MATH* where *MATH* and *MATH* are the network outputs given input
+*MATH*. To simplify notation, let *MATH* and *MATH*.
+We follow Lakshminarayanan et al. [*REF*] and model the
+ensemble prediction as a Gaussian distribution whose mean and covariance
+are computed based on the mean and covariances of each component of the
+ensemble. In particular, the ensemble predictive model,
+*MATH*, associated with a given context *MATH*,
+is defined as: *MATH* where *MATH*.
+
+
+MBCD stores all experiences collected while in context *MATH* 
+in a buffer *MATH*. After every *MATH* steps, it uses data in *MATH* to
+update the ensemble model *MATH* by minimizing the
+negative log prediction likelihood loss function,
+*MATH*.
+
+
+Online Context Change-Point Detection 
+
+
+As previously discussed, MBCD employs a multivariate variant of CUSUM,
+MCUSUM, to detect context changes with high confidence. Healy
+demonstrated that, when detecting shifts in the mean of a multivariate
+Gaussian distribution, MCUSUM inherits all theoretical optimality
+guarantees possessed by the univariate CUSUM procedure [*REF*].
+Furthermore, he also proved that the detection delay is independent of
+the dimensionality of the data.
+
+
+In the particular case where the dynamics of each context are modeled as
+multivariate Gaussians, the LLR statistic can be computed as follows. To
+simplify notation, let *MATH* and
+*MATH*. It is then possible to show
+that the LLR statistic, *MATH*, between distributions
+*MATH* and *MATH*, is given by:
+*MATH* where *MATH* is the dimensionality of the multivariate
+Gaussian. At each time step *MATH*, MBCD uses *MATH* to compute MCUSUM
+statistics *MATH* for each known context *MATH*, plus an additional
+statistic *MATH*, used to infer, with high
+probability, whether a novel context has been first encountered:
+*MATH*. Here, *MATH* can be seen as evidence
+that a previously-unseen context has been first encountered, based on
+whether the likelihood of all known contexts *MATH* is smaller
+than *MATH*, where *MATH* and *MATH*.
+Intuitively, *MATH* indicates whether none of the
+known contexts is likely to have generated the observed transitions. In
+Eq., *MATH* is the likelihood of a new context under the alternative hypothesis that the
+true observation *MATH* is *MATH* standard deviations away
+from the true observation *MATH*. In particular, *MATH* 
+indicates the minimum meaningful change in the distribution&apos;s mean that
+we are interested in detecting. Given updated statistics *MATH*, the
+most likely current context, *MATH* (which may or may not have changed)
+can then be identified as: *MATH*. If no alternative contexts are more likely to have
+generated the observations collected up to time *MATH*, no context change
+is detected and *MATH*.
+
+
+Notice that in Eq., models *MATH* are assumed to be known a
+priori. In our setting, these models are estimated based on samples.
+MCUSUM has been studied in scenarios where the parameters of the
+distribution are known only approximately [*REF*]. In our work,
+we address this challenge by computing change-point detection statistics
+only after a small warm-up period within which the agent is allowed to
+operate in a given context. In particular, and similarly to Sekar et al.
+[*REF*], we define the warm-up period by using ensemble
+disagreement as a proxy to quantify the system&apos;s uncertainty regarding
+the current distributions. Assuming a warm-up period where the agent is
+allowed to operate within each newly-encountered context is a common
+assumption in the area [*REF*; *REF*; *REF*]. In fact, it is a
+necessary assumption: if contexts are allowed to change arbitrarily
+fast, adversarial settings can be constructed where all methods for
+dealing with non-stationary scenarios fail.
+
+
+Finally, notice that a key element of Eq. is the
+threshold *MATH*, against which each *MATH* is compared in order to
+check if a context change has occurred. Different methods have been
+proposed to set *MATH* [*REF*]. Here, we take a conservative
+approach. As discussed in Section [3], setting *MATH* ensures that
+*MATH*. In this work, we set *MATH* by considering
+negligible values of *MATH*; e.g. *MATH* if
+*MATH*. In our experiments, we observed that
+detection delays remain low even for very conservative values of *MATH*.
+
+
+Policy Optimization 
+
+
+Since MBCD estimates dynamics models for each context, it is natural to
+exploit such models to accelerate policy learning by deploying
+model-based RL algorithms. MBCD learns context-specific policies via a
+Dyna-style approach [*REF*]. In particular, at every time step *MATH* 
+during which the model *MATH* is trained, *MATH* 1-step
+simulated rollouts are sampled using *MATH*. Each rollout
+starts from a random state drawn from *MATH*. All rollouts are stored
+in a buffer, *MATH*. Notice that this is similar to the
+procedure used by the Model-Based Policy Optimization (MBPO) algorithm
+[*REF*]. Each context-specific policy *MATH* is
+optimized by taking into account both real experiences (stored in
+*MATH*) and simulated experiences (stored in *MATH*). Policy
+optimization is performed using the Soft Actor-Critic (SAC) algorithm
+[*REF*]. SAC alternates between a policy evaluation step, which
+estimates *MATH* using the Bellman backup operator, and a policy improvement step, which
+optimizes the policy *MATH* by minimizing the expected KL-divergence
+between the current policy and the exponential of a soft Q-function
+[*REF*]. Optimizing the policy, then, corresponds to minimizing
+the following loss function: *MATH*.
+
+
+ALGORITHM
+
+
+Experiments
+
+
+We evaluate MBCD in challenging continuous-state, continuous-action
+non-stationary environments, where the non-stationarity may result from
+qualitatively different reasons --- ranging from abrupt changes to the
+system&apos;s dynamics (such as changes to the configuration of the agent&apos;s
+workspace); external latent environmental factors that impact the
+distribution over next states (such as random wind); robot malfunctions;
+and changes to the agent&apos;s goals (its reward function). We compare MBCD
+both against state-of-the-art RL algorithms and against state-of-the-art
+meta-learning methods specifically tailored to deal with non-stationary
+environments.
+
+
+We investigate the performance of MBCD in two settings: (i) a setting
+that satisfies all standard requirements made by meta-learning
+algorithms; in particular, that all contexts in *MATH* are structurally
+similar, and that the agent is tested on a distribution of contexts that
+matches the training distribution; and (ii) a more general setting
+where such requirements are not be satisfied: contexts may differ
+arbitrarily, and future contexts experienced by the agent may be
+off-distribution with respect to those sampled during the training
+phase. We show that our method outperforms both standard
+state-of-the-art RL algorithms and also specialized meta-learning
+algorithms in both settings.
+
+
+In what follows, we evaluate MBCD in two domains with qualitatively
+different non-stationary characteristics (see Fig. [1]).
+
+
+Non-Stationary Continuous Particle Maze
+
+
+This domain simulates a family of two-dimensional continuous mazes where
+a particle must reach a non-observable goal location. The reward
+function corresponds to the Euclidean distance between the particle and
+the goal location. Non-stationarity is introduced by either changing the
+location of walls or by randomly changing the latent goal location.
+
+
+Half-Cheetah in a Non-Stationary World
+
+
+This domain consists of a simulation of the high-dimensional
+Half-Cheetah robot [*REF*]. The agent&apos;s goal is to move
+forward while reaching a particular target-velocity and minimizing
+control costs. We introduce three sources of non-stationarity:
+1. random wind: an external latent horizontal force, opposite to
+the agent&apos;s movement direction, is applied;
+2. joint malfunction: either the torque applied to a joint of the
+robot has its polarity/sign changed; or a joint is randomly
+disabled;
+3. target velocity: the target velocity of the robot is sampled
+from the interval 1.5 to 2.5, causing a non-stationary change to the
+agent&apos;s reward function.
+
+
+FIGURE
+
+
+We first evaluate our method on the non-stationary Half-Cheetah domain
+and compare it with two state-of-the-art RL algorithms: MBPO
+[*REF*] and SAC [*REF*]. In our setting, MBPO can be
+seen as a particular case of our algorithm, where a single dynamics
+model and policy are tasked with optimizing behavior under changing
+contexts. SAC works similarly to MBPO but does not perform Dyna-style
+planning steps using a learned dynamics model.
+
+
+Fig. [2] shows the total reward achieved by different
+methods (ours, MBPO, SAC) as contexts change. Colored shaded areas
+depict different contexts, as discussed in the figure&apos;s caption. Notice
+that our method and MBPO have similar performances when interacting for
+the first time with the first three random contexts. In particular, both
+MBCD and MBPO&apos;s performances temporarily drop when a novel context is
+encountered for the first time. MBCD&apos;s performance drops because it
+instantiates a new dynamics model for the newly encountered context,
+while MBPO&apos;s performance drops because it undergoes negative transfer.
+SAC, which is model-free, never manages to achieve reasonable
+performance during the duration of each context, due to sample
+inefficiency. However, as the agent encounters contexts with structural
+similarities with respect to previously-encounters ones (around time
+step 160k), MBCD&apos;s performance becomes near-optimal: it rapidly
+identifies whenever a context change has occurred and deploys an
+appropriate policy. MBPO and SAC, on the other hand, suffer from
+negative transfer due to learning average policies or dynamics models.
+They are also subject to catastrophic forgetting and do not reuse
+previously-acquired, context-specific knowledge.
+
+
+Fig. [3] and Fig. [4] allow us to observe the inner workings of
+MBCD and understand the reasons that underlie its performance.
+Fig. [3] shows the log-likelihood of the predictions made by each context model
+learned by MBCD as contexts change. Notice that all context changes in
+this experiment --- even those caused by qualitatively different sources
+of non-stationarity --- are detected with minimal delay. As contexts
+change, MBCD rapidly detects each change and instantiates new
+specialized joint prediction models for each context. Furthermore, when
+structurally similar contexts are re-encountered (e.g., at time steps
+160k and timestep 360k), MBCD successfully recognizes that
+previously-learned models may be redeployed and avoids having to relearn
+context-specific dynamics or policies.
+Fig. [4] shows the time evolution, as contexts change, of the MCUSUM statistics,
+*MATH*, for each model *MATH* in the ensemble. A context change is detected,
+online, whenever one of the statistics crosses the threshold *MATH*. Notice
+that MCUSUM statistics grow rapidly and cross the threshold almost
+instantaneously --- only a few steps after a context change. This
+empirically confirms the minimum-delay guarantees provided by our
+change-point detection method.
+
+
+FIGURE
+
+
+We now evaluate MBCD&apos;s ability to rapidly detect context changes after
+an initial training period. Fig. [6] shows the cumulative sum of rewards achieved by MBCD, MBPO, SAC, and by
+an Oracle algorithm that is initialized with optimal policies for all
+contexts and that detects context changes with zero delay. This is a
+challenging setting where contexts change very rapidly --- after only 25
+steps. Notice that our algorithm closely matches the performance of the
+zero-delay Oracle, thus empirically confirming its ability to minimize
+regret (Eq.).
+
+
+FIGURE
+
+
+Next, we analyze how MBCD performs when compared with state-of-the-art
+meta-learning methods specifically tailored to deal with non-stationary
+environments: Gradient-Based Adaptive Learner (GrBAL)
+[*REF*] and Recurrence-Based Adaptive Learner (ReBAL) [*REF*]. GrBAL employs the
+Model-Agnostic Meta-Learning (MAML) [*REF*] method to learn the
+parameters of a meta-learning prior over the dynamics model, given a set
+of training contexts. This prior is constructed so that it serves as a
+good initial model for any new contexts that the agent encounters after
+a pre-training phase. After training, such a meta-learned dynamics model
+is capable of quickly adapting to a current task&apos;s dynamics by taking
+only a few gradient steps. ReBAL works similarly to GrBAL, but instead
+of taking gradient steps to adapt a prior model to novel contexts, it
+uses a recurrent neural network that learns its own update rule (vs. a
+gradient update rule) through its hidden state. Both ReBAL and GrBAL use
+Model-Predictive Control (MPC) [*REF* +1989] for selecting actions by
+planning for a certain horizon using the learned dynamics model.
+
+
+Fig. [7] compares the adaptation performance of MBCD and the meta-learning
+methods in a non-stationary setting where (inspired by
+[*REF*]) random joints of the Half-Cheetah robot are disabled
+after every 100 time steps. In this experiment we compare MBCD, ReBAL,
+GrBAL, and also (for fairness) a variant of MBCD that chooses actions
+using MPC instead of SAC. All implementations of MPC make use of the
+cross entropy method (CEM) [*REF*] to accelerate action selection.
+All methods are allowed to interact with each randomly-sampled context
+during a training phase comprising 60000 time steps. Although the
+meta-learning methods have lower-variance, their meta-prior models do
+not perform as well as the MBCD context-specific dynamics models and
+policies. We also observe that when MBCD uses parameterized policies,
+learned through Dyna-style planning, it performs better than MBCD
+coupled with MPC.
+
+
+FIGURE
+
+
+We now evaluate MBCD in a setting where contexts may differ arbitrarily
+and where future contexts may be off-distribution with respect to those
+sampled during the training phase. To do this, we compare MBCD, MBPO,
+SAC, ReBAL, and GrBAL, in the non-stationary continuous particle maze
+domain, where the sources of non-stationarity are as discussed earlier.
+Fig. [8] compares MBCD, MBPO, and SAC in the fully-online setting --- no
+pre-training phase is allowed. Notice that, even in this relatively
+simple scenario, state-of-the-art RL algorithms may fail if the
+underlying state transition or reward function changes drastically.
+MBCD&apos;s performance, by contrast, remains approximately constant (and
+high) as contexts change.
+
+
+FIGURE
+
+
+In Fig. [9], we compare MBCD with meta-learning methods
+after a phase of pre-training. All contexts observed up to time step
+*MATH* are on-distribution: they are similar to those experienced during
+training. MBCD outperforms ReBAL and GrBAL because the meta-learning
+approaches construct models that try to average characteristics of
+structurally different contexts. At time *MATH*, we initiate a phase with
+off-distribution contexts --- contexts unlike those observed during
+training. When this occurs, MBCD faces a short adaption period and
+degrades gracefully, while meta-learning techniques perform poorly. This
+emphasizes MBCD&apos;s advantages over meta-learning models, both when a
+pre-training phase is not allowed/possible (e.g.,
+Fig [8]) and also when testing contexts arise from a distribution different from the
+training distribution.
+
+
+Related Work 
+
+
+Dealing with non-stationary environments in RL via context change-point
+detection has been studied in discrete state and action spaces settings.
+da Silva et al. [*REF* +2006icml] introduced Reinforcement Learning
+Context Detection (RLCD). RLCD is a model-based algorithm that estimates
+the prediction quality of different models, and instantiates new ones
+when none of the existing models performs well. Even though it does not
+require a pre-training phase (like meta-learning algorithms), it is only
+applicable to purely discrete settings. Hadoux et al. introduced an
+extension of RLCD that uses a CUSUM-based method to perform change-point
+detection [*REF*]. Unlike our method, however, it is only
+applicable to discrete state settings. Banerjee et al. proposed a
+two-threshold switching policy based on KL divergence between transition
+models in order to rapidly detect context changes [*REF*]. This
+is a principled method but --- unlike MBCD --- requires prior knowledge of
+the dynamics model of all contexts.
+
+
+In [*REF*] and [*REF*], meta-learning algorithms
+are used to train a prior over dynamics models that can, when combined
+with recent data, be rapidly adapted to novel contexts. These methods,
+unlike MBCD, were designed to tackle settings where the non-stationarity
+solely results from changes to the dynamics, but not to the agent&apos;s
+goals/reward function. Reward functions are assumed to be known a
+priori. These methods also require an explicit pre-training train
+phase, prior to deployment, and assume that the distribution of training
+and testing contexts is the same. Our method, by contrast, is better
+suited to continual online settings where a pre-training phase is not
+possible, and where the agent is tasked with dealing with streams of
+arbitrarily different contexts with unknown boundaries.
+
+
+Conclusion
+
+
+We introduced a model-based reinforcement learning algorithm (MBCD) that
+learns efficiently in non-stationary settings with continuous states and
+actions. It makes use of high-confidence change-point detection
+statistics to detect context changes with minimum delay, while bounding
+the rate of false alarm. It is capable of optimizing policies online,
+without requiring a pre-training phase, even when faced with streams of
+arbitrarily different contexts drawn from unknown distributions. We
+empirically show that it outperforms state-of-the-art (model-free and
+model-based) RL algorithms, and that it outperforms state-of-the-art
+meta-learning methods specially designed to deal with
+non-stationarity --- in particular, if the agent is faced with MDPs that
+are off-distribution with respect to the set of training contexts. As
+future work, we would like to extend our method so that it can actively
+transfer knowledge of learned policies between contexts. This research
+direction suggests that our method may be combined with meta-learning
+techniques that operate over policies, instead of over dynamics models.

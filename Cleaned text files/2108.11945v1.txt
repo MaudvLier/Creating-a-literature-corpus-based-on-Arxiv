@@ -1,0 +1,625 @@
+SASRA: Semantically-aware Spatio-temporal Reasoning Agent for Vision-and-Language Navigation in Continuous Environments
+
+
+INTRODUCTION
+
+
+A long-held vision for robotics and artificial intelligence is to create
+robots that can reason about their environments and perform a task
+following natural language commands. Recent advances in learning-based
+approaches [*REF*; *REF*; *REF*] have shown
+promise in making progress towards solving a complex task referred to as
+Vision-and-Language Navigation (VLN) [*REF*; *REF*].
+VLN task requires an autonomous agent to navigate in a 3D environment
+without prior access to a map following human-like rich instructions.
+
+
+Consider an instruction as shown in Figure:
+&quot;Move forward through the corridor and turn left into the bedroom. Wait
+by the couch on the left&quot;. In following this sequence of instructions,
+the agent has to keep track of the preliminary instruction that has been
+completed as well as keep a record of the seen areas of the environment.
+This entails the agent to possess an excellent memory. The agent also
+has to be spatially-aware of its surroundings by matching the visual
+cues observed at each time-step with relevant parts of the provided
+instructions. Lastly, the agent has to take low-level control decisions
+which have long term consequences for instances bumping into obstacles
+in future. These challenges require the agent to be both spatially-aware
+of the current scene and temporally conscious of its environment.
+
+
+Recent advances in learning-based approaches have made promising
+progress towards solving the VLN
+task [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+However, prior end-to-end learning based VLN systems mostly rely on raw visual
+observations [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*]
+and memory components such as LSTM [*REF*]. Most of the prior
+VLN systems are trained assuming a simpler navigation-graph based
+setting (e.g.,[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*]),
+but the performance of these agents is adversely affected in more
+complex scenarios such as unconstrained navigation or complex
+long-horizon VLN problems [*REF*; *REF*; *REF*]. In this work,
+we consider a continuous 3D environment for VLN
+following [*REF*]. The task is referred to as
+Vision-and-Language Navigation in Continuous Environments (VLN-CE). The
+VLN-CE formulation imitate the challenges of real-world much better
+compared to the navigation-graph based formulation and robotic agents
+trained on such a simulated setting are likely to transfer well to
+real-world cases.
+
+
+Structured memory such as local occupancy maps [*REF*; *REF*; *REF*; *REF*]
+and scene semantics [*REF*; *REF*; *REF*; *REF*]
+have shown to previously improve the performance of learning-based
+visual navigation agents. However, their relation to Vision-and-Language
+navigation in continuous environments has not been effectively
+investigated [*REF*]. We believe structure scene memory
+is crucial to operate well in VLN-CE setting (as we also show for SASRA
+experiments in Section [4]) because a longer horizon task demands elaborate
+spatial reasoning to more effectively learn a VLN Policy.
+
+
+Motivated by above, we present a hybrid transformer-recurrence model for
+VLN in continuous 3D environments which we refer to as
+Semantically-aware Spatio-temporal Reasoning Agent
+(SASRA). Our proposed approach combines classical semantic mapping
+technique with a learning-based method and equips the agent with the
+following key abilities: 1) Establish a temporal memory by generating
+local top-down semantic maps from the first person visual observations
+(RGB and Depth). 2) Create a spatial relationship between contrasting
+vision-based mapping and linguistic modalities. Hence, identify the
+relevant areas in the generated semantic map corresponding to the
+provided instructions and 3) Preserve the relevant temporal states
+information through time by combining a
+transformer-inspired [*REF*] attentive model with a recurrence
+module; hence make the agent conscious of its environment (spatially
+scene-aware) as well as its history (temporally conscious).
+
+
+The main contributions of the work are summarized below:
+-  To the best of our knowledge, we present the first work on the
+effective integration of semantic mapping and language in an
+end-to-end learning methodology to train an agent on the task of
+Vision-and-Language Navigation in continuous 3D environments.
+-  We introduce a novel 2-D cross-modal Semantic-Linguistic
+Attention Map Transformer (SLAM-T) mechanism, based on
+Transformers, to extract cross-modal map and language features while
+focusing on the most relevant areas of structured, local top-down
+spatial information.
+-  We demonstrate a clear improvement over the state-of-the-art methods
+and baselines in the Vision-and-Language navigation task in VLN-CE
+dataset with over 20% improvement in success rate and 22%
+improvement in success weighted by path length (SPL) in unseen
+environments.
+
+
+RELATED WORKS
+
+
+Vision-and-Language Navigation: The combination of vision and
+language have been broadly studied in a variety of tasks including
+Visual Question Answering [*REF*; *REF*] and
+Image Captioning [*REF*; *REF*]. Previous
+systems for VLN have focused on utilising raw visual observations with a
+sequence-to-sequence based approach [*REF*; *REF*; *REF*; *REF*; *REF*].
+Additional progress in VLN systems has been guided through cross-modal
+matching techniques [*REF*; *REF*], auxiliary losses [*REF*; *REF*],
+data-augmentation [*REF*; *REF*; *REF*] and improved training-regimes [*REF*]. Our work, in
+contrast, focuses on incorporating structured memory in the form of
+scene semantics and its relation to language for VLN systems. Inspired
+by recent works on utilising end-to-end Transformers [*REF*]
+for language understanding, neural machine translation [*REF*] and object
+detection [*REF*], our work focuses on
+end-to-end Transformers for VLN combining various visual modalities with
+semantics mapping and language. Our formulation allows both spatial as
+well as temporal reasoning and is effective towards complex task such as
+VLN. Most of the prior works on VLN operate on a navigation graph
+setting [*REF*; *REF*; *REF*; *REF*].
+However, recent efforts have focused on lifting the assumption of
+navigation graph by making the VLN problem more challenging and closer
+to the real-world [*REF*; *REF*; *REF*].
+In this work, we focus on Vision-and-Language in Continuous Environments
+(VLN-CE) proposed in [*REF*].
+
+
+Scene-aware mapping for Navigation: Local map-building during
+exploration [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*]
+without prior access to a global map has been an active area of
+research. Previous works have mainly focused on generating a local
+occupancy map [*REF*; *REF*; *REF*; *REF*]
+for better exploration policies. Although top-down occupancy maps are
+effective for obstacle-avoidance for visual navigation, they fail to
+encode the rich semantic cues present in the environment. In contrast,
+our work accumulates the rich semantic information in the environment in
+a top-down, egocentric semantic map representation. This formulation
+allows us to spatially reason with language cues, which is shown to aid
+performance of our agent. Learning semantic maps have been a focus of
+recent works [*REF*; *REF*; *REF*]
+but it has been studied primarily in the context of visual navigation.
+Our work, however, combines classical semantic map generation in an
+attentive transformer-like architecture [*REF*] to focus on and
+extract cross-modal features between local semantics map and provided
+instructions for effective Vision-and-Language Navigation. To the best
+of our knowledge, this intersection of semantic mapping and language has
+not been a focus of any prior works.
+
+
+Semantically-aware Spatio-Temporal Reasoning Agent
+
+
+Consider an autonomous agent *MATH* in an unknown
+environment. Our goal is to find the most optimal sequence of actions
+*MATH* which takes the agent from a starting
+location to a goal location while staying close to the path defined by
+instructions (*MATH*). The agent receives visual observations (*MATH*)
+from the environment at each time-step (*MATH*). *MATH* denotes the
+learnable parameters of the policy *MATH*.
+
+To learn an effective policy (*MATH*), we propose a hybrid
+transformer-recurrence model to effectively reason with the environment
+in both spatial and temporal domains. Our approach, as shown in Figure
+[1](SASRA2), combines
+end-to-end transformer blocks with recurrent modules to effectively
+match the visual cues with the provided instruction. Our methodology
+comprises of three learnable sub-modules: Semantic-Linguistic
+Attention Map Transformer (SLAM-T), RGBD-Linguistic Cross
+Modal Transformer and Hybrid Action Decoder. The goal of the SLAM-T
+module is to generate a local semantic map over time and identify the
+matching between provided instruction and semantic map using cross
+attention. Hybrid Action Decoder then utilises the cross attention
+features obtained from both RGBD-Linguistic and Semantic Map-Linguistic
+modules to select an action (*MATH*) at each time-step. Details of our
+architecture are summarized as follows:
+
+
+Semantic-Linguistic Attention Map Transformer
+
+
+To generate a semantic map from visual observations
+*MATH*, we employ a classical three step
+approach. Here *MATH*, *MATH* and *MATH* denote the RGB, Depth and
+Semantic sensor readings respectively.
+
+
+FIGURE
+
+
+We first project the pixels in depth observations to a 3D point cloud
+using camera intrinsic parameters. Agent&apos;s current pose estimate is used
+to find the camera extrinsic parameters which are used to transform the
+point cloud to the world frame. The points are projected to a 2D space
+and stored as either obstacles based on a height threshold or free
+space. For each point categorized as an obstacle, we store its semantic
+class *MATH* i.e the value given by the semantic sensor reading *MATH*. In
+essence, each cell in a discrete *MATH* map *MATH* is
+represented as a binary vector *MATH*  *MATH*  *MATH*, where
+*MATH* if a semantic class *MATH* is present at that location and 0
+otherwise.
+
+
+To cross-modally attend to the relevant areas of the provided
+instructions *MATH* corresponding to the generated semantic map, we first
+encode these instructions *MATH* in a fully attentive model as follows:
+
+
+Language Encoder Transformer: Given a natural language instruction
+comprising of *MATH* words, its representation is denoted as
+*MATH* where *MATH* is the embedding
+vector for *MATH* word in the sentence. We encode the instructions
+using a transformer module [*REF*] *MATH* + PE *MATH* to get
+the instruction encoding vector (*MATH*) where PE denotes the fixed
+sinusoidal positional encoding [*REF*] used to encode the
+relative positions of words appearing in the sentence. The transformer
+module *MATH* consists of stacked multi-head attention block (M.H.A)
+followed by a position wise feed-forward block [*REF*] as shown
+in Figure(a) and Equation. Individual transformer blocks are computed as
+follows: *MATH*.
+
+
+A basic attention block, as shown in Figure, uses a
+linear projection of the input to find queries (*MATH* + PE *MATH*)
+and keys (*MATH* + PE *MATH*). Based on the similarity between
+queries (*MATH*) and keys (*MATH*), a weighted sum over the values
+(*MATH* + PE *MATH*) is computed as the output attention (*MATH*.
+Note that the language encoder transformer uses the same language
+sequences to project the tuple (*MATH*) and hence the
+attention output is referred to as self-attention.
+*MATH* and *MATH* are parameters to be learnt.
+
+
+Semantic-Linguistic Co-Attention Transformer: The output
+representation of semantic map (*MATH*) is a *MATH* map centered
+on the agent. We refer to this map representation (*MATH*) as a Bag of
+Semantic Indices. Each cell in the map (*MATH*) carries important
+structural information about the map. To encode the map features in a
+fully attentive transformer model (Equation), we construct a *MATH* relative
+positional encoding matrix (*MATH*) using a Gaussian kernel,
+centered on the agent, with a scale factor of *MATH*. Gaussian
+positional encoding (*MATH*) is computed after projecting the Gaussian
+kernel into an embedding space as follows: *MATH*.
+
+
+FIGURE
+
+
+Where *MATH* is the input scale parameter (equivalent to the standard
+deviation of the Gaussian) and *MATH* is the output scale parameter.
+
+
+We encode the semantic map representation (*MATH*) in a 2 step process.
+First, we compute self-attention over the map (*MATH*) by employing
+Equation. We use the sum of Bag of Semantic Indices and
+Gaussian positional encoding (*MATH*) as Query, Key and Value
+(*MATH*) in Equation. This transformer feature representation
+*MATH*  *MATH*  *MATH* using self-attention, as
+shown in Figure (b), is computed as follows: *MATH*.
+
+
+*MATH* is *MATH* matrix, where *MATH* 
+is the *MATH* semantic map collapsed into one dimension and *MATH* is the
+hidden size. Typical values we utilised are *MATH* and *MATH*.
+
+
+Second, we perform cross-attention between computed language features
+(*MATH*) and semantic map self attention features *MATH*. We
+employ Equation by using *MATH* as Query and instruction
+encoding (*MATH*) as Key and Value to get final cross-modal attention
+features *MATH*  *MATH*  *MATH* as follows: *MATH*.
+
+
+RGBD-Linguistic Cross Attention Transformer
+
+
+Given an initial observed image (*MATH*  *MATH* 
+*MATH*), we generate a low-resolution
+spatial feature representations *MATH*  *MATH* 
+*MATH* by using a classical CNN.
+Typical values we utilised are *MATH*, *MATH*.
+Furthermore, we process depth modality (*MATH*  *MATH* 
+*MATH*) using a CNN pre-trained on a large
+scale visual navigation task i.e. DDPPO [*REF*] to generate
+a spatial feature representation *MATH*  *MATH* 
+*MATH*. Typical values used in DDPPO training are *MATH*, *MATH*.
+
+
+Early Fusion: We employ an early fusion of image spatial features
+*MATH* and depth spatial features *MATH*. Specifically, we
+reduce the channel dimension of the spatial image features *MATH* 
+using a *MATH* convolution and perform average adaptive pooling
+across spatial dimensions to reduce the dimensions from
+*MATH* to *MATH*. We concatenate the final
+outputs *MATH* and *MATH* along the channel dimension to get a
+fused RGB-D representation (*MATH*).
+
+
+Cross Modal Attention: We utilised Equation to perform cross modal attention between
+linguistic features (*MATH*) and fused RGB-D features (*MATH*). We perform
+this cross-attention in two steps. First, we use the sum of *MATH* 
+and Learned Positional Encoding (*MATH*) as Query, Key and Value
+(*MATH*) in Equation to compute self-attention features
+*MATH* where we learn a spatial *MATH* positional encoding
+*MATH* as opposed to utilising a fixed positional
+encoding [*REF*]. Second, we perform cross-attention by using
+*MATH* as Query and instruction encoding (*MATH*) as Key and
+Value in Equation to get cross-modal attention features *MATH*.
+
+
+Late Fusion: We perform a late fusion of cross modal semantic map
+features *MATH* and cross modal RGB-D features *MATH*.
+Specifically, we utilise average pooling across the spatial dimensions
+of *MATH* before concatenating along the hidden size dimension
+*MATH* to get visual-linguistic embedding (*MATH*)
+
+
+Hybrid Action Decoder
+
+
+For action selection, the agent preserves a temporal memory of the
+previous observed visual-linguistic states (*MATH*) and
+previous actions(*MATH*). We utilise a recurrent neural network
+*MATH* to preserve this temporal information across time. *MATH*. 
+
+
+Temporal Cross Modal Transformer: The agent selects an action
+*MATH* by keeping track of the completed parts of the instructions
+(*MATH*) and observed visual-linguistic states (*MATH*). We
+preserve this temporal information regarding instruction completeness
+using an action decoder transformer, as shown in Figure
+(c), which performs cross-attention between hidden states from recurrent network
+(Equation) and instruction encoding (*MATH*). We compute this
+cross-attention *MATH* by utilizing recurrent hidden states *MATH* as Query and Key
+(*MATH*) and instruction encoding (*MATH*) as
+Value in Equation. Finally, we compute the probability (*MATH*)
+of selecting the most optimal action (*MATH*) at each time-step by
+employing a feed-forward network followed by *MATH* as follows:
+*MATH* where *MATH* is a multi-layer perceptron and
+*MATH* is the Transformer module.
+
+
+Conceptually, our Hybrid Action Decoder performs attention both on
+temporal sequences (i.e. along time) as well as language sequence. We
+empirically show (in Section
+[4.2]) that our hybrid action decoder is indeed
+crucial for the long-horizon and complex task such as VLN-CE and this
+design choice leads to better results than a single-temporal module
+based on either LSTMs or Transformers alone.
+
+
+Training
+
+
+We train our model using a cross entropy loss (*MATH*)
+computed using ground truth navigable action (*MATH*) and log of the
+predicted action probability (*MATH*) at step *MATH*. *MATH*.
+
+
+Training Regimes: We explore two popular imitation learning
+approaches for training, i.e., 1) Teacher-Forcing
+[*REF*], 2) DAGGER [*REF*]. Teacher-forcing
+is the most popular training method for RNNs which minimizes
+maximum-likelihood loss using ground-truth samples
+[*REF*; *REF*]. However, teacher-forcing
+strategy suffers from exposure bias problems due to differences in
+training and inference [*REF*; *REF*]. One
+popular approach to minimize the exposure bias problem in
+teacher-forcing method is DAGGER [*REF*]. In Dagger, the
+training data set for iteration *MATH* is collected with probability
+*MATH* (where, *MATH*) for ground-truth action and current
+policy action for remaining. The training for iteration *MATH* is done
+using the aggregated dataset collected till iteration *MATH*.
+
+
+Experiments 
+
+
+Simulator and Dataset: We use Habitat simulator [*REF*] to
+perform our experiments. We use VLN-CE dataset presented by Krantz et
+al. [*REF*] to evaluate VLN in continuous environments.
+VLN-CE is built upon Matterport3D dataset [*REF*] which is a
+collection of *MATH* environments captured through around 10k
+high-definition RGB-D panoramas. VLN-CE provides *MATH* trajectories
+followed by an agent inside Matterport3D simulation environment
+available in Habitat Simulator. Each trajectory is associated with 3
+instructions annotated by humans. The corresponding dataset is divided
+into train, validation seen and validation unseen splits. The train set
+contains 10819 episodes from 61 scenes, validation seen set contains 778
+episodes from 53 scenes and validation unseen set contains 1839 episodes
+from 11 scenes. The set of scenes in train and validation unseen splits
+are disjoint.
+
+
+VLN-CE dataset provides the following low-level actions for each
+instruction-trajectory pair for navigation inside Habitat Simulator:
+&apos;move forward&apos; (*MATH*), &apos;turn-left&apos; or &apos;turn-right&apos; (*MATH*) and
+&apos;stop&apos;. The trajectories in VLN-CE span *MATH* steps on average, making
+the problem realistic and challenging to solve than previously proposed
+navigation-graph based R2R dataset [*REF*] which corresponds to an
+average trajectory length of *MATH*. Note that our experiments do not
+include R2R dataset [*REF*] since we focus on a richer and more
+challenging setting of VLN in continuous environments i.e. VLN-CE.
+
+
+Evaluation Metrics: We use the following standard visual navigation
+metrics to evaluate our agents as described in previous
+works [*REF*; *REF*; *REF*]: Success
+rate (*MATH*), Success weighted by path length (*MATH*),
+Normalized Dynamic Time Warping (*MATH*), Trajectory Length
+(*MATH*) and Navigation Error (*MATH*). Following prior
+works [*REF*; *REF*; *REF*],
+we use *MATH* and *MATH* as the primary metrics to
+evaluate the navigation performance of our agent. Please
+see [*REF*; *REF*; *REF*] for details
+of the metrics.
+
+
+Implementation Details: For Teacher-Forcing training, we train the
+models for at most *MATH* epochs. We perform early stopping based on the
+performance of the model on the validation seen dataset. For DAGGER
+training, we start from the model pre-trained with teacher-forcing
+training and then fine-tune using DAGGER. We set the number of dataset
+aggregation rounds *MATH* for DAGGER to be *MATH*. *MATH* is set to *MATH*.
+Hence, for the *MATH* Dagger iteration, the dataset is collected with
+probability *MATH* for oracle policy actions blended with actions from
+the agent&apos;s policy obtained after training *MATH* iteration with a
+probability *MATH*. For each DAGGER round, we perform *MATH* epochs
+of teacher forcing training. All the models are trained using three RTX
+2080 Ti GPUs and Habitat-API [*REF*] version 0.1.5.
+
+
+To avoid loss curve plateauing, we use Adam
+Optimizer [*REF*] with a Cyclical Learning
+Rate [*REF*] in the range [*MATH*]. The cyclic
+learning rate was varied over a range of epochs. The inflection
+weighting coefficient for imitation learning is set to *MATH* following
+[*REF*]. For individual transformer blocks, we use a
+consistent hidden size (*MATH*), Number of Transformer Heads
+(*MATH*) and size of feed-forward layer (*MATH*). To improve
+memory efficiency, we down-scaled the generated semantic map (*MATH*)
+by a factor of *MATH*. The final dimension of *MATH* used as an
+input to the Transformer module is *MATH* where
+*MATH*. We employ pre-training for vision components in our
+architecture. Specifically, we utilize Imagenet [*REF*] pre-trained
+Resnet-50 for RGB and Resnet-50 pre-trained on DDPPO [*REF*]
+to compute low-resolution features for visual modalities. We use the
+depth and semantic label of pixels from the simulation environment
+following prior works [*REF*; *REF*; *REF*].
+
+
+TABLE
+
+
+Quantitative Comparison with Baselines
+
+
+We report the quantitative results on VLN-CE dataset in
+Table. We implement several baselines to compare
+the performance of the proposed model. The compared baseline models are:
+1) Blind (i.e., Random and Forward-Only): These agents does not
+process any sensor input and have no learned component
+[*REF*]. The Random agent randomly performs an action
+based on the action distribution of train set. The Forward-Only agent
+starts with a random heading and takes a fixed number of actions. The
+performance of these agents are reported from [*REF*].
+2) Sequence to Sequence (Seq2Seq): Seq2Seq agent employs a recurrent
+policy that takes a representation of instructions and visual
+observation (RGB and Depth) at each time step and then predicts an
+action ([*REF*; *REF*]). 3) Sequence to Sequence
+with Semantics (Seq2Seq-SM): Seq2Seq model which includes additional
+visual observation, (i.e., semantic map) to aid learning. 4) Cross
+Modal Matching (CMA): A sequence to sequence model with cross-modal
+attention and spatial visual reasoning
+([*REF*; *REF*]). 5) CMA with Semantics
+(CMA-SM): CMA Model which includes additional visual observation,
+(i.e., semantic map) to aid learning.
+
+
+The Seq2Seq and CMA are state-of-the-art baseline models in VLN-CE
+implemented following [*REF*]. Seq2Seq-SM and CMA-SM are
+our implemented baselines where base Seq2Seq and CMA models are enhanced
+by providing semantic map self-attention representation as additional
+input. The performance of the all the baselines are reported in
+Table with both teacher-forcing and DAGGER
+training. We report both Validation Seen (val-seen) and Validation
+Unseen (val-unseen) sets.
+
+
+[State-of-the-art Baselines.] It is evident from
+Table that the proposed SASRA agent achieves
+significant performance improvement over state-of-the-art VLN-CE
+baseline models, i.e., Seq2Seq and CMA. We observe that Seq2Seq and CMA
+show overall comparable performance. Seq2Seq performs slightly better in
+val-seen set than CMA, however, CMA performs slightly better in
+val-unseen. On the other hand, the proposed SASRA agent shows
+performance improvement compared to both models in both validation sets
+and with both training regimes. With DAGGER training, we find that the
+improvement in SPL is *MATH* absolute (*MATH* relative) in val-unseen
+and *MATH* absolute (*MATH* relative) in val-seen compared to Seq2Seq.
+With teacher-forcing training, the performance improvement in SPL is
+*MATH* absolute (*MATH* relative) in val-unseen and +1% absolute
+(*MATH* relative) in val-seen compared to Seq2Seq. Compared to CMA agent
+with DAGGER training, the absolute performance improvement in SPL is
+*MATH* in val-unseen and *MATH* in val-seen. With teacher-forcing
+training, the absolute performance improvement in SPL is *MATH* in
+val-unseen and *MATH* in val-seen. In terms of SR, we also see similar
+performance improvement.
+
+
+[Baselines with Semantic Map.] From Table, we observe that the Seq2Seq-SM model
+despite having access to semantic maps is not able to consistently
+perform better compared to Seq2Seq. We find a performance drop for
+Seq2Seq-SM compared to Seq2Seq in val-unseen with teacher-forcing
+training (SPL of *MATH* for Seq2Seq-SM vs *MATH* for Seq2Seq) and in
+val-seen set with DAGGER training (SPL of *MATH* for Seq2Seq-SM vs
+*MATH* for Seq2Seq). We also do not see a consistent performance
+improvement across different settings with CMA-SM compared to the CMA
+model. CMA-SM shows better performance in val-seen set but the
+performance is slightly lower than CMA in val-unseen set. We think that
+Seq2Seq-SM and CMA-SM models are not able to effectively relate semantic
+map and language information needed for improved navigation performance.
+We expect that additional semantic map cues would lead to significant
+improvement in VLN performance. However, an ineffective use might lead
+to ambiguity and degraded performance as evident from the performance of
+Seq2Seq-SM and CMA-SM. This inspires the design of our proposed SASRA
+model which focuses on effective integration of semantic mapping and
+language cues. We later show in the ablation study
+(Table) that addition of semantic map cues results in
+huge performance improvement for the proposed SASRA model. Among the
+models utilizing semantic map cues in
+Table, We observe that Seq2Seq-SM and CMA-SM
+show comparable performance to proposed model in some metrics, but the
+proposed model shows significant overall performance improvement (e.g.,
+absolute improvement of *MATH* SPL in val-seen and *MATH* SPL in
+val-unseen compared to both Seq2Seq-SM and CMA-SM).
+
+
+[Training Regimes.] We observe from
+Table that the models trained with DAGGER in
+general performs better than the models trained with teacher-forcing
+which is expected. We find DAGGER training to be most beneficial for our
+SASRA agent and performance improves significantly (e.g., SPL of *MATH* 
+with teacher-forcing vs *MATH* with DAGGER). With teacher-forcing, we
+find several baselines showing similar performance to the proposed SASRA
+agent in val-seen, however, the proposed agent performs significantly
+better in val-unseen. With DAGGER training, we see that the proposed
+model shows consistent large performance improvement over all comparing
+baselines across val-seen and val-unseen sets. Hence, the proposed model
+not only performs better in previously explored environments but also
+generalizes better to unseen environments.
+
+
+FIGURE
+
+
+Ablation Study 
+
+
+We perform an ablation study in Table to investigate the impact of different
+components of our SASRA agent. We divide the Table into 4 rows to aid
+our study. First, we observe the effectiveness of our of semantic map
+attention (i.e, SLAM-T) module comparing row 2 and row 3. We see that
+use of semantic map cues (row 3) leads to significant performance gain
+(i.e., *MATH* absolute in SR and *MATH* absolute in SPL) for our SASRA
+agent. Second, comparing row 1 and row 3, we evaluate the effect of our
+Hybrid Action Decoder (HAD) module. The agent in row 1 utilizes a simple
+RNN module as action decoder (similar to Seq2Seq and CMA baselines)
+instead of our HAD module. We find that HAD module (row 3) leads to
+large performance gains (i.e., *MATH* absolute in both SR and SPL)
+compared to the agent without HAD module (row 1). This indicates that
+effective combination of semantic map attention and action decoder
+module is crucial for the performance of SASRA agent. Third, we evaluate
+the effect of DAGGER training on SASRA agent comparing row 3 and row 4.
+We observe that the proposed SASRA agent (row 4) with DAGGER training
+achieves huge improvement compared to SASRA agent with teacher forcing
+training (row 3). The improvement is *MATH* absolute in both SR and SPL
+(Table). This shows the importance of addressing the
+exposure bias issue for VLN.
+
+
+Qualitative Results
+
+
+We qualitatively report the performance of SASRA agent in unseen
+photo-realistic simulation environments. Figure shows the agent following a complex sequence of
+instructions in an unseen environment during training. The agent builds
+a top-down spatial memory in the form of semantic map and aligns the
+language and map features to complete the long-horizon navigation task
+in 37 and 62 steps. This task is significantly longer and more complex
+than earlier proposed R2R VLN setting [*REF*] (around 4-6 steps on
+average). Note that the top-down map (shown on the right) is not
+available to the agent during training or inference and is only used for
+performance evaluation.
+
+
+In Figure 4, Episode 1 represents a failure case for our agent. We see
+that our agent is able to reach quite close to the goal for this episode
+but stops before reaching success radius and the episode is registered
+as failure. We see that agent follows instructions to enter the bedroom
+and walk through. However, it is confused by the phrase &quot;step outside&quot;
+which is a bit ambiguous as there are no details to indicate which way
+(as there are multiple doors) or where it needs to step outside. Episode
+2 represents a success case for our agent. We observe that our agent is
+able to follow the instructions correctly and reach its goal. Although
+there are multiple instructions of &quot;turn left\&quot;, the agent is able to
+turn left with the correct number of steps to effectively reach its
+goal. In this environment, there is a staircase going up and down and
+the goal location is close to that. The agent is able to immediately
+understand that it is already at top of stairs in the current floor and
+does not need to walk up the stairs. We believe semantic cues from
+environment helps the agent significantly in this case.
+
+
+Conclusions
+
+
+In this paper, we propose an end-to-end learning-based
+semantically-aware navigation agent to address the Vision-and-Language
+Navigation task in continuous environments. Our proposed model, SASRA,
+combines classical semantic map generation in an attentive
+transformer-like architecture to focus on and extract cross-modal
+features between local semantics map and provided instructions for
+effective VLN performance in a new environment. Extensive experiments
+and ablation study illustrate the effectiveness of the proposed approach
+in navigating both previously explored environments and unseen
+environments. The proposed SASRA model achieves relative performance
+improvement of over *MATH* in unseen validation set compared to the
+baselines.

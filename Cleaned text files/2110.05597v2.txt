@@ -1,0 +1,481 @@
+Learning to Coordinate in Multi-Agent Systems: A Coordinated Actor-Critic Algorithm and Finite-Time Guarantees
+
+
+Introduction 
+
+
+We consider the multi-agent reinforcement learning (MARL) problem, in
+which a common environment is influenced by the joint actions of
+multiple autonomous agents, each aiming to optimize their own individual
+objective. The MARL [*REF*; *REF*] has received
+significant attention recently due to their outstanding performance in
+many practical applications including robotics [*REF*],
+autonomous driving [*REF*] and video games
+[*REF*]. Many efficient algorithms have been proposed
+[*REF*; *REF*; *REF*], but unlike its
+single-agent counterpart, the theoretical understanding of MARL is still
+very limited, especially in settings where there is no central
+controller to coordinate different agents, so that the information
+sharing is limited [*REF*].
+
+
+An important subclass of MARL -- the so-called cooperative MARL -- has
+become popular recently due to its wide applications. In the cooperative
+MARL, the agents aim to collaborate with each other to learn and
+optimize a joint global objective. To this end, local information
+exchange and local communication may be used to jointly optimize a
+system-level performance measure [*REF*; *REF*; *REF*].
+Next, we provide a brief survey about related works in cooperative MARL,
+and discuss their settings as well as theoretical guarantees.
+
+
+Related Works. The systematic study of the cooperative MARL can be
+traced back to [*REF*; *REF*], which extended
+Q-learning algorithm [*REF*] or its variants to the multi-agent
+setting. More recently, there are a number of works that characterize
+the theoretical performance of cooperative MARL algorithms in a fully
+observable, decentralized setting ([*REF*; *REF*; *REF*]). In such a setting, the
+agents are connected by a time-varying graph, and they can only
+communicate with their immediate neighbors. The goal of the agents is to
+cooperatively maximize certain global reward, by communicating local
+information with their neighbors. Under the above cooperative MARL
+setting, there are several lines of works which studied different
+problem formulations, proposed new algorithms and analyzed their
+theoretical performance.
+
+
+The first line of works about the coorperative and fully observable MARL
+has focused on developing and analyzing policy evaluation algorithms,
+where the agents jointly estimate the global value function for a given
+policy. In [*REF*], a decentralized double averaging primal-dual
+optimization algorithm was proposed to solve the mean squared projected
+Bellman error minimization problem. It is shown that the proposed
+algorithm converges to the optimal solution at a global geometric rate.
+In [*REF*], the authors obtained a finite-sample analysis for
+decentralized TD(0) method. Their analysis is closely related to the
+theoretical results of decentralized stochastic gradient descent method
+on convex optimization problems [*REF*].
+
+
+However, the problem becomes much more challenging when the agents are
+allowed to optimize their policies. A recent line of works has focused
+on applying and analyzing various policy optimization methods in the
+MARL setting. In [*REF*], the authors extended the
+actor-critic (AC) algorithm [*REF*] to the cooperative MARL
+setting. The algorithm allows each agent to perform its local policy
+improvement step while approximating the global value function. A few
+more recent works have extended [*REF*] in different
+directions. For example in [*REF*], the authors
+considered the continuous action spaces and obtained the asymptotic
+convergence guarantee under both off-policy and on-policy settings.
+Moreover, [*REF*] considered a new decentralized formulation
+where all agents cooperate to maximize general utilities in the
+cooperative MARL system, it developed AC-type algorithms to fit this
+setting but still suffering from high sampling cost in estimating the
+occupancy measure for all states and the nested loop of optimization
+steps. A concurrent work [*REF*] adopts large-batch updates in
+decentralized (natural) AC methods to improve sample and communication
+efficiency, whose convergence rate matches the analysis results of the
+corresponding centralized versions [*REF*]. However, the
+proposed algorithms in [*REF*] needs to generate *MATH* samples to update
+critic parameter before performing each actor update. It is worth
+noting, that all the above mentioned works do not allow the agents to
+share their local policies.
+
+
+Our Contributions. Although there have been a growing literature on
+analyzing theoretical aspects of cooperative MARL, many challenges still
+remain, even under the basic fully observed setting. For example, most
+of the cooperative policy optimization algorithms, assume relatively
+simple collaboration mechanism, where the agents collaborate by jointly
+estimating the global value function, while independently optimizing
+their local policies. Such a form of collaboration decouples the agents&apos;
+policy optimization process, and it is relatively easy to analyze.
+However, it fails to capture some intrinsic aspects of cooperative MARL,
+in the sense that when the agents&apos; local tasks are similar (a.k.a. the
+homogeneous setting), the agent&apos;s policy should also be closely
+related to each other. Such an intuition has been verified in MARL
+systems [*REF*; *REF*], multi-task RL systems [*REF*; *REF*; *REF*],
+Markov games [*REF*] and mean-field multi-agent reinforcement learning [*REF*; *REF*],
+where parameter sharing scheme results in more stable convergence due to
+the benefit of learning homogeneity among different agents.
+
+
+In this work, we aim at providing better theoretical and practical
+understandings about the cooperative MARL problem. In particular, we
+consider the setting where the agents are connected by a time-varying
+network, and they can access the common observations while having
+different reward functions. We propose and analyze a Coordinated
+Actor-Critic ([CAC]) algorithm, which allows each agent to
+(partially) share its policy parameters with the neighbors for learning
+the homogeneity / common knowledge in the multi-agent system. To our
+knowledge, we provide the first non-asymptotic convergence result for
+two-timescale multi-agent AC methods. Moreover, we conduct extensive
+numerical experiments to demonstrate the effectiveness of the proposed
+algorithm.
+
+
+Preliminaries 
+
+
+In this section, we introduce the background and formulation of the
+cooperative, fully observable MARL in a decentralized system. To model
+the communication pattern among the agents, let us define the
+time-varying graph *MATH* consisting of a set of *MATH* nodes and a set of *MATH* 
+edges, with *MATH* and *MATH*. Each node
+*MATH* represents an agent and *MATH* represents
+the set of communication links at time *MATH* so that the agents are
+connected according to the links *MATH*.
+
+
+Consider the MARL problem, formulated as a discrete-time Markov Decision
+Process (MDP) *MATH*, where *MATH* is the finite space for global state *MATH* and
+*MATH* is the finite space for joint action *MATH*; *MATH* 
+denotes the initial state distribution; *MATH* 
+denotes the transition probability; *MATH* 
+denotes the local reward function of agent *MATH*; *MATH* is
+the discounted factor. Furthermore, suppose the policy of each agent *MATH* 
+is parameterized by *MATH*, then *MATH* denotes the collections
+of all policy parameters in the multi-agent system. Then
+*MATH* denotes the stationary distribution of
+each state *MATH* under joint policy *MATH*, and
+*MATH* denotes the discounted visitation measure where *MATH*.
+Under the joint policy *MATH*, the probability for
+choosing any joint action *MATH* could be expressed as *MATH*.
+
+
+Consider the discrete-time MDP under infinite horizon, the policy
+*MATH* can generate a trajectory *MATH* based
+on the initial state *MATH* sampled from *MATH*. In this work, we
+consider the discounted cumulative reward setting and the global value
+function is defined as below: *MATH* where we define *MATH* 
+and the expectation is taken over the trajectory *MATH* generated from
+joint policy *MATH*. When *MATH* is fixed, the value function
+*MATH* will satisfy the Bellman equation [*REF*] for all states *MATH*:
+*MATH*.
+
+
+The objective of RL is to find the optimal policy parameter
+*MATH* which maximizes the expected discounted
+cumulative reward as below: *MATH*.
+
+
+In order to optimize *MATH*, the policy gradient
+[*REF*], could be expressed as *MATH*.
+
+
+The Proposed Coordinated Actor-Critic Algorithm 
+
+
+The Proposed Formulation
+
+
+In this section, we describe our MARL formulation. Our proposed
+formulation is based upon definition, but with the key difference that we no
+longer require the agents to have independent policy parameters
+*MATH*. Specifically, we assume that the agents can (partially)
+share their policy parameters with their neighbors. Hence, each agent
+will decompose its policy into *MATH*, where the shared
+part *MATH* has the same dimension across all agents, and the
+personalized part *MATH* will be kept locally.
+
+
+The above partially personalized policy structure leads to the following
+MARL formulation: *MATH* where *MATH* is the
+collections of all local policy parameters *MATH*. To cast problem into a more tractable form, we perform
+the following steps.
+
+
+First, we approximate the global reward function for any
+*MATH* and *MATH*. Specifically, we use the following linear function
+*MATH* to approximate the global reward *MATH*,
+where *MATH* is the feature mapping. Then the optimal parameter
+*MATH* can be found by solving the following problem: *MATH*.
+
+
+Second, we approximate the global value function
+*MATH* for any *MATH* under a
+fixed joint policy *MATH*. Specifically, we use the
+following linear function *MATH* to
+approximate the global reward function *MATH*, where
+*MATH* is a given feature mapping.
+
+
+Towards achieving the above approximation, we can solve the following
+mean squared Bellman error (MSBE) minimization problem [*REF*]: *MATH*.
+
+
+To separate the objective into the sum of *MATH* terms (one for each
+agent), we introduce local copies of *MATH* and *MATH* as
+*MATH*, *MATH*, and define their vectorized versions *MATH* and
+*MATH*. Similarly, we also define *MATH* and *MATH*.
+
+
+Summarizing the above discussion, problem can be approximated using the following
+bi-level optimization problem: *MATH*.
+
+
+In the subsequent discussion, we will refer to the problem of finding
+the optimal policy *MATH* as the upper-level problem,
+while referring to the problem of finding the optimal *MATH* and
+*MATH* under a fixed policy parameters as the lower-level problem.
+
+
+The Proposed Algorithm 
+
+
+In this subsection, we first present the assumptions related to network
+connectivity and communication protocols in the multi-agent systems.
+Then we describe the proposed Coordinated Actor-Critic
+([CAC]) algorithm which is summarized in Algorithm.
+
+
+ASSUMPTION 1
+
+
+ASSUMPTION 2
+
+
+Assumption [1] ensures that the graph sequence is
+sufficiently connected for each agent to have repeated influence on
+other agents. Assumption [2] is standard in developing decentralized
+algorithms [*REF*], which could guarantee consensus
+results for shared parameter in each agent converging to a common
+vector.
+
+
+After presenting the assumptions related to the network topology in the
+decentralized system, we are able to introduce the proposed
+[CAC] algorithm. The [CAC] algorithm takes two
+main steps, the policy optimization step (which optimizes
+*MATH*), and policy evaluation step (which approximately
+solves the lower-level problem in equation), as we describe below. For simplicity, we
+denote *MATH* as *MATH* and *MATH* as *MATH*.
+
+
+ALGORITHM
+
+
+In this step, the agents optimize their local policy parameters, while
+trying to make sure that the shared parameters are not too far from
+their neighbors.
+
+
+Towards this end, each agent *MATH* first produces a locally averaged
+shared parameter by linearly combining with its neighbors&apos; current
+shared parameters. Such an operation can be expressed as
+*MATH* where *MATH* is a matrix which stores all parameters *MATH*,
+and *MATH* is defined similarly. In the
+decentralized setting, the global reward *MATH* and the global
+value function *MATH* are not
+available for each agent *MATH*. Instead, the agents can locally estimate
+the global reward and the global value function using some linear
+approximation, evaluated on their local variables, as described in the
+previous subsection. As shown in line *MATH* of Algorithm 1, in a
+decentralized system, we consider the policy optimization step for each
+agent as below: *MATH*.
+
+
+Next, we update the local parameters *MATH* and *MATH*,
+which parameterize the global reward function and global value function.
+Towards this end, the parameters *MATH* and *MATH* will
+be updated by first averaging over their neighbors, then performing one
+stochastic gradient descent step to minimize the local objectives, which
+are defined as in formulations. That is, we have the following
+updates for *MATH* and *MATH*: *MATH* where we define *MATH*.
+Moreover, *MATH* and *MATH* are the projection operators,
+with *MATH* and *MATH* being the predetermined projection radii
+which are used to stabilize the update process
+[*REF*]. Please see lines *MATH* - *MATH* in Algorithm.
+
+
+Theoretical Results
+
+
+In this section, we first present Assumptions
+[3] - [4] about reward function and linear
+approximations for policy evaluation. Then we show our theoretical
+results for the proposed [CAC] algorithm.
+
+
+ASSUMPTION 3
+
+
+ASSUMPTION 4
+
+
+Assumption [3] - [4] are common in analyzing TD with linear
+function approximation; see e.g.,
+[*REF*; *REF*; *REF*]. With global
+observability, each agent could construct linear function approximations
+of the global value function and global reward function. Under these
+assumptions, it is guaranteed that there exist unique optimal solutions
+*MATH* and *MATH* to approximate the global reward function in equation and the global value
+function in equation with linear functions. It is
+crucial to have the properties of unique optimal solutions in
+*MATH* and *MATH* for constructing the convergence analysis of policy parameters *MATH*.
+
+
+Due to space limitation, we relegate remaining technical assumptions
+(i.e., Assumptions [5] - [6]) to Appendix [9] and technical lemmas to Appendix
+[10]. We first present the convergence speed of the variables *MATH* for the policy evaluation
+problem defined in formulation 2 - 4. Please see Appendix
+[13] for the detailed proof.
+
+
+PROPOSITION 1
+
+
+Compared with existing works [*REF*; *REF*] which
+established finite-time convergence guarantees for decentralized policy
+evaluation problems under the fixed policy, our results in Proposition
+[1] are analyzed in a more challenging
+situation where both policies and critics are updated in an alternating
+manner. Here, we must set *MATH* to ensure that the
+relation above is useful. This is reasonable since the optimal critic
+parameter *MATH* is constantly drifting as
+the policy parameters *MATH* changes at each iteration,
+so the actor should update slowly compared with the critic.
+
+
+Next, we study the convergence rate of policy parameters. We define
+*MATH* and define the average gradient of shared policy parameters as
+*MATH*. We will show that after averaging over the iterations, the expected
+stationarity condition violation for the policy optimization problem
+defined in formulation 1 is small. Please see Appendix
+[14] for the proof.
+
+
+PROPOSITION 2
+
+
+The approximation error *MATH* and sampling error
+*MATH* are defined in Appendix [11]. A few remarks about the above results
+follow. First, one challenge in analyzing the convergence of
+Actor-Critic algorithms is that the actor and critic updates are
+typically sampled from different distributions (i.e., the distribution
+mismatch problem). To see this, note that to obtain an unbiased
+estimator for the policy gradient in equation, one needs to sample from the discounted
+visitation measure *MATH*, while to obtain an
+unbiased estimator for the gradient of the MSBE in equation (which is utilized to update
+the critic parameters), one needs to sample from the stationary
+distribution *MATH*. However, standard
+implementations for AC methods in practice only use one sampling
+procedure for both actor and critic updates
+[*REF*; *REF*]. Therefore, the mismatch
+between the two sampling distributions inevitably introduces constant
+biases, and this is where the error term *MATH* comes from.
+
+
+Second, at each local agent *MATH*, the value function
+*MATH* is approximated by *MATH* and the global reward function is approximated by
+*MATH*. Due to the linear approximation, the approximation error is inevitable in the convergence
+analysis. Here, we use a constant term *MATH* to quantify the
+approximation error due to utilizing linear function for policy
+evaluation.
+
+
+By combining previous Propositions, and by properly selecting the
+stepsize parameters *MATH* and *MATH*, we show the main result
+as below. In Appendix [11], we will present more discussion about a
+special case where there is no policy parameter sharing.
+
+
+ALGORITHM
+
+
+THEOREM 1
+
+
+As mentioned before, the sampling error *MATH* arises because
+there is a mismatch between the way that estimators of the actor&apos;s and
+the critics&apos; updates are obtained. To remove the sampling error, one can
+implement separate sampling protocols for the critic and the actor. More
+specifically, we can use two different i.i.d. samples at each iteration
+step *MATH*: 1) *MATH* where *MATH*, *MATH* and *MATH*; 2) *MATH* 
+where *MATH*, *MATH* and *MATH*; see Algorithm. Then *MATH* and *MATH* will be
+utilized in policy evaluation and policy optimization, respectively. The
+corollary below shows the convergence result for the modified
+[CAC] algorithm. Please see Appendix [15] for the proof.
+
+
+COROLLARY 1
+
+
+Numerical Results
+
+
+In this section, we present our simulation results on two
+environments: 1) the coordination game [*REF*]; 2) the
+pursuit-evasion game [*REF*], which is built on the
+PettingZoo platform [*REF*]. Detailed experiment settings
+are present in Appendix [7].
+
+
+Coordination Game: In this setting, there are *MATH* agents staying at
+a static state and they choose their actions simultaneously at each
+time. After actions are executed at each time *MATH*, each agent *MATH* 
+receives its reward as: *MATH* where the action space is *MATH*,
+*MATH* is an indicator function and
+*MATH* is a random payoff following standard Gumbel
+distribution. In this coordination game, there are multiple Nash
+equilibria where two optimal equilibria are that all agents select
+*MATH* or *MATH* simultaneously. In order to obtain high
+rewards and achieve efficient equilibria, it is crucial for agents to
+coordinate with others while only having limited communications. Here,
+the communication graph *MATH* between the agents is a complete
+graph every *MATH* iterations, and is not connected for the rest of time.
+We compare the performance of [CAC] with three benchmark
+algorithms: independent Actor-Critic (IAC); decentralized Actor-Critic
+(DAC) in [*REF*]; mini-batch decentralized Actor-Critic (MDAC)
+in [*REF*]. For each algorithm, we set the actor stepsize and
+critic stepsize as *MATH* and *MATH*. Theoretically, MDAC needs
+*MATH* batch size in its inner
+loop to update critic parameters before each update in policy
+parameters, which is inefficient in practice. Here, we set small batch
+*MATH* in the inner loop for MDAC to achieve fast convergence. The
+simulation results on this coordination game are present in
+Fig.[1] (two left figures). According to the simulations, compared with the
+benchmarks, we see that the [CAC] algorithm converges
+faster and has higher probability to achieve efficient equilibria due to
+the use of policy sharing and coordination.
+
+
+FIGURE
+
+
+Pursuit-Evasion Game: there are two groups of nodes, pursuers
+(agents) and evaders. The pursuers aim to obtain reward through catching
+evaders. In a two-dimensional environment, an evader is considered
+caught if two pursuers simultaneously arrive at the evader&apos;s location.
+In order to catch an evader, each pursuer should learn to cooperate with
+other pursuers to catch the evaders. From this perspective, the pursuers
+share some similarities with each other since they need to follow
+similar strategies to achieve their local tasks: simultaneously catching
+a same evader with other pursuers. In Figure
+[1] (two right figures), we compare the numerical performance of the proposed
+[CAC] algorithm and two benchmarks: decentralized
+Actor-Critic (DAC) in [*REF*]; mini-batch decentralized
+Actor-Critic (MDAC) in [*REF*]. Each agent maintains two
+convolutional neural networks (CNNs), one for the actor and one for the
+critic. Please see Figure [2] in Appendix for the structure
+diagrams of actor network and critic network being used. In the
+[CAC], two convolutional layers of actor network will be
+regarded as shared policy parameters, and the output layer is
+personalized (thus not shared).
+
+
+The two sets of numerical results suggest that, when local tasks share a
+certain degree of similarity / homogeneity, [CAC] algorithm
+with (partial) parameter sharing could achieve more stable convergence.
+
+
+Conclusion
+
+
+This paper develops a novel collaboration mechanism for designing robust
+MARL systems. Further, it develops and analyzes a novel multi-agent AC
+method, where agents are allowed to (partially) share their policy
+parameters with the neighbors to learn from different agents. To our
+knowledge, this is the first non-asymptotic convergence result for
+two-timescale multi-agent AC methods.

@@ -1,0 +1,465 @@
+Solving Continuous Control with Episodic Memory
+
+
+Introduction
+
+
+The general idea of episodic memory in reinforcement learning setting is
+to leverage long-term memory reflecting data structure containing
+information of the past episodes to improve agent performance. The
+existing works [*REF*; *REF*], show that
+episodic control (EC) can be beneficial for decision making process. In
+the context of discrete action problems, episodic memory stores
+information about states and the corresponding returns in a table-like
+data structure. With only several actions the proposed methods store
+past experiences in multiple memory buffers per each action. During the
+action selection process the estimate of taking each action is
+reconsidered with respect to the stored memories and may be corrected
+taking into the account past experience. The motivation of using
+episodic-like structures is to latch quickly to the rare but promising
+experiences that slow gradient-based models cannot reflect from a small
+number of samples.
+
+
+The notion of using episodic memory in continuous control is not
+trivial. Since the action space may be high-dimensional, the methods
+that operate discrete action space become not suitable. Another
+challenge is the complexity of the state space. The study of
+[*REF*] shows that some discrete action environments (e.g.
+Atari) may have high ratio of repeating states, which is not the case
+for complex continuous control environments.
+
+
+Our work proposes an algorithm that leverages episodic memory experience
+through modification of the Actor-Critic objective. Our algorithm is
+based on DDPG, the model-free actor-critic algorithm that operates over
+continuous control space. We offer to store the representation of
+action-state pairs in memory module to perform memory association not
+only from environment state, but also from the performed action. Our
+experiments show that modification of objective provides greater sample
+efficiency compared with off-policy algorithms. We further improve agent
+performance by introducing novel way of prioritized experience replay
+based on episodic experiences. The proposed algorithm, Episodic Memory
+Actor-Critic (EMAC), exploits episodic memory during the training,
+distilling the Monte-Carlo (MC) discounted return signal through the
+critic to actor and resulting in the strong policy that provides greater
+sample efficiency than other models.
+
+
+We draw the connection between the proposed objective and alleviation of
+Q-value overestimation, a common problem in Actor-Critic methods
+[*REF*]. We show that the use of the retrieved episodic data
+results in more realistic critic estimates that in turn provides faster
+training convergence. In contrast, the proposed prioritized experience
+replay, aims to focus more on optimistic promising experiences from the
+past. The process of frequently exploiting only the high-reward
+transitions from the whole replay buffer may result in unstable
+behaviour. However, the stabilizing effect of the new objective allows
+to decrease the priority of non-informative transitions with low return
+without loss in stability.
+
+
+We evaluate our model on a set of OpenAI gym environments  [*REF*]
+(Figure [5]) and show that it achieves greater sample efficiency compared with the
+state-of-the-art off-policy algorithms (TD3, SAC). We open sourced our
+algorithm to achieve reproducibility. All the codes and learning curves
+can be accessed at: WEBSITE.
+
+
+Related Work
+
+
+Episodic Memory.
+
+
+First introduced in  [*REF*], episodic control is
+studied within the regular tree-structured MDP setup. Episodic control
+aims to memorize highly-rewarding experiences and replays sequences of
+actions that achieved high returns in the past. The successful
+application of episodic memory to the discrete action problems has been
+studied in  [*REF*]. Reflecting the model of hippocampal
+episodic control the work shows that the use of table-based structures
+containing state representation with the corresponding returns can
+improve model-free algorithms on environments with the high ratio of
+repeating states. Semi-tabular differential version of memory is
+proposed in  [*REF*] to store past experiences. The work of
+[*REF*] is reminiscent of ideas presented in our study. They
+modify the DQN objective to mimic relationships between two learning
+systems of the human brain. The experiments show that this modifications
+improves sample efficiency for the arcade learning environment
+[*REF*]. The framework to associate the related
+experience trajectories in the memory to achieve reasoning of effective
+strategies is proposed in  [*REF*]. In the context of
+the continuous control, the work of  [*REF*] exploits
+episodic memory to redesign experience replay for the asynchronous DDPG.
+To the best of our knowledge, this is the only work that leverages
+episodic memory within the continuous control.
+
+
+Actor-Critic algorithms.
+
+
+Actor-Critic methods represents a set of algorithms that compute value
+function for the policy (critic) and improve the policy (actor) from
+this value function. Using deep approximators for the value function and
+the actor,  [*REF*] presents Deep Deterministic
+Policy Gradient. The proposed model-free off-policy algorithm aims to
+learn policy in high-dimensional, continuous action space. Recent works
+propose several modifications that stabilize and improve performance of
+the original DDPG. The work of  [*REF*] addresses
+Q-value overestimation and proposes the Twin Delayed Deep Deterministic
+(TD3) algorithm which greatly improves DDPG learning speed. The proposed
+modifications include existence of multiple critic to reduce critic&apos;s
+over optimism, additional noise applied within calculation of target
+Q-estimate and delayed policy update. In [*REF*; *REF*] the authors study
+maximum-entropy objectives based on which provide state-of-the-art
+performance for OpenAI gym benchmark.
+
+
+Background
+
+
+Reinforcement learning setup consists of an agent that interacts with an
+environment *MATH*. At each discrete time step *MATH* the agent
+receives an environment state *MATH*, performs an action *MATH* and
+receives a reward *MATH*. An agent&apos;s action is defined by a policy, which
+maps the state to a probability distribution over the possible actions
+*MATH*. The return is defined as a discounted sum of rewards
+*MATH* with a discount factor *MATH*.
+
+
+Reinforcement learning aims to find the optimal policy *MATH*,
+with parameters *MATH*, which maximizes the expected return from the
+initial distribution *MATH*.
+The Q-function denotes the expected return when performing action *MATH* 
+from the state *MATH* following the current policy *MATH* *MATH*.
+
+
+For continuous control problems policy *MATH* can be updated
+taking the gradient of the expected return *MATH* 
+with deterministic policy gradient algorithm
+[*REF*]: *MATH*. 
+
+
+In actor-critic methods, we operate with two parametrized functions. An
+actor represents the policy *MATH* and a critic is the Q-function. The
+critic is updated with temporal difference learning by iteratively
+minimizing the Bellman equation  [*REF*]: *MATH*.
+
+
+In deep Q-learning, the parameters of Q-function are updated with
+additional frozen target network *MATH* which is updated by
+*MATH* proportion to match the current Q-function
+*MATH* where *MATH*. The actor is learned to maximize the current *MATH* function.
+
+
+*MATH*.
+
+
+The advantage of the actor-critic methods is that they can be applied
+off-policy, methods that proven to have better sample complexity
+[*REF*]. During the training the actor and critic
+are updated with sampled mini-batches from the experience replay buffer
+[*REF*].
+
+
+FIGURE
+
+
+Method
+
+
+We present Episodic Memory Actor-Critic, the algorithm that leverages
+episodic memory during the training. Our algorithm builds on the Deep
+Deterministic Policy Gradient  [*REF*] by modifying
+critic&apos;s objective and introducing episodic-based prioritized experience
+replay.
+
+
+Memory Module
+
+
+The core of our algorithm features a table-based structure that stores
+the experience of the past episodes. Following the approach of
+[*REF*] we treat this memory table as a set of key-value
+pairs. The key is the representation of a concatenated state-action pair
+and the value is the true discounted Monte-Carlo return from an
+environment. We encode this state-action pair to a vector of smaller
+dimension by the projection operation *MATH*,
+where *MATH* is the dimension of the concatenated state-action vector, and
+*MATH* is a smaller projected dimension. As the Johnson-Lindenstrauss lemma
+[*REF*] states, this transformation preserves relative
+distances in the original space given that *MATH* is a standard Gaussian.
+The projection matrix is initialized once at the beginning of the
+training.
+
+
+Memory module implies two operations: add and lookup. As we can
+calculate the discounted return only at the end of an episode we perform
+add operation adding pairs of *MATH*, *MATH* when the whole
+episode is generated by the agent. We note that the true discounted
+return may be considered fair only when the episode ends naturally. For
+time step limit case we should perform additional evaluation steps
+without using these transitions for training. This way we allow
+discounted return from later transitions be obtained from the same
+amount of consequent steps as transitions in the beginning of the
+episode. Given the complexity and continuous nature of environments we
+make an assumption that the received state-action pair has no duplicates
+in the stored representations. As a result, we do not perform the search
+for the stored duplicates to make a replacement and we add the incoming
+key-value pair to the end of the module. Thus, the add operation takes
+*MATH*.
+
+
+The lookup operation takes as input state-action pair, performs the
+projection to the smaller dimension and accomplishes the search for the
+*MATH* most similar keys returning the corresponding MC returns. We use
+*MATH* distance as a metric of similarity between the projected states
+*MATH* where *MATH* is a small constant. The episodic MC return for a
+projected query vector *MATH* is formulated as a weighted sum of the
+closest *MATH* elements *MATH* 
+where *MATH* is a value stored in the memory-module and *MATH* is a weight
+proportional to the inverse distance to the query vector.
+
+
+*MATH*.
+
+
+We propose to leverage stored MC returns as the second pessimistic
+estimate of the Q-function. In contrast of approach of
+[*REF*; *REF*] we use weighted sum of all near
+returns rather then taking maximum of them. Given that we are able
+calculate MC return for each transition from the off-policy replay
+buffer we propose the following modification of the original critic
+objective (3): *MATH* where *MATH* is the value returned by lookup operation and *MATH* is a
+hyperparameter controlling the contribution of episodic memory. In the
+case of *MATH* the objective becomes a common Q-learning loss
+function. In our experiments we found beneficial small values of
+*MATH*. In the evaluation results *MATH* is set to 0.1 for the
+Walker, Hopper, InvertedPendulum, InvertedDoublePendulum, and to 0.15
+for the Swimmer.
+
+
+The memory module is similar to the replay buffer. They both needed to
+sample off-policy data during the Q-learning update. The difference is
+the memory module stores small-dimensional representations of the
+state-action pair for effective lookup and discounted returns instead of
+rewards. The outline of the proposed architecture on calculating
+Q-estimates is presented in the Figure [6].
+
+
+FIGURE
+
+
+Alleviating Q-value Overestimation
+
+
+FIGURE
+
+
+The issue of Q-value overestimation is a common case in Q-learning based
+methods  [*REF*; *REF*]. Considering the
+discrete action setting, the value estimate is updated in a greedy
+fashion from suboptimal *MATH* function containing some error
+*MATH*. As a result, the maximum over the
+actions along with its error will generally be greater than the true
+maximum  [*REF*]. This bias is then propagated through the
+Bellman residual resulting in a consistent overestimation of the
+Q-function. The work of [*REF*] studies the presence
+of the same overestimation in an actor-critic setting. The authors
+propose a clipped variant of Double Q-learning that reduces
+overestimation. In our work we show that additional episodic Q-estimate
+in critic loss can be used as a tool to reduce overestimation bias.
+
+
+Following the procedure described in [*REF*] we
+perform the experiment that measures the predicted Q-value from a critic
+compared with a true Q-estimate. We compare the value estimate of the
+critic, true value estimate and episodic MC return stored in the memory
+module. As a true value estimate we use a discounted return of the
+current policy starting from the state sampled randomly from the replay
+buffer. The discounted return is calculated from true rewards for
+maximum of 1000 steps or less in the case of the episode&apos;s end. We
+measure true value estimate each 5000 steps during the training of
+100000 steps. We use the average of the batch for the critic&apos;s Q-value
+estimate and episodic return. The learning behaviour for the Walker2d-v3
+and Hopper-v3 domains is shown in Figure [9]. In (a) we show that the
+problem of Q-value overestimation exists for both TD3 and EMAC
+algorithms, as both of Q-value predictions are higher than their true
+estimates. The Q-value prediction for EMAC shows less tendency for
+overestimaton. In (b) we compare true value estimate with episodic
+MC-return and show that latter has more realistic behaviour than the
+critic&apos;s estimate. Here, the difference between the true estimate and
+the MC-return is that episodic returns are obtained from the past
+suboptimal policy, whereas true value estimate is calculated using the
+current policy. The training curves from (b) show that MC-return has
+less value than the true estimate.
+
+
+The experiment shows that episodic Monte Carlo returns from the past are
+always more pessimistic than the corresponding critic value. This fact
+makes incorporating MC-return into the objective beneficial for the
+training. As a result, the proposed objective with episodic MC-return
+shows less tendency to overestimation compared to the TD3 model. Given
+the state-action pair we here state that the MC return produced by the
+suboptimal policy for the same state may be used as a second stabilized
+estimate of the critic. Therefore, additional loss component of MSE
+between episodic return and critic estimate may be interpreted as a
+penalty for critic overestimation.
+
+
+ALGORITHM
+
+
+Episodic-based Experience Replay Prioritization
+
+
+The prioritization of the sampled experiences for off-policy update of
+Q-function approximation is a studied tool for improving
+sample-efficiency and stability of an agent [*REF*; *REF*; *REF*].
+The common approach of using prioritization is formulated in the work of
+[*REF*], where normalized TD-error is used as a
+criterion of transition importance during the sampling. We propose a
+slightly different prioritization scheme that is based on episodic
+return as a criterion for sampling preference. We formulate the
+probability of sampling a transition as *MATH*
+where priority of transition *MATH* is a MC return stored in the memory
+module. The exponent *MATH* controls the measure of prioritization with
+*MATH* as a uniform non-prioritized case. The interpretation of such
+a prioritization is an increasing reuse of transitions which gave high
+returns in the past. The shift of true reward distribution used for
+off-policy update may result in divergent behaviour, therefore large
+values of *MATH* may destabilize the training. In our experiment the
+coefficient value of 0.5 gave promising results improving
+non-prioritized version of the algorithm.
+
+
+FIGURE
+
+
+The stored probabilities of sampling are recalculated after each episode
+comes to the memory-module and used consequently during sampling from
+off-policy replay buffer.
+
+
+Experiments
+
+
+The EMAC algorithm is shown in Algorithm. We compare our algorithm with model-free
+off-policy algorithms DDPG  [*REF*], TD3
+[*REF*] and SAC  [*REF*]. For DDPG and
+TD3 we use implementations of [*REF*]. For SAC we
+implemented the model following the [*REF*]. All the
+networks have the same architecture in terms of the number of hidden
+layers, non-linearities and size of the hidden dimensions. In our
+experiments we focus on small-data regime given all algorithms 200000
+time steps from an environment.
+
+
+We evaluate our algorithm on a set of OpenAI gym domains  [*REF*].
+Each environment is run for *MATH* time steps with the corresponding
+number of networks update steps. Evaluation is performed every 1000
+steps with the reported value as an average from 10 evaluation episodes
+from different seeds without any exploration. We report results from
+both prioritized (EMAC) and non-prioritized (EMAC-NoPr) versions of the
+algorithm. The results are reported from 10 random seeds. The results in
+Table is the average return of the last training
+episode over all seeds. The training curves of the compared algorithms
+presented in Figure. Our algorithm outperforms DDPG and TD3 on
+all tested environments and SAC on three out of five environments.
+
+
+Networks&apos; parameters are updated with Adam optimizer  [*REF*]
+with a learning rate of 0.001. All models consists of two hidden layers,
+size 256, for an actor and a critic and a rectified linear unit (ReLU)
+as a nonlinearity. For the first *MATH* time steps we do not exploit an
+actor for action selection and choose the actions randomly for the
+exploration purpose.
+
+
+During the architecture design we study the dependency between the size
+of the projected state-action pairs and final metrics. We witness small
+increase in efficiency with greater projected dimensions. Training
+curves showing different variants of projections of 4, 16, 32 sizes on
+domains of Walker-v3 and Hopper-v3 are depicted in Figure
+[10]. Unfortunately, increased projection size
+tends to slow down the lookup operation. In all our experiments we use
+the minimal option of projection size of *MATH* for the faster
+computations. The work of [*REF*] leverages the KD-tree
+data structure to store and search experiences. On the contrary, we
+decided to keep table-based structure of the stored experiences, but
+placed the module on a CUDA device to perform vectorized l2-distance
+calculations. All our experiments are performed on single 1080ti NVIDIA
+card.
+
+
+Due to low-data regime we are able to store all incoming transitions
+without replacement for the replay buffer as well as for episodic memory
+module. We set episodic memory size to 200000 transitions, although our
+experiments do not indicate loss in performance for cases of smaller
+sizes of 100 and 50 thousands of records. The *MATH* parameter that
+determines the number of top-k nearest neighbours for the weighted
+episodic return calculation is set to 1 or 2 dependent on the best
+achieved results from both options. We notice that k bigger than 3 leads
+to the worse performance.
+
+
+To evaluate episodic-based prioritization we compare the prioritized and
+non-prioritized versions of EMAC on multiple environments.
+Prioritization parameter *MATH* is chosen to be 0.5. The learning
+behaviour of the prioritized and non-prioritized versions of the
+algorithm is showed in Figure [11]. The average return for both versions is
+provided in Table.
+
+
+FIGURES
+
+
+Discussion
+
+
+We present Episodic Memory Actor-Critic (EMAC), a deep reinforcement
+learning algorithm that exploits episodic memory in continuous control
+problems. EMAC uses non-parametric data structure to store and retrieve
+experiences from the past. The episodic memory module is involved in the
+training process via the additional term in the critic&apos;s loss. The
+motivation behind such an approach is that the actor is directly
+dependent on the critic, therefore improving critic&apos;s quality ensures
+the stronger and more efficient policy. We do not exploit episodic
+memory during the policy evaluation, which means that memory module is
+used only within the network update step. The loss modification
+demonstrates sample-efficiency improvement over the DDPG baseline. We
+further show that introducing prioritization based on the episodic
+memories improves our results. Experimental study of Q-value
+overestimation shows that proposed approach has less tendency in critic
+overestimation thus providing faster and more stable training.
+
+
+Our experiments show that leveraging episodic memory gave superior
+results in comparison to the baseline algorithm DDPG and TD3 on all
+tested environments and also outperformed SAC on 3 out of 5
+environments. We hypothesize that the applicability of the proposed
+method is dependent from environment complexity. As a result, we
+struggle to outperform SAC for such a complicated environment as
+Humanoid which has bigger action space than the other OpenAI gym
+domains.
+
+
+We now outline the directions of future work. As noted in
+[*REF*], both animal and human brain exploits multiple
+memory systems while solving various tasks. Episodic memory is often
+associated with hippocampal involvement
+[*REF*; *REF*] as a long-term memory. Although
+the gradient-update-based policy may be seen as a working memory, it may
+be beneficial to study the role of separate short-term memory mechanisms
+alongside episodic memory for better decision making. Another
+interesting direction is to use different state-action representation
+for storing experiences. Although the random projection provides a way
+to transfer the distance relation from the original space to the smaller
+one, it does not show topological similarity between the state-action
+records. One possible way to overcome this issue is to use differential
+embedding for state-action representation. Unfortunately, the changing
+nature of embeddings entails the need of the constant or periodical
+memory update, which is alone an engineering challenge. We believe that
+our work provides the benefit of using episodic-memory for continuous
+control tasks and opens further research directions in this area.

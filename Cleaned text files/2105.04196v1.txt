@@ -1,0 +1,801 @@
+AoI-Aware Resource Allocation for Platoon-Based C2X Networks via Multi-Agent Multi-Task Reinforcement Learning
+
+
+Introduction
+
+
+Intelligent transportation systems (ITSs)
+will become a compulsory component of the future&apos;s smart cities. In
+essence, ITSs will address the issue of dense traffic networks and
+transportation bottlenecks by exploiting efficient traffic management
+approaches [*REF*]. One of the foreseen services of ITS is the
+so-called autonomous vehicular platoon system [*REF*].
+Platooning is the first step toward fully autonomous driving, which is
+deemed one of the most representative potentials for overcoming the
+transport costs. Furthermore, platooning improves the intersection&apos;s
+operational efficiency compared to the case where cars cross the
+intersection one after another [*REF*]. In summary, a
+vehicle platoon is a convoy of interconnected vehicles that continuously
+coordinate their kinetics and share a typical moving pattern. In each
+platoon formation, the head-of-line vehicle is known as the Platoon
+Leader (PL), which is responsible for maintaining communication with
+other Platoon Members (PMs) [*REF*]. In order to reap the
+benefits of the platooning system properly, several critical issues must
+be tackled. Firstly, each vehicle in the platoon must have enough
+awareness of its relative distance and velocity with its surrounding
+vehicles. This perception is needed to allow the vehicles in a platoon
+to regulate their decisions and to guarantee that any perturbation in
+the position or velocity of PL does not lead to amplified fluctuations
+in the behavior of PMs. This balance, known as the string stability, is
+ensured through the timely exchange of cooperative awareness messages
+(CAMs) among the vehicles of the platoon, and it is regularly initiated
+by the PL that manages the group [*REF*]. Then, every
+platoon must have sufficient information about the other existing
+platoons and vehicles in the network, especially in the case of
+intersections or road curves. These points reflect the importance of
+investigating an efficient resource allocation algorithm that meets the
+requirements of both inter-platoon and intra-platoon
+communications [*REF*].
+
+
+The advent of vehicle-to-everything (V2X) communication technology has
+addressed the aforementioned challenges. Platoons communicate with each
+other through the Road-Side Unit (RSU) with Vehicle-to-Infrastructure
+(V2I) communications in order to exchange the intersection safety
+messages, while vehicles in the same platoon exchange safety-critical
+messages by either broadcasting or cellular vehicle-toehicle (V2V)
+communications for CAM dissemination. The more frequently information is
+exchanged in the system, the sooner each platoon member can react and
+avoid prospective obstacles [*REF*]. The theoretical
+potential of Long Term Evolution (LTE) for V2X communications has been
+appraised in the Third Generation Partnership Project (3GPP)
+studies [*REF*]. In LTE systems, eNodeBs centrally perform radio
+resource management (RRM). However, the conventional LTE architecture
+does not natively sustain direct V2V communications. Since LTE Release
+12, 3GPP has provided several technical specifications to mitigate this
+problem through device-to-device (D2D) sidelink communications (also
+known as Proximity Services) [*REF*; *REF*]. Furthermore,
+new requirements and use cases have been proposed for 5G V2X
+enhancements in Release 15 [*REF*]. Following the existing
+literature, this paper is based on Mode 4, defined in the 3GPP cellular
+V2X architecture [*REF*]. The resource scheduling and
+interference management between the platoons are established based on
+distributed algorithms implemented between the vehicles
+[*REF*; *REF*].
+
+
+Related Works
+
+
+Recently, the platooning system has been considered in various studies.
+The authors of [*REF*] analyze the capability of the LTE
+system in establishing intra-platoon communication. In [*REF*],
+the authors study the reliability and efficiency of the platoon-based
+V2V communication, investigate the string stability requirements for the
+platooning systems and design a CAM dissemination mechanism in the
+LTE2V network. The authors of [*REF*] investigate the
+platoon cooperation in a multi-lane scenario and consider a two-step
+resource allocation along with developing a dynamic programming based
+subchannel allocation and power control algorithm to maximize the
+platoon size as well as to minimize the power consumption. In
+[*REF*], string stability of the platoons and the maximum
+wireless system delay that guarantees the stability are analyzed. The
+resource allocation based on the evolved multimedia broadcast multicast
+services (eMBMS) capability and D2D communications is examined in
+[*REF*] to enhance the reliability and reduce the
+transmission latency in a scenario with a chain of platoons. A two-stage
+platoon formation algorithm and a time division based intra-platoon
+resource allocation mechanism are introduced to develop stable platoons
+in [*REF*]. Most of the issues that have been addressed in
+the articles mentioned above are related to the platoon&apos;s communications
+and interactions with each other or controlling algorithms employed to
+ensure the platoon&apos;s string stability. Nonetheless, an essential common
+concern that has not yet been elucidated is the fast-changing channel
+condition in vehicular environments that provoke uncertainty and
+inaccuracy in estimating the channel state information (CSI). On the
+other hand, the gradual increase in users&apos; number leads to more
+complicated optimization problems with often nonlinear constraints,
+making them challenging to optimize by traditional optimization methods.
+The aforementioned hurdles call for investigating novel methods that can
+deal with more complex situations efficiently.
+
+
+As one of the robust machine learning tools, reinforcement learning (RL)
+has recently attracted substantial attention. In [*REF*],
+the authors analyze the spectrum allocation scheme by devising a
+distributed Q-learning approach, where autonomous D2D users try to
+maximize their throughput and minimize their interference to cellular
+users. Furthermore, an intelligent resource management problem in the
+Internet of Vehicles (IoV) networks is analyzed in
+[*REF*] using an actor-critic RL method. However, the RL
+methods applied in the above works are suitable in low-dimensional state
+and action spaces. RL in combination with deep learning has led to the
+emergence of deep reinforcement learning (DRL) [*REF*]. DRL
+has sparked a flurry of interest and has found its way into vehicular
+network literatures [*REF*; *REF*]. The
+authors of [*REF*] propose a decentralized resource allocation
+method in a vehicular network for both unicast and broadcast scenarios
+employing DRL. In [*REF*], a mobile edge
+computing-based platooning system has been proposed in which the
+platoons locate their optimal path through RL. The authors of
+[*REF*] investigate the problem of channel assignment and power
+allocation in a platooning vehicular network using the DRL approach. In
+a similar framework, spectrum and energy efficiency of vehicular
+platooning network is examined in [*REF*]. In
+[*REF*], the authors investigate the spectrum sharing in a
+vehicular network by implementing a multi-agent DRL method. In order to
+tackle the problem of the environment&apos;s non-stationarity, the authors
+propose a fingerprint method that incorporates agents&apos; policies in the
+observation space. Spectrum allocation for D2D communication is
+investigated in [*REF*] in which the authors propose a
+multi-agent actor-critic method. We can summarize the deficiencies of
+the works mentioned above as follows: [*REF*; *REF*] and [*REF*]
+model the policy search as a Markov decision process (MDP), which means
+that all the agents update their policies independently. However,
+although these algorithms are capable of handling many complex problems,
+they cannot be applied to multi-agent systems (MASs). In MASs, all the
+agents act simultaneously and affect the environment, leading to a
+non-stationary environment [*REF*]. On the other hand,
+[*REF*] and [*REF*] are based on multi-agent DRL.
+DRL methods employ discrete action spaces which is not preferable in
+power control scenarios leading to poor results. A widely applied MARL
+framework is multi-agent deep deterministic policy gradient (MADDPG)
+[*REF*]. MADDPG is based on centralized training and
+decentralized execution in which each agent collects the information of
+other agents during the training time and then executes actions
+independently based on its observation. However, the Achilles heel of
+this method is that the critic&apos;s input grows linearly with the number of
+agents. Furthermore, although these algorithms reach an optimal
+solution, there is no explicit notion of coordination between the
+agents.
+
+
+In vehicular networks, the traffic and intersection safety information
+is time-critical, and hence acquiring timely, and fresh traffic updates
+are of significant importance. Recently, an emerging new metric has been
+employed for capturing the timeliness of the information, namely the age
+of information (AoI) [*REF*]. By definition, AoI is the time
+elapsed since the most recent received information update (from RSU
+point of view) was generated (at the corresponding platoon). Unlike
+traditional metrics such as delay, AoI only takes the information that
+delivers fresh updates to the RSU into account [*REF*].
+One of the recent works in this area is [*REF*] where the authors
+formulate an AoI-aware radio resource management problem in a Manhattan
+grid V2V network.
+
+
+Contribution
+
+
+This work considers the AoI minimization problem in high mobility
+vehicular platooning system, consisting of multiple connected and
+autonomous vehicles where PLs attempt to access the frequency spectrum
+to disseminate the CAM messages between their followers while keeping an
+updated connection with the RSU. The novelty of this work lies in the
+following key contributions:
+- We formulate a multi-objective optimization problem for each platoon
+to jointly minimize the AoI and maximize the CAM message
+transmission probability.
+- We model the spectrum access of the multiple PLs as a multi-agent
+problem and exploit the recent progress of MARL structures in
+[*REF*] to build a novel MARL framework on top of
+deterministic policy gradients architectures which trains two
+critics: A global critic which estimates the global expected reward
+and motivates collaboration between multiple agents, and an
+exclusive local critic for each agent that estimates the local
+expected reward.
+- In order to tackle the problem of the overestimation bias in
+Q-functions, we exploit the Twin Delayed Deep Deterministic Policy
+Gradient (TD3) algorithm [*REF*] for the global
+critic.
+- Furthermore, by treating each sub-objective as a separate task, the
+individual reward of each agent is decomposed into multiple
+sub-reward functions where task-wise value functions are learned
+separately.
+- Numerical experiments indicate that the proposed framework converges
+3 times faster than the conventional RL frameworks and maintains the
+average AoI quantity within 5-10 milliseconds range, and guarantees
+a CAM message transmission probability of over 99 % for various
+platoon sizes.
+
+
+TABLE 
+
+
+Paper Organization and Notations
+
+
+The remainder of the paper is arranged as follows. In Section
+[2], we discuss the proposed system model. Section [3] describes the multi-agent reinforcement
+learning algorithm. In Section [4], we present the simulation results and analyses, and
+finally, Section [5] concludes the paper.
+
+
+Notations: Most of the notations applied in this paper are standard.
+To ease readability, all the primary notations of the paper are listed
+in Table.
+
+
+System Model and Problem Formulation 
+
+
+FIGURE
+
+
+We consider a cellular V2X based vehicular communication network which
+consists of one RSU and multiple platoons, as shown in Fig.
+[1]. The RSU is located at the center of the crossroad and is equipped with
+single antenna. We assume *MATH*, indicates the set of
+platoons. Each platoon itself is comprised of some connected and
+automated vehicles. Let *MATH*, be the number of
+vehicles in each platoon *MATH* which are numbered
+sequentially from one to *MATH*, starting from PL. We discretize the time
+horizon into equal scheduling slots of length *MATH*, indexed by a
+positive integer *MATH*. The system bandwidth is divided
+into orthogonal subchannels of size *MATH*. They are indexed by
+*MATH*. In essence, there are two types
+of communication modes in a platooning system, namely the intra-platoon
+and inter-platoon communication. In intra-platoon communication,
+vehicles within the same platoon, exchange the CAM information
+periodically through V2V links. According to the 3GPP specifications,
+[*REF*], CAMs dissemination frequency must be between 10 to 100
+Hz. In other words, the CAMs distribution period must be kept in the
+range of 100 ms or fewer. In inter-platoon communication, the RSU
+exchanges the intersection safety and platoon control information with
+every platoon via the V2I links. The first one is crucial in terms of
+guaranteeing the platoon string stability which lets the vehicles keep a
+close distance with each other and ensuring that all the platoon members
+are aware of the kinematics and the decisions of the other platoon
+members, especially the platoon leader. The latter is essential to
+inform all the platoons to become aware of the other platoons&apos; status
+and traffic condition of the intersection. We exploit the orthogonal
+frequency division multiplexing (OFDM) to cope with the frequency
+selective wireless channels. Furthermore, we assume that the channel
+fading is independent across different subchannels and remains constant
+within one sub channel. We model the channel gain of PL
+*MATH* in subchannel *MATH* during one coherence time period
+*MATH* as *MATH* where *MATH* and *MATH* 
+denote the large-scale fading effect comprised of path loss and
+shadowing, and small-scale fading, respectively. Moreover, we define the
+binary variable *MATH* that indicates whether
+subchannel *MATH* is allocated to platoon *MATH* at time slot *MATH*. Then PL *MATH* 
+will decide whether to use the allocated subchannel for inter-platoon
+(i.e., to communicate with the RSU) or intra-platoon (i.e., to broadcast
+the CAM to its followers) communication. For this reason, we define
+another binary decision variable *MATH* that
+indicates the platoon leader&apos;s decision. When *MATH*, that
+means that the PL will utilize the allocated subchannel for broadcasting
+(intra-platoon) and *MATH* indicates that the subchannel
+will be used for V2I (inter-platoon) communication. We can express the
+instantaneous rates achieved in V2I communications between PL *MATH* and
+the RSU according to the Shannon capacity formula as follows:
+*MATH* where the interference from other platoons is
+treated as noise, *MATH* is the transmit power level used by PL
+*MATH* on subchannel *MATH*, *MATH* is the channel gain from PL
+*MATH* to RSU in subchannel *MATH*, *MATH* is the noise power, *MATH* 
+indicates the RSU location, *MATH* is
+the interfering channel to the RSU from PL
+*MATH* functioning in whether inter
+(*MATH*) or intra-platoon (*MATH*) communication
+mode, and *MATH* represents the total interference power.
+Furthermore, we can calculate the instantaneous rates between PL *MATH* and
+its follower *MATH* as *MATH* where *MATH* is the power used by PL *MATH*,
+*MATH* is the channel gain from PL *MATH* to its PMs in
+subchannel *MATH*, *MATH* is the
+interfering channel to PL *MATH* &apos;s members from PL
+*MATH* functioning in whether inter
+(*MATH*) or intra-platoon (*MATH*) communication
+mode, and *MATH* represents the total interference power.
+As described earlier, the PL has to maintain timely communication with
+the RSU to exchange the intersection safety messages. In this regard, we
+note *MATH* as the AoI of platoon *MATH* up to the
+beginning of scheduling slot *MATH*, that is, the time elapsed since the
+most recently successful V2I communication [*REF*]. The AoI of
+platoon *MATH* evolves according to *MATH* where *MATH* is the minimum
+capacity requirement of V2I communication. As
+ref suggests, within every successful
+transmission between the RSU and PL *MATH*, the AoI will
+reset to *MATH*. Accordingly, we can express the multi-objective
+optimization problem (MoP) for platoon *MATH* as *MATH* where *MATH* is the CAM message
+size. The objective is to minimize the expected AoI and power
+consumption for every platoon while maximizing the probability of CAM
+messages delivery rate among the PMs within every *MATH* seconds.
+Constraint C3 shows that each platoon can access only one subchannel in
+every time slot and constraint C4 is to satisfy that the transmit power
+of PL *MATH* remains below its maximum value *MATH*. In
+optimization problem, the mode selection indicator
+*MATH* and subchannel selection indicator *MATH* are both binary
+variables. Furthermore, the objective function is non-convex.
+Consequently, the optimization problem is a NP-hard combinatorial
+optimization problem [*REF*], which is difficult to be
+solved. In this regard, we will investigate the state-of-the-art
+multi-agent deep deterministic policy gradient methods to address the
+complexities of the proposed optimization problem.
+
+
+Multi-Agent RL Based Resource Allocation 
+
+
+In this section, we will elaborate on the multi-agent environment and
+its associated states, actions, and rewards, and finally, we will
+discuss the proposed MARL algorithm and its relevant formulations.
+
+
+Modeling of Multi-Agent Environment
+
+
+For a MARL with *MATH* agents (platoons), the optimization problems can be
+expressed as *MATH* where *MATH*,
+*MATH* is the policy of agent *MATH*, and *MATH* is the set of all
+feasible policies for agent *MATH*. Each PL as an agent interacts with the
+vehicular network environment and takes action according to its policy,
+aiming at solving the optimization problem, or in other words, maximizing its
+total expected reward. At each time *MATH*, the PL observes a state, *MATH*,
+and accordingly takes action, *MATH*. The environment transitions to a
+new state *MATH* and PL receives a reward based on its selected
+action. In our proposed system model the state space *MATH*,
+action space *MATH*, and the reward function *MATH*, are defined
+as follows: *MATH*. State space: The state observed by the PL *MATH* (agent *MATH*)
+at time slot *MATH* consists of several parts: the instant channel
+information between PL *MATH* and the RSU, *MATH*, for all
+*MATH*, the channel information between PL *MATH* and its
+followers, *MATH*, *MATH*, the
+previous interference from other platoons to PL *MATH*, *MATH*, the
+AoI of PL *MATH*, *MATH*, the remaining intra-platoon payload (CAM
+message) designated to be transferred by *MATH*, *MATH*, and the
+remaining time budget, *MATH*. Hence, the state space of PL *MATH* is
+*MATH*.
+
+
+*MATH*  Action space: The action of each PL *MATH* 
+is defined as *MATH*. As mentioned earlier, *MATH* indicates which subchannel the PL
+*MATH* has selected, *MATH* represents the mode
+selection, and *MATH* represents the power control. It is noteworthy to
+mention that because we have applied the deep deterministic policy
+gradient method, the agent can select any power ranging from 0 to
+*MATH*. This is the advantage of policy gradient methods
+that apply continuous actions spaces and can converge to more accurate
+results than conventional DQNs in which the power has to be discretized.
+
+
+*MATH*  Reward function: What makes the reinforcement learning
+framework fascinating is the flexibility we have in designing the reward
+function that drives the learning process. In our proposed learning
+problem, the agents receive two reward signals, a global team reward,
+which evaluates the agents&apos; cooperation, and an individual reward, which
+measures each agent&apos;s performance. Accordingly, we first discuss the
+proposed learning algorithm and then return to the reward function&apos;s
+design.
+
+
+The MARL frameworks&apos; architecture is shown in Fig., which is built
+on top of the MADDPG structure. In particular, we have designed two MARL
+frameworks, namely the Modified MADDPG and Modified MADDPG with task
+decomposition, in which the latter is the extension of the first one,
+where the holistic local reward function of each agent is further
+decomposed into sub-reward functions and learned separately. Unlike
+MADDPG, which uses a single critic to train multiple agents, the
+proposed framework trains two critics with the following
+functionalities: The centralized global critic, which is shared between
+all the agents, takes the observations and actions of all the agents as
+input and estimates the global team reward for them. The local critic,
+which is specific for each agent, receives the agent&apos;s local observation
+and action and estimates the local expected reward. In a sense, the goal
+is to simultaneously move the policy toward maximizing both global and
+local rewards and solve the optimization problem for each agent. Furthermore, the
+agents do not necessarily need to know each other&apos;s policies and take
+actions based on their own observations. The agents&apos; performance will be
+considered as &quot;decent\&quot; only when they act in a way that results in a
+proper global team reward as well as a satisfactory individual reward
+for each agent.
+
+
+Modified MADDPG
+
+
+Let and, be the parameter space of agents&apos; actor and critic networks
+and be the parameter space of the global critic, where *MATH* 
+and *MATH* are the number of hidden layers in agents&apos; actor and critic
+networks and the global critic, respectively. *MATH* are the neural
+networks&apos; weight matrices and their dimensions are related to the number
+of nodes in the hidden layers. We consider a vehicular environment
+consisting of *MATH* platoons (agents) with policies
+*MATH*. The agents&apos; policies *MATH* 
+and Q-functions *MATH*, and the global critic&apos;s Q-function
+*MATH* are parameterized by *MATH*, *MATH* and *MATH*,
+respectively, where *MATH*, *MATH* and
+*MATH*. The MADDPG for platoon *MATH* can be written as
+*MATH* where *MATH* and *MATH* are the total state and action spaces.
+*MATH* is the centralized actionalue function that takes the actions and states of the agents as
+its input to estimate Qalue for platoon *MATH*. Based on the framework
+depicted in Fig., the modified policy gradient for each agent *MATH* can
+be written as *MATH* where *MATH* is the action the agent
+*MATH* chooses following its policy *MATH*. The first term in ref refers to the global critic which takes as
+input the agents&apos; states and actions and estimates the team reward. The
+second term in ref refers to each agent&apos;s local critic that unlike
+the global critic, only takes each agent&apos;s local state and action to
+estimate the agent&apos;s individual performance. The global critic is
+updated as *MATH* where *MATH* is the target value and is defined as follows:
+*MATH* where *MATH* refers to the target policies which are parameterized by *MATH*.
+Similarly the local critic of agent *MATH*, *MATH*, is updated by
+*MATH* and *MATH* is defined as *MATH* 
+Although the proposed framework can lead to decent results, there is
+still the problem of overestimation and suboptimal policies in
+Q-functions due to the function approximation errors. Motivated from the
+results in [*REF*], the global critic is replaced with
+the Twin delayed Deterministic Policy Gradient in ref. The resulting policy gradient is
+*MATH*. In ref, the twin global critics are updated as
+*MATH* where *MATH* is defined as follows: *MATH*.
+
+
+ALGORITHM
+
+
+ALGORITHM
+
+
+And similarly, the agents&apos; local critics are updated by
+FORMULA and FORMULA. The modified MADDPG framework depicted in Fig.
+is described in Algorithm. The core idea in TD3 is to delay the policy
+updates for *MATH* iterations until the convergence of value estimates.
+Now, we can return to the issue of designing the reward function. The
+Reward function must judiciously be adjusted so that the multi-agent
+system steps on the path of solving the optimization problem. In essence, each PL as an agent,
+tries to access the available subchannels for two reasons: i) maintain
+an updated connection with the RSU and keep the AoI level at its
+minimum, ii) disseminate the CAM information *MATH* to its followers.
+Accordingly, we design the local reward of every platoon *MATH* as
+*MATH* where *MATH* are weighting factors
+used for balancing the reward, and *MATH* is a function that
+restricts the power quantity to the same range as the other components
+in the reward function. Furthermore, *MATH* is a stepwise function given
+by *MATH* where *MATH* is tuned to be a positive constant to
+indicate the revenue. The reward function in ref consists of three parts that are matched with
+the objective function of the optimization problem ref: the first part is related to the
+reward the agent receives when the intra-platoon communication is
+chosen, the second part refers to the reward for the agent in the
+inter-platoon communication mode and the third part is related to the
+negative reward for the agent due to the power consumption.
+Correspondingly, we define the global reward function as
+*MATH*.
+
+
+The inspiration behind choosing the global reward function to be equal
+to the average interference is that the platoons are derived toward
+choosing subchannels and power levels that impose less interference on
+other platoons. It is observed from Algorithm that the global critic is trained more than the
+local actor and critic networks since we have applied the TD3 algorithm.
+The introduced delay, which is related to the hyperparameter *MATH*, can
+lead to faster convergence of the system by addressing the
+overestimation bias of global Q-function.
+
+
+The following section will discuss the multi-task MARL, its
+corresponding formulations, and the intuition behind devising such an
+algorithm.
+
+
+Modified MADDPG With Task Decomposition
+
+
+In practice, the RL agents have to perform multiple tasks., and in order
+to drive the policy toward maximizing these tasks simultaneously, we
+have to integrate these tasks as a single holistic task and design a
+single reward signal, as was stated in ref. However, the drawback of applying such a
+method is that it cannot guarantee each sub-objective optimality,
+although the holistic reward function may exhibit encouraging signs of
+convergence. Therefore, for a MARL system consisting of *MATH* tasks and
+*MATH* agents, we change the optimization problem as
+follows: *MATH* where *MATH* is related to the
+agent *MATH* &apos;s objective function for the *MATH* th task. From
+ref, it is conceived that we can deconstruct the
+holistic objective function into multiple sub-objectives based on the
+sub-tasks. The following theorem provides the condition for task
+decomposition, which results from decomposing the holistic reward
+function into sub-reward functions that can optimize the corresponding
+sub-objectives separately.
+
+
+THEOREM 1
+
+
+PROOF
+
+
+Based on Theorem [1], we can decompose the agents&apos; local critics in
+ref based on the sub-tasks, and the resulting
+policy gradient considering the functionality of the global critic would
+be, *MATH* are updated as *MATH*. Comparing ref with ref reveals that
+*MATH* which can be easily derived from Theorem [1]. In other words,
+the decomposition of the holistic reward function leads to the
+decomposition of the value functions. From the aforementioned analysis,
+the holistic reward function in ref can be decomposed into two sub-reward
+functions as follows:
+- Task. 1 reward (CAM message transmission) *MATH*.
+- Task. 2 reward (AoI minimization) *MATH*.
+
+
+where *MATH* in ref. In other words we have
+*MATH*. The general rule of thumb which governs the task decomposition procedure
+in task 1 and task 2 is that there should not be any temporal
+relationship between the sub-tasks. Due to this reason, we have
+considered the impact of power control in both the sub-reward functions
+as it influences both sides. The corresponding algorithm of modified
+MADDPG with task-decomposition is shown in Algorithm. In the next section, we will investigate the
+complexities of the proposed algorithms and assess the growth of the
+parameter space as the number of agents increases.
+
+
+Computational Complexity
+
+
+The computational complexity is crucial to the utility of the
+algorithms. Therefore, we analyze the computational complexity of the
+two proposed RL methods and compare them with the conventional MADDPG
+framework, which is extensively applied in the literature. In essence,
+these analytics depend on two parameters, i) the number of trainable
+parameters, ii) the total number of neural networks used in the
+algorithms.
+
+
+i) The number of trainable parameters:
+In MADDPG, the centralized Q-functions take all the agents&apos; observations
+and actions as their input. Concretely, assuming all the agents have
+identical observation and action spaces shown by *MATH* and *MATH*,
+the number of trainable parameters for the MADDPG method would be
+*MATH*, where *MATH* indicates the number of
+agents. Conversely, the two proposed RL methods incorporate two types of
+critic networks: the global and local critics. Both the algorithms share
+a global centralized Q-function whose parametric space increases
+linearly and is represented as *MATH*. On the
+other hand, the local critics in the two RL methods only take the
+respective agent&apos;s observation and action as their input. Consequently,
+the parameter space of local critics can be expressed as
+*MATH*, and this is similar for both the algorithms.
+
+
+ii) The total number of neural networks:
+In MADDPG, the total number of neural networks used during the training
+process is equal to *MATH*, where the multiplication by 2 is because of the target networks,
+*MATH*, and *MATH* represents that there is one critic and actor network specific for each
+agent, and *MATH* is the total number of agents. For the modified MADDPG
+framework, the total number of neural networks is
+*MATH*, where *MATH* indicates the total number of
+global critics. It is worth mentioning that applying the TD3 algorithm
+doubles the number of global critics, and in this case the number of
+neural networks will be *MATH*.
+Finally, for the modified MADDPG method with task decomposition, number
+of neural networks will be *MATH*,
+where *MATH* indicates that there is a
+separate Q-function for each agent&apos;s decomposed tasks. Similarly, this
+number will be *MATH*,
+whenever the TD3 algorithm is further applied.
+
+
+Performance Evaluation 
+
+
+In this section, we assess the simulation results to validate the
+proposed multi-agent RL based resource allocation for the platooning
+system. We have built our simulation following the urban case defined in
+Annex A of [*REF*]. Major simulation parameters, including the
+channel models for V2I and V2V links, are listed in Table. In addition, the Gaussian noise
+*MATH* is added to the actions chosen by
+the target actor networks, and then clipped to *MATH* to smooth
+the target policy, and the policy update delay factor is set to *MATH*.
+Throughout the simulations, the number of available RBs is fixed to
+three; however, we have varied the number of platoons, the number of
+PMs, and the intra-platoon spacing to investigate their impact on the
+system&apos;s overall performance. It is worthwhile to mention that we fix
+the large-scale fading during each episode and let the small-scale
+fading alter; therefore, the RL algorithm can better procure the
+underlying fading dynamics. Due to the sensitivity of RL algorithms to
+the reward quantity, the global reward function in
+ref is normalized to be consistent with the
+local reward&apos;s range. Furthermore, to verify our proposed method&apos;s
+efficiency, three algorithms are adopted as baselines:
+- Baseline 1: Modified MADDPG
+This algorithm was introduced earlier in Algorithm and is shown to outperform the conventional
+MADDPG in [*REF*]. In this algorithm, the global critic
+implemented in the RSU motivates cooperation between the platoons by
+periodically reporting the effectiveness of platoons&apos; chosen action.
+The local critics and actor networks are implemented in each platoon
+and trained with each platoon&apos;s local training dataset without the
+need for other platoons&apos; information.
+- Baseline 2: Fully decentralized MADDPG
+To illustrate the global critic&apos;s impact on the network performance,
+in this algorithm, the global critic is not taken into account, and
+the platoons choose their actions in a fully decentralized way,
+based on their observations.
+- Baseline 3: DDPG
+In this algorithm, the RSU has to acquire all the platoons&apos;
+observations and actions and is considered a fully centralized
+algorithm in which all the computations and decision-making have to
+be performed in the RSU.
+
+
+FIGURES
+
+
+Simulation Results
+
+
+Fig. indicates the convergence of agents sub-tasks when the intra-platoon gap is 25 m, and
+the number of platoon members at each platoon is 6 (30 vehicles in
+total). For each agent, we have plotted its sub-tasks reward function.
+Two notable trends stand out in the figure; first, it can be seen that
+all the agents have been able to fulfill their associated tasks and
+maximize the designated reward functions in task 1 and
+task 2 during the *MATH* seconds. Second, the proposed
+algorithm is quite fast in convergence time. It is observed that for
+most of the agents, the task-wise reward functions converge in less than
+50 episodes. In addition to some fluctuations due to the channel fading
+that arose by platoons&apos; movements in the environment, the following
+observations can also be noticed. Since the number of vehicles is large
+compared to the available resources, there is high contention between
+the platoons in terms of accessing the available resources. Therefore,
+the platoons have to share the resources. However, they have to control
+their power usage jointly with the mode they choose to operate so as not
+to impose much interference to the other platoons reusing the same
+resources. This issue is of paramount importance as the platoons choose
+their actions based on their own observations. The figure implicitly
+indicates that different components of the system have somehow reached
+an equilibrium. In other words, not only the global critic has been able
+to drive the platoons toward selecting proper resources to impose less
+interference on each other, but also the local critics have motivated
+their respective platoons to flexibly alter their decisions between
+inter and intra-platoon modes and meet the predetermined requirements.
+
+
+Fig. also reveals that the number of episodes agent three and agent five needed for proper
+convergence is longer compared to the other agents. Starting with agent
+three, it is observed that during the first 100 episodes, agent three
+has focused only on task one (CAM dissemination, *MATH*), which
+has led to a destructive reward for task two. This irregular
+functionality, which has stemmed from the destructive actions chosen by
+the agent&apos;s actor network, is feedbacked through ref into the agent&apos;s actor
+network to update the policy toward better performance. As the policy
+starts to improve, agent three, like the other agents, begins to exhibit
+encouraging signs as it is highlighted in a blue rectangle for both of
+its tasks. The same procedure applies for agent five. During the first
+200 episodes, agent five has focused only on one of its tasks leading to
+an increase in one task&apos;s reward and a substantial decrease in the other
+one. These fluctuations are demonstrated with red and black arrows for
+agent five&apos;s task-wise reward functions. Aside from what is explained so
+far, for some episodes, there can be seen some unusual bounces in the
+reward function, one of which is marked with a red ellipsoid in agent
+four&apos;s reward function, which can be partly related to a phenomenon
+called catastrophic forgetting in neural networks
+[*REF*]. In general, the proposed MARL method has
+robust functionality, and yields compelling results even in complex
+environments consisting of even more vehicles.
+
+
+FIGURE
+
+
+Fig. compares the convergence of the four approaches in terms of the average reward
+performance when the number of platoons is five and seven, respectively.
+At first glance, the proposed method indisputably outperforms the other
+three baselines. The DDPG method has the worst reward performance among
+the considered RL algorithms in both figures. The reason for this weak
+execution can be related to the DDPG&apos;s centralized behavior. Since the
+DDPG has to take all the agents&apos; observations and actions as input and
+evaluate how decent the policy has performed for all the agents, it
+fails to address the agents&apos; individual performance and acts
+non-stationarily in multi-agent environments. This improper execution is
+further intensified with the number of agents in Fig.
+
+
+Regarding the fully decentralized MADDPG, the agents act absolutely
+oblivious without any knowledge about other existing agents&apos; policies or
+actions in the environment. This unawareness can lead to increased
+levels of interference in the system, which will degrade the agents&apos;
+overall performance. This phenomenon is not very severe when the number
+of platoons is low, as can be seen from Fig.; however, by
+increasing the number of platoons, its tendency even to perform worse
+than DDPG is not inconceivable, as observed from Fig. One prominent
+feature that separates the modified MADDPG and proposed RL framework
+from the fully decentralized and DDPG, aside from their better reward
+performance and faster convergence, is their stability and minimal
+fluctuations during the convergence. We can summarize the primary
+reasons for this performance gap as follows: i) The proposed frameworks
+can learn to maximize the individual and global rewards for all the
+agents simultaneously, leading to improved collaboration between the
+agents, hence driving towards better performance. ii) The global critic,
+which is based on TD3, considers the correspondence between function
+approximation error in both policy and value updates. On the other hand,
+the DDPG method is highly susceptible to inaccuracies provoked by
+function approximation errors, making it overfit to narrow peaks in the
+value estimate. iii) Last but not least, unlike the original
+implementation of DDPG, which leverages the correlated
+Ornstein-Uhlenbeck noise, the proposed MARL framework applies an
+uncorrelated Gaussian noise for exploration. Eventually, by analyzing
+Figs., it is unveiled that the proposed RL algorithm tends to converge to the same quantity
+even though the vehicle density has increased in the environment, while
+the other baselines&apos; performance diminishes with the increased load.
+
+
+Fig. illustrates the mean AoI of platoons as a function of the intra-platoon gap when P =
+5 and N = 4. From the figure, it can be observed that the AoI quantity
+rises for all the considered algorithms as the intra-platoon spacing
+increases. The intuition behind this observation is straightforward. By
+increasing the intra-platoon gap, it is perceptible that the channel
+conditions from PLs to their followers sustain more variations, leading
+to lower data rates. Accordingly, the PL spends more time transmitting
+the CAM message to its followers and operating in Mode 1. In the
+meantime, the PL less frequently interacts with the RSU; therefore, the
+average AoI increases. Nonetheless, our proposed MARL framework performs
+significantly more reliable than the other baselines, maintaining the
+average AoI quantity within 5-10 milliseconds range, and guarantees
+better QoS. Stunningly, the modified MADDPG framework acts close to our
+proposed algorithm. This behavior is anticipated as both the algorithms
+leverage the global and local critics simultaneously to learn a global
+and individual reward. However, there is still a slight performance gap
+between them due to the task decomposition in our proposed algorithm. In
+comparison, the DDPG acts less stable, and its performance degrades by
+increasing the intra-platoon spacing. It is also observed that the
+performance of fully decentralized MADDPG is close to the modified
+MADDPG, and our proposed algorithm up to 25 meters intra-platoon gap;
+however, there can be seen a sharp jump in the AoI quantity when the
+intra-platoon gap rises to 35 meters. This is because, with longer
+distances between the PL and its followers, the PLs tend to use more
+power to compensate for the reduced levels of channel gains to guarantee
+the CAM message transmission to their followers, which inevitably
+results in severe interference to other platoons, and as these platoons
+are acting in a fully decentralized way, they cannot discern the
+appropriate resources to select, hence leading to these sharp changes in
+the performance metrics. The aforementioned analysis is also extendible
+to results in Fig., which demonstrates the average AoI versus the number
+of platoon followers.
+
+
+Another compelling result can be observed from Figs., which show the
+CAM message transmission probability. From the figures, the performance
+metric drops for all the schemes as the intra-platoon gap increases. In
+conjunction with the observations from Figs., the intuition
+behind this phenomenon is explicit. However, as Figs. suggest the
+proposed framework is robust against alterations in platoon sizes or
+intra-platoon spacing variations. The proposed framework maintains a
+transmission probability of over 99 percent for different platoon sizes
+when the intra-platoon gap is less than 25 meters, whereas this metric
+drops significantly for DDPG and fully decentralized MADDPG. We finalize
+the respective analysis with a critical look at all four figures. By
+comparing Figs., it is conceivable
+that the number of vehicles significantly impacts the performance
+metrics quantity. In Fig., by increasing the number of vehicles up to 30, except
+DDPG, all the algorithms have shown a similar behavior. As we continue
+increasing the number of vehicles up to 50, the gap between these
+algorithms starts to grow. One interesting observation from this figure
+is that the CAM message transmission probability has dropped to 65
+percent for fully decentralized MADPG, even worse than DDPG, which
+directly relates to its lack of interference management when the number
+of vehicles is considerable. Nevertheless, care must be taken since
+these observations are based on the particular setting for the
+simulation, and additional caution is required when generalizing them.
+We can still conclude that our proposed framework in Algorithm
+indicated a very robust behavior against the
+parameter modifications and outperformed the other baselines.
+
+
+Conclusion 
+
+
+In this paper, a MADDPG-based transmission mode selection and resource
+allocation method was developed for platooning systems, aiming at
+minimizing the AoI of platoons while guaranteeing the CAM message
+delivery to PMs. The proposed MARL framework consists of a collaborative
+setting where a group of PLs simultaneously learns to maximize the
+collective global reward and individual local reward. Furthermore, we
+decomposed the agents&apos; holistic reward signal into multiple sub-reward
+functions based on their sub-tasks and learned them separately. Through
+such a mechanism, we demonstrate that the proposed RRM scheme is
+significantly robust and effective in encouraging platoons to improve
+system-level performance, although the PLs independently select their
+transmission mode, RB, and power levels. Finally, through extensive
+simulations we verified the effectiveness and performance of the
+proposed MARL method. Future work will carry an in-depth extension of
+the proposed framework to Non-orthogonal Multiple Access (NOMA)
+scenarios for the platooning system. Also, examining the spectrum
+sharing scenarios in vehicular networks is another encouraging direction
+worth further investigation.

@@ -1,0 +1,600 @@
+Introduction
+
+
+Reinforcement learning (RL) is a promising paradigm for constructing
+autonomous agents for transportation [*REF*], robotics [*REF*], scientific
+applications [*REF*] and beyond [*REF*]. To enable such impressive feats, RL often
+requires large amounts of computation and samples from the underlying
+environments [*REF*; *REF*; *REF*].
+Consequently, many approaches for scaling RL have been proposed,
+including distributed [*REF*; *REF*] and
+asynchronous training [*REF*], GPU-accelerated
+environments [*REF*] and many
+others [*REF*; *REF*]. Within supervised learning,
+an emerging trend for accelerating deep learning is low-precision
+training, where one uses fewer than 32 bits to represent individual
+parameters, activations, and gradients [*REF*]. This speeds up
+computations and decreases latency, memory footprint, and energy
+consumption [*REF*; *REF*; *REF*].
+Such benefits can accelerate RL research, allow longer deployment before
+recharging batteries [*REF*], lower latency in high-speed
+applications [*REF*], and is especially relevant in RL from raw
+pixel observations which can be compute-intensive [*REF*].
+Despite such upsides, the RL community has not adopted low-precision
+training, in part as RL agents are notoriously hard to train even in
+full precision [*REF*; *REF*; *REF*].
+
+
+The goal of this paper is to demonstrate the feasibility of RL in low
+precision without changing hyperparameters or the underlying RL
+algorithm. Specifically, we focus on continuous control
+environments [*REF*] and consider the state-of-the-art
+soft actor-critic (SAC) algorithm [*REF*]. We demonstrate
+that strategies developed for supervised learning, such as loss scaling
+and mixed-precision [*REF*], fail in this context. To
+enable RL in low precision, we propose a set of six methods that improve
+the numerical stability without changing the underlying agent. Some of
+these are novel, for example, we propose to store the square root of the
+second moment in Adam to decrease the needed dynamic range. Others have
+more of an engineering flavor, e.g. reordering arithmetic operations,
+but are nonetheless crucially needed for performant agents.
+
+
+We experimentally verify that with these methods it is possible to train
+SAC agents in low precision with comparable performance to
+full-precision agents, thus demonstrating the feasibility of
+low-precision RL. We further benchmark compute time and memory
+consumption and find dramatic improvements in both aspects. We perform
+experiments on RL from both environment state representations and pixel
+observations, and also perform ablation experiments and simulate various
+numerical formats with qtorch [*REF*]. Finally, we release
+our code to encourage future work on RL in low precision. Debugging
+numerical issues can be problematic as they do not necessarily result in
+crashes. We hope that the techniques and code we introduce can provide a
+starting point for other researchers interested in low-precision RL.
+
+
+Background
+
+
+Low-Precision Deep Learning
+
+
+Within deep learning, model parameters are typically represented as
+32-bit floating-point numbers (fp32) [*REF*]. One bit is used
+for the sign, the exponent uses 8 bits and the rest represent the
+significand. If we interpret these bits as integers
+*MATH*, the value they represent is *MATH*.
+Arithmetic in low precision is precarious. With a finite number of bits,
+only a finite set of numbers can be represented. Calculations yielding
+numbers too large to be represented cause overflow and result in
+*MATH* (which has a specific bit-pattern). Conversely, numbers too
+small to be represented cause underflow and are cast to 0. If *MATH* is
+small and *MATH* is large, in low precision the representable number
+closest to *MATH* might be *MATH*. This can effectively undo addition. We
+refer to such issues as precision issues. Finally, there is also a bit
+pattern for NaN (abbreviation for \&quot;not a number\&quot;) which can come
+from division by 0 or arithmetic with *MATH*.
+
+
+Low-precision deep learning relies on using fewer than 32 bits for
+individual parameters, activations, and gradients [*REF*],
+yielding faster computation, lower latency, less power consumption, and
+smaller memory footprint [*REF*; *REF*]. Nvidia
+GPUs [*REF*] and PyTorch [*REF*]
+currently support 16-bit floating-point numbers (fp16 or
+half-precision), which uses 5 bits in the exponent [*REF*].
+Other representations are actively being
+researched [*REF*; *REF*; *REF*].
+For low-precision training of neural networks, a few common tricks are
+used to improve numerical stability. One can scale the loss to prevent
+gradient underflow in the backward pass, or mix high and low
+precision [*REF*], or coerce Nan values to 0 and
+*MATH* to some large number. In [1]
+we apply such baseline methods to our RL setting -- the SAC agent
+evaluated on the planet benchmark [*REF*] -- and observe
+that they do not reach competitive performance (see
+[4] for details.) This suggests that novel
+strategies are needed to enable low-precision RL.
+
+
+Reinforcement Learning
+
+
+Continuous control tasks, e.g., robotic arm control, are often
+formulated as Markov decision processes (MDPs) defined by a tuple
+*MATH*  [*REF*]. The state
+space *MATH* and action space *MATH* are both continuous
+and might be bounded. At each timestep *MATH*, the agent is in a state
+*MATH* and takes an action
+*MATH* to arrive at a new state
+*MATH*. The transition between states given
+an action is random with transition probability *MATH*.
+Furthermore, at each timestep, the agent receives a reward *MATH* as per
+the reward distribution *MATH*. The agent is typically trained to take
+actions that maximize expected discounted reward
+*MATH* for some fixed *MATH* which defines a horizon for the problem. The
+performance is typically measured by the cumulative rewards *MATH*.
+
+
+FIGURE
+
+
+Soft Actor-Critic (SAC)
+
+
+Soft actor-critic (SAC) is a popular RL algorithm for continuous
+control [*REF*], forming the basis for recent
+state-of-the-art algorithms such as CURL [*REF*],
+RAD [*REF*] and DRQ [*REF*]. For every
+state *MATH*, SAC defines a continuous multivariate policy
+distribution *MATH* over actions, defined via a neural
+network with parameters *MATH*. The neural network outputs two
+vectors, a mean *MATH* and a standard
+deviation *MATH* and the policy is
+defined as *MATH*. Here, *MATH* is applied elementwise, yielding the action space
+*MATH* for some *MATH*. An action *MATH* can
+then be sampled from *MATH* simply by sampling
+*MATH* from the standard normal distribution. To
+encourage exploration, the entropy *MATH* of
+the action distribution (times a hyperparameter *MATH*) is added to
+the reward at each state *MATH*. In practice, the entropy can be
+calculated by sampling an action *MATH* from *MATH* and
+thereafter calculating *MATH*.
+
+
+The agent also uses a neural network with parameters *MATH*, often
+referred to as the critic, that outputs a q-value
+*MATH* [*REF*] for each state
+*MATH* and action *MATH*. Q-values roughly measure the
+expected rewards that can be obtained by taking action *MATH* in
+state *MATH*. The critic network is trained to minimize the square
+loss between its output *MATH* and the target *MATH*.
+The value *MATH* is obtained from another
+network -- the target network -- which shares architecture with the
+critic but whose weights *MATH* are the exponentially averaged
+weights of the critic network, i.e., we do not take gradients w.r.t
+*MATH* and for some *MATH* we occasionally update
+*MATH* \hat \leftarrow \beta \hat + (1-\beta) \psi. *MATH* The policy
+*MATH* is optimized to maximize the expected rewards. This can be
+done by sampling an action *MATH* from *MATH* 
+and thereafter taking derivatives w.r.t. *MATH* through the
+q-values *MATH*. In practice, instead of
+treating *MATH* as a fixed hyperparameter, one can update *MATH* 
+with a gradient descent type optimizer so that the average entropy of
+states matches some predefined value. SAC is typically optimized by the
+Adam optimizer [*REF*]. For further details,
+see  *REF*.
+
+
+TABLE
+
+
+Proposed Methods 
+
+
+To improve the numerical stability of SAC [*REF*] we propose
+a set of six modifications that do not change the underlying algorithm.
+These are listed in [1]. We point out that some of them are relatively
+straightforward engineering choices; nonetheless, such implementation
+level modifications are often important to achieve good performance in
+RL [*REF*]. For the sake of being self-contained,
+we present all modifications here. We verify that these components
+individually contribute to improved performance
+in [2]. However, not all these components are needed
+for all environments -- we have found that some environments are less
+sensitive to numerical issues; see [11] for details. Many of these methods
+are agnostic to the underlying RL method and we hope that they provide a
+sensible starting point for other RL agents.
+
+
+1. Storing the Hypotenuse in Adam. The Adam optimizer stores the
+exponential moving average of the squared gradient. It is stored in a
+variable *MATH* which is updated as *MATH* for gradient
+*MATH*. Storing the full range of *MATH* is infeasible in low precision;
+for example, if *MATH* computing *MATH* might cause
+underflow in 16-bit precision. We instead propose to store
+*MATH* which has a smaller dynamic range than *MATH*. To update *MATH* 
+we use the hypot function, which is defined as
+*MATH*. In a naïve implementation, the
+intermediate results *MATH* or *MATH* might underflow. To avoid this, we
+can,e.g., rewrite the expression above as follows for nonzero *MATH* and
+*MATH*: *MATH*. This expression is more numerically stable when *MATH* and *MATH* can be
+represented, but *MATH* and *MATH* are rounded to *MATH*. To allow for
+*MATH* one can add a numerical *MATH* to the denominator. Once
+we have a numerically suitable hypot function we define the updates for
+*MATH* as follows *MATH*. Under this update rule *MATH* retains the semantics *MATH*. We update
+the network parameters *MATH* with *MATH* for some
+learning rate *MATH* and the *MATH* used in Adam. In practice,
+this exchanges the square root computation to the more numerically
+stable hypot execution. Both have comparable complexity as they require
+finding a square root via iterative methods. In fact, hypot is a common
+numerical primitive (found in, e.g., *MATH* math.h *MATH* in the C language). We
+can pre-compute the values of *MATH* and *MATH* 
+up-front. Although this modification might cause a slight computational
+overhead, depending on the hypot implementation, the gradient
+computation dominates the computational cost. The resulting method,
+which we call hAdam, is described
+in algorithm.
+
+
+ALGORITHM
+
+
+2 &amp; 3. Numerical Issues in the Policy. Naïvely handling the policy
+parametrization equation of SAC leads to poor performance in low
+precision. Calculating the log-probability of actions, which is needed
+to compute the entropy, is problematic in low precision. Recall that
+actions *MATH* are drawn from *MATH* where *MATH* and *MATH*. Here,
+*MATH* and *MATH* are the outputs from the policy neural network. To calculate the
+log-probability, we need to account for the change of variables due to
+the tanh transformation: *MATH*. The first expression is numerically unsuitable as
+*MATH* can be rounded to 1 with insufficient precision. The
+latter expression is known to be more numerically
+stable [*REF*], but can still overflow in the backward
+pass when *MATH* is large. This happens, e.g., in PyTorch
+[*REF*]. To prevent such overflow, we exchange
+*MATH* by a linear function (which has a
+stable backward pass) for sufficiently large negative *MATH*, i.e when
+*MATH* for a *MATH* that is chosen depending on the dynamic range of the
+number representation. The resulting function is shown in equation. This modification only carries a minimal
+computational overhead and we call it softplus-fix.
+*MATH*. Secondly, we need to calculate
+*MATH* which is just the log-probability of
+a normal variable. The numerical stability of this operation is
+important, and, e.g., the PyTorch implementation of the normal
+distribution has log-probabilities calculated as
+*MATH* (we omit normalization constants here). If *MATH* are all very small, it is possible
+that, e.g., *MATH* is rounded to zero in 16-bit precision despite
+the correct ratio being around 1. To improve the stability, we instead
+calculate the log-probability as *MATH* (modulo normalization
+constant). This turns out to solve such underflow issues for the SAC
+implementation of *REF* and incurs no computational or memory
+cost. We call this modification the normal-fix.
+
+
+4. Stability of Soft-Updates. Recall that the target network is an
+exponential moving average of the critic network:
+*MATH* \hat\gets \beta \hat+ (1-\beta) \psi. *MATH* For *MATH* close
+to one, *MATH* can be very small which can cause numerical
+issues. To compute the momentum update of the target network, we propose
+to use Kahan summation [*REF*], a general method for
+calculating sums of low-precision numbers. When summing a long sequence
+of numbers in low precision, the numerical error can grow with the
+length of the sequence. Kahan summation adds a compensation variable
+that is updated as each term of the sum is added, which improves
+numerical stability. The method is given in algorithm. We rewrite the momentum update as adding
+*MATH* to *MATH* and then use Kahan
+summation to add this term to *MATH*. To prevent underflow of
+*MATH* we can scale it by some constant *MATH* 
+and add them to a copy of *MATH* where all weights are scaled by
+*MATH*. This strategy has a relatively small computational cost but larger
+memory costs, however, this is offset by storing the model in lower
+precision. Additionally, we still reap the benefits of computing
+gradients and activations in lower-precision, which often is the main
+source of memory consumption. We call this method Kahan-momentum.
+
+
+ALGORITHM
+
+
+FIGURE
+
+
+5. Compound Loss Scaling. Adam stores the exponential moving
+averages of the gradients and the squared gradients, updating them as,
+e.g., *MATH*. For small gradients *MATH* and
+*MATH* close to 1, the term *MATH* might be rounded to zero.
+Fortunately, the Adam update is invariant if we rescale the numerator
+and the denominator simultaneously. Thus, we can choose some fixed large
+*MATH* and update the Adam buffers as follows
+*MATH*. *MATH* This modifications ensure that *MATH* does not
+underflow. To retain the semantics of Adam, we update the parameters as
+*MATH*. For implementing this strategy we scale the loss by some *MATH* -- this
+scales the gradients and thus the contents of *MATH* and *MATH*. Due to its
+similarity with loss scaling, we call this method compound loss
+scaling. Compared to loss scaling we do not need to \&quot;unscale\&quot; the
+gradients. As is standard in loss scaling, we change *MATH* 
+dynamically following the strategy of PyTorch amp [*REF*]; see
+[8] for details. This results in a small extra
+computational cost as we need to check that the gradients do not
+overflow when dynamically updating *MATH*.
+
+
+6. Kahan Summation of Gradients. Lastly, we perform Kahan summation
+on the gradient updates for the weights *MATH* of the critic network and
+for the parameter *MATH*. This trick turns out not to be needed for
+the actor-network. Formally, for a gradient update
+*MATH*, we apply algorithm. Again, this method comes with a small
+computational overhead but needs a memory footprint comparable to that
+of the actual model. We already save some memory from storing the
+parameters in low precision, and the main source of memory consumption
+is often computing the gradients, which is not affected. We call this
+method Kahan-gradients.
+
+
+Guarantees
+
+
+In practice, our modifications improve numerical stability. However, one
+might be worried that the underlying RL algorithm is changed. As the
+methods rely on algebraically rewriting operations, the underlying
+algorithm will be the same -- at least in infinite numerical precision
+where arithmetic is commutative and associative. We formalize this
+intuition as follows; see [9] for a proof.
+
+
+STATEMENT 1
+
+
+Experiments 
+
+
+Setup
+
+
+To verify the efficacy of our proposed methods we now perform
+experiments on the state-of-the-art agent SAC [*REF*]. We
+here focus on three specific questions about our method i) does it match
+rewards from fp32 training? ii) does it improve compute/memory
+consumption? iii) are all proposed components needed? We start from the
+publicly accessible SAC implementation of *REF* which is used in
+recent state-of-the-art algorithms such as CURL [*REF*], RAD
+[*REF*] and DRQ [*REF*]. For
+environments, we consider the planet benchmark, popularized
+by [*REF*] and used in e.g. *REF* 
+[*REF*; *REF*]. It consists of six
+continuous control tasks from the deep mind control suite
+[*REF*]: finger spin, cartpole swingup, reacher easy,
+cheetah run, walker walk, and ball in cup catch. We do not tune
+hyperparameters, but instead use hyperparameters from  *REF* 
+(listed in [8]). We measure performance after 500,000
+environment steps as per [*REF*; *REF*; *REF*] with
+individual runs scored by the average return over 10 episodes. We use 15
+seeds for the main experiments (figures) and 5 seeds for all other experiments.
+Runs using SAC naïvely ported to fp16 can crash when taking actions that
+are non-finite, these are scored as 0. Figures show means and standard
+deviations (stds) across runs; when aggregating stds across tasks, we
+calculate the stds of individual tasks and then plot the average std. We
+primarily perform experiments with fp16 as this format is natively
+supported in PyTorch and on Nvidia V100 GPUs. Fp16 has both a smaller
+dynamic range and lower precision compared to fp32. We simulate other
+numerical formats in [4.5].
+
+
+Comparison to Fp32
+
+
+We first compare the performance of the SAC agent trained in fp32 and
+fp16, the latter using all our methods from
+[3]. Learning curves for different tasks
+are given in figure. We see that half-precision training
+performs very close to full-precision training, validating that our
+methods essentially match fp32 performance despite training in
+half-precision.
+
+
+Comparison to Baselines
+
+
+We now compare our strategy to the following standard low-precision
+methods from supervised learning:
+- Numeric coercion, abbbreviated as coerc. NaNs are coerced into zero
+and *MATH* to the largest/smallest fp16 value.
+- Loss scaling [*REF*], abbreviated as loss scale. We
+perform loss scaling with dynamic scale, using the same parameters
+as for our compound scaling. In [11] we use the amp [*REF*] default
+parameters which gives similar results.
+- Mixed precision and loss scaling [*REF*],
+abbreviated as mixed precision. In addition to loss scaling, we use
+mixed precision. Gradients, Adam buffers, and parameters are stored
+in fp32. Parameters are cast to half-precision in the forward pass,
+and the backward pass is calculated in half-precision.
+In [1] we show the performance of these baselines
+from supervised learning. These methods perform poorly in low-precision
+RL, demonstrating that additional strategies are necessary in this
+context.
+
+
+FIGURE
+
+
+Ablation Experiments
+
+
+We additionally perform an ablation experiment to ensure that all our
+proposed methods improve performance individually. The experiment is
+structured as follows: we start with the original SAC agent trained in
+fp16 and then cumulatively add our proposed methods one-by-one. The
+performance, averaged over environments and seeds, is shown in
+[2]. As we can see, all proposed techniques improve the performance
+individually, suggesting that they all are needed to achieve the final
+result. In [11] we further experiment with
+removing individual components from the final agent which uses all other
+modifications and again see that our methods contribute individually to
+the final performance.
+
+
+Other Numerical Formats 
+
+
+In addition to performing experiments in fp16, we also consider training
+in other numerical formats via the qtorch
+simulator [*REF*]. Qtorch allows one to simulate
+low-precision training by quantizing tensors to some predefined format
+between calls to the PyTorch backend. Specifically, we start with the
+fp16 representation and vary the number of bits in the significand while
+retaining 5 bits for the exponent. For each resulting numerical format,
+we train SAC with our modifications. Results are shown
+in [3]. We see that the performance degrades with decreased numerical precision,
+first gracefully but then dramatically when using 5 bits in the
+significand.
+
+
+FIGURE
+
+
+RL from Pixels
+
+
+Until now we have focused on the traditional RL setting of learning from
+the states of the tasks (i.e. proprioceptive information), which is the
+original setup for SAC [*REF*]. It is also possible to
+perform RL from raw pixel observations
+[*REF*; *REF*]. This setup is more
+compute-intensive, making low-precision methods very attractive. To this
+end, we replace the states of our original setup with raw pixel
+observations processed by a small convolutional network and perform
+end-to-end RL from pixels. For the convolutional encoder, we follow the
+general network design of [*REF*; *REF*; *REF*] -- a few
+convolutional layers (we use four as [*REF*]) followed by
+a linear layer which feeds into a 50-dimensional layer-normalization
+module whose output is used instead of the environment states.
+Occasionally we have found the internal variance calculations of
+layer-normalization to overflow in fp16, to remedy this, we add a weight
+standardization [*REF*] for the linear layer and downscale its
+output. This does not change the semantics as layer-normalization is
+invariant under rescaling. The issue could possibly be addressed at the
+GPU kernel level, but since the cudnn kernels are not open source we
+defer such studies to future work. Images are resized to 84-by-84
+tensors and we follow [*REF*] regarding frame-stacking,
+image augmentation and hyperparameters (importantly learning rate is
+increased to *MATH*), see [13] for details.
+
+
+In figure, we compare the performance between
+training from pixels in fp32 and fp16, the latter using our
+modifications from [3]. Again, we see that the performance is
+very close, despite one network using half-precision numbers. This
+demonstrates the feasibility of RL from pixels in low precision too,
+where high-dimensional image input can result in compute-intensive
+workloads.
+
+
+Performance
+
+
+We now measure the performance improvements obtained from low-precision
+training, varying the batch size and the width (i.e. number of filters)
+of the convolutional layers to simulate different computational demands.
+We use all our proposed methods for low-precision training, larger
+improvements can likely be obtained for environments that work well
+without all methods. We here focus on RL from pixels,
+[14] contains the measurements for learning
+from states. When training the agent, there are three main components of
+the compute time: 1) simulating the environment, 2) sampling batches and
+3) GPU computation. To achieve optimal performance, these operations
+should be asynchronous; however, the codebase of [*REF*] is
+synchronous. As asynchronous learning is well-understood and not the
+focus of our work, we only measure the compute time of the third
+component, using one fixed batch and performing multiple training steps.
+The time is averaged over 500 gradient updates (and occasional momentum
+updates for the target network) with a warm started Tesla V100 GPU. We
+perform measurements with PyTorch tools, see
+[14] for tooling details.
+
+
+TABLES
+
+
+In [2], we compare the time per update for different
+network widths and batch size. We see that the speedup increases to more
+than 2x as the computational demands increase. The reason that
+performance changes is likely that the smallest configuration does not
+saturate available compute resources of the Tesla V100, however factors
+such as memory hierarchy and pipeline balance might also play a role. In
+[3], we show the memory improvements of training in fp32 vs. fp16. The memory
+improvements stay around 1.87x for all network widths, demonstrating
+dramatic improvements that can enable larger models on edge devices and
+the small memory overhead of our methods.
+
+
+Investigating Gradient Scales
+
+
+The good performance of our proposed methods indicates that the
+numerical stability of policy parametrization, precision in gradient
+accumulation, and the dynamic range of the gradients are important
+issues in low-precision RL. We here seek to illustrate the wide gradient
+distribution directly. In [4], we show the distribution of gradients for
+the cheetah task (trained in fp32) after 250,000 environment steps. Note
+that both axes use a logarithmic scale. The gradients have many orders
+of magnitude of dynamic scale, and when Adam computes the square of
+these even more dynamic range is needed. This suggests that gradient
+scale is an important issue in low precision RL.
+
+
+FIGURE
+
+
+Further Experiments
+
+
+We have demonstrated that our methods can match fp32 performance for the
+tuned default SAC parameters of *REF*. As we did not tune these
+parameters ourselves, controlling for effects of hyperparameter tuning
+is not straightforward [*REF*]. To demonstrate that our
+methods are stable for different hyperparameters, we consider
+experiments with random hyperparameters in [12]. These show that our method still
+matches fp32 rewards for such random parameters, thus demonstrating the
+parameter stability of our methods.
+
+
+Related Work
+
+
+Accelerating RL. There are many proposed approaches for accelerating
+RL. [*REF*; *REF*] demonstrate
+the efficacy of asynchronous training, whereas distributed training has
+received more attention lately [*REF*; *REF*; *REF*; *REF*; *REF*].
+Distributed RL training has received support from the Rllib
+project [*REF*; *REF*], other notable codebases are
+Rlpyt [*REF*] and torchbeast [*REF*].
+Additionally, [*REF*] and [*REF*] have recently
+demonstrated algorithms for high throughput RL on a single compute node.
+[*REF*] has investigated simulating the environment on
+the GPU for acceleration. [*REF*] proposed vector
+quantization for traditional tabular reinforcement learning -- i.e.,
+with no deep learning component. The only work on accelerating deep RL
+with low precision known to us is the pre-print of
+[*REF*]. It differs from and/or complements our work
+by 1) studying post-training quantization, which is not the focus of our
+work, 2) using mixed precision, which we experimentally demonstrate does
+not work in general.
+
+
+Low-Precision Deep Learning. Low-precision deep learning goes back
+at least to [*REF*], which has inspired large amounts of
+subsequent work. Among the most noteworthy approaches is mixed precision
+[*REF*], where full and half precision are used
+together. Such settings often necessitate loss scaling to avoid the
+gradients underflowing in the backward pass. Furthermore, it requires a
+larger set of instructions at the hardware level and also moving
+parameters between e.g. fp32 and fp16 representations. Other relevant
+approaches include binary weights [*REF*], fixed
+point [*REF*], B-float [*REF*], block floating
+point [*REF*]. 8-bit [*REF*], low-precision
+accumulation [*REF*] or integer
+arithmetic [*REF*; *REF*]. Another strategy is
+to average the low-precision weights into full precision
+[*REF*] or to perform stochastic rounding
+[*REF*]. For recent theoretical work on quantization,
+see [*REF*]. Kahan summation has recently been proposed
+in deep learning for gradient accumulation
+[*REF*; *REF*], but not for momentum updates as
+we do. Post-training quantization is also a popular strategy
+[*REF*], but not the focus here.
+
+
+Conclusions
+
+
+In this paper, we demonstrate the feasibility and potential performance
+gains of low-precision RL. Whereas naïve strategies from supervised
+learning fail we propose six modifications to the SAC agent
+[*REF*] which improve numerical stability. With our
+modifications, fp16 training matches full precision rewards while
+improving memory footprint and compute time. Future directions include
+mixed precision and extending our methods to more agents. We hope that
+our methods and code provide a starting point for researchers interested
+in low-precision RL.

@@ -1,0 +1,545 @@
+State-based Episodic Memory for Multi-Agent Reinforcement Learning
+
+
+Introduction 
+
+
+Reinforcement learning (RL) has achieved promising success in a variety
+of challenging domains, including game playing [*REF*] and
+robotics [*REF*]. There are multiple
+agents to collaboratively make sequential decisions in many real-world
+applications, such as autonomous driving [*REF*], intelligent robotic
+control [*REF*], and game playing [*REF*; *REF*].
+Therefore, multi-agent reinforcement learning (MARL) has attracted much
+attention. In MARL, each agent has its partial observations and chooses
+its actions in a shared environment with other agents&apos; interactions.
+This complex interaction model causes many challenges, such as
+instability, sample inefficiency, the moving target problem
+(non-stationarity), the exponential growth of the agents&apos; action space.
+
+
+Early MARL methods, such as independent Q-learning [*REF*],
+adopt the decentralized policy for training. In these methods, each
+agent takes action independently and treats other agents as part of the
+environment. Since other agents&apos; policies will change, leading to a
+non-stationary environment, these decentralized policy based methods
+suffer from sample inefficiency and instability problems. To solve these
+problems caused by decentralized policies, researchers recently propose
+to use the paradigm called centralized training and decentralized
+execution (CTDE) [*REF*]. Benefiting from CTDE, value-decomposed MARL
+algorithms [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*]
+have been proposed in recent years. During training phase of these
+algorithms, a joint action-value function, including all agents&apos;
+individual action-value functions, is learned using additional
+information such as global states, actions, or rewards. Each agent can
+act independently based on its local observation and its individual
+action-value function without any additional information in the
+execution phase. Although value-decomposed MARL algorithms have
+achieved promising success, improving sample efficiency is still a
+critical problem for MARL. Episodic memory (EM), which can record the
+best experiences, has been applied in single-agent RL to improve sample
+efficiency [*REF*; *REF*; *REF*; *REF*].
+However, to our best knowledge, EM has not been introduced into MARL.
+
+
+In this paper, we make the first attempt to introduce EM into MARL and
+propose a novel method, called [s]tate-based [e]pisodic [m]emory (SEM), to improve sample
+efficiency for MARL. The contributions of this work are briefly outlined
+as follows:
+-  SEM is the first work to introduce EM into MARL to improve sample
+efficiency.
+-  SEM establishes only one lookup table to record global states and
+their corresponding highest discounted return among all executed
+joint actions. SEM replays the highest discounted return from the
+table as the EM target to supervise the centralized training in the
+paradigm of CTDE.
+-  When using for MARL, SEM can be theoretically proved to have lower
+space complexity and time complexity than state and action based
+EM (SAEM), which is originally proposed for single-agent
+RL [*REF*; *REF*; *REF*; *REF*].
+-  Experimental results on StarCraft multi-agent challenge (SMAC) show
+that introducing episodic memory into MARL can improve sample
+efficiency and SEM can reduce storage cost and time cost compared
+with SAEM.
+
+
+Notation 
+
+
+In this paper, we adopt similar notations as those
+in [*REF*]. More specifically, we describe the
+fully cooperative multi-agent task as a decentralized partially
+observable Markov decision process (Dec-POMDP) [*REF*]. A Dec-POMDP is
+defined by a tuple *MATH*. Here, *MATH* denotes the global state of the environment and *MATH* 
+denotes the action space of each agent *MATH*. At each time step, each agent *MATH* 
+chooses an action *MATH*, forming a joint action *MATH*. It results in a transition on
+the environment according to state transition function
+*MATH*. All agents receive the same reward according to the same reward function
+*MATH* and *MATH* is a discount factor. Dec-POMDPs consider partially
+observable scenarios in which each agent has individual observation
+*MATH* according to observation function *MATH*.
+Each agent has an observation-action history *MATH* and chooses its action
+based on a stochastic policy *MATH*. *MATH* is the joint
+action-observation history. The joint action-value function of the joint
+policy *MATH* is defined as: *MATH*, where *MATH* is the discounted return.
+
+
+Related Work
+
+
+EM for Single-Agent RL
+
+
+In single-agent RL, deep reinforcement learning algorithms need to take
+millions of interactions with the environments to attain human-level
+performance. However, humans can quickly exploit the high reward after
+the first discovery by using the hippocampus, which can record EM.
+Motivated by the hippocampus&apos; ability, researchers proposed to use EM to
+achieve fast learning and improve sample efficiency for single-agent RL.
+Model-free episodic control (MFEC) [*REF*] and neural
+episodic control (NEC) [*REF*] try to use
+lookup tables to record the EM and retrieve useful values from lookup
+tables for action selection. MFEC and NEC can be seen as tabular RL
+methods, which lack good generalization compared with deep neural
+network-based RL methods. Episodic memory deep
+q-network (EMDQN) [*REF*] combines EM with deep
+q-network (DQN) to achieve good generalization and improve sample
+efficiency by accelerating the training process of DQN. EM has been
+widely applied in single-agent RL, but it has not been introduced into
+MARL. Furthermore, all existing EM-based single-agent RL methods adopt
+state and action based EM (SAEM). SAEM will face many difficulties when
+SAEM is applied into MARL, which will be detailedly described in
+Section [4].
+
+
+Value-based MARL Algorithms
+
+
+The most common and straightforward value-based approach in the
+multi-agent setting is to break down a multi-agent learning problem into
+multiple independent single-agent learning problems, which is called
+decentralized value-based methods. One of the representative methods is
+independent Q-learning (IQL) [*REF*]. Decentralized value-based
+methods benefit from scalability because each agent can make decisions
+based on a decentralized policy. However, each agent has to treat other
+agents as a part of the environment. The other agents&apos; policies will
+change during the training procedure, making the environment not
+stationary. Therefore, these decentralized value-based methods suffer
+from sample inefficiency and instability problems.
+
+
+The sample inefficiency and instability problems caused by decentralized
+policies can be alleviated by adding centralized training into MARL,
+resulting in a MARL paradigm called centralized training with
+decentralized execution (CTDE) [*REF*].
+Benefiting from the paradigm of CTDE, researchers have proposed some
+approaches, called value-decomposed MARL algorithms, that learn a
+centralized but decomposed Q value function to improve agent learning
+performance in recent years [*REF*; *REF*; *REF*; *REF*; *REF*].
+During execution, each agent still acts independently. In the
+value-decomposed MARL algorithms, individual-global-max (IGM) is a
+crucial principle, ensuring that the optimal joint action across agents
+in the joint action-value  *MATH* and the collection of all optimal individual action in the
+*MATH* are consistent. The parameters *MATH* are learnred by minimizing the following expected TD
+error: *MATH* where *MATH* and *MATH* are the parameters of a target network that are
+periodically copied from *MATH*. VDN [*REF*] and
+QMIX [*REF*] respectively propose two
+decomposition structures, additivity and monotonicity, which are
+sufficient conditions for the IGM. WQMIX [*REF*]
+tries to use a weighted projection that places more importance on better
+joint actions to overcome the limitation of QMIX.
+QTRAN [*REF*] tries to realize the entire IGM
+function class by using extra soft regularizations, which actually loses
+the IGM guarantee. QPLEX [*REF*] uses a
+duplex dueling architecture and provides a guaranteed IGM consistency.
+Although these value-decomposed MARL algorithms can outperform
+decentralized value-based methods, they still suffer from sample
+inefficiency and instability problems.
+
+
+State and Action based Episodic Memory for MARL 
+
+
+The EM for single-agent RL [*REF*; *REF*; *REF*; *REF*]
+is defined on state and action. This is why we call it state and action
+based EM (SAEM) in this paper. To the best of our knowledge, EM,
+including SAEM, has not been introduced into MARL before. In this
+section, we will extend the application of SAEM from single-agent RL to
+MARL, by replacing the action in single-agent RL with the joint action
+in MARL.
+
+
+More specifically, we establish a lookup table for each joint action and
+denote this lookup table as *MATH*, where *MATH* is
+the global state and *MATH* is the joint action. Each entry in the
+table *MATH* records the highest return ever
+obtained by taking joint action *MATH* in state *MATH*. At the end of
+the episode, we store the episode *MATH* 
+into the replay buffer *MATH* and store *MATH* into a
+set *MATH* of size *MATH*, where *MATH* 
+is the discounted return received after taking joint action
+*MATH* in state *MATH*. *MATH* is updated when the set
+*MATH* is filled: *MATH* where *MATH* and
+*MATH*, *MATH*. For any state and
+joint action, we update their values with the highest discounted return.
+After updating *MATH*, the set *MATH* is made empty.
+The value of each entry in the table *MATH* is updated
+increasingly and the number of entries also increases during training.
+We limit the maximum size of the table *MATH* and remove the
+least frequently assessed entry when *MATH* is filled.
+
+
+In the centralized training phase, the loss function of SAEM is defined
+as: *MATH* where *MATH* is the vanilla target in the value-decomposed MARL algorithms and
+*MATH* is the episodic memory target recorded by *MATH*.
+*MATH* is the coefficient to balance the trade-off between
+the two targets.
+
+
+We can see that SAEM suffers from two deficiencies when using for MARL:
+high space complexity and high time complexity. Because SAEM needs
+*MATH* lookup tables, the space complexity is *MATH*,
+where *MATH* is a constant. Hence, the space complexity is exponentially
+higher than that in single-agent RL. The time complexity is also high.
+In the worst case, there are *MATH* different joint actions, and hence
+*MATH* tables are needed to be updated when using the set *MATH* to update
+*MATH*. Hence, the time complexity of updating *MATH* 
+is *MATH* in the worse case. This motivates us to design new
+EM mechanisms like state-based EM in the next section.
+
+
+State-based Episodic Memory for MARL 
+
+
+This section introduces our newly proposed EM, called state-based
+episodic memory (SEM), for MARL.
+
+
+Lookup Table in SEM
+
+
+In SEM, we establish only one lookup table *MATH*, which is
+indexed by global states. Given the global state *MATH*, each entry in
+*MATH* records the highest return ever obtained. At the end
+of episode, we store the episode *MATH* 
+into the replay buffer *MATH* and store *MATH* into a set *MATH*,
+where *MATH* is the discounted return received after taking joint action *MATH* in state
+*MATH*. *MATH* is updated according to the set *MATH*:
+*MATH* where *MATH* and *MATH*, *MATH*. For any state, we
+update their values with the highest return. After updating
+*MATH*, the set *MATH* is made empty. The value of each entry in
+the table *MATH* is updated increasingly and the number of
+entries also increases during training. We limit the maximum size of the
+table *MATH* and remove the least frequently assessed entry when
+*MATH* is filled.
+
+
+Training Procedure
+
+
+In the centralized training procedure, the loss function of SEM is
+defined as: *MATH* where *MATH* and *MATH*. *MATH* is the
+parameter of the target network which is copied from *MATH*. *MATH* 
+is a target inferred by the target network and *MATH* is an
+episodic memory target. *MATH* is the coefficient to balance
+the trade-off between two targets. When *MATH* is set to 0, our
+method degenerates to the original value-decomposed MARL algorithm.
+
+
+During training, the vanilla target *MATH*, approximated by using the
+target network, might be overestimated, which could mislead the
+training. The episodic memory target *MATH*  (or *MATH* in
+SAEM) is more stable than the vanilla target, because the episodic
+memory target is retrieved from the lookup table, rather than
+approximated by the function. Furthermore, the maximum operator in
+updating *MATH* not only records the highest return but also
+plays the role of the maximum operator *MATH*,
+because we ignore the action *MATH* given the state *MATH* in the
+*MATH*. If we cannot find the *MATH* in the lookup table, we use
+*MATH* to replace *MATH*.
+Algorithm  briefly presents the training procedure of SEM. The architecture of SEM
+is shown in Figure. Please note that each agent takes actions
+based on *MATH* and our method can be combined with all existing
+value-decomposed MARL algorithms.
+
+
+Complexity 
+
+
+SEM only need one table to store and update, rather than *MATH* tables
+in SAEM. The space complexity of SEM is *MATH*, where *MATH* is a
+constant. When *MATH* is updated by the set *MATH*, it needs to
+update the *MATH* only once. Hence, the time complexity of
+SEM is *MATH*. Hence, we can theoretically prove that SEM has lower
+space complexity and time complexity than SAEM, when using for MARL.
+
+
+State Representation
+
+
+Although SEM has lower space complexity than SAEM, the storage cost of
+all global states in the table *MATH* might still be large if
+the dimension of state space is high. Similar to [*REF*; *REF*; *REF*],
+we utilize random projection *MATH* to project a state from the original
+global state space *MATH* with dimension *MATH* into a lower-dimensional space
+with dimension *MATH*. The random projection *MATH* is denoted as
+*MATH*, where each entry in *MATH* 
+is randomly drawn from a standard Gaussian. Based on
+Johnson-Lindenstrauss lemma [*REF*], when the random
+matrix *MATH* is drawn from a standard Gaussian, this transformation
+approximately keeps relative distances in the original space. Projecting
+global states to lower-dimension vectors can accelerate the speed of
+table lookup. Please note that we still use *MATH* to denote
+the table in SEM, omitting *MATH* although random projection is adopted
+in this paper. This state representation can also be adopted in SAEM.
+
+
+ALGORITHM
+
+
+FIGURE
+
+
+Experiment 
+
+
+StarCraft Multi-Agent Challenge 
+
+
+StarCraft multi-agent challenge (SMAC), based on the real-time
+strategy game StarCraft and the SC2LE
+environment [*REF*], is a popular benchmark
+for cooperative multi-agent RL. SMAC focuses on micromanagement
+challenges. In SMAC, it involves two armies, one controlled by the
+build-in AI and the other controlled by the user. Each unit can be
+controlled by an independent agent. At each time-step, agents receive
+their local observations, which depend on their sight range. The agents
+are allowed to take actions, including move\[direction\],
+attack\[enemy_id\], stop and no-op. Agents can only move in four
+directions: north, south, east, or west. If the enemy is within the
+agent&apos;s shooting range, the agent can perform the action
+attack\[enemy_id\]. The maximum number of actions an agent can take
+ranges between 7 and 70, depending on the scenario. The goal of agents
+is to maximize the win rate for each battle scenario. The default
+setting of SMAC is to use the shaped reward. For evaluation, we run 32
+evaluation episodes without any exploratory behaviors every 10000
+time-steps. More details about the implementation are included in
+Appendix of the supplementary materials.
+
+
+Effectiveness of Episodic Memory
+
+
+FIGURE
+
+
+We evaluate SAEM on 2c_vs_64zg, a hard map on SMAC, to verify the
+effectiveness of EM for MARL. We choose two classic value-decomposed
+MARL algorithms, VDN and QMIX, as the baselines. We combine SAEM with
+VDN and QMIX, which are denoted as SAEM-VDN and SAEM-QMIX, respectively.
+The coefficient *MATH* is set to 0.1. The size of the lookup table is
+set to 1 million and the size of *MATH* is set to 5K. Other
+hyper-parameters are described in Appendix. The results are shown in
+Figure. We can find that the methods with SAEM have
+better performance than baselines without episodic memory, verifying
+that introducing episodic memory into the multi-agent setting is
+effective.
+
+
+Results of SEM 
+
+
+We evaluate our method, SEM, on the eight maps of SMAC. These maps
+include 1c3s5z, 2s_vs_1sc, 2s3z, 3s5z, 27m_vs_30m, 2c_vs_64zg, MMM2 and
+bane_vs_bane. The snapshots and configurations of these maps are shown
+in the Appendix. We choose several value-decomposed MARL algorithms as
+baselines, including VDN [*REF*], QMIX [*REF*], QPLEX [*REF*],
+WQMIX [*REF*]. The coefficient *MATH* is
+set to *MATH*. The size of the lookup table is set to 1 million and the
+size of set *MATH* is set to 5K, which means that the lookup table is
+updated every 5K time-steps. Other hyper-parameters are described in
+Appendix. We show our results, mean and median scores over eight
+maps of SMAC, at 0.25M time-steps and 0.5M time-steps in
+Table [1]. We can find that the mean scores and median scores of SEM combined with
+value-decomposed MARL algorithms all surpass those of the corresponding
+vanilla value-decomposed MARL algorithms. It verifies that SEM can
+improve sample efficiency compared with baselines that do not use
+episodic memory.
+
+
+In Figure, we show the training curves of SEM-VDN, SEM-QMIX,
+VDN and QMIX on six map. Our methods, SEM-QMIX and SEM-VDN, can
+converge faster than corresponding baselines and improve sample
+efficiency on all maps. On 2s3z, the performances of QMIX and VDN both
+drop sharply at about *MATH* million time-steps. Our method can alleviate
+this phenomenon obviously since episodic memory could help the agents to
+remember the best experience. On 27m_vs_30m, SEM-VDN can achieve *MATH* 
+test battle won while VDN is bound to fail in all the battles. The
+performance of SEM-QMIX has also increased by about *MATH* compared to
+that of QMIX. On 2c_vs_64zg, SEM-VDN can achieve *MATH* test battle won
+while VDN fails in all battles. SEM-QMIX can learn faster than QMIX. For
+bane_vs_bane, the results of QMIX and VDN exhibit a large variance.
+
+
+TABLE
+
+
+Our methods, SEM-QMIX and SEM-VDN, can both outperform the baselines
+(QMIX and VDN) with a large margin and the median test win of our
+methods converges to 1 quickly.
+
+
+FIGURE 
+
+
+Comparison among Different Targets
+
+
+To gain the insight of introducing episodic memory into MARL, we try to
+conduct an in-depth analysis of the training process. We compare
+different targets in SAEM-VDN, SEM-VDN and VDN on 2c_vs_64zg. *MATH* is
+denoted as *MATH*, which is a target inferred by the target network.
+*MATH* is denoted as *MATH*, which is an episodic memory target
+replayed from *MATH*. *MATH* denotes *MATH*, which is replayed from *MATH*.
+The results are shown in Figure. Both *MATH* and *MATH* are
+stable targets, because they are retrieved from the tables which record
+the highest return from historical episodes. In VDN, we can see that *MATH* 
+is higher than the episodic memory targets *MATH* 
+with a large margin. The gap between *MATH* and *MATH* 
+in SEM-VDN and SAEM-VDN is smaller than that in VDN. It illustrates that
+the vanilla target *MATH*, approximated by using target network, is
+overestimated and the episodic memory target can provide centralized
+training with a stable target. Hence, our methods can improve the
+performance and sample efficiency. Furthermore, we can find that the
+curves of *MATH* and *MATH* are almost overlapped in
+Figure, which illustrates that using *MATH* to replace *MATH* is reasonable.
+
+
+FIGURE
+
+
+Comparison between SEM and SAEM
+
+
+Compared with SAEM, it has been theoretically proved in
+Section [5.3] that SEM has lower space complexity and time
+complexity. We choose 2c_vs_64zg and 27m_vs_30m as the test environment
+to compare the space complexity and time complexity of SEM and SAEM.
+
+
+The space complexity of SEM and SAEM is affected by the number of lookup
+tables. Here, the size of all lookup tables is set to 1 million, and the
+dimension *MATH* is set to *MATH*. For SEM, the storage cost is fixed because
+it has only one lookup table, which needs *MATH* GB storage space to
+store. For SAEM, the number of lookup tables is equal to the number of
+joint actions. In 2c_vs_64zg, it contains two allied agents, and each
+agent has 70 available actions. SAEM needs *MATH* GB storage space to
+store *MATH* lookup tables. In 27m_vs_30m, there are 27 agents, and
+each agent has 36 actions. SAEM needs *MATH* lookup
+tables, which needs *MATH* GB storage space to store. We can
+see that the high storage cost makes the implementation of SAEM
+difficult and even impossible. But SEM has a much lower storage cost
+than SAEM.
+
+
+FIGURE
+
+
+For time cost, we choose 2c_vs_64zg to experimentally illustrate that
+SEM is more time-saving than SAEM. Here, the size of the set *MATH* is set
+to 5K. Other hyper-parameters are described in Appendix. In
+Figure, we compare the results of SAEM-VDN, SEM-VDN
+and VDN. In Figure, we compare the test return means with respect
+to the wall-clock time of SAEM-VDN, SEM-VDN and VDN during the first
+100K time-steps using Nvidia Geforce GTX 2080 Ti graphics cards. We can
+see that SEM can use relatively less time than SAEM to achieve a similar
+return and SEM can save 14% of time cost compared with SAEM.
+
+
+Learned Policies
+
+
+In this section, we investigate the learned behaviors of the different
+policies in our methods to understand the differences between the
+strategies better. Here, we choose 27m_vs_30m, 2c_vs_64zg, MMM2 and
+bane_vs_bane to investigate. For other scenarios, both our methods and
+baselines can learn a good policy, although the baselines have worse
+sample efficiency than our methods.
+
+
+In the 27m_vs_30m scenario, the allied army contains 27 Marines and the
+enemy army contains 30 Marines. For QMIX, the allied units can learn to
+stand in a line. For VDN, it bounds to fail the battle. In our methods,
+the allied army can stand in a line more evenly and more rapidly before
+the battle than baselines. Hence, these allied units can join the battle
+faster than those in baselines, as shown in Figure and Figure.
+
+
+The 2c_vs_64zg scenario contains two allied units (Colossi) but 64 enemy
+units (Zerglings), which leads to a much larger action space than the
+other scenarios. In this scenario, the enemy units are divided into two
+groups and the allied units are surrounded by enemy units from two
+opposite directions. For VDN, it fails most of the battles. For QMIX,
+although it can learn a good policy, it has worse sample efficiency than
+our methods. For our methods, a Colossi attracts most of the Zerglings
+to move far away from the other Colossi. The Colossi, with most of the
+Zerglings, kills some enemy units and then it is killed. The other
+Colossi kills the enemy units around it and then it searches for the
+remaining enemy units and kills them.
+
+
+FIGURE
+
+
+For MMM2, it contains 1 Medivac, 2 Marauders and 7 Marines. The Medivac
+can heal damage for Marauders and Marines. Therefore, the key to winning
+the battle is the Medivac. In our method, the Medivac can move behind
+the allied units and avoid sacrifice, which can heal other allied units
+continuously. In baselines, the Medivac can also move behind the allied
+units, but it is too late in the battle to sacrifice finally and cannot
+heal other agents continuously.
+
+
+On the bane_vs_bane scenario, it contains a large number of allied and
+enemy units. The allied army and the enemy army contain 20 Zerglings and
+4 Banelings, respectively. Both VDN and QMIX struggle and exhibit large
+variance, as shown in Figure. Our methods can learn faster and finally
+converge. The essentially learned policy of our method is that the four
+allied Banelings walk into the enemy army&apos;s center (Figure)
+and then detonate where it is standing, damaging almost all of the enemy
+units (Figure). This learned policy is concise and practical,
+which alleviates the instability to a large extent.
+
+
+Sensitivity to Hyper-Parameters
+
+
+In order to better understand our method, we investigate the effect of
+the balance coefficient *MATH* and the size of the lookup table
+*MATH* on bane_vs_bane, shown in Figure . The coefficient *MATH* is chosen from
+*MATH* and *MATH* is chosen from
+*MATH*. When *MATH* is set to 0, our method
+degenerates to the baseline. In most cases, our method performs better
+than the baseline. When *MATH*, our method only uses episodic
+memory to supervise the training procedure. When
+*MATH*, our method performs better and
+learns a good policy faster than the baseline. For *MATH*, we
+can see that when *MATH* is small, it would lose some
+information and then deteriorate the performance. When
+*MATH*, our method performs well. We also investigate the sensitivity to the other hyper-parameters
+in the appendix, including the update frequency of *MATH* and
+the dimension of random projection for state representation.
+
+
+FIGURE 
+
+
+Conclusion
+
+
+In this paper, we have proposed a novel and effective method, SEM, to
+improve sample efficiency in MARL. To our best knowledge, this is the
+first work that introduces episodic memory into the multi-agent setting.
+Compared with the existing EM mechanisms, SEM has lower space complexity
+and time complexity. Experimental results on SMAC have verified the
+effectiveness and efficiency of SEM.

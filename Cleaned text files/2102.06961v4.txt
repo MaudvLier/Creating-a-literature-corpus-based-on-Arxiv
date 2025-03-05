@@ -1,0 +1,757 @@
+PerSim: Data-efficient Offline Reinforcement Learning with Heterogeneous Agents via Personalized Simulators
+
+
+Introduction 
+
+
+Reinforcement learning (RL) coupled with expressive deep neural networks
+has now become a generic yet powerful solution for learning complex
+decision-making policies for an agent of interest; it provides the key
+algorithmic foundation underpinning recent successes such as game
+solving [*REF*; *REF*; *REF*]
+and robotics [*REF*; *REF*]. However, many
+state-of-the-art RL methods are data hungry and require the ability to
+query samples at will, which is infeasible for numerous settings such as
+healthcare, autonomous driving, and socio-economic systems. As a result,
+there has been a rapidly growing literature on &quot;offline
+RL&quot; [*REF*; *REF*; *REF*; *REF*],
+which focuses on leveraging existing datasets to learn decision-making
+policies.
+
+
+Within offline RL, we consider a regime of severe data scarcity: there
+are multiple agents and for each agent, we only observe a single
+historical trajectory generated under an unknown, potentially
+sub-optimal policy; further, the agents are heterogeneous, i.e., each
+agent has unique state transition dynamics. Importantly, the
+characteristics of the agents that make their transition dynamics
+heterogeneous are latent. Using such limited offline data to
+simultaneously learn a good &quot;personalized&quot; policy for each agent is a
+challenging setting that has received limited attention. Below, we use a
+prevalent example from healthcare to motivate and argue that tackling
+such a challenge is an important and necessary step towards building
+personalized decision-making engines via RL in a variety of important
+applications.
+
+
+FIGURE
+
+
+Consider a pre-existing clinical dataset of patients (agents). Our goal
+is to design a personalized treatment plan (policy) for each patient
+moving forward. Notable challenges include the following: First, each
+patient only provides a single trajectory of their medical history.
+Second, each patient is heterogeneous in that they may have a varied
+response for a given treatment under similar medical conditions;
+further, the underlying reason for this heterogeneous response across
+patients is likely unknown and thus not recorded in the dataset. Third,
+in the absence of an accurate personalized &quot;forecasting&quot; model for a
+patient&apos;s medical outcome given a treatment plan, the treatment assigned
+is likely to be sub-optimal. This is particularly true for complicated
+medical conditions like T-Cell Lymphoma. We aim to address the
+challenges laid out above (offline scarce data, heterogeneity, and
+sub-optimal policies) so as to develop a personalized &quot;forecasting&quot;
+model for each patient under any given treatment plan. Doing so will
+then naturally enable ideal personalized treatment policies for each
+patient.
+
+
+Tackling a scenario like the one described above in a principled manner
+is the focus of this work. In particular, we seek to answer the
+following question:
+&quot;Can we leverage scarce, offline data collected across heterogeneous
+agents under unknown, sub-optimal policies to learn a personalized
+policy for each agent?&quot;
+
+
+Our Contributions. As our main contribution, we answer this question
+in the affirmative by developing a structured framework to tackle this
+challenging yet meaningful setting. Next, we summarize the main
+methodological, theoretical, algorithmic, and experimental contributions
+in our proposed framework.
+
+
+Methodological --- personalized simulators. We propose a novel
+methodological framework, PerSim, to learn a policy given the data
+availability described above. Taking inspiration from the model-based RL
+literature, our approach is to first build a personalized simulator for
+each agent. Specifically, we use the offline data collectively available
+across heterogeneous agents to learn the unique transition dynamics for
+each agent. We do this without requiring access to the covariates or
+features that drive the heterogeneity amongst the agents. Having
+constructed a personalized simulator, we then learn a personalized
+decision-making policy separately for each agent by simply using online
+model predictive control (MPC) [*REF*; *REF*].
+
+
+Theoretical --- learning across agents. As alluded to earlier, the
+challenge in building a personalized simulator for each agent is that we
+only have access to a single offline trajectory for any given agent.
+Hence, each agent likely explores a very small subset of the entire
+state-action space. However, by viewing the trajectories across the
+multitude of agents collectively, we potentially have access to a
+relatively larger and more diverse offline dataset that covers a much
+richer subset of the state-action space. Still, any approach that
+augments the data of an agent in this manner must address the possibly
+large heterogeneity amongst the agents, which is challenging as we do
+not observe the characteristics that make agents heterogeneous. Inspired
+by the literature on collaborative filtering for recommendation systems,
+we posit that the transition dynamics across agents can be represented
+as a latent function of latent factors associated with agents, states,
+and actions. In doing so, we establish that this function is
+well-approximated by a &quot;low-rank&quot; decomposition of separable agent,
+state, and action latent functions (Theorem [1]). Hence, for any finite sampling of the
+state and action spaces, accurate model learning for each agent with
+offline data --- generated from any policy --- can be reduced to estimating
+a low-rank tensor corresponding to agents, states, and actions. As such,
+low-rank tensors can provide a useful algorithmic lens to enable model
+learning with offline data in RL and we hope this work leads to further
+research studying the relationship between these seemingly disparate
+fields.
+
+
+Algorithmic --- regularizing via a latent factor model. As a consequence
+of our low-rank representation result, we propose a natural neural
+network architecture that respects the constraints induced by the
+factorization across agents, states, and actions (Section
+[4]). It is this principled structure, which accounts for agent heterogeneity and
+regularizes the model learning, that ensures the success of our approach
+despite access to only scarce and heterogeneous data. Further, we
+propose a natural extension of our framework which generalizes to unseen
+agents, i.e., agents that are not observed in the offline data.
+
+
+Experimental --- extensive benchmarking. Using standard environments
+from OpenAI Gym, we extensively benchmark PerSim against four
+state-of-the-art methods: a model-based online RL method (CaDM)
+[*REF*], two model-free offline RL method (BCQ and CQL)
+[*REF*; *REF*], and a model-based offline RL
+method (MOReL) [*REF*]. Below, we highlight six conclusions
+we reach from our experiments. (i) Despite access to only a single
+trajectory from each agent (and no access to the covariates that drive
+agent heterogeneity), PerSim produces accurate personalized simulators
+for each agent. (ii) All benchmarking algorithms perform sub-optimally
+for the data availability we consider, even on simple baseline
+environments such as MountainCar and Cartpole, which are traditionally
+considered to be &quot;solved&quot;. (iii) PerSim is able to robustly extrapolate
+outside the policy used to generate the offline dataset, even if the
+policy is highly sub-optimal (e.g., actions are sampled uniformly at
+random). (iv) To corroborate our latent factor representation, we find
+that across all environments, the learned agent-specific latent factors
+correspond very closely with the latent source of heterogeneity amongst
+agents; we re-emphasize this is despite PerSim not getting access to the
+agent covariates. (v) We find that augmenting the training data of an
+offline model-free method (e.g., BCQ) with PerSim-generated synthetic
+trajectories results in a significantly better average reward. (vi) As
+an ablation study, if we decrease the number of observed trajectories,
+PerSim consistently achieves a higher reward than the other baselines
+across most agents, indicating its robustness to data scarcity. For a
+visual depiction of the conclusions, see
+Figure for the learned latent agent factors and
+Figure for the relative prediction
+accuracy of the learned model using PerSim versus  [*REF*].
+
+
+FIGURE
+
+
+Related Work. Due to space constraints, we present a short overview
+of the related literature. A more detailed review is provided in
+Appendix [8].
+
+
+There are two sub-fields within RL that are of particular relevance: (i)
+model-based online RL and (ii) model-free offline RL. (i) In the
+model-based RL literature, the transition dynamics (simulator) is learnt
+and subsequently utilized for policy learning. These methods have been
+found to have far better data efficiency compared to their model-free
+counterparts [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+However, the current model-based literature mostly focuses on the
+setting where one can adaptively sample trajectories in an online manner
+during model-learning. A few recent
+works [*REF*; *REF*] have considered agent
+heterogeneity. We compare with [*REF*] given its strong
+performance in handling heterogeneous agents. (ii) In the model-free
+offline RL literature, one uses a pre-recorded dataset to directly learn
+a policy, i.e., without first learning a model. Thus far, the vast
+majority of offline RL methods are model-free and designed for settings
+that allow access to numerous trajectories from a single agent, i.e., no
+agent heterogeneity [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+To study how much offline methods suffer if agent heterogeneity is
+introduced, we compare with both [*REF*] and
+[*REF*] given their strong performance with offline
+data. We choose these baselines as they come from a well-established
+literature but their abilities to simultaneously handle agent
+heterogeneity and sparse offline data has yet to be studied.
+
+
+Model-based offline RL is still a relatively nascent field. Two recent
+works [*REF*; *REF*] have shown that, in certain
+settings, model-based offline methods can outperform their model-free
+counterparts on benchmark environments. In [*REF*], authors
+exhibit this using existing online model-based methods with minimal
+changes. However, both works restrict attention to the setting where
+there is only one agent (or environment) and a large number of
+observations from that agent are available. Hence, we study how these
+methods perform when given only sparse data from heterogeneous agents,
+and we find their performance does suffer. Extending these model-based
+offline RL methods to work with sparse data from heterogeneous agents,
+possibly by building upon the latent low-rank functional representation
+we propose, remains an interesting future work.
+
+
+Problem Statement 
+
+
+We consider the standard RL framework with *MATH* heterogeneous agents. We
+index agents with *MATH*. Formally, we describe our problem as
+a Markov Decision Process (MDP) defined by the tuple
+*MATH*. Here, *MATH* and *MATH* denote the state and action spaces,
+respectively, which are common across agents. For every agent *MATH*,
+*MATH* is the unknown transition kernel, *MATH* is
+the immediate reward received, *MATH* is the discounting
+factor, and *MATH* is the initial state distribution.
+
+
+We consider an offline RL setting where we observe a single trajectory
+of length *MATH* for each of the *MATH* heterogeneous agents. Formally, for
+each agent *MATH* and time step *MATH*, let *MATH*,
+*MATH*, and *MATH* denote the
+observed state, action, and reward. We denote our observations as
+*MATH*.
+
+
+We state our two primary goals below.
+
+
+For a given agent *MATH* and state-action pair
+*MATH*, we would like to estimate
+*MATH* i.e., given the observations
+*MATH*, we would like to build a &quot;personalized&quot; simulator (i.e.,
+a model of the transition dynamic) for each agent *MATH*.
+
+
+To test the efficacy of the personalized simulator, we would like to
+subsequently use it to learn a good decision-making policy for agent
+*MATH*, denoted as *MATH*, which takes as
+input a given state and produces a corresponding action.
+
+
+A causal inference lens. We note that this problem can be thought of
+as a counterfactual prediction problem. Our goal is to build a
+personalized simulator that answers the following question: &quot;what would
+have happened had the agent took a sequence of actions other than the
+one we observe in the dataset?&quot;. Broadly speaking, our aim in PerSim is
+to answer such questions by observing how other agents behave under
+varied sequences of actions. More generally, we hope PerSim serves to
+further link causal inference with offline RL, which is fundamentally
+regarded as a counterfactual inference problem  [*REF*].
+
+
+Latent Low-rank Factor Representation 
+
+
+To address the goals, we introduce a latent factor model for the
+transition dynamics. Leveraging latent factors have been successful in
+recommendation systems for overcoming heterogeneity of users. Such
+models have also been shown to provide a &quot;universal&quot; representation for
+multi-dimensional exchangeable arrays [*REF*; *REF*]. Indeed, our
+latent model holds for known environments such as MountainCar.
+
+
+Assume *MATH*, i.e., the state is
+*MATH* -dimensional. Let *MATH* refer to the *MATH* -th coordinate of *MATH*.
+We posit the transition dynamics (in expectation) obey the following
+model: for every agent *MATH* and state-action pair *MATH*,
+*MATH* where *MATH* denotes the *MATH* -th state coordinate
+after taking action *MATH*. Here, *MATH*,
+*MATH*, *MATH* for some *MATH* are latent feature vectors capturing relevant
+information specific to the agent, state, and action;
+*MATH* is a latent function capturing the model relationship between these
+latent feature vectors. We assume *MATH* is *MATH* -Lipschitz and the latent
+features are bounded.
+
+
+ASSUMPTION 1
+
+
+For notational convenience, let *MATH* be such that *MATH*.
+
+
+THEOREM 1
+
+
+Theorem [1] suggests that under the model in equation,
+the transition dynamics are well approximated by a low-rank order-three
+functional tensor representation. In fact, as we show below, for a
+classical non-linear dynamical system, it is exact.
+
+
+An example. We show that the MountainCar transition
+dynamics [*REF*] exactly satisfies this low-rank tensor
+representation. In MountainCar, the state *MATH* 
+consists of car (agent) *MATH* &apos;s position and velocity, i.e.,
+*MATH*; the action *MATH* is a scalar that represents the applied acceleration, i.e.,
+*MATH*. For car *MATH*, parameterized by gravity
+*MATH*, the (deterministic) transition dynamics given action *MATH* are *MATH*.
+
+
+PROPOSITION 1
+
+
+Consider any finite sampling of the states *MATH* and actions
+*MATH*. Let *MATH* be the order-four tensor, where
+*MATH*. Hence, to learn the model
+of transition dynamics for all the agents over *MATH*,
+*MATH*, it is sufficient to estimate the tensor,
+*MATH*, from observed data. The offline data collected for a
+given policy induces a corresponding observation pattern of this tensor.
+Whether the complete tensor is recoverable, is determined by this
+induced sparsity pattern and the rank of *MATH*. Notably, Theorem
+[1] suggests that *MATH* is low-rank
+under mild regularity conditions. Therefore, the question of model
+identification, i.e., completing the tensor *MATH*, boils down to
+conditions on the offline data in terms of the observation pattern that
+it induces in the tensor. In the existing tensor estimation literature,
+there are few sparsity patterns for which the underlying tensor can be
+provably recovered, provided *MATH* has a low-rank structure.
+They include: (i) each entry of the tensor is observed independently at
+random with sufficiently high-probability [*REF*; *REF*; *REF*]; (ii) the entries that
+are observed are block-structured [*REF*; *REF*]. However, the
+most general set of conditions on the sparsity pattern under which the
+underlying tensor can be faithfully estimated, i.e., the model is
+identified for our setup, remains an important and active area of
+research.
+
+
+PerSim Algorithm 
+
+
+FIGURE
+
+
+We now detail our proposed algorithm which is composed of two steps: (i)
+build a personalized simulator for each agent *MATH* given offline
+observations *MATH*, which is comprised of a single trajectory
+per agent; (ii) learn a personalized decision-making policy using MPC.
+
+
+Step 1. Learning Personalized Simulators. Theorem
+[1] suggests that the transition dynamics
+can be represented as a low-rank tensor function with latent functions
+associated with the agents, states, and actions. This guides the design
+of a simple, regularized neural network architecture: we use three
+separate neural networks to learn the agent, state, and action latent
+functions, i.e., we remove any edges between these three neural
+networks. See Figure for a visual depiction of our proposed architecture.
+Specifically, to estimate the next state for a given agent *MATH* and
+state-action pair *MATH*, we learn the following functions:
+1. An agent encoder *MATH*, parameterized by
+*MATH*, which estimates the latent function associated with an
+agent, i.e., *MATH*.
+2. A state encoder *MATH* 
+parameterized by *MATH*, which estimates *MATH* latent functions, where
+each vector is associated with the corresponding state coordinate,
+i.e., *MATH*.
+3. An action encoder *MATH* 
+parameterized by *MATH*, which estimates the latent function
+associated with the action, i.e., *MATH*.
+
+
+Then, our estimate of the expected *MATH* -th coordinate of the next state
+is given by *MATH*. We optimize our agent, state, and action encoders by minimizing the
+squared loss: *MATH*.
+
+
+Step 2. Learning a Decision-making Policy. We use MPC to select the
+next action, as common practice in the literature [*REF*].
+Since the offline data may not span the entire state-action space,
+planning using a learned simulator without any regularization may result
+in &quot;model exploitation&quot; [*REF*]. Thus, when choosing the
+action via MPC, we choose the first action from the sequence of actions
+with the best average reward across an ensemble of *MATH* simulators. In
+our experiments, we find that the simple technique of using the state
+difference instead of the raw state improves performance. For a detailed
+description of the algorithm, including the pseudo-code, please refer to
+Appendix [10].
+
+
+Experiments 
+
+
+In this section, through a systematic collection of experiments on a
+variety of benchmark environments, we demonstrate that PerSim
+consistently outperforms state-of-the-art model-based and offline
+model-free RL algorithms, in terms of prediction error and reward, for
+the data regime we consider.
+
+
+Setup and Benchmarks 
+
+
+We evaluate PerSim on three benchmark environments from OpenAI
+Gym [*REF*]: MountainCar, CartPole, and HalfCheetah. A
+detailed description of each environment can be found in
+Appendix [11].
+
+
+We introduce agent heterogeneity across the various environments by
+modifying the covariates that characterize the transition dynamics of an
+agent. This is in line with what has been done in the
+literature [*REF*] to study algorithmic robustness to agent
+heterogeneity. The range of parameters we consider for each of the three
+environments is given in Table [12] of Appendix
+[11]; for example, we create heterogeneous
+agents in MountainCar by varying the gravity parameter of a car (agent)
+within the interval *MATH*.
+
+
+For each environment, we uniformly sample 500 covariates (i.e.,
+heterogeneous agents) from the parameter ranges displayed in Table
+[12] of Appendix [11]. We then select five of the 500 agents
+to be our &quot;test&quot; agents, i.e., these are the agents for which we report
+the prediction error and eventual reward for the various RL algorithms.
+Our rationale for selecting these five agents is as follows: one of the
+five is the default covariate parameter in an environment; the other
+four are selected so as to cover the &quot;extremes&quot; of the parameter range.
+Due to space constraints, we show results for three test agents in this
+section; the results for the remaining two agents can be found in
+Appendix [12]. We note that the conclusions we draw
+from our experiments continue to hold over all test agents we evaluate
+on.
+
+
+To study how robust the various RL algorithms are to the &quot;optimality&quot; of
+the sampling policy used to generate the historical trajectories, we
+create four offline datasets of 500 trajectories (one per agent) for
+each environment as follows:
+(i) Pure policy. For each agent, actions are sampled according to a
+fixed policy that has been trained to achieve &quot;good&quot; performance.
+Specifically, for each environment, we first train a policy in an online
+fashion for a few training agents (see
+Table [12] for details). We pick the training agents to be uniformly spread throughout
+the training range to ensure reasonable performance for all agents. See
+Appendix [11] for details about the average reward
+achieved across all agents using this procedure. For MountainCar and
+CartPole, we use DQN [*REF*] to train the sampling policy; for
+HalfCheetah, we use TD3 [*REF*]. The policies are
+trained to achieve rewards of approximately -200, 120, and 3000 for
+MountainCar, CartPole, and HalfCheetah, respectively. Then for each of
+the 500 agents, we sample one trajectory using the policy trained on the
+training agent with the closest parameter value. (ii) Random. Actions
+are selected uniformly at random. (iii/iv)
+Pure- *MATH* -20/Pure- *MATH* -40. For
+Pure- *MATH* -20/40, actions are selected uniformly at random with
+probability 0.2/0.4, respectively, and selected via the pure policy
+otherwise.
+
+
+The &quot;pure policy&quot; dataset has relatively optimal transition dynamics for
+each agent compared to the other three policies. This is likely the
+ideal scenario when we only have access to limited offline data.
+However, such an ideal sampling procedure is hardly met in practice.
+Real-world data often contains at least some amount of &quot;trial and error&quot;
+in terms of how actions are chosen; we model this by sampling a fraction
+of the trajectory at random.
+
+
+We compare with four state-of-the-art RL algorithms; (i) one from the
+online model-based literature; (ii) two from the offline model-free
+literature; (iii) and one offline model-based approach. In
+Appendix [10], we give implementation details.
+
+
+Vanilla CaDM + PE-TS CaDM [*REF*]. As aforementioned, we
+choose CaDM as a baseline given its superior performance against other
+popular model-based (and meta-learning) methods in handling
+heterogeneous agents. CaDM tackles heterogeneity by learning a context
+vector using the recent trajectory of a given agent, with a common
+context encoder across all agents. In our evaluation, we compare against
+two CaDM variants discussed in [*REF*] with respect to both
+model prediction error and eventual reward.
+
+
+BCQ-P + BCQ-A [*REF*]. BCQ is an offline model-free RL
+method that has been shown to exhibit excellent performance in the
+standard offline setting. In light of this, we consider two BCQ
+baselines: (i) BCQ-Population (or BCQ-P), where a single policy is
+trained using data from all available (heterogeneous) agents, i.e., all
+500 observed trajectories; (ii) BCQ-Agent (or BCQ-A), where a separate
+policy is learned for each of the test agents using just the single
+observed trajectory associated with that test agent. We compare PerSim
+against both BCQ variants with respect to the eventual reward in order
+to study the effect that data scarcity and agent heterogeneity can have
+on standard offline RL methods.
+
+
+CQL-P + CQL-A [*REF*]. CQL is considered one of the
+state-of-the-art offline model-free RL methods. Similar to BCQ, we
+consider two CQL baselines: CQL-P and CQL-A, which are defined
+analogously to BCQ-P and BCQ-A.
+
+
+MOReL-P + MOReL-A [*REF*]. MOReL is a recent work that
+proposes a model-based approach for offline RL. MOReL does not consider
+a setting where data is collected from heterogeneous agents, unlike CaDM
+and PerSim. However, we include MOReL as a baseline to provide a more
+comprehensive evaluation. Similar to BCQ and CQL, we consider two MOReL
+baselines: MOReL-P and MOReL-A, which are defined analogously to BCQ-P
+and BCQ-A.
+
+
+Model Learning: Prediction Error 
+
+
+The core of PerSim is to build a personalized simulator for each agent.
+This is also the case for two of the methods we compare against, Vanilla
+CaDM and PE-TS CaDM. Thus, for each of these algorithms, we first
+evaluate the accuracy of the learned transition dynamics for each agent,
+focusing on long-horizon model prediction. Specifically, given an
+initial state and an unseen sequence of 50 actions, the task is to
+predict the next 50-step state trajectory for the test agents. The
+sequence of 50 actions are chosen according to an unseen test policy
+that is different than the policies used to sample the training dataset.
+Precisely, the test policies are fitted via DQN for MountainCar and
+CartPole and via TD3 for HalfCheetah for the agent with the default
+covariate parameters. The test policies were such that they achieved
+rewards of -150, 150, and 4000 for MountainCar, CartPole and
+HalfCheetah, respectively.
+
+
+For each environment and for PerSim, Vanilla CaDM, and PE-TS CaDM, we
+train four separate models using each of the four offline datasets
+described earlier. We repeat the process 200 times (totaling 200
+trajectories for each test agent) and report the mean
+root-mean-squared error (RMSE) over all 50-steps and over all 200
+trajectories. In addition to RMSE, we provide the median *MATH* (in
+parentheses within the tables) to facilitate a better comparison in
+terms of relative error. The results are summarized in Table
+[1] for MountainCar, CartPole, and
+HalfCheetah. Further experimental results regarding prediction error can
+be found in Appendix [12.1].
+
+
+TABLE
+
+
+Consistently across environments, PerSim outperforms both Vanilla CaDM
+and PE-TS CaDM for most test agents. RMSE for PerSim is notably lower by
+orders of magnitude in MountainCar and CartPole. Indeed, in these two
+environments, *MATH* for PerSim is nearly one (i.e., the maximum
+achievable) across most agents, while for the two CaDM variants it is
+notably lower. In a number of experiments, the two CaDM variants have
+negative *MATH* values, i.e., their predictions are worse than simply
+predicting the average true state across the test trajectory. For
+HalfCheetah, which has a relatively high-dimensional state space (it is
+18-dimensional), PerSim continues to deliver reasonably good predictions
+for each agent despite the challenging data availability. Though PerSim
+still outperforms CaDM in HalfCheetah, we note CaDM&apos;s performance is
+more comparable in this environment.
+
+
+For a more visual representation of PerSim&apos;s prediction accuracy, refer
+back to Figure in Section [1], which shows the predicted and actual
+state for different horizon lengths in CartPole; there, we see that
+PerSim consistently produces state predictions that closely match the
+actual state observed from the true environment. Additional
+visualizations across environments are provided in
+Appendix [12.1].
+
+
+Altogether, these results indicate that existing model-based RL methods
+cannot effectively learn a model of the transition dynamics
+simultaneously across all heterogeneous agents (e.g., CaDM sometimes
+has negative *MATH* values) if only given access to sparse offline data.
+It has been exhibited [*REF*; *REF*; *REF*] that
+certain model-based methods that were originally targeted for the online
+setting can potentially still deliver reasonable performance with
+offline data and minimal algorithmic change. Our experiments offer
+evidence that model-based RL methods, even those which are optimized to
+work with heterogeneous agents, do not provide a uniformly good
+&quot;plug-in&quot; solution for the particular data availability we consider. In
+contrast, our latent factor approach consistently learns a reasonably
+good model of the dynamics across all agents.
+
+
+The poor performance of standard model-based RL methods for the data
+availability setting we consider emphasizes the need for new principled
+approaches. Ours is one such approach, where we posit a low-rank latent
+factor representation of the agents, states, and actions. To further
+validate our approach, we visualize the learned latent agent factors
+associated with the 500 heterogeneous agents in each environment in
+Figure of Section [1]. Pleasingly, across environments, the
+latent factors correspond closely with the heterogeneity across agents.
+
+
+Policy Performance: Average Reward 
+
+
+In this section, we evaluate the average reward achieved by PerSim
+compared to several state-of-the-art model-based and model-free offline
+RL methods. For the PerSim and the two CaDM variants, we follow
+[*REF*] in utilizing MPC to make policy decisions on top of
+the learned model. We include an additional baseline, &quot;True env + MPC&quot;,
+where we apply MPC on top of the actual ground-truth environment; this
+allows us to quantify the difference in reward when using MPC with the
+actual environment versus the learned simulators. For the model-free
+methods (e.g., BCQ and CQL variants), we can directly apply the policy
+resulted from the learned *MATH* -value. Likewise, we directly apply the
+policy trained by MOReL. We use the trained policy for this model-based
+method instead of utilizing MPC to faithfully follow the method
+described in [*REF*].
+
+
+We evaluate the performance of each method using the average reward over
+20 episodes for model-based methods and the average over 100 episodes
+for model-free methods. We repeat each experiment five times and report
+the mean and standard deviation. Table [2]
+presents the results for MountainCar, CartPole, and HalfCheetah. Further
+experimental results regarding reward are given in Appendix
+[12.2].
+
+
+TABLE
+
+
+As a high-level summary, in most experiments, PerSim either achieves
+the best reward or close to it. This not only reaffirms our prediction
+results in Section [5.2], but also is particularly encouraging for
+PerSim since the policy utilized is simply MPC and not optimized as done
+in model-free approaches and in MOReL. Furthermore, these results
+corroborate the appropriateness of our low-rank latent factor
+representation and our overall methodological framework as a principled
+solution to this challenging yet meaningful setting within offline RL.
+In what follows, we highlight additional interesting conclusions.
+
+
+MountainCar and CartPole are commonly perceived as simple, &quot;solved&quot;
+environments within the RL literature. Yet, results in Table [2]
+demonstrate that the offline setting with scarce and heterogeneous data
+impose unique challenges, and undoubtedly warrants a new methodology.
+
+
+We find state-of-the-art model-based and model-free methods perform
+poorly on some of the test agents in MountainCar and CartPole. In
+comparison, PerSim&apos;s performance in these environments is close to that
+of MPC planning using the ground-truth environment across all test
+agents, thereby confirming the success of learning the personalized
+simulators in Step 1 of our algorithm. In certain rare cases (e.g.,
+MountainCar test agent 0.01) where other baselines have a comparable
+performance to PerSim, we see that these baselines even outperforms True
+env + MPC. This indicates that the bottleneck in these experiments is
+using MPC for policy planning rather than the learned simulator in
+PerSim.
+
+
+Crucially, across all environments and offline data generating
+processes, PerSim remains the most consistent and robust winner. This
+is a much desired property for offline RL. In real-world applications,
+the policy used to generate the offline dataset is likely unknown. Thus,
+for broad applicability of a RL methodological framework, it is vital
+that it is robust to sub-optimality in how the dataset was generated,
+e.g., the dataset may contain a significant amount of &quot;trial and error&quot;
+(i.e, randomized actions). Indeed, this is one of the primary
+motivations to use RL in such settings in the first place.
+
+
+As mentioned earlier, the four offline datasets correspond to varying
+degrees of &quot;optimality&quot; of the policy used to sample agent trajectories.
+We highlight that PerSim achieves uniformly good reward, even with
+random data, i.e., the offline trajectories are produced using totally
+random actions. This showcases that by first learning a personalized
+simulator for each agent, PerSim is able to robustly extrapolate
+outside the policy used to generate the data, however sub-optimal that
+policy might be. In contrast, BCQ and CQL are not robust to such
+sub-optimality in the offline data generation. For example, for
+HalfCheetah, BCQ achieves reasonable performance primarily when trained
+on &quot;optimal&quot; offline data (i.e., pure policy). This is because BCQ, by
+design, is conservative and is regularized to only pick actions that are
+close to what is seen in the offline data. In summary, PerSim&apos;s ability
+to successfully extrapolate, even with sub-optimal offline data, makes
+it a suitable candidate for real-world applications.
+
+
+Combination with Model-Free Methods: PerSim+BCQ/CQL 
+
+
+We explore whether simulated trajectories produced from PerSim can be
+used to improve the performance of model-free RL methods such as BCQ and
+CQL. In particular, instead of using a single observed trajectory to
+learn an agent-specific policy, as is done in BCQ-A and CQL-A, we use
+PerSim to generate *MATH* &quot;synthetic&quot; trajectories for that agent. We then
+use both the synthetic and the observed trajectories to train both BCQ
+and CQL (denoted by PerSim-BCQ-5 and PerSim-CQL-5, respectively). Note
+that using model-based methods to augment the data used by a model-free
+method has been explored in the literature [*REF*; *REF*; *REF*].
+
+
+If the learned model is accurate, improvements for BCQ and CQL are
+naturally anticipated. Table [3] confirms that this is indeed the case
+for PerSim. Across all environments, augmenting the training data with
+PerSim results in a significantly better average reward for most test
+agents. Specifically, the performance of PerSim-BCQ-5 and PerSim-CQL-5
+indicates that a personalized BCQ/CQL policy trained on few
+PerSim-generated trajectories is superior to: (i) a single BCQ/CQL
+policy trained using all 500 trajectories (e.g., BCQ-P); and (ii) a
+personalized BCQ/CQL policy trained using a single observed trajectory
+(e.g., BCQ-A). Refer to Appendix [12.4] for more details about the experiment.
+
+
+TABLE
+
+
+Additional Experiments
+
+
+Generalizing to Unseen Agents (Appendix [12.5]). We show how to extend our method
+to unseen test agents, i.e., agents for which we have no training
+trajectory. Our extension crucially relies on having learned a good
+agent specific latent factor representation. Through a case-study for
+the MountainCar environment, we verify that using this extension, PerSim
+can successfully simulate unseen agents.
+
+
+Robustness to Data Scarcity (Appendix [12.6]). We investigate how the number of
+training agents affects PerSim&apos;s performance. We find that as we
+decrease training agents from *MATH* to *MATH*, PerSim consistently
+achieves a higher reward than the other baselines across most agents.
+This ablation study directly addresses the robustness of PerSim to data
+scarcity, demonstrating that our principled framework is particularly
+suitable for the extreme data scarcity considered.
+
+
+Conclusion 
+
+
+In this work, we investigate RL in an offline setting, where we observe
+a single trajectory across heterogeneous agents under an unknown,
+potentially sub-optimal policy. This is particularly challenging for
+existing approaches even in &quot;solved&quot; environments such as MountainCar
+and CartPole. PerSim offers a successful first attempt in simultaneously
+learning personalized policies across all agents under this data regime;
+we do so by first positing a principled low-rank latent factor
+representation, and then using it to build personalized simulators in a
+data-efficient manner.
+
+
+Limitations. Effectively leveraging offline datasets from
+heterogeneous sources (i.e., agents) for sequential decision-making
+problems will likely accelerate the adoption of RL. However, there is
+much to be improved in PerSim. For example, in environments like
+HalfCheetah where the transition dynamics of each agent are harder to
+learn, the performance of PerSim is not comparable with the online
+setting, where one gets to arbitrarily sample trajectories for each
+agent. Of course, our considered data regime is fundamentally harder.
+Therefore, understanding the extent to which we can improve performance,
+using our low-rank latent factor approach or a different methodology
+altogether, remains to be established. Additionally, a rigorous
+statistical analysis for this setting, which studies the effect of the
+degree of agent heterogeneity, the diversity of the samples collected,
+etc. remains important future work. We believe there are many fruitful
+inquiries under this challenging yet meaningful data regime for RL.
+Further, while PerSim is motivated by real-world problems, our empirical
+evaluation is limited to standard RL benchmarks where data collection
+and environment manipulation are feasible. Though PerSim&apos;s performance
+on standard RL benchmarks is encouraging, one cannot yet use PerSim as a
+out-of-the-box solution for critical real-world problems, without first
+designing a rigorous validation framework.

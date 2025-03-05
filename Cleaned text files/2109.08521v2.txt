@@ -1,0 +1,643 @@
+Focus on Impact: Indoor Exploration with Intrinsic Motivation
+
+
+Introduction 
+
+
+exploration is the task of autonomously navigating an unknown
+environment with the goal of gathering sufficient information to
+represent it, often via a spatial map [*REF*]. This
+ability is key to enable many downstream tasks such as
+planning [*REF*] and goal-driven
+navigation [*REF*; *REF*; *REF*].
+Although a vast portion of existing literature tackles this
+problem [*REF*; *REF*; *REF*; *REF*],
+it is not yet completely solved, especially in complex indoor
+environments. The recent introduction of large datasets of
+photorealistic indoor environments [*REF*; *REF*] has eased the
+development of robust exploration strategies, which can be validated
+safely and quickly thanks to powerful simulating
+platforms [*REF*; *REF*]. Moreover,
+exploration algorithms developed on simulated environments can be
+deployed in the real world with little hyperparameter
+tuning [*REF*; *REF*; *REF*], if the
+simulation is sufficiently realistic.
+
+
+Most of the recently devised exploration algorithms exploit deep
+reinforcement learning (DRL) [*REF*], as learning-based
+exploration and navigation algorithms are more flexible and robust to
+noise than geometric methods [*REF*; *REF*; *REF*].
+Despite these advantages, one of the main challenges in training
+DRL-based exploration algorithms is designing appropriate rewards.
+
+
+FIGURE
+
+
+In this work, we propose a new reward function that employs the impact
+of the agent actions on the environment, measured as the difference
+between two consecutive observations [*REF*], discounted
+with a pseudo-count [*REF*] for previously-visited
+states (see Fig [1]). So far, impact-based
+rewards [*REF*] have been used only as an additional
+intrinsic reward in procedurally-generated (e.g. grid-like mazes) or
+singleton (i.e. the test environment is the same employed for
+training) synthetic environments. Instead, our reward can deal with
+photorealistic non-singleton environments. To the best of our knowledge,
+this is the first work to apply impact-based rewards to this setting.
+
+
+Recent research on robot exploration proposes the use of an extrinsic
+reward based on occupancy anticipation [*REF*].
+This reward encourages the agent to navigate towards areas that can be
+easily mapped without errors. [Unfortunately, this approach presents a
+major drawback, as this reward heavily depends on the mapping phase,
+rather than focusing on what has been already seen. In fact, moving
+towards new places that are difficult to map would produce a very low
+occupancy-based reward. Moreover, the precise layout of the training
+environments is not always available, especially in real-world
+applications.] To overcome these issues, a
+different line of work focuses on the design of intrinsic reward
+functions, that can be computed by the agent by means of their current
+and past observations. Some examples of recently proposed intrinsic
+rewards for robot exploration are based on
+curiosity [*REF*], novelty [*REF*],
+and coverage [*REF*]. All these rewards, however, tend to
+vanish with the length of the episode because the agent quickly learns
+to model the environment dynamics and appearance (for curiosity and
+novelty-based rewards) or tends to stay in previously-explored areas
+(for the coverage reward). Impact, instead, provides a stable reward
+signal throughout all the episode [*REF*].
+
+
+Since robot exploration takes place in complex and realistic
+environments that can present an infinite number of states, it is
+impossible to store a visitation count for every state. Furthermore, the
+vector of visitation counts would consist of a very sparse vector, and
+that would cause the agent to give the same impact score to nearly
+identical states. To overcome this issue, we introduce an additional
+module in our design to keep track of a pseudo-count for visited states.
+The pseudo-count is estimated by a density model trained end-to-end and
+together with the policy. We integrate our newly-proposed reward in a
+modular embodied exploration and navigation system inspired by that
+proposed by Chaplot et al. [*REF*] and consider two
+commonly adopted collections of photorealistic simulated indoor
+environments, namely Gibson [*REF*] and Matterport 3D
+(MP3D) [*REF*]. Furthermore, we also deploy the devised
+algorithm in the real world. The results in both simulated and real
+environments are promising: we outperform state-of-the-art baselines in
+simulated experiments and demonstrate the effectiveness of our approach
+in real-world experiments. [We make the source code of our approach and
+pre-trained models publicly available.]
+
+
+Related Work 
+
+
+Geometric Robot Exploration Methods. Classical heuristic and
+geometric-based exploration methods rely on two main strategies:
+frontier-based exploration [*REF*] and next-best-view
+planning [*REF*]. These methods have been largely used
+and improved [*REF*; *REF*; *REF*] or
+combined in a hierarchical exploration
+algorithm [*REF*; *REF*]. However, when applied
+with noisy odometry and localization sensors or in highly complex
+environments, geometric approaches tend to
+fail [*REF*; *REF*; *REF*].
+In light of this, increasing research effort has been dedicated to the
+development of learning-based approaches, which usually exploit DLR to
+learn robust and efficient exploration policies.
+
+
+Intrinsic Exploration Rewards. The lack of ground-truth in the
+exploration task forces the adoption of reinforcement learning (RL) for
+training exploration methods. Even when applied to tasks different from
+robot exploration, RL methods have low sample efficiency. Thus, they
+require designing intrinsic reward functions that encourage visiting
+novel states or learning the environment dynamics. The use of intrinsic
+motivation is beneficial when external task-specific rewards are sparse
+or absent. Among the intrinsic rewards that motivate the exploration of
+novel states, Bellemare et al. [*REF*] introduced the
+notion of pseudo visitation count by using a Context-Tree Switching
+(CTS) density model to extract a pseudo-count from raw pixels and
+applied count-based algorithms. Similarly, Ostrovski et
+al. [*REF*] applied the autoregressive deep generative
+model PixelCNN [*REF*] to estimate the pseudo-count of
+the visited state. [Recently, Zhang et al. [*REF*] proposed
+a criterion to mitigate common issues in count-based
+methods.] Rewards that encourage the learning of
+the environment dynamics comprehend Curiosity [*REF*],
+Random Network Distillation (RND) [*REF*], and
+Disagreement [*REF*]. Recently, Raileanu et
+al. [*REF*] proposed to jointly encourage both the
+visitation of novel states and the learning of the environment dynamics.
+However, their approach is developed for grid-like environments with a
+finite number of states, where the visitation count can be easily
+employed as a discount factor. In this work, we improve Impact, a
+paradigm that rewards the agent proportionally to the change in the
+state representation caused by its actions, and design a reward function
+that can deal with photorealistic scenes with non-countable states.
+
+
+Learning-based Robot Exploration Methods. In the context of robot
+exploration and navigation tasks, the introduction of photorealistic
+simulators has represented a breeding ground for the development of
+self-supervised DRL-based visual exploration methods. Ramakrishnan et
+al. [*REF*] identified four paradigms for visual
+exploration: novelty-based, curiosity-based (as defined above),
+reconstruction-based, and coverage-based. Each paradigm is characterized
+by a different reward function used as a self-supervision signal for
+optimizing the exploration policy. A coverage-based reward, considering
+the area seen, is also used in the modular approach to Active SLAM
+presented in [*REF*], which combines a neural mapper
+module with a hierarchical navigation policy. To enhance exploration
+efficiency in complex environments, Ramakrishnan et
+al. [*REF*] resorted to an extrinsic reward by
+introducing the occupancy anticipation reward, which aims to maximize
+the agent accuracy in predicting occluded unseen areas.
+
+
+FIGURE
+
+
+Deep Generative Models. Deep generative models are trained to
+approximate high-dimensional probability distributions by means of a
+large set of training samples. In recent years, literature on deep
+generative models followed three main approaches: latent variable models
+like VAE [*REF*], implicit generative models like
+GANs [*REF*], and exact likelihood models. Exact
+likelihood models can be classified in non-autoregressive flow-based
+models, like RealNVP [*REF*] and Flow++ [*REF*],
+and autoregressive models, like PixelCNN [*REF*] and
+Image Transformer [*REF*]. Non-autoregressive flow-based
+models consist of a sequence of invertible transformation functions to
+compose a complex distribution modeling the training data.
+Autoregressive models decompose the joint distribution of images as a
+product of conditional probabilities of the single pixels. Usually, each
+pixel is computed using as input only the previous predicted ones,
+following a raster scan order. In this work, we employ
+PixelCNN [*REF*] to learn a probability distribution over
+possible states and estimate a pseudo visitation count.
+
+
+Proposed Method 
+
+
+Exploration Architecture
+
+
+[Following the current state-of-the-art architectures for navigation for
+embodied agents [*REF*; *REF*], the
+proposed method comprises three main components: a CNN-based mapper, a
+pose estimator, and a hierarchical navigation
+policy.] The navigation policy defines the actions
+of the agent, the mapper builds a top-down map of the environment to be
+used for navigation, and the pose estimator locates the position of the
+agent on the map. Our architecture is depicted in
+Fig. and described below.
+
+
+Mapper
+
+
+The mapper generates a map of the free and occupied regions of the
+environment discovered during the exploration. [At each time step, the
+RGB observation *MATH* and the depth observation *MATH* are
+processed to output a two-channel *MATH* local map *MATH* depicting
+the area in front of the agent, where each cell describes the state of a
+*MATH* cm area of the environment, the channels measure the
+probability of a cell being occupied and being explored, as
+in [*REF*].] [Please note that this
+module performs anticipation-based mapping, as defined
+in [*REF*], where the predicted local map *MATH* 
+includes also unseen/occluded portions of space.]
+The local maps are aggregated and registered to the *MATH* 
+global map *MATH* of the environment using the estimated pose
+*MATH* from the pose estimator. The resulting global map
+is used by the navigation policy for action planning.
+
+
+Pose Estimator
+
+
+The pose estimator is used to predict the displacement of the agent in
+consequence of an action. The considered atomic actions *MATH* of the
+agent are: go forward 0.25m, turn left 10°, turn right 10°. However,
+the noise in the actuation system and the possible physical interactions
+between the agent and the environment could produce unexpected outcomes
+causing positioning errors. The pose estimator reduces the effect of
+such errors by predicting the real displacement
+*MATH*. [According to [*REF*], the input of this module consists of
+the RGB-D observations *MATH* and *MATH* and the local maps
+*MATH*.] Each modality *MATH* is
+encoded singularly to obtain three different estimates of the
+displacement: *MATH* where *MATH* and
+*MATH* and *MATH* are weights matrices and bias. Eventually, the
+displacement estimates are aggregated with a weighted sum:
+*MATH* where MLP is a three-layered fully-connected network,
+(*MATH*, *MATH*, *MATH*) are the inputs encoded by a
+CNN, and *MATH* denotes tensor concatenation. The
+estimated pose of the agent at time *MATH* is given by:
+*MATH*. Note that, at the beginning of each exploration
+episode, the agent sets its position to the center of its environment
+representation, i.e. *MATH*.
+
+
+Navigation Module
+
+
+The sampling of the atomic actions of the agent relies on the
+hierarchical navigation policy that is composed of the following
+modules: the global policy, the planner, and the local policy.
+
+
+The global policy samples a point on an augmented global map of the
+environment, *MATH*, that represents the current global goal of the
+agent. The augmented global map *MATH* is a *MATH* map
+obtained by stacking the two-channel global map *MATH* from the Mapper
+with the one-hot representation of the agent position *MATH* and
+the map of the visited positions, which collects the one-hot
+representations of all the positions assumed by the agent from the
+beginning of the exploration. Moreover, *MATH* is in parallel cropped
+with respect to the position of the agent and max-pooled to a spatial
+dimension *MATH* where *MATH*. These two versions of the augmented
+global map are concatenated to form the *MATH* input of the
+global policy that is used to sample a goal in the global action space
+*MATH*. The global policy is trained with reinforcement learning
+with our proposed impact-based reward *MATH*, defined below,
+that encourages exploration.
+
+
+The planner consists of an A\ algorithm. It uses the global map to plan
+a path towards the global goal and samples a local goal within *MATH* m
+from the position of the agent.
+
+
+The local policy outputs the atomic actions to reach the local goal and
+is trained to minimize the euclidean distance to the local goal, which
+is expressed via the following reward: *MATH*. Note that the output
+actions in our setup are discrete. These platform-agnostic actions can
+be translated into signals for specific robots actuators, as we do in
+this work. Alternatively, based on the high-level predicted commands,
+continuous actions can be predicted, e.g. in the form of linear and
+angular velocity commands to the robot, by using an additional,
+lower-level policy, as done in [*REF*]. The
+implementation of such policy is beyond the scope of our work.
+
+
+Following the hierarchical structure, the global goal is reset every
+*MATH* steps, and the local goal is reset if at least one of the
+following conditions verifies: a new global goal is sampled, the agent
+reaches the local goal, the local goal location is discovered to be in a
+occupied area.
+
+
+Impact-Driven Exploration
+
+
+The exploration ability of the agent relies on the design of an
+appropriate reward for the global policy. In this setting, the lack of
+external rewards from the environment requires the design of a dense
+intrinsic reward. To the best of our knowledge, our proposed method
+presents the first implementation of impact-driven exploration in
+photorealistic environments. [The key idea of this concept is
+encouraging the agent to perform actions that have impact on the
+environment and the observations retrieved from it, where the impact at
+time step *MATH* is measured as the *MATH* -norm of the encodings of two
+consecutive states *MATH* and *MATH*, considering the
+RGB observation *MATH* as the state *MATH*. Following the
+formulation proposed in [*REF*], the reward of the global
+policy for the proposed method is calculated as:
+*MATH* where *MATH* is the visitation count of
+the state at time step *MATH*, i.e. how many times the agent has
+observed *MATH*.] The visitation count is used to
+drive the agent out of regions already seen in order to avoid trajectory
+cycles. [Note that the visitation count is episodic,
+i.e.  *MATH*. For simplicity, in the following
+we denote the episodic visitation count as
+*MATH*.]
+
+
+Visitation Counts
+
+
+[The concept of normalizing the reward using visitation count, as
+in [*REF*], fails when the environment is continuous, since
+during exploration is unlikely to visit exactly the same state more than
+once.] In fact, even microscopic changes in terms
+of translation or orientation of the agent cause shifts in the values of
+the RGB observation, thus resulting in new states. Therefore, using a
+photorealistic continuous environment nullifies the scaling property of
+the denominator of the global reward in
+Eq. because every state *MATH* during the
+exploration episode is, most of the times, only encountered for the
+first time. To overcome this limitation, we implement two types of
+pseudo-visitation counts *MATH* to be used in place of *MATH*,
+which extend the properties of visitation counts to continuous
+environments: Grid and Density Model Estimation.
+
+
+Grid: With this approach, we consider a virtual discretized grid of
+cells with fixed size in the environment. We then assign a visitation
+count to each cell of the grid. [Note that, different from approaches
+working on procedurally-generated environments like [*REF*],
+the state space of the environment we consider is continuous also in
+this formulation, and depends on the pose of the agent *MATH*.
+The grid approach operates a quantization of the agent&apos;s positions, and
+that allows to cluster observation made from similar
+positions.] To this end, we take the global map of
+the environment and divide it into cells of size *MATH*. The
+estimated pose of the agent, regardless of its orientation *MATH*,
+is used to select the cell that the agent occupies at time *MATH*. In the
+Grid formulation, the visitation count of the selected cell is used as
+*MATH* in Eq. and is formalized as: *MATH* where *MATH* returns the block
+corresponding to the estimated position of the agent.
+
+
+Density Model Estimation (DME): Let *MATH* be an autoregressive
+density model defined over the states *MATH*, where *MATH* is the set of
+all possible states. [We call *MATH* the probability assigned by
+*MATH* to the state *MATH* after being trained on a sequence of states
+*MATH*, and *MATH*, or recoding
+probability [*REF*; *REF*], the
+probability assigned by *MATH* to *MATH* after being trained on
+*MATH*.] The prediction gain *MATH* of
+*MATH* describes how much the model has improved in the prediction of
+*MATH* after being trained on *MATH* itself, and is defined as
+*MATH*. [In this work, we employ a lightweight
+version of Gated PixelCNN [*REF*] as density model. This
+model is trained from scratch along with the exploration policy using
+the states visited during the exploration, which are fed to PixelCNN one
+at a time, as they are encountered.] [The weights
+of PixelCNN are optimized continually over all the environments. As a
+consequence, the knowledge of the density model is not specific for a
+particular environment or episode.] To compute the
+input of the PixelCNN model, we transform the RGB observation *MATH* to
+grayscale and we crop and resize it to a lower size *MATH*. The
+transformed observation is quantized to *MATH* bins to form the final input
+to the model, *MATH*. The model is trained to predict the conditional
+probabilities of the pixels in the transformed input image, with each
+pixel depending only on the previous ones following a raster scan order.
+The output has shape *MATH* and each of its elements
+represents the probability of a pixel belonging to each of the *MATH* bins.
+The joint distribution of the input modeled by PixelCNN is:
+*MATH* where *MATH* is the *MATH* pixel
+of the image *MATH*. *MATH* is trained to fit *MATH* by using the
+negative log-likelihood loss.
+
+
+Let *MATH* be the pseudo-count total, i.e. the sum of all the
+visitation counts of all states during the episode. The probability and
+the recoding probability of *MATH* can be defined as: *MATH*.
+
+
+To use this approximation in Eq., we still need to address three problems:
+it does not scale with the length of the episode, the density model
+could be not learning-positive, and *MATH* should be large
+enough to avoid the reward becoming too large regardless the goal
+selection. In this respect, to take into account the length of the
+episode, we introduce a normalizing factor *MATH*, where *MATH* is the
+number of steps done by the agent since the start of the episode.
+Moreover, to force *MATH* to be learning-positive, we clip *MATH* to
+0 when it becomes negative. Finally, to avoid small values at the
+denominator of *MATH* (Eq.), we introduce a lower bound of 1 to the
+pseudo visitation count. The resulting definition of *MATH* in
+the Density Model Estimation formulation is: *MATH* where *MATH* 
+is a term used to scale the prediction gain.
+[It is worth noting that, unlike the Grid approach that can be applied
+only when *MATH* is representable as the robot location, the Density
+Model Estimation can be adapted to a wider range of tasks, including
+settings where the agent alters the environment.]
+
+
+Experimental Setup 
+
+
+Datasets. For comparison with state-of-the-art DRL-based methods for
+embodied exploration, we employ the photorealistic simulated 3D
+environments contained in the Gibson dataset [*REF*] and the
+MP3D dataset [*REF*]. Both these datasets consist of
+indoor environments where different exploration episodes take place. In
+each episode, the robot starts exploring from a different point in the
+environment. Environments used during training do not appear in the
+validation/test split of these datasets. Gibson contains *MATH* scans of
+different indoor locations, for a total of around *MATH* M exploration
+episodes (*MATH* locations are used in *MATH* episodes for test in the
+so-called Gibson Val split). MP3D consists of *MATH* scans of large indoor
+environments (*MATH* of those are used in *MATH* episodes for the
+validation split and *MATH* in *MATH* episodes for the test split).
+
+
+Evaluation Protocol. We train our models on the Gibson train split.
+Then, we perform model selection basing on the results obtained on
+Gibson Val. We then employ the MP3D validation and test splits to
+benchmark the generalization abilities of the agents. To evaluate
+exploration agents, we employ the following metrics. IoU between the
+reconstructed map and the ground-truth map of the environment: here we
+consider two different classes for every pixel in the map (free or
+occupied). Similarly, the map accuracy (Acc, expressed in *MATH*) is
+the portion of the map that has been correctly mapped by the agent. The
+area seen (AS, in *MATH*) is the total area of the environment
+observed by the agent. For both the IoU and the area seen, we also
+present the results relative to the two different classes: free space
+and occupied space respectively (FIoU, OIoU, FAS, OAS).
+Finally, we report the mean positioning error achieved by the agent at
+the end of the episode. A larger translation error (TE, expressed in
+*MATH*) or angular error (AE, in degrees) indicates that the agent
+struggles to keep a correct estimate of its position throughout the
+episode. For all the metrics, we consider episodes of length *MATH* and
+*MATH* steps.
+
+
+[For our comparisons, we consider five baselines trained with different
+rewards. Curiosity employs a surprisal-based intrinsic reward as
+defined in [*REF*]. Coverage and Anticipation are
+trained with the corresponding coverage-based and accuracy-based rewards
+defined in [*REF*]. For completeness, we include
+two count-based baselines, obtained using the reward defined in
+Eq., but ignoring the contribution of impact
+(i.e.setting the numerator to a constant value of 1). These are
+Count (Grid) and Count (DME). All the baselines share the same
+overall architecture and training setup of our main
+models.]
+
+
+TABLE
+
+
+Implementation Details. The experiments are performed using the
+Habitat Simulator [*REF*] with observations of the agent set
+to be *MATH* RGB-D images and episode length during training
+set to *MATH*. Each model is trained with the training split of the
+Gibson dataset [*REF*] with *MATH* environments in parallel for
+*MATH* M frames.
+
+
+Navigation Module: The reinforcement learning algorithm used to train
+the global and local policies is PPO [*REF*] with Adam
+optimizer and a learning rate of *MATH*. The global goal is
+reset every *MATH* time steps and the global action space
+hyperparameter *MATH* is *MATH*. The local policy is updated every *MATH* 
+steps and the global policy is updated every *MATH* steps.
+
+
+Mapper and Pose Estimator: These models are trained with a learning
+rate of *MATH* with Adam optimizer, the local map size is set with
+*MATH* while the global map size is *MATH* for episodes in the Gibson
+dataset and *MATH* in the MP3D dataset. Both models are updated every
+*MATH* time steps, where *MATH* is the reset interval of the global
+policy.
+
+
+Density Model: The model used for density estimation is a lightweight
+version of Gated PixelCNN [*REF*] consisting of a
+*MATH* masked convolution followed by two residual blocks with
+*MATH* masked convolutions with *MATH* output channels, a *MATH* 
+masked convolutional layer with *MATH* output channels, and a final
+*MATH* masked convolution that returns the output logits with shape
+*MATH*, where *MATH* is the number of bins used to quantize
+the model input. We set *MATH* for the resolution of the input and the
+output of the density model[, and *MATH* for the prediction gain scale
+factor.]
+
+
+Experimental Results
+
+
+Exploration Results. As a first step, we perform model selection
+using the results on the Gibson Val split
+(Table). Our agents have different hyperparameters
+that depend on the implementation for the pseudo-counts. When our model
+employs grid-based pseudo-counts, it is important to determine the
+dimension of a single cell in this grid-based structure. In our
+experiments, we test the effects of using *MATH* squared cells,
+with *MATH*. The best results are obtained with
+*MATH*, with small differences among the various setups. When using
+pseudo-counts based on a density model, the most relevant
+hyperparameters depend on the particular model employed as density
+estimator. In our case, we need to determine the number of bins *MATH* for
+PixelCNN, with *MATH*. We find out that the best results
+are achieved with *MATH*.
+
+
+FIGURE
+
+
+[In Table, we compare the Impact (Grid) and Impact
+(DME) agents with the baseline agents previously described on the
+considered datasets. For each model and each split, we test 5 different
+random seeds and report the mean result for each metric. For the sake of
+readability, we do not report the standard deviations for the different
+runs, which we quantify in around 1.2% of the mean value
+reported.] [As it can be seen, results achieved by
+the two proposed impact-based agents are constantly better than those
+obtained by the competitors, both for *MATH* and
+*MATH*.] [It is worth noting that our intrinsic
+impact-based reward outperforms strong extrinsic rewards that exploit
+information computed using the ground-truth layout of the
+environment.] [Moreover, the different
+implementations chosen for the pseudo-counts affect final performance,
+with Impact (DME) bringing the best results in terms of AS and Impact
+(Grid) in terms of IoU metrics. From the results it also emerges that,
+although the proposed implementations for the pseudo-count in
+Eq. lead to comparable results in small
+environments as those contained in Gibson and MP3D Val, the advantage of
+using DME is more evident in large, complex environments as those in
+MP3D Test.]
+
+
+In Fig., we report some qualitative results
+displaying the trajectories and the area seen by different agents in the
+same episode. Also from a qualitative point of view, the benefit given
+by the proposed reward in terms of exploration trajectories and explored
+areas is easy to identify.
+
+
+PointGoal Navigation. One of the main advantages of training deep
+modular agents for embodied exploration is that they easily adapt to
+perform downstream tasks, such as PointGoal
+navigation [*REF*]. Recent literature [*REF*; *REF*] has
+discovered that hierarchical agents trained for exploration are
+competitive with state-of-the-art architecture tailored for PointGoal
+navigation and trained with strong supervision for *MATH* billion
+frames [*REF*]. Additionally, the training time and data
+required to learn the policy is much more limited (2 to 3 orders of
+magnitude smaller). [In Table, we report the results obtained using two
+different settings. The noise-free pose sensor setting is the standard
+benchmark for PointGoal navigation in Habitat [*REF*]. In
+the noisy pose sensor setting, instead, the pose sensor readings are
+noisy, and thus the agent position must be estimated as the episode
+progresses.] [We consider four main metrics: the
+average distance to the goal achieved by the agent (D2G) and three
+success-related metrics. The success rate (SR) is the fraction of
+episodes terminated within *MATH* meters from the goal, while the SPL
+and SoftSPL (sSPL) weigh the distance from the goal with the length
+of the path taken by the agent in order to penalize inefficient
+navigation.] [As it can be seen, the two proposed
+agents outperform the main competitors from the literature: Active
+Neural Slam (ANS) [*REF*] and OccAnt [*REF*] (for which we report both the
+results from the paper and the official code
+release).]
+
+
+[When comparing with our baselines in the noise-free setting, the
+overall architecture design allows for high-performance results, as the
+reward influences map estimation only marginally. In fact, in this
+setting, the global policy and the pose estimation module are not used,
+as the global goal coincides with the episode goal coordinates, and the
+agent receives oracle position information. Thus, good results mainly
+depend on the effectiveness of the mapping module. Instead, in the noisy
+setting, the effectiveness of the reward used during training influences
+navigation performance more significantly. In this case, better
+numerical results originate from a better ability to estimate the
+precise pose of the agent during the episode.]
+[For completeness, we also compare with the results achieved by
+DD-PPO [*REF*], a method trained with reinforcement learning
+for the PointGoal task on *MATH* billion frames, *MATH* times more than
+the frames used to train our agents.]
+
+
+Real-world Deployment. As agents trained in realistic indoor
+environments using the Habitat simulator are adaptable to real-world
+deployment [*REF*; *REF*], we also deploy the
+proposed approach on a LoCoBot robot. We employ the PyRobot
+interface [*REF*] to deploy code and trained models on the
+robot. To enable the adaptation to the real-world environment, there are
+some aspects that must be taken into account during training. As a first
+step, we adjust the simulation in order to reproduce realistic actuation
+and sensor noise. To that end, we adopt the noise model proposed
+in [*REF*] based on Gaussian Mixture Models fitting
+real-world noise data acquired from a LoCoBot. Additionally, we modify
+the parameters of the RGB-D sensor used in simulation to match those of
+the RealSense camera mounted on the robot. Specifically, we change the
+camera resolution and field of view, the range of depth information, and
+the camera height. Finally, it is imperative to prevent the agent from
+learning simulation-specific shortcuts and tricks. For instance, the
+agent may learn to slide along the walls due to imperfect dynamics in
+simulation [*REF*]. To prevent the learning of such
+dynamics, we employ the bump sensor provided by Habitat and block the
+agent whenever it is in contact with an obstacle. When deployed in the
+real world, our agent is able to explore the environment without getting
+stuck or bumping into obstacles. In the video accompanying the
+submission, we report exploration samples taken from our real-world
+deployment.
+
+
+Conclusion 
+
+
+In this work, we presented an impact-driven approach for robotic
+exploration in indoor environments. Different from previous research
+that considered a setting with procedurally-generated environments with
+a finite number of possible states, we tackle a problem where the number
+of possible states is non-numerable. To deal with this scenario, we
+exploit a deep neural density model to compute a running pseudo-count of
+past states and use it to regularize the impact-based reward signal.
+[The resulting intrinsic reward allows to efficiently train an agent for
+exploration even in absence of an extrinsic reward. Furthermore,
+extrinsic rewards and our proposed reward can be jointly used to improve
+training efficiency in reinforcement learning. The proposed agent stands
+out from the recent literature on embodied exploration in photorealistic
+environments. Additionally, we showed that the trained models can be
+deployed in the real world.]

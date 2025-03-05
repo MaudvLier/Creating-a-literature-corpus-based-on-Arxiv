@@ -1,0 +1,836 @@
+Emergent behavior and neural dynamics in artificial agents tracking turbulent plumes
+
+
+Introduction
+
+
+Locating the source of an odor in a windy environment is a challenging
+control problem, where an agent must act to correct course in the face
+of intermittent odor signals, changing wind directions, and the
+variability in odor plume shape [*REF*; *REF*].
+Moreover, an agent tracking an intermittent plume needs memory, where
+current and past egocentric odor, visual, and wind sensory signals must
+be integrated to determine the next action. For flying insects,
+localizing the source of odor plumes emanating from potential food
+sources or mates is critical for survival and reproduction. Therefore,
+many aspects of their plume tracking abilities have been experimentally
+studied in great detail [*REF*; *REF*; *REF*; *REF*].
+However, most such studies are limited to one or two levels of analysis
+such as behavior [*REF*], computation [*REF*; *REF*] or neural implementation
+[*REF*].
+
+
+Despite the wide adoption of wind tunnel experiments to study odor plume
+tracking [*REF*], generating controlled dynamic turbulent plumes
+and recording flight trajectories at high resolution is expensive and
+laborious. Exciting alternative approaches have been developed using
+virtual reality [*REF*] and kilometer-scale outdoor
+dispersal experiments [*REF*]. While behavioral experiments
+are now tractable, collecting significant neural data during free flight
+in small insects remains technologically infeasible, and larger insects
+require larger wind tunnels. Here we are motivated to take a
+complementary in silico approach using artificial recurrent neural
+network (RNN) agents trained to track simulated turbulent plumes, with
+the goal of developing an integrated understanding of the behavioral
+strategies and the associated neural computations that support plume
+tracking.
+
+
+In recent years, artificial neural networks (ANNs) have gained
+increasing popularity for modeling and understanding aspects of neural
+function and animal behavior [*REF*; *REF*], including vision [*REF*], movement
+[*REF*], navigation [*REF*; *REF*; *REF*; *REF*],
+and collective behaviors [*REF*]. Whereas many ANNs have
+been trained using supervised approaches that rely on labeled training
+data, an alternative emerging algorithmic toolkit known as deep
+reinforcement learning (DRL) has made it computationally tractable to
+train ANN agents (Figure d). In particular, an ANN agent receives
+sensory observations and task-aligned rewards based on its actions at
+each step and tries to learn a strategy for its next actions to maximize
+total expected reward [*REF*; *REF*].
+Such learning and optimization based models are normative in the sense
+that they can prescribe how a neural system should behave, rather than
+describing how it has been observed to behave. As neuroscience moves
+towards studying increasingly naturalistic behaviors
+[*REF*; *REF*; *REF*; *REF*], such normative approaches are gaining traction as tools to gain insight,
+rapidly explore hypotheses, and generate ideas for theoretical
+development [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+FIGURE
+
+
+Flying insects search for sources of odor using several strategies,
+depending on the spatial scale being considered and odor source
+visibility [*REF*] (Figure a). Close to the odor source, insects can fly
+to the source guided by vision. At longer ranges (from several meters up
+to about *MATH* meters [*REF*]) or when the odor source is not
+yet visible, their search must be guided by olfaction to detect odors
+and mechanosensation to estimate wind velocity. At this larger scale,
+there are a few stereotyped behavioral sequences that are known to be
+important for plume tracking: upwind surges when the insect can sense
+the odor, and crosswind casts and U-turns to locate the plume body
+when the insect loses the odor scent [*REF*]. Here we
+focus on this larger-scale odor and wind guided regime, where agents
+have access to only mechanosensory and olfactory cues.
+
+
+FIGURE
+
+
+In this paper, we describe behaviors that emerge in RNN agents trained
+to track odors in a flexible plume simulation and analyze the neural
+dynamics that underlie these behaviors. At a behavioral level, we find
+that the agents&apos; actions can be summarized by several modules that
+closely resemble those observed in flying insects (Section
+[4.1]). While odor plumes that do not change in
+direction can be tracked using a few steps of history, longer timescales
+of memory are essential for plumes that are non-stationary and change
+directions unpredictably. Interestingly, the learned tracking behavior
+of RNN agents in non-stationary plumes suggests a testable experimental
+hypothesis: that tracking is accomplished through local plume shape
+rather than wind direction (Section [4.2]). The RNNs learn to represent variables
+known to be important to flying insect navigation, such as head
+direction and time between odor encounters (Section [4.4]). Further,
+the low-dimensional neural activity associated with the emergent
+behavior modules is structured into two distinct regimes (Section
+[4.5]), and transitions between these regimes are asymmetric in duration
+(Section [4.6]).
+
+
+Related work
+
+
+In the field of neural computation, an emerging body of work has used
+DRL to train ANNs that solve tasks closely inspired by tasks from
+neuroscience. For instance, agents have been trained to study learning
+and dynamics in the motor-cortex [*REF*; *REF*], time encoding in the
+hippocampus [*REF*], reward-based learning and meta-learning in
+the pre-frontal cortex [*REF*; *REF*; *REF*], and
+task-associated representations across multiple brain areas
+[*REF*]. There have been several recent perspectives
+articulating the relevance of this emerging algorithmic toolkit to
+neuroscience [*REF*; *REF*] and ethology [*REF*].
+
+
+FIGURE
+
+
+Our work is most directly related to three recent research efforts.
+[*REF*] developed a virtual-reality model of a rodent embodied
+in a skeleton body and endowed with a deep ANN &apos;brain.&apos; They trained
+this model using DRL to solve four tasks and then analyzed the virtual
+rodent&apos;s emergent behavior and neural activity, finding similarities at
+an abstract level between their agent and observations from rodent
+studies. [*REF*] studied the trail tracking strategies of
+terrestrial animals with one (e.g. one antenna) or two (e.g. two
+nostrils) odor sensors. They found that RL agents trained on simulated
+trails recapitulate the stereotypical zig-zagging tracking behavior seen
+in such animals. Using a static trail model and an explicit (not neural)
+probabilistic model for sensory integration, they studied the effect of
+varying agent and task parameters on the emergent stereotypical
+zig-zagging behavior. [*REF*] used a biologically detailed
+spiking neural circuit model of a fly mushroom body to study sensory
+processing, learning, and motor control in flying insects when foraging
+within turbulent odor plumes.
+
+
+We build on the approach of these recent papers that study artificial
+agents solving neural inspired tasks, and our work is also distinct in
+several key ways. First, we simulate a more computationally challenging
+task than those tackled in [*REF*] and [*REF*],
+because our odor environment is configurable, dynamic, and stochastic.
+Second, we have made several simplifications and abstractions that make
+analysis more tractable, so that we may focus on the general principles
+behind plume tracking. Specifically, we omit biomechanical details,
+impose no biologically inspired connectivity constraints, and do not use
+spiking neurons. Instead, our networks are &apos;Vanilla&apos; RNNs (rather than
+the gated RNNs used in [*REF*] or the spiking neurons in
+[*REF*]), which facilitates analyses from the dynamical
+systems perspective [*REF*; *REF*; *REF*; *REF*; *REF*].
+We analyze emergent behaviors and neural dynamics at the network level,
+which provides us with an abstract understanding of task-relevant neural
+computations that is robust to small changes in network architecture and
+training hyperparameters [*REF*; *REF*; *REF*].
+Lastly but importantly, since we do not model vision or joint-level
+motor control as in [*REF*], our neural networks are simpler
+and can be trained on a computational budget accessible to an academic
+lab.
+
+
+Training artificial agents to track turbulent plumes 
+
+
+Here we describe how we use DRL to train RNN agents that can track
+simulated turbulent odor plumes. Training episodes situate agents at
+random initial locations within plumes that switch directions multiple
+times during the course of the episode. Agents are actor-critic neural
+networks that receive sensory observations as inputs --- namely,
+egocentric instantaneous wind velocity and local odor concentration.
+Importantly, since the plume simulator models diffusing and advecting
+odor packets, the agent&apos;s encounters with odor packets are intermittent
+and stochastic. To train our agents to solve this task where both the
+observation space and action space are continuous valued, we use the
+Proximal Policy Gradient (PPO) [*REF*] algorithm. We use
+a reward function that primarily rewards homing in on the odor source
+and augment that with intermediate rewards for actions that reduce
+distance to the odor source. For evaluation, we assess trained agents on
+additional simulations where the odors are relatively sparse and the
+wind switches direction at different frequencies. More details of our
+implementation are available in [8] and [9].
+
+
+Plume simulation 
+
+
+We implement a particle-based two-dimensional plume simulation model
+(Figure f) that replicates the statistics of real-world
+turbulent plumes [*REF*]. This type of simulation has
+been used in a wide range of domains including olfactory navigation
+[*REF*], robotics [*REF*] and sensor
+networks [*REF*]. The simulator (Figure b) comprises a spatially homogeneous wind
+vector-field (0.5 m/s with configurable direction) and an odor source
+located at the origin that emits odor puffs as a Poisson process. Puffs
+are initialized with a fixed initial radius and undergo radial
+diffusion. In addition, each emitted puff is advected downwind at the
+wind velocity and perturbed randomly by crosswind translation. In other
+words, each puff effectively performs a biased random walk downwind over
+time, while diffusing in concentration spatially. Our simulated plumes
+and agents are constrained to two dimensions for simplicity of analysis.
+The dimensions of the simulated arena are *MATH* and *MATH* 
+in the x and y coordinates respectively, totaling a *MATH* arena.
+Plumes are simulated at 100 iterations/second. The plume&apos;s centerline is
+obtained by simulating puffs that have no random crosswind translation
+at each iteration (Figure f).
+
+
+We simulate the following four wind configurations. First, the wind
+direction is held constant (*MATH*) throughout the simulation
+(&apos;constant&apos;). Second, the wind direction makes one 45 *MATH* 
+counter-clockwise switch during a tracking episode (&apos;switch-once&apos;).
+Third, the wind direction switches at multiple random times during a
+tracking episode (&apos;switch-many&apos;). Each wind direction turn is a random
+draw from a Gaussian distribution with mean *MATH* and 45 *MATH* s.d.,
+truncated at *MATH*, and occurs approximately every 3 seconds.
+Fourth, the wind direction is held constant, but the puff birth-rate is
+reduced (0.4x) compared to the &apos;constant&apos; configuration (&apos;sparse&apos;). See
+[8] for further details on the plume simulation.
+
+
+FIGURE
+
+
+Agent architecture 
+
+
+Our agents are actor-critic networks (Figure e), where a recurrent neural network (RNN)
+receives sensory observations and passes a transformed representation of
+them onto parallel Actor and Critic heads that are both two-layer
+multi-layer perceptrons (MLPs) [*REF*]. The Actor head
+implements a control policy to map the RNN&apos;s learned state
+representation to actions, while the Critic head implements a value
+function that maps the state representation to an estimate of the
+state&apos;s value based on rewards. This value function is used only during
+agent training and not thereafter. In the DRL literature, two-layer deep
+heads are typically sufficiently expressive for such control problems
+[*REF*]. At each time step, an agent receives a 3-dimensional
+real-valued input vector comprising egocentric wind velocities *MATH* 
+and odor concentration at its current location. In response, the agent
+produces continuous valued turn (maximum *MATH* radians/s) and
+forward-movement (maximum 2.5 m/s) actions; these velocities are matched
+to the capabilities of flying fruit flies
+[*REF*; *REF*]. In contrast to the orthogonal
+initialization typically employed in the mainstream machine learning
+literature [*REF*], we initialize our RNNs with normally
+distributed weights to facilitate comparisons with the computational
+neuroscience literature [*REF*; *REF*; *REF*].
+
+
+Additionally, to understand the role of memory on tracking performance
+(Section [4.3]), we compare the RNN-based agents with
+an alternative feedforward-only network (multi-layer perceptron, MLP)
+architecture with fixed-length memory, simulated by appending historical
+sensory observations onto instantaneous network inputs
+[*REF*]. Although such MLPs are far from being biologically
+plausible architectures, they serve as useful tools for abstract
+comparison since their memory capacities can be controlled precisely.
+Both RNN and MLP layers across all agents are 64 units wide with *MATH* 
+nonlinearities.
+
+
+Agent training and evaluation 
+
+
+We train our agents using the Proximal Policy Gradient (PPO) algorithm
+[*REF*], which is known to robustly solve continuous
+observation-space continuous action-space control problems without
+needing significant hyperparameter tuning. To guide agent training, we
+developed a curriculum and a simple reward function that greatly rewards
+homing in on odor source, mildly rewards actions that reduce the radial
+distance between agent and odor source, and penalizes longer duration
+trajectories and straying too far from the plume. We train 14
+independently randomly initialized networks for each architecture type,
+i.e. RNNs and MLPs with 2, 4, 6, 8, 10 &amp; 12 timesteps of observation
+history.
+
+
+Next, we evaluate each trained agent&apos;s performance with a behavioral
+assay. Each trained agent is evaluated with 240 episodes at different
+initializations (15 initial locations, 2 initial simulation timestamps,
+and 8 initial head-directions), and at each of the &apos;constant&apos;,
+&apos;switch-once&apos; and &apos;switch-many&apos; plume configurations. For each
+architecture type, we proceed to analyze only the top 5 seeds with the
+best performance, as measured by total number of successful episodes
+across the four plume configurations. Agent training/evaluation episodes
+are run at *MATH* frames per second on a sub-sampled plume and limited to
+300 frames/timesteps (12 seconds of flight) per episode to accelerate
+DRL training. See [8] for additional details on agent
+training and evaluation, and [9] for a full list of associated
+hyperparameters.
+
+
+Behavior and neural dynamics of trained agents 
+
+
+Our trained agents learn strategies to successfully localize plume
+sources in turbulent, non-stationary environments. In this section, we
+characterize their performance, then highlight their emergent behavioral
+and neural features. In addition to comparing artificial agents to
+biology, we discover behavioral strategies that motivate future
+experiments and gain intuition about the neural computations underlying
+these emergent behaviors.
+
+
+Unless otherwise specified, this section describes results from one
+agent randomly chosen from the trained RNNs as evaluated on randomly
+selected episodes in the evaluation subset. This evaluation subset is
+chosen to include trajectories from test behavioral assays, balanced
+across successful and unsuccessful tracking episodes, in each of the
+&apos;constant,&apos; &apos;switch-once,&apos; and &apos;switch-many&apos; configurations (see
+[8.3] for evaluation details).
+
+
+FIGURE
+
+
+Agents track plumes with varying wind conditions using distinct behavioral modules 
+
+
+Our trained RNN agents are able to complete the plume tracking task with
+changing wind direction and varying plume sparsity (Figure shows example trajectories). The observed
+trajectories can be summarized as one of three behavior modules,
+determined approximately by the time elapsed since the agent last sensed
+odor (Figure). We refer to these three modules as
+tracking, lost, and recovering. In the tracking module, the
+agent rapidly moves closer to the plume source, using either
+straight-line trajectories when it is well within the plume, or a
+quasi-periodic &apos;plume skimming&apos; behavior where it stays close to the
+edge of the plume while moving in and out of it. The interval between
+the agent&apos;s encounters with odor packets in this module is under 0.5
+seconds. Recovering corresponds to an irregular behavior where the
+agent makes large, usually cross-wind, movements after having lost track
+of the plume for a relatively short period of time (about 0.5 second).
+Lost corresponds to a periodic behavior that appears variably across
+trained agents as either a spiraling or slithering/oscillating motion,
+often with an additional slow drift in an arbitrary direction. This
+behavior is seen when the agent has not encountered the plume for a
+relatively long time, typically over 1 second. See
+[10] for the exact thresholds used to segment each agent&apos;s trajectories into
+behavior modules.
+
+
+FIGURE
+
+
+Agents that are successful in tracking plumes in constant wind direction
+primarily use the tracking and recovering modules. Successful
+trajectories on the &apos;switch-once&apos; and &apos;switch-many&apos; plumes
+reveal that RNN agents use more complex strategies in the face of
+changing wind directions. If an agent is in the tracking module and
+well within the plume at the time of wind direction change, it continues
+along its path until it reaches the edge of the plume without changing
+its actions. If it is skimming the edge of the plume when the wind
+direction switch happens, it tries to compensate for the added movement
+of the plume by making more pronounced oscillations in and out of the
+plume. The shape of these oscillations appears to depend more on the
+local shape of the plume than on the current direction of the wind
+(explored further in Section [4.2]). Finally, if the agent cannot keep up with
+the movement of the plume, it typically orchestrates a sequence of large
+oscillations and spiral-like movements, corresponding to the
+recovering and lost modules, to try to find the plume boundary. On
+returning to the plume, it resumes the tracking module behaviors once
+again.
+
+
+FIGURE
+
+
+Agents track plume centerline, not current wind direction 
+
+
+Successful trajectories in plumes that switch direction suggest that
+agents take the local shape of the plume into account, rather than just
+the current wind conditions (Figure c--d and supplementary animations). To
+quantify this, we look at the empirical distributions of the agent&apos;s
+course direction computed with respect to the current wind direction,
+and with respect to the centerline of the nearby plume (Figure f). 
+The agent&apos;s course direction (Figure c) is defined as the direction of its
+instantaneous movement with respect to the ground. Subtracting the
+current wind direction angle from the course direction provides the
+course direction with respect to the wind. To find the course direction
+with respect to the centerline, we first find the median local
+centerline angle using centerline puffs (Section
+[3.1]) within a *MATH* c.m. band of the
+x-coordinate of the agent&apos;s location, then subtract this from the
+course-direction with respect to the ground. The empirical distributions
+include aggregate data from when agents are in the tracking behavior
+module from up to 60 random successful trajectories from the &apos;constant&apos;,
+&apos;switch-once&apos; and &apos;switch-many&apos; plume configurations. Additionally, for
+the &apos;switch-once&apos; configuration, we trim trajectories to consider only
+the timesteps after the wind direction switch has occurred.
+
+
+Figure shows the empirical course direction
+distributions are much better aligned with the plume centerline than to
+the wind for one example agent. For &apos;switch-once&apos; plumes, the peak of
+the course direction distribution is much closer to *MATH* 
+when considered relative to the centerline than relative to the wind
+direction. This observation indicates that the agent&apos;s flight is on
+average aligned (anti-parallel) with the plume centerline, but at an
+*MATH* angle with respect to the current wind direction.
+Similarly, the same trend holds in the &apos;switch-many&apos; configuration,
+where the course direction distribution is aligned with the plume
+centerline, but diverges from the wind direction. In
+[11], we see that this trend holds across all 5 RNN agents.
+
+
+Recurrence and memory enable plume tracking 
+
+
+To understand the role of memory capacity in plume tracking, we compare
+the performance of our trained RNNs to trained feedforward networks
+(multi-layer perceptrons, MLPs) that receive varying timescales of
+sensory history (see Section [3.2] for more information on the MLP
+architecture). As seen in Figure, RNNs outperform MLPs for every plume
+tracking task, with the performance gains being largest in the most
+challenging tasks. For MLPs, longer duration sensory memories support
+much better performance on tougher tracking tasks, where the plumes
+switch more often or odor packets are sparser.
+
+
+Neural activity is low-dimensional and represents task-relevant variables 
+
+
+We now turn our attention to the neural dynamics of the RNNs as agents
+perform plume tracking. Rather than characterizing the activity of
+individual units, we consider the population activity of the network
+[*REF*; *REF*].
+
+
+First, we reduce and visualize the population activity of our RNN across
+the &apos;constant&apos;, &apos;switch-once&apos; &amp; &apos;switch-many&apos; plume configurations and
+find that the neural activity is low-dimensional (Figure g), with the first 5--8 principal
+components explaining 90 *MATH* of the variance in the 64-dimensional
+population activity. In [12], we see that this trend holds across all 5
+agents.
+
+
+To gain insights into the computations supporting the plume tracking
+behavior, we look for variables represented in this low-dimensional
+population activity that are relevant for solving the task. We find that
+the RNNs have learned to represent task-relevant quantities beyond the
+instantaneous sensory observations that are provided to it by the
+simulator (Figure a--d).
+
+
+Interestingly, these quantities reflect information necessary for
+solving these challenging plume tracking tasks and require memories of
+past sensory cues encountered by the agent. First, the agent&apos;s
+head-direction, or its the orientation with respect to the ground, is
+evident in Figure a. The time since plume was last
+encountered is encoded as in Figure b and may be involved in determining
+transitions between behavior modules. Whereas the agent only receives
+local odor concentrations as a sensory input, we find that an
+exponentially-weighted moving-average of sensed odor concentrations is
+present in Figure c. We conjecture this quantity may be
+useful as a memory in the face of an intermittent odor signal arising
+from a turbulent plume. Similarly, an exponentially-weighted
+moving-average of a discretized odor encounters signal is evident in
+Figure d.
+
+
+We determine the window-sizes [*REF*] for odor concentrations and
+encounters by linearly regressing neural activity onto them for
+sliding-windows of varying lengths, and we chose the window-size that
+produces the best fit as measured by the coefficient of determination
+*MATH* (Figure e). The best moving-average window
+length for time-averaged odor concentrations (7 timesteps or 0.3s on
+average across all 5 agents) is significantly shorter than that for
+time-averaged odor encounters (47 timesteps or 1.9s on average across
+all 5 agents). Time-averaged odor concentrations are also better encoded
+(*MATH* =0.91 on average across 5 agents) than time-averaged odor
+encounters (*MATH* =0.59 on average across 5 agents). See Appendix
+Table [2] for data on each individual agent.
+
+
+FIGURE
+
+
+To quantify how important these represented variables are to actual task
+performance, we train a Random Forest (RF) [*REF*]
+classifier to predict the (discretized) actions taken by the agent over
+successful trajectories (see [12] for details). We also estimate the relative
+importance of each input feature by calculating its permutation
+importance score [*REF*; *REF*], which is
+an estimate of the reduction in the classifier&apos;s accuracy across several
+(N=30) randomized permutations of that feature. Classifier accuracies
+using all aforementioned represented features (Figure) along with instantaneous sensory
+features is 10--18% higher across all agents than that using classifiers
+receiving just instantaneous sensory observations, and 26--51 *MATH* higher
+across all agents than that produced by a majority-class classifier (See
+[3] for each agent&apos;s classifier accuracies). Represented variables have
+permutation importance scores within the range covered by the importance
+scores of the instantaneous sensory inputs. Time since plume was last
+encountered is always one of the top two most important features, close
+to the wind velocity (x-axis component). The two time-averaged odor
+features always easily dwarf the importance of the instantaneous odor
+feature. Furthermore, time-averaged odor concentrations are more
+important than time-averaged odor encounters in 4 out of 5 agents.
+Head-direction has an importance intermediate to the two time-averaged
+odor features in 4 out of 5 agents. Note that the estimates provided by
+this analysis are approximate due to the discretization of the action
+data and correlations between features. See [12] for
+results at the individual agent level for all 5 agents.
+
+
+FIGURE
+
+
+Neural dynamics organized into two structured regimes and a transition region 
+
+
+We now examine the dynamics of the RNN&apos;s hidden state *MATH* and
+how it evolves over the course of tracking episodes. This analysis is
+inspired by previous work characterizing the nonlinear dynamics of RNN
+agents by their fixed-points and transitions among them [*REF*; *REF*; *REF*].
+However, in a noteworthy deviation from these structures, we did not
+find any fixed points in our RNNs. Instead, our RNNs adopt neural
+dynamics that are better described by dynamical regimes. Specifically,
+the dynamics appear to organize themselves into overlapping but
+distinctly structures associated with the tracking and lost
+behavioral modules (Figure). Interestingly, the periodic spiral or
+oscillatory movements seen in the lost behavioral module appear to
+also have a quasi-periodic limit-cycle structure in the neural state
+space (Figure d), while the neural dynamics associated with
+the tracking behavior are represented as quasi-periodic &apos;funnel&apos; like
+structures (Figure c). We also see an amorphous transition region
+associated with the recovering behavioral module. We see the same
+approximate structures (limit-cycles and funnel) emerge in the neural
+dynamics for 4 of the 5 RNN agents. See [13] and associated animations for data on
+all 5 agents.
+
+
+Macroscopic transitions between neural activity regimes are asymmetric in duration 
+
+
+After having found distinct neural activity regimes for the tracking
+and lost behaviors in the previous section, we now explore transitions
+between these two regimes. Specifically, we look at differences in the
+duration between (1) when an agent enters the plume and when it &apos;enters&apos;
+the tracking neural activity regime, and (2) when an agent leaves the
+plume and when it &apos;enters&apos; the lost neural activity regime. Entry into
+a neural activity regime is determined by when the neural activity is
+within a pre-specified distance from a &apos;centroid&apos; corresponding to that
+regime (see details in [14]). As shown in Figure,
+the time taken to enter the lost neural activity regime after the
+agent leaves the plume is significantly longer than the time taken to
+enter the tracking neural activity regime after the agent enters the
+plume. In [14], we see that this trend holds across 4 out of
+5 agents.
+
+
+Connectivity of trained RNNs reveal signatures of instability and memory 
+
+
+The weight matrices and recurrence Jacobians of our RNNs after training
+offer some theoretical insights into how the neural dynamics of the
+artificial agents are shaped to track turbulent plumes.
+
+
+The update rule for a Vanilla RNN with hidden state vector *MATH* is
+given by *MATH* where *MATH* is recurrence (connectivity) matrix of the
+hidden layer, *MATH* are the network&apos;s inputs, *MATH* is the
+input-to-hidden layer matrix, and *MATH* is a bias term
+[*REF*].
+
+
+We find that the training process reorganizes the eigenvalue spectrum of
+the RNN recurrence matrix *MATH* 
+(Figure a). Before training, weights are initialized as
+normally distributed random variables. After training, there are
+multiple eigenvalues outside the unit circle in the complex plane.
+Interestingly, for all 5 agents, there is at least one strictly
+real-valued eigenvalue larger than unity. Along with external stimuli,
+these unstable eigenvalues drive the network&apos;s hidden dynamics.
+
+
+Next, we consider a linearization of this nonlinear system around
+arbitrary expansion points. The RNN update equation can be linearized
+around an arbitrary expansion point *MATH* to get a
+linear dynamical system approximated by: *MATH* where
+*MATH* is the state of the linearized system,
+*MATH* is the linearized system&apos;s input, *MATH* is the recurrence
+Jacobian, and *MATH* is the input Jacobian
+[*REF*]. To be explicit, *MATH*. Note that *MATH* and *MATH*.
+
+
+Following the approach of [*REF*], we consider the
+eigenvalues of the recurrence Jacobian and associated stimulus
+integration timescales along the trajectories of several episodes. This
+timescale governs the integration of stimuli in the direction of the
+corresponding eigenvectors. We chose at random one successful and one
+unsuccessful episode from each of three plume configurations
+(&apos;constant,&apos; &apos;switch-once,&apos; and &apos;switch-many&apos;). At each time step of the
+trajectory, we computed the recurrence Jacobian assuming zero input
+*MATH*. The stimulus integration timescale *MATH* associated with a stable eigenvalue
+*MATH* (i.e. *MATH*) can be interpreted as a
+timescale with the conversion *MATH*.
+
+
+Comparing the time-averaged stimulus integration timescales with those
+from the untrained RNN reveals that training adjusts these timescales to
+lie well within the maximum episode length of 300 timesteps
+(Figure b). Furthermore, we see that the bulk of these
+timescales are within about *MATH* timesteps (*MATH* s), suggesting
+that the plume tracking task predominantly needs short timescale
+memories. In [15], we see that this trend holds across all 5 RNNs.
+
+
+Connections to tracking turbulent plumes in biology
+
+
+Our artificial RNN agents exhibit similarities to biology at the levels
+of behavior, computation, and neural dynamics. In this section, we draw
+these comparisons, discuss the significance of these connections, and
+suggest theoretical insights that may be relevant for researchers
+interested in biological plume tracking.
+
+
+Behavioral features
+
+
+The complex behavior exhibited by our agents can be decomposed into
+simpler modules, sequenced by the time elapsed since the agent last
+encountered the plume (Section [4.1]). These modules show features similar to
+upwind surging, crosswind casting and U-turn behaviors previously
+reported in many studies on moths, fruit flies, and other flying insects
+[*REF*; *REF*; *REF*; *REF*].
+The spiraling behavior seen in the agent&apos;s lost behavior module has
+been previously proposed as a plume reacquisition strategy
+[*REF*]. Furthermore, the variable sequencing
+behavior modules resembles the odor loss activated clock mechanism that
+has been previously proposed to drive changes in flight behavior in
+moths [*REF*; *REF*; *REF*].
+
+
+Our observations make a behavioral hypothesis that agent track plumes
+with respect to the centerline rather than with respect to the current
+wind direction (Section [4.2]). In a previous study on tracking in
+constant wind direction plumes, [*REF*] proposed a model
+where insects explicitly performed upwind surges when close to the plume
+centerline. However, a later study by [*REF*] failed to find
+support for this model. Our analysis provides intuition for the role of
+centerline tracking in non-stationary plumes and suggests a testable
+hypothesis: we predict that centerline tracking behaviors will be more
+apparent in flying insects when they track plumes in wind that switches
+direction.
+
+
+Algorithms for odor localization
+
+
+How biological organisms search and localize odor sources has a long and
+rich literature, and a variety of algorithms has been developed to
+explain this capability of single-celled organisms, cells in an organ,
+and animals in complex environments. Where gradients exist, these
+smoothly varying rates of changes in concentration may be exploited to
+localize odor sources by chemotaxis and related algorithms
+[*REF*; *REF*; *REF*]. However, in intermittent odor landscapes, gradient-based algorithms
+cannot be successful, and the Infotaxis algorithm was developed as an
+alternative [*REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+Both Infotaxis [*REF*] and our approach are
+formulated as solutions to plume tracking as a Partially Observable
+Markov Decision Process (POMDP) [*REF*]. Infotaxis
+crafts a control policy that chooses actions (movements) to maximally
+reduce the expected entropy of the odor source location probability on
+the next time step. This policy makes two computational requirements of
+the agent. First, Infotaxis agents must store a probability distribution
+for the source location spanning the size of the arena being navigated.
+Second, agents are able to perform Bayesian inference [*REF*]. In
+contrast, here our approach is to learn this control policy from only
+locally available measurements, and actions are chosen to maximize the
+expected discounted reward over a trajectory. Compared to Infotaxis, our
+approach produces trajectories with a stronger semblance to biology and
+a control policy that reacts to changing wind conditions. It also uses a
+neural implementation that does not make any (potentially biologically
+implausible) assumptions about which variables are implemented or how
+inference is performed.
+
+
+Neural representations
+
+
+Our RNN agents learn to represent variables that have been previously
+reported to be crucial to odor navigation (Section
+[4.4]). First, agent head-direction has been found to be implemented as a ring
+attractor circuit in the central complex of many flying insects and is
+implicated in navigation [*REF*; *REF*; *REF*; *REF*; *REF*].
+Second, time since plume was last encountered is analogous to the
+hypothesized internal-clock that determines behavior switching in moths
+[*REF*; *REF*; *REF*]. Additionally, [*REF*] showed how this variable is encoded by
+the bursting olfactory receptor neurons (bORNs) in many animals, and
+that it contains information relevant to navigating in turbulent odors.
+
+
+Third, exponential moving-average of odor encounters was found by
+[*REF*] to determine the probability of turn and stop
+behaviors in walking flies navigating in turbulent plumes. Specifically,
+higher odor encounter rates were associated with more frequent saccadic
+upwind turns [*REF*]. Fourth, exponentially
+moving-average of sensed odor concentration is motivated by theoretical
+work by [*REF*] that posits exponentially-weighted
+moving averages to be good canonical models for stimulus integration in
+RNNs. Between these two time-averaged odor variables, the best
+represented window length for time-averaged concentration is
+significantly shorter (*MATH* s) than that for time-averaged
+encounters (*MATH* s). Furthermore, we find that time-averaged
+odor concentration is relatively better represented and more important
+in predicting agent behavior, corroborating the intuition that turn
+decisions during flight would require quick decision making on
+sub-second timescales. We note that alternative variables beyond these
+four may exist that better explain agent navigation decisions.
+
+
+Neural dynamics
+
+
+The agents&apos; neural activity is low dimensional and structured, with an
+interesting asymmetry in macroscopic transitions between these
+structures. Like often seen in neurobiological recordings
+[*REF*; *REF*], the population activity of our RNNs is low-dimensional, with the top 5--8 principal
+components explaining an overwhelming majority of the 64-dimensional
+population&apos;s total variance (Section [4.4]).
+
+
+The neural dynamics associated with behavior modules further exhibit
+interesting structure. Lost behaviors are represented as
+quasi-limit-cycles, while tracking behaviors show a &apos;funnel&apos; like
+structure (Section [4.5]). Similar 1-D circular manifolds and 2-D
+funnels [*REF*; *REF*] have been previously reported on the representational geometry of sensory
+populations, but not, to the best of our knowledge, in the closed-loop
+agent setting.
+
+
+Finally, we find that the interval between entering the neural activity
+cluster associated with the lost behavior and leaving the plume, is
+significantly longer than the interval between entering neural activity
+cluster associated with the tracking behavior and entering the plume.
+This asymmetry in macro-scale transitions in the neural state resembles
+an asymmetry in behavior transitions reported in [*REF*], where
+the authors experimentally observe that flies take about twice as long
+to cast crosswind after plume loss, than to surge upwind on encountering
+attractive odors.
+
+
+The role of memory
+
+
+Two independent analyses give us insight into the memory requirements of
+the plume tracking task. First, our comparison of RNN agents to MLPs
+with fixed amounts of sensory history input (Section
+[4.3]) suggests that longer sensory histories
+and recurrence lead to better performance on tougher tracking tasks,
+such as those with plumes that switch one or more times. Second,
+analyzing stable eigenmodes of the RNN recurrence Jacobians suggests
+that only a couple of long stimulus integration timescales are involved
+in the neural computation. The bulk of stimulus integration timescales
+are within *MATH* steps or 0.5s (Section [4.7]).
+Together, we believe that memory is crucial for tracking non-stationary
+wind direction plumes, but short timescale (under *MATH*) and
+reflexive mechanisms may be sufficient for tracking constant wind
+direction plumes. This corroborates results by [*REF*] and
+[*REF*] and extends them by highlighting the importance
+of longer term memory in cases where wind changes direction.
+
+
+Limitations and future work
+
+
+Our results motivate further development in using DRL to model and
+understand complex behaviors in several ways. First, here we used
+vanilla recurrent units with no biomechanical body model, and models
+that incorporate known complexity from biology as constraints may give
+rise to further insights. For instance, DRL agents may be trained using
+spiking neural networks [*REF*; *REF*; *REF*].
+Further, the wealth of architectural insights emerging from the fly
+connectome may be used to constrain wiring motifs in artificial networks
+[*REF*; *REF*]. Modeling multiple
+antennae [*REF*], or more generally a biomechanical body, would
+enrich the interactions between the agent and the simulation environment
+[*REF*; *REF*; *REF*].
+
+
+Second, multi-task training should produce agents with richer behaviors
+and more complex neural activity structures with shared and
+task-specific adaptations [*REF*; *REF*; *REF*; *REF*; *REF*].
+Adding other sensory modalities like vision and training the agents in a
+3D virtual reality environment could produce more realistic perceptual
+representations in the agent [*REF*; *REF*].
+
+
+Finally, future work could explore learning algorithms that respect
+biological constraints like excitation-inhibition balance and Dale&apos;s law
+[*REF*; *REF*; *REF*]. More complex training curricula [*REF*] or alternative
+training algorithms using evolutionary techniques [*REF*; *REF*; *REF*] might
+be able to mitigate the significant performance variability we observed
+in our agents (Section [4.3]).
+
+
+Our analyses also motivate further methodological development in
+theoretical tools to understand actor-critic RNNs. Currently available
+reverse-engineering methods that characterize RNNs using discrete
+dynamical features such as fixed-points [*REF*; *REF*; *REF*]
+are not applicable to the continuous and amorphous dynamical structures
+that we encountered in our analyses (Section [4.5]).
+New methods are also needed for comparing multiple agents at the
+behavioral level, specifically taking into account the compounding
+differences that arise from small differences in action-stimulus loops.
+Finally, further theoretical work is required to understand the role of
+training-induced unstable RNN connectivity eigenmodes, such as those
+observed in Section [4.7], including extensions of analytic techniques
+developed to understand RNNs trained by supervised-learning
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+Conclusion
+
+
+In this paper, we used deep reinforcement learning to train recurrent
+neural network agents to solve a stochastic plume tracking task. We find
+several behavioral and neural features that emerge in these trained
+agents and connect these features with how flying insects track
+turbulent plumes. Our findings motivate future experiments and
+theoretical developments, and provide a foundation for more nuanced
+future work. We hope our approach will contribute to the growing
+convergence in the understanding of artificial and biological networks
+[*REF*; *REF*]. Efforts to reverse
+engineer such neural network agents will help accelerate the development
+of similar methods for biological agents
+[*REF*; *REF*]. Moreover, our RNN agents may
+serve as generative models of complex naturalistic behaviors, which may
+facilitate the development of behavior analysis tools for biology
+[*REF*; *REF*; *REF*]. Insights
+from these studies may also inspire the development of robotic agents
+with artificial [*REF*] or hybrid [*REF*] olfactory sensing.

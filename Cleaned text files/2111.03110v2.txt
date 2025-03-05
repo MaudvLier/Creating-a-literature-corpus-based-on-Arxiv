@@ -1,0 +1,410 @@
+Successor Feature Neural Episodic Control
+
+
+Introduction
+
+
+The idea of building intelligent agents and systems that learn purely by
+interaction with their environment, known as reinforcement learning
+[*REF*], is an appealing approach to artificial
+intelligence with solid connections to neuroscience and psychology
+[*REF*; *REF*]. Reinforcement learning has generated significant interest both in the
+research community and in public awareness, especially in combination
+with deep learning [*REF*], a paradigm known as deep
+reinforcement learning [*REF*]. It has given rise to
+impressive achievements in various contexts, including building champion
+game players [*REF*; *REF*; *REF*; *REF*],
+and solving long-standing problems in biology [*REF*] to
+list a few. However, human intelligence has defining characteristics
+lacking in state-of-the-art deep reinforcement learning systems.
+
+
+One important restriction of these systems is that they require
+significantly large amounts of data to
+learn [*REF*; *REF*], as they need a lot of
+(repeated) exposure to learn rules/concepts contained in data samples
+which manifests as slow learning. In contrast, humans can learn
+quickly and efficiently, making use of little data. As pointed out
+by [*REF*], a source of slowness
+in deep reinforcement learning can be attributed to the requirement for
+incremental parameter adjustment in gradient-based optimization of deep
+neural networks. A technique that has been proposed to tackle the data
+efficiency problem is Neural Episodic Control
+(NEC) [*REF*]. Instead of gradually learning a
+representation of the solution, i.e. the expected future reward of an
+action in a certain situation, it stores observed experiences, i.e. the
+resulting rewards of an action, directly in a memory. Encountering a
+similar situation again, the experiences in the memory are recalled to
+decide which action yields the best outcome. As a result, episodic
+control learns significantly faster than gradient-based techniques.
+
+
+Another typical trait of human learning is the ability to seamlessly
+transfer knowledge across similar tasks leading to a faster learning
+process in new tasks. This problem is typically tackled under the
+frameworks of meta [*REF*] and transfer
+learning [*REF*; *REF*]. One such ability of
+humans is to reevaluate previously learned behaviors given a new task
+setting [*REF*]. For example, to reevalute all the
+possible ways you learned to drive home from work while maximize a new
+weighted combination of using minimum time and having scenic views. The
+framework of Successor Features and Generalized Policy Improvement
+(SF&amp;GPI) provides a mechanisms to replicate this human ability. It
+decomposes the representation of learned behaviors in an environment
+dynamics part, i.e. what will happen when I do this behavior, and a
+reward part, i.e. how to evaluate this outcome. Given a set of learned
+behaviors, i.e. their environment dynamics, and a new reward function
+the expected return for each behavior can be computed and the best
+behavior chosen.
+
+
+The central idea proposed in this paper is a framework combining NEC
+with SF&amp;GPI, which we call Successor Feature Neural Episodic Control
+(SFNEC). We hypothesize that this would provide advantages from both
+approaches by merging the learning speed conferred by episodic control
+with flexible transfer from SF&amp;GPI. We choose these two frameworks for
+the following reasons. First, episodic control has both a well-founded
+cognitive science inspiration [*REF*; *REF*]
+and displays impressive sample efficiency results in reinforcement
+learning tasks [*REF*; *REF*]. Likewise, for successor features, the elegance of the SF&amp;GPI framework
+and the connections of successor representation [*REF*; *REF*] to
+neuroscience form the basis of our motivation. Additionally, a recent
+study [*REF*] suggests that humans use a strategy
+similar to SF&amp;GPI for multi-task reinforcement learning.
+
+
+To summarize, our main contributions are:
+- Introduction of SFNEC, a novel approach integrating sample-efficient
+learning using episodic control with meta learning using SF&amp;GPI.
+- Empirical validation of SFNEC by showing its advantage over baseline
+SF&amp;GPI, and NEC.
+
+
+Background
+
+
+Reinforcement Learning
+
+
+Reinforcement learning [*REF*] refers to a learning
+process where an agent attempts to maximize cumulative rewards it can
+obtain while interacting with its environment. Reinforcement learning
+problems are formalized as Markov Decision Processes
+(MDPs) [*REF*]. A MDP is a tuple (*MATH*),
+where *MATH* is the state space,
+*MATH* is the action space, *MATH* is the state
+transition probability distribution function *MATH* 
+defining the probability of ending in state
+*MATH* after an agent takes action *MATH* in state
+*MATH* at the current time step *MATH*, and
+*MATH* is the reward function associated with a
+transition *MATH*. The goal of a reinforcement learning
+agent is to learn a policy *MATH*, a mapping from states to actions, so
+as to maximize the expected sum of discounted rewards *MATH*,
+called the return, where *MATH* are the rewards received at each
+time step, and *MATH* is the discount factor used to
+determine how much weight is accorded to future rewards.
+
+
+Value function based methods represent a large class of reinforcement
+learning algorithms based on classical dynamic
+programming [*REF*]. They learn a value function, here
+an action value function, that can be recursively represented
+according to the Bellman equation: *MATH*.
+The policy is then defined by maximizing the Q-function:
+*MATH*. A widely used method within this class of algorithms is
+*MATH* -learning [*REF*] trying to learn the optimal
+Q-function: *MATH*.
+
+
+Classical *MATH* -learning is restricted to small problems because it
+requires a table of all state-action pairs which becomes prohibitive or
+even unfeasible when attempting to scale to high dimensional state
+spaces. Thus, more recently, powerful function approximators such as
+deep neural networks are used which allow methods like *MATH* -learning to
+scale to high dimensional state spaces, as exemplified in Deep
+Q-Network [*REF*] and more recent variants.
+
+
+Episodic Control
+
+
+Episodic memory [*REF*] is a model from the field of psychology,
+which refers to an autobiographical kind of memory about one&apos;s personal
+experiences. Likewise, episodic control [*REF*]
+implies the utilization of episodic memory for reinforcement learning by
+replaying stored action sequences from previous experiences.
+
+
+Neural Episodic Control:
+
+
+Neural Episodic Control (NEC) [*REF*] is a computational
+model of episodic control. Central to NEC, is a memory structure called
+differentiable neural dictionary (DND) which is a table *MATH* of a
+pair of dynamically growing arrays of keys and values *MATH* for
+each action *MATH*. The keys here represent a
+learned representation of the agent state, while the values are
+*MATH* -value estimates. To estimate the *MATH* -value for a particular *MATH* 
+pair, a lookup is performed with the corresponding DND for action *MATH* 
+using a query key *MATH*, which is a lower-dimensional representation of
+*MATH*. The governing equation is: *MATH*, where
+*MATH* corresponds to *MATH* -values stored in *MATH* and *MATH* are weights
+corresponding to the result of a normalized kernel *MATH* between the query
+key *MATH* and keys *MATH* in *MATH* as follows *MATH*.
+
+
+Two techniques were employed to enable the scalability of this model.
+First, the number of elements involved in lookups was limited to the top
+*MATH* nearest neighbours, efficiently found using a k-d tree. Second, the
+sizes of the DNDs were kept limited by removing the least recently used
+items. Furthermore, the values stored in memory were *MATH* -step Q-value
+estimates: *MATH*. Updates to keys already found in the DND memory store while learning
+were done using *MATH* -learning as *MATH*.
+
+
+Meta and Transfer Learning
+
+
+Meta [*REF*] and transfer learning [*REF*; *REF*; *REF*] refer
+to methods that allow knowledge learned from one or several tasks to be
+reused when faced with new tasks. In reinforcement learning, these tasks
+are defined by a set of MDPs *MATH*. To have a transfer between
+MDPs, some shared structure must exist between them. For example,
+consider an agent facing a set of navigation tasks in a sequence.
+Assuming the dynamics remain the same across these tasks, we can specify
+the desired behaviour by rewarding the agent to reach specific
+locations. Thus, specifying different tasks for an agent in this
+environment corresponds to different reward functions based on its
+location. In this paper, we are interested in this setting for transfer
+where successive tasks solved by an agent only differ in their reward
+functions. A prominent method for this setting is the SF&amp;GPI
+framework [*REF*].
+
+
+Successor Features:
+
+
+Successor features (SF) are based on the idea of learning a value
+function representation that decouples rewards from environment
+dynamics [*REF*]. This is accomplished under the
+assumption that rewards are a linear combination of features
+*MATH* that depend on a state transition and a weight vector
+*MATH*: *MATH*. Features describe the essential aspects of states for evaluating them
+with a reward function in a low-dimensional representation. Each MDP in
+*MATH* has a different weight vector that defines its reward
+function, and the features are shared between all MDPs. As a result, the
+*MATH* -function rewrites as: *MATH* where *MATH* are known as the
+successor features (SF) of (*MATH*, *MATH*) under policy *MATH*. Also, SF
+satisfy a Bellman equation: *MATH*,
+and thus can be learned using conventional reinforcement learning methods.
+
+
+Generalized Policy Improvement:
+
+
+Generalized policy improvement (GPI) is an operation to combine multiple
+policies, i.e. policies that were learned in previous tasks, to define a
+policy *MATH* for a new task: *MATH*. Using the SF decomposition
+*MATH*, the GPI operator becomes *MATH*.
+As a result, the operator allows reevaluating old policies in a new task
+with reward weight vector *MATH* to
+chose the best action according to them. Based on this, an algorithm for
+transfer using SF&amp;GPI was proposed in [*REF*] called SFQL.
+
+
+Method: The SFNEC Model
+
+
+FIGURE
+
+
+Our proposed model, SFNEC (Fig. [1]), extends NEC to learn successor features
+*MATH* in place of scalar action-values. Like NEC, which learns *MATH* -step
+*MATH* -values, SFNEC learns *MATH* -step *MATH* -values: *MATH*. 
+
+
+To perform a lookup using the SFNEC model, we use
+Equation: *MATH* where *MATH* corresponds to a previously
+stored *MATH* -value for a state *MATH* in
+memory, and *MATH* is the kernel used to compute a similarity score between
+the query state *MATH* and states in memory *MATH*. We note that we
+directly used the state vector *MATH* as keys in memory for our
+experiments. In general, the NEC architecture allows training an
+embedding network to learn a lower-dimensional state embedding to be
+used as keys in memory. Similar to NEC, we limit the elements in memory
+used during lookups to the top nearest neighbours, e.g., *MATH*. Likewise,
+we also used the inverse distance kernel used in [*REF*]: *MATH*.
+
+
+During training, *MATH* -values are updated
+after observing *MATH* transitions. When the
+*MATH* -value for a state action pair *MATH* 
+does not exist previously in memory, *MATH* -step estimates computed using
+Equation are inserted in the corresponding DND for
+action *MATH*. On the other hand, *MATH* -values
+already in memory are updated using: *MATH*.
+
+
+We defer for details of the algorithm and the training procedure to
+Appendix [9].
+
+
+Experiments 
+
+
+We evaluated SFNEC in the two-dimensional object collection environment
+(Fig.) proposed by [*REF*]. The environment consists of four rooms with a
+start location in the bottom left denoted &apos;S&apos;, and a goal location in
+the top right denoted &apos;G&apos;. Multiple objects exist within the rooms
+belonging to three classes shown as a circle, square, and triangle. The
+goal is to navigate from the start position to the goal position while
+picking up objects to maximize the cumulative rewards. Objects once
+picked up disappear and reappear at the beginning of a new episode. To
+utilize the SF&amp;GPI framework as defined in [*REF*], it
+is necessary to have a linear decomposition of rewards into features and
+weights as *MATH*. The features describe the picked up object classes and if the goal state
+is reached using a binary representation: *MATH*. The first three feature
+components represent if an object belonging to one of the three classes
+has been picked, while the last component represents if the goal state
+is reached. Thus, rewards associated with each transition can be
+expressed as a dot product between these features and weight vectors
+*MATH* that contain the reward associated with picking up each object class and
+reaching the goal. Different tasks in the environment are then defined
+by setting a weight vector *MATH*.
+
+
+To demonstrate good performance, an agent faces a series of tasks, each
+being a different instantiation of *MATH* with the aim of maximizing the
+sum of rewards accumulated by the agent. In general, we follow the same
+setup for this environment as in [*REF*] with further
+details given in Appendix [10]. We compare SFNEC with SFQL, NEC, and a
+version of SFNEC without GPI.
+
+
+Results: 
+
+
+We compared the average return per task over *MATH* runs of each algorithm
+(Fig. [2]). SFNEC with GPI performs best,
+outperforming NEC and SFQL agents. We expect this as SFNEC combines
+learning speed from episodic control on each task with the strong
+transfer conferred by SF&amp;GPI.
+
+
+Furthermore, we note that NEC and SFNEC without GPI show a significantly
+improved learning speed over the SFQL baseline during the first *MATH* 
+tasks due to their episodic memory even without having a transfer
+mechanism.
+
+
+FIGURE
+
+
+Discussion 
+
+
+Complementary benefits of episodic control and SF&amp;GPI:
+
+
+Like SFQL, SFNEC learns *MATH* -values and
+utilizes GPI. However, SFNEC uses episodic memory, which means the main
+advantage we expect would be improved learning speed compared to SFQL.
+This is confirmed in the results (Fig. [2]) as SFNEC rises in performance much
+faster than SFQL, even though they reach similar performance levels in
+the long run due to both algorithms utilizing GPI for transfer. On the
+other hand, NEC and SFNEC without GPI also employ episodic control but
+differ from SFNEC by not utilizing GPI but attempting to learn each task
+from scratch rapidly. More specifically, NEC directly learns *MATH* -values,
+while SFNEC without GPI learns *MATH* -values.
+We observe that SFNEC without GPI and NEC perform similarly and can
+demonstrate reasonably strong performance in learning all tasks
+individually due to their usage of episodic control. However, they are
+not able to match the long-run performance of SFNEC. Putting both
+comparisons together, we deduce that the combination of episodic control
+with transfer using the SF&amp;GPI framework in SFNEC brings together rapid
+learning and transfer. However, as can be seen towards the right end of
+Fig. [2], SFQL would most probably overtake
+SFNEC in subsequent phases. This is similar to the observation reported
+in [*REF*] where parametric methods like DQN outperform
+NEC in the long run. We leave an investigation of integrating methods
+proposed to tackle this into SFNEC for subsequent work.
+
+
+Learning a lower-dimensional state embedding:
+
+
+We conducted further preliminary experiments with SFNEC that attempted
+to learn a lower-dimensional state embedding for the keys of the DND,
+like the original setup in NEC. However, this did not yield good results
+yet. We hypothesize that this might be due to higher approximation
+errors introduced when learning an embedding. With the method we used in
+this paper, where we did not learn an embedding, we have the advantage
+that the keys are stable as they come directly from environment
+observations. Thus, learning is easier for the agent as it is not
+burdened with a representation learning stage. Logically, we can expect
+that if the agent cannot learn a good embedding to produce keys in the
+DND for a particular task, then reusing this on a new task can lead to
+erroneous predictions of the *MATH* -values.
+Essentially, this would mean the approximation error could be high for
+the policies involved in the GPI procedure because of inaccurately
+learned embeddings, which could result in poor performance.
+
+
+Related work 
+
+
+Episodic Control:
+
+
+Several improvements and extensions to NEC have been proposed. In
+[*REF*] Episodic Memory Deep Q Network was proposed, an
+architecture that augments DQN with an episodic memory-based estimate.
+They found that combining this with a TD estimate improved sample
+efficiency and long-term performance over DQN and NEC.
+[*REF*] investigated adding principled
+exploration to NEC by combining episodic control with maximum entropy
+mellowmax policy. [*REF*] on the other
+hand, proposed using dynamic online k-means to improve the memory
+efficiency of NEC. Likewise, [*REF*] proposed to further
+optimize the usage of the contents of the episodic memory store by
+considering the relationship between contents of episodic memory.
+Finally, [*REF*] recently introduced Generalizable
+Episodic Memory which extends the applicability of episodic control to
+continuous action domains. These extensions are parallel developments to
+SFNEC and could be integrated with it.
+
+
+Successor Features:
+
+
+A few extensions to successor features exist. A relaxation of the
+condition that reward functions be expressed as a linear decomposition,
+as well as a demonstration of how to combine deep neural networks with
+SF&amp;GPI was introduced in [*REF*]. Another direction aims to
+learn appropriate features from data such as by optimally reconstruct
+rewards [*REF*], using the concept of mutual
+information [*REF*], or the grouping of temporal similar
+states [*REF*]. A further direction is the
+generalization of the *MATH* -function over policies
+[*REF*] analogous to universal value function
+approximation [*REF*]. Similar approaches use successor
+maps [*REF*], goal-conditioned policies
+[*REF*], or successor feature sets [*REF*].
+However, none of these extensions studied the usage of SF in combination
+with episodic memory.
+
+
+Conclusion 
+
+
+We introduced SFNEC, and showed its viability as a framework that
+combines rapid learning and transfer. However, a few problems would need
+to be addressed to obtain a robust practical implementation. An example
+would be investigating methods for reducing memory requirements as this
+is a real-world constraint. Similarly, deciding when to learn tasks or
+automatically detect task switches is an area to tackle. Some
+suggestions for tackling such problems have been pointed out in
+[*REF*], and we believe it would be fruitful work to
+investigate applying SFNEC on real-world tasks with an evaluation of
+different techniques to handle these various challenges.

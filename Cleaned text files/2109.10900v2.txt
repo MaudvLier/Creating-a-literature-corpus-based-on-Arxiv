@@ -1,0 +1,590 @@
+Towards Multi-Agent Reinforcement Learning using Quantum Boltzmann Machines
+
+
+Introduction
+
+
+Recently, adiabatic quantum computing has proven to be a useful
+extension to machine learning tasks
+[*REF*; *REF*; *REF*; *REF*]. Especially hard
+computational tasks with high data volume and dimensionality have
+benefitted from the possibility of using quantum devices with
+manufactured spins to speed-up computational bottlenecks
+[*REF*; *REF*; *REF*].
+
+
+One specific type of machine learning is Reinforcement Learning (RL),
+where an interacting entity, called agent, aims to learn an optimal
+state-action policy through trial and error [*REF*]. Reinforcement
+Learning has gained the public attention by defeating the 9-dan Go
+grandmaster Lee Sedol [*REF*], which has been thought to be
+impossible for a machine. In the latest years, reinforcement learning
+has seen many improvements, gained a large variety of application fields
+like economics [*REF*], autonomous driving [*REF*], biology
+[*REF*] and even achieved superhuman performance in chip design
+[*REF*]. Reinforcement Learning has only seen quantum speed-ups
+for specials models [*REF*; *REF*; *REF*; *REF*].
+Especially multi-agent domains have rarely been researched [*REF*].
+
+
+Real-world reinforcement learning frameworks predominantly use deep
+neural networks (DNNs) as function approximators. Since DNNs are
+powerful - see the latest prominent example AlphaFold2 [*REF*] -
+and can be run efficiently for large datasets on classical computers,
+deep reinforcement learning is able to tackle complex problems in large
+data spaces. Hence, there was little need for improvements.
+
+
+However, since recent work has proved speed-ups for classical RL by
+leveraging quantum computing [*REF*; *REF*] and the application
+field gets more and more complex, it could be beneficial to explore
+quantum RL algorithms. These inspiring studies considered Boltzmann
+machines [*REF*] as function approximator - instead of traditionally
+used DNNs. Boltzmann machines are stochastic neural networks, which are
+mainly avoided due to the fact, that their training times are
+exponential to the input size. Since finding the energy minimum of
+Boltzmann machines can be formulated as a \&quot;Quadratic Unconstrained
+Binary Optimization\&quot; (QUBO) problem, simulated annealing respectively
+quantum annealing is well suited to accelerate training time.
+
+
+Nevertheless, the combination of RL and Boltzmann machines using
+(simulated) quantum annealing only worked properly for small
+single-agent environments and reached its limit at a simple *MATH* 
+multi-agent domain. This work proposes an architecture inspired by DQNs
+[*REF*] to enable more complex domains and stabilize learning by using
+experience replay buffer and separating policy and target networks. We
+thoroughly evaluate the effects of these augmentations on learning.
+
+
+Lately, an inspiring novel method to speed-up quantum reinforcement
+learning for large state and action spaces by proposing a combination of
+regular NNs and DBMs/QBMs, namely Deep Energy Based Networks (DEBNs)
+was proposed [*REF*]. More specifically, these architectures are
+constructed with an input layer consisting of action and state units,
+which are connected with the first hidden layer through directed
+weights. This is followed by a single undirected stochastic layer. The
+remaining layers are linked with directed deterministic connections.
+Lastly, a final output layer returns the negative free energy *MATH*.
+
+
+In contrast to QBMs, DEBNs therefore only comprise one stochastic layer,
+return an output similar to traditional deep neural networks and can be
+trained through backpropagation. DEBNs also use an experience replay
+buffer and separate the policy and target network. Additionally, they
+allow to trade off learning performance for efficiency of computation.
+Jerbi et al. briefly stated, that QBMs are applicable. Unfortunately, no
+numerical results were given for purely stochastic, energy-based QBM
+agents or domains with multiple agents. We aim to build on this.
+
+
+Summarized, our contribution is three-fold:
+- We provide a Quantum Reinforcement Learning (Q-RL) framework, which
+stabilizes learning leading to more optimal policies
+- Based on single- and multi-agent domains, we provide a thorough
+evaluation on the effects of an Experience Replay Buffer and an
+additional Target Network compared to traditional QBM agents
+- Additionally, we demonstrate and discuss limitations to the concept
+
+
+We first describe the preliminaries about reinforcement learning and
+quantum Boltzmann machines underlying the proposed architectures.
+Afterwards, the state-of-the-art algorithm and extensions made to it
+will be explained. We test and evaluate the approach and finally discuss
+restrictions and potential grounds for future work.
+
+
+Preliminaries
+
+
+This chapter describes the basics needed to understand our proposed
+architecture. First, reinforcement learning and the underlying Markov
+Decision Process will be explained followed by Boltzmann Machines and
+the process of quantum annealing.
+
+
+Reinforcement Learning
+
+
+We first describe Markov Decision Processes as the underlying problem
+formulation which is followed by an introduction to reinforcement
+learning in general. The subsequent sections specify independent and
+cooperative multi-agent reinforcement learning.
+
+
+Markov Decision Processes
+
+
+The problem formulation is based on the notion of Markov Decision
+Processes (MDP) [*REF*]. MDPs are a class of sequential decision
+processes and described via the tuple *MATH*, where
+- *MATH* is a finite set of states and *MATH* the state of the MDP
+at time step *MATH*.
+- *MATH* is the set of actions and *MATH* the action the MDP takes
+at time step *MATH*.
+- *MATH* is the probability transition function. It
+describes the transition that occurs when action *MATH* is executed
+in state *MATH*. The resulting state *MATH* is chosen according to
+*MATH*.
+- *MATH* is the reward, when the MDP takes action *MATH* in state
+*MATH*. We assume *MATH*.
+
+
+Consequently, the cost and transition function only depend on the
+current state and action of the system. Eventually, the MDP should find
+a policy *MATH* in the space of all possible policies
+*MATH*, which maximizes the return *MATH* at state *MATH* over an infinite
+horizon via: *MATH* with *MATH* as the discount factor. This policy is called the
+optimal policy *MATH*.
+
+
+Reinforcement Learning 
+
+
+Model-free reinforcement learning [*REF*] is considered to search
+the policy space *MATH* in order to find the optimal policy *MATH*. The
+interacting reinforcement learning agent executes an action *MATH* for
+every time step *MATH* in the MDP environment. In model-free
+algorithms, the agent acts without any knowledge of the environment and
+the algorithm only keeps information of the value-function. Therefore,
+the agent knows its current state *MATH* and the action space *MATH*, but
+neither the reward nor the next state *MATH* of any action *MATH* in
+any state *MATH*.
+
+
+Consequently, the agent needs to learn from delayed rewards without
+having a model of the environment. A popular value-based approach to
+solve this problem is Q-learning [*REF*]. In this approach, the
+action-value function *MATH* describes the accumulated reward *MATH* for an action *MATH* 
+in state *MATH*. The optimal Q-learning function *MATH* is approximated by
+starting from an initial guess for *MATH* and updating the function via: *MATH*.
+
+
+The learned Q-function will eventually converge to *MATH*, which then
+implies an optimal policy. In the traditional experiments a deep neural
+network is used as a parameterized function approximator to calculate
+the optimal action for a given state.
+
+
+Independent Multi-Agent Learning 
+
+
+When multiple agents interact with the environment, A fully cooperative
+multi-agent task can be described as a stochastic game G, defined as in
+[*REF*] via the tuple
+*MATH*, where:
+- *MATH* is a finite set of states. At each time step *MATH*, the
+environment has a true state *MATH*.
+- *MATH* is the set of actions. At each time step *MATH* each agent *MATH* 
+simultaneously chooses an action *MATH*, forming a joint
+action *MATH*.
+- *MATH* is the probability transition function as
+previously defined.
+- *MATH* is the reward as previously defined. All agents share
+the same reward function.
+- *MATH* is a set of observations of a partially or fully observable
+environment.
+- *MATH* is the observation function. Each agent draws observations
+*MATH* according to *MATH*.
+- *MATH* is the number of agents identified by
+*MATH*.
+- *MATH* is the discount factor.
+
+
+In independent multi-agent learning algorithms, each agent learns from
+its own action-observation history and is trained independently. This
+means, every agent simultaneously learns its own Q-function [*REF*].
+
+
+FIGURE
+
+
+Boltzmann Machines
+
+
+The structure of a Boltzmann machine (BM) [*REF*] is similar to
+Hopfield networks and can be described as a stochastic energy-based
+neural network. A traditional BM consists of a set of visible nodes *MATH* 
+and a set of hidden nodes *MATH*, where every node represents a binary
+random variable. The binary nodes are connected through real-valued,
+bidirected, weighted edges of the underlying undirected graph. The
+global energy configuration is generally given by the energy level of
+Hopfield networks. Since clamped BMs fix the assignment of the visible
+binary variables, these nodes are removed from the underlying graph and
+contribute as constant coefficients to the associated energy. Therefore
+the formula, which we aim to minimize, is given as the energy level of
+Hopfield networks with constant visible nodes: *MATH*.
+
+
+For this work, we implemented a Deep Boltzmann Machine (DBM) as
+trainable state-action approximator, which is constructed with multiple
+hidden layers, one visible input layer for the state and one visible
+action input layer. Finally, we modified the DBM to get a Quantum
+Boltzmann Machine (QBM), where qubits are associated to each node of the
+network instead of random binary variables
+[*REF*; *REF*; *REF*]. A visualization of a QBM for seven
+state neurons and five input action neurons can be seen in figure
+[1]. For any QBM with *MATH* and *MATH*, the energy function is described by the
+quantum Hamiltonian *MATH*: *MATH*. 
+
+
+Furthermore, *MATH* is the annealing parameter, while *MATH* 
+and *MATH* are spin-values of node *MATH* in the *MATH* and *MATH* 
+direction. Because measuring the state of one direction destroys the
+state of the other, we follow the architecture of Neumann et al. (2020)
+[*REF*] and replace all *MATH* by *MATH* by using
+replica stacking based on the Suzuki-Trotter expansion of the
+Hamiltonian *MATH*. The BM is replicated *MATH* times in total
+and connections between corresponding nodes in adjacent replicas are
+added. By this, we obtain a new effective Hamiltonian
+*MATH* in its clamped version given by: *MATH*.
+
+
+For each evaluation of the Hamiltonian, we get a spin configuration
+*MATH*. After *MATH* reads for a fixed combination of *MATH* and
+*MATH*, we get a multi-set *MATH*. We average
+over this multi-set to gain a single spin configuration
+*MATH*, which will be used for updating the network. If a
+node is *MATH* or *MATH* depends on the global energy configuration:
+*MATH* with *MATH* as the current temperature.
+
+
+Since the structure of Boltzmann Machines are inherent to Ising models,
+we sample spin values from the Boltzmann distribution by using simulated
+quantum annealing, which simulates the effect of transverse-field Ising
+model by slowly reducing the temperature or strength of the transverse
+field at finite temperature to the desired target value [*REF*]. As
+proven in [*REF*], spin system defined by simulated quantum
+annealing converges to quantum Hamiltonian. Therefore it is
+straightforward to use simulated quantum annealing (SQA) to find a spin
+configuration for *MATH* - given *MATH* - which minimizes the free
+energy.
+
+
+Quantum Reinforcement Learning 
+
+
+Recently, quantum reinforcement learning algorithms (QRL) using
+boltzmann machines and quantum annealing of single agent [*REF*]
+and multi-agent domains [*REF*] for learning grid-traversal
+policies have been proposed. Although, these architectures were able to
+learn optimal policies in less time steps compared to classic deep
+reinforcement learners (DRL), they could only be applied to single-agent
+or small multi-agent domains. Unfortunately, already *MATH* 
+domains with 2 agents could not be solved optimally [*REF*]. QRL
+seems to be unstable for more complex domains. We intuitively assume
+that BMs underlie similar instability problems as traditional neural
+networks. Hence, by correlations present in the sequence of observations
+and how small updates to the Q-values change the policy, data
+distribution and therefore the correlations between free energy
+*MATH* and target energy *MATH*. Inspired by
+Deep Q-Networks [*REF*], we propose to enhance the state-of-the-art
+architecture as described in section [3.1] by adding an experience replay buffer (see section
+[3.2]) to randomize over transitions and by separating the network calculating the policy and the
+network approximating the target value (see section [3.3]) in order to
+reduce correlations with the target.
+
+
+State of the Art 
+
+
+Traditionally, single-agent reinforcement learning using quantum
+annealing and QBMs is an adaption of Sallans and Hintons (2004)
+[*REF*] RBM RL algorithm and structured as follows:
+
+
+Initialization.
+
+
+The weights of the QBM are initialized by setting the weights using
+Gaussian zero-mean values with a standard deviation of 1.00. The
+topology of the hidden layers is set beforehand.
+
+
+Policy.
+
+
+At the beginning of each episode, every agent is set randomly onto the
+grid and receives its corresponding observation. At each time step *MATH*,
+every agent *MATH* independently chooses an action *MATH* according to
+its policy *MATH*. To enable exploration, we implemented an
+*MATH* -greedy policy, where the agent acts random with probability
+*MATH*, which decreases by *MATH* with each
+training step until *MATH* is reached. When the agent
+follows its learned policy, we sweep across all possible actions and
+choose the action which maximizes the Q-value for state *MATH*. The
+Q-function of state *MATH* and action *MATH* is defined as the corresponding
+negative free-energy *MATH*: *MATH* as the vector of weights of a QBM and *MATH* as: *MATH*.
+Summarized, the agent acts via: *MATH* for *MATH* and random variable *MATH*.
+
+
+Weight Update.
+
+
+The environment returns a reward *MATH* and second state
+*MATH* for each agent *MATH*. Based
+on this transition, the QBM is trained. The used update rules are an
+adaption of the state-action-reward-state-action (SARSA) rule by Rummery
+et al. (1994) [*REF*] with negative free energy instead of Q-values
+[*REF*] defined as: *MATH* with *MATH* as the discount factor and *MATH* as the
+learning rate. The free energy and configurations of the hidden neurons
+are gained by applying simulated quantum annealing respectively quantum
+annealing to the formulation of the effective Hamiltonian
+*MATH* as described in the previous section. At each
+episode, this process is repeated for a defined number of steps or until
+the episode ends.
+
+
+Experience Replay Buffer 
+
+
+The first extension is a biologically inspired mechanism named
+experience replay [*REF*; *REF*]. O&apos;Neill et al. (2010)
+found, that the human brain stabilizes memory traces from short- to
+long-term memory by replaying memories during sleep and rest. The
+reactivation of brain-wide memory traces could underlie memory
+consolidation. Similar to the human brain, experience replay buffers
+used in deep Q-networks (DQN) store experienced transitions and provides
+randomized data during updating neural connections. Hence, correlations
+of observation sequences are removed and changes in the data
+distribution are smoothed. Furthermore, due to the random choice of
+training samples, one transition can be used multiple times to
+consolidate experiences.
+
+
+To enable experience replay, at each time step *MATH* we store the each
+agents&apos; experience *MATH* in a data set *MATH*. For every training step, we randomly
+sample mini-batches from *MATH* from which to Q-learning updates are
+performed.
+
+
+This means, instead of updating the weights on state-action pairs as
+they occur, we store discovered data and perform training on random
+mini-batches from a pool of random transitions.
+
+
+Policy and Target Network 
+
+
+In order to perform a training step, it is necessary to calculate the
+policy value *MATH* and target value *MATH*.
+Currently, policies and target values are approximated by the same
+network. Consequently, Q-values and target values are highly correlated.
+Small updates to Q-values may significantly change the policy, data
+distribution and target.
+
+
+To counteract, we separate policy network calculating *MATH* 
+from the target network approximating *MATH*. Both
+networks are initialized similarly. The policy network is updated with
+every training step, whereas the target network is only periodically
+updated. Every *MATH* steps, the weights of the policy network are simply
+adopted by the target network.
+
+
+Multi-Agent Quantum Reinforcement Learning
+
+
+In this work, we explore independent quantum learning in cooperative and
+non-cooperative settings. The explicit requirement for cooperation is
+communication [*REF*]. We enable communication via parameter
+sharing as proposed by Foerster et al. (2016) [*REF*]. In this
+case, every agents&apos; transition is stored in a centralized experience
+replay buffer and only one BM is trained. Each agent receives its own
+observation and the centralised network approximates the agents&apos; Q-value
+independently. Whereas in non-cooperative settings, every agent keeps
+and updates its own BM solely with its own experiences without any
+information exchange. The policy and weight updates are performed as
+described in the previous section.
+
+
+Evaluation 
+
+
+Domain
+
+
+To evaluate our approach, we implemented a discrete *MATH* 
+multi-agent grid-world domain with *MATH* deterministic rewards and *MATH* 
+agents. At every time step *MATH* each agent independently chooses an
+action from action space *MATH* depending on the
+policy *MATH*. More specifically, the goal of every agent is to collect
+corresponding balls while avoiding obstacles (e.g. walls and borders)
+and penalty states (e.g. pits and others&apos; balls). The environment size,
+number of agents, balls and obstacles can be easily modified. Reaching a
+target location is rewarded by a value of 220, whereas penalty states
+are penalized by -220 and an extra penalty of -10 is given for every
+needed step. An agent is done, when all its corresponding balls were
+collected. Consequently, we consider the domain as solved, when every
+agent is done. The main goal lies in efficiently navigating through the
+grid. Two example domains can be seen in figure [2].
+
+
+The starting position of all agents are chosen randomly at the beginning
+of each episode whereas the locations of their goals are fixed. The
+observation is one-hot-encoded and divided into two layers. One layer
+describes the agents&apos; position and its goal and the other layer details
+the position of all other agents and their goals. This observation is
+issued as input for the algorithm. Therefore, the input shape is
+*MATH*. To asses the learned policies, we use the
+accumulated episode rewards as quality measure.
+
+
+FIGURE
+
+
+Single-Agent Results
+
+
+First, we evaluate how adding an experience replay buffer and
+separating policy and target network influences the learning process and
+performance of a single agent. We started by running the traditional
+Q-RL algorithm as proposed by Neumann et al. (2020) [*REF*]
+including their parameter setting. Then, we only added an experience
+replay buffer respectively solely the target network. Finally, we
+extended the original algorithm with a combination of both, an ERB and
+target network. The resulting rewards on running all four architecture
+on the *MATH* domain (see figure [2]) can be seen in figure a) 
+and the corresponding learned policy in
+figure b). All graphs have been averaged over ten
+runs. The traditional Q-RL agent without any extensions (blue line)
+learns unstable with occasional high swings down to -1700 and -1000
+reward points. Extended versions seem to be show less outliers. This
+observation gets more evident, when conducting the same experiment on a
+bigger *MATH* environment. As seen in figure c) - d) the achieved rewards of non-extended
+agents (blue) collapses frequently. The ERB (black) respectively target
+network (green) alone stabilize learning, but the combination of both
+(red) yields smoothest training curve. Hence, these enhancements are
+getting more important with bigger state space and more complex
+environments.
+
+
+FIGURE
+
+
+After training, we evaluate the resulting policies for 100 episodes
+without further training. The average rewards of ten test-runs on the
+*MATH* domain can be seen in figure b). As already described, an agent is rewarded
++220 points for reaching its goal and -10 for each taken step. So, when
+considering an optimal policy, the agent would be awarded +190 for the
+*MATH* domain (respectively +170 for *MATH*) if the agent is
+spawned furthest from its goal and +220 for the best starting position.
+Assuming the starting positions over all episodes are distributed
+evenly, the optimal median reward would be at +205 for the *MATH* 
+domain and +195 for the *MATH* environment.
+
+
+The traditional QBM agent shows multiple outliers and a higher spread of
+rewards throughout the evaluation episodes compared to the other
+architectures. As it can be seen, adding only one of the extensions
+leads to a better median reward and a seemingly optimal policy is gained
+through a combination of both. Again, this observation gets more
+distinct with bigger domains, see figure d). Even though ERB or target network alone
+significantly enhance the median reward, the plots still show outliers.
+The combined architecture is free of outliers with less interquartile
+range and lower overall span indicating reduced variance of training
+performance and nearly optimal policy. In summary, alleviating data
+correlation and the problems non-stationary distributions by randomly
+sampling previous transitions and separating target and policy network
+increases stable learning leading to robust and more optimal policies.
+Comparing the results for *MATH* with the *MATH* gridworld,
+a correlation of impact through the extensions and input size can be
+suspected.
+
+
+Multi-Agent Results
+
+
+Traditional Q-RL was limited so *MATH* multi-agent domains and
+bigger domains could not be solved rationally [*REF*]. This section
+explores, if the proposed architecture enables multi-agent reinforcement
+learning. We modify the known environments by adding one agent and one
+corresponding goal. If an agents picks up the others goal, it is
+penalized with -220. The averaged results over 10 runs can be seen in
+figure [3].
+
+
+The graphs suggest, that *MATH* domain (blue) can be solved in
+contrast to the bigger environment (red). Looking at figure
+[3] b), the median reward of the learned policy on the smaller domain is
+around +350, which is near optimum. Unfortunately, the bigger domain
+could not be solved with a median reward of -450. Additionally, the
+*MATH* learning curve does not seem to converge. Therefore, we can
+conclude, that it is possible to solve bigger domains with the proposed
+architecture, but Q-RL with ERB and extra target network still fails in
+somewhat larger multi-agent domains.
+
+
+FIGURE
+
+
+Lastly, we explore if the cooperation method of parameter sharing
+enhances quantum multi-agent reinforcement learning. With parameter
+sharing no explicit communication is necessary since only one
+centralized entity is trained and shared between the agents. More
+specifically, the experience of every agent is stored in a centralized
+ERB. At each training step, one QBM is trained with a randomized sample
+from the ERB similar to the single-agent case. Both agents use this
+network to independently calculate their Q-values based their
+observation. By this, we additionally smooth the data distribution
+hoping to achieve a more general policy and not two specific policies
+adjusted to particular observations.
+
+
+The results with and without parameter sharing are illustrated in figure
+[4]. Unfortunately, parameter sharing seems to
+have a negative effect on the small *MATH* domain. In this case,
+the agents seem to have learned a worse policy with this adaption.
+Rewards on the bigger environments have increased. However, the
+*MATH* domain can still not be considered solved. Hence, parameter
+sharing is sub-optimal for the evaluated use case.
+
+
+The complexity of the task and size of the input did not increase, so
+this observation is counter-intuitive. Since the centralized entity is
+simultaneously learning two independent behaviors, it might be possible
+that in this case two independently optimal action-state probability
+distributions (as learned without parameter sharing) cancel out each
+other when learned together. To proof this assumption, more experiments
+must be conducted.
+
+
+FIGURE
+
+
+Discussion
+
+
+In summary, adding an ERB and additional target network alleviates data
+correlation and the problem of non-stationary distribution resulting in
+stabilized learning and a more optimal policies. With the proposed
+architecture, we were able to solve bigger environments compared to
+traditional MARL using QBMs. However, this architecture is still limited
+to relatively small domains.
+
+
+Even though it is possible to coordinate a single agent in the
+*MATH* domain and multiple agents in a smaller domain. The
+question remains why the *MATH* multi-agent domain fails. The
+QBM-agent receives an input of 15 neurons on *MATH* single-agent
+domain since only one input layer is needed. When adding more agents to
+the environment, there is another input layer necessary in order to
+distinguish between the acting agent and other opposing agents. Hence,
+the *MATH* multi-agent domain returns an observation size of 18
+and bigger multi-agent domain of size 30. The input are considered in
+the QUBO formulation, which therefore increases. Hence, simulated
+quantum annealing is applied to a bigger formulation. A bigger
+formulation demands more qubits, which may limit the accuracy, variation
+and stability of the quantum annealing algorithm. This is only an
+assumption and needs to be examined more closely. Neumann et al. (2020)
+also already stated, that Q-RL is limited by the current Quantum
+Processing Unit (QPU) size. However, with the extension of an Experience
+Replay Buffer and Target Network, we are able to stabilize learning and
+therefore may reduce the needed QPU size compare to previous approaches.
+
+
+Quantum sampling has been proven to be a promising method to enhance
+reinforcement learning tasks to speed-up learning in relation to needed
+time steps [*REF*]. Further work concerning the relation between
+QPU size and domain complexity (respectively state input) would needed
+to strictly determine current limitations.

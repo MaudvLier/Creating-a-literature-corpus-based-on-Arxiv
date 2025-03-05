@@ -1,0 +1,636 @@
+Multitask Adaptation by Retrospective Exploration with Learned World Models
+
+
+Introduction
+
+
+We address the problem of reinforcement learning (RL) in a multitask
+setting. Modern advances in deep RL are primarily associated with using
+model-free approaches operating in fully observable environments
+[*REF*]. However, their practical use, for example, in mobile
+robotics [*REF*; *REF*] and unmanned transport
+systems [*REF*], is limited primarily due to sample inefficiency
+[*REF*]. This means that the agent needs to perform many actions in
+a complex, computationally expensive environment to generalize the
+incomplete information received and form a policy to achieve the goal.
+Improving task generalization is one of the central challenges in
+reinforcement learning [*REF*; *REF*], and moving in this direction
+will significantly expand the range of applications of modern RL
+methods.
+
+
+Goal conditioned RL [*REF*; *REF*], Hierarchical RL
+[*REF*; *REF*], Meta-RL [*REF*; *REF*], and model-based RL [*REF*]
+should be considered as promising areas for solving the task
+generalization problem. It is the combination of the latter two
+approaches that are considered in this paper, with an emphasis on the
+tasks of training a robotic agent in a photorealistic environment.
+
+
+The automatic learning and use of the agent-environment interaction
+model have shown its effectiveness in game [*REF*; *REF*] and robotic
+[*REF*; *REF*] environments. Several options were proposed for using
+the environment model in the agent learning process: to generate
+additional &quot;virtual\&quot; agent steps in the environment [*REF*], to
+simulate full episodes to more accurately approximate the Q-value
+[*REF*; *REF*], and to directly learn the policy only on
+&quot;imaginary\&quot; trajectories [*REF*; *REF*]. In all these cases,
+replacing the actual environment with the modeled one can significantly
+reduce the required number of interaction episodes. However, replacing
+the original environment requires special attention to constructing
+compact and accurate models, so in model-based RL, the critical problem
+is developing a reliable way to represent and update the model. One of
+the most promising approaches is the use of neural world models [*REF*],
+in which recurrent architectures encode the dynamics and
+cause-and-effect relationships. The key task here, especially in the
+case of visual image-based states of the environment, is the correct
+formation of the latent space, in which temporal dependencies and
+transitions of the environment are modeled. Variational Autoencoders
+[*REF*] have shown their effectiveness here.
+
+
+In this work, we propose solving the task generalization problem and
+expanding the possibilities of using model-based RL, based on neural
+network world models, for the case of adapting experience from multiple
+tasks. Thus, we will deal with the case of forming a single agent policy
+in a sequence of different tasks. Each of these tasks would have its own
+goal. We seek to achieve faster learning of new tasks by reusing the
+knowledge gained while solving previous tasks. This is also highly
+related to the problem of sample efficiency; still, task generalization
+is a central scope of this work. We claim that the agent that is using
+prior tasks information (e.g. data, environment) can generalize better
+if its sample efficiency for the current task is higher compared to the
+agent that does not. As an example of such agents, we propose a new
+meta-learning algorithm working with model-based RL --- Retrospective
+Addressing for Multitask adaptation (RAMa). Our algorithm adapts the
+agent&apos;s accumulated experience in solving various tasks through a
+retrospective study of specially organized address memory. We propose
+formalizing the multitask adaptation problem in the form of a meta-level
+Markov decision process (meta-MDP). It formalizes a process for which we
+will form a separate policy for finding the necessary agent&apos;s behaviors
+from the current experience to solve a new task (see Fig. with the
+general scheme of the algorithm).
+
+
+In robotics learning, the key issue is the use of photorealistic
+environments with plausible physics of the robot&apos;s interaction with the
+environment. However, increasing the likelihood leads to a severe
+complication of the agent&apos;s state space and actions, complicating the
+problem statement for reinforcement learning. We show that the effective
+memory organization for world models allows us to increase the
+efficiency of training a model-based RL agent in such cases as well.
+
+
+The work is organized as follows. After a brief overview of the related
+works in the field of world models, memory usage in RL, and adapting
+training samples, we give a formal problem statement for reinforcement
+learning with a recurrent state-space model (RSSM) [*REF*]. Then, we
+go on to describe the basic algorithm of our method with an analysis of
+the principles of its operation. In the experimental part, we offer two
+series of primary experiments. The first experiment is devised to check
+the principal ability of the model to benefit from the use of prior
+data. In this experiment, we provide the model access to the experience
+of the same task and test it in the DMC suite [*REF*]. In the
+second experiment, we show how the model can generalize across tasks to
+increase sample efficiency. We show the performance of the model in the
+Meta-World benchmark [*REF*], photorealistic NVIDIA Isaac
+environment, and DMC suite [*REF*].
+
+
+The main results of the work can be summarized as follows:
+1. We adapt RSSM-like [*REF*] world models for a multitask case to
+allow them to generalize across similar experiences from previously
+solved tasks within the domain to build a better world model and
+accelerate the convergence of an agent solving the current task.
+2. We propose an original addressing mechanism, whose training can be
+formalized in the form of a one-step meta-MDP.
+3. We show the actual effectiveness of the proposed method compared to
+using baseline model-based approaches without multitasking
+adaptation (such as PlaNet [*REF*], and Dreamer [*REF*]) on
+DeepMind Control Suite and the Meta-World benchmark [*REF*].
+4. We demonstrate the possibility of using model-based RL with an
+addressing mechanism in a photorealistic robotic simulator, which
+opens up the opportunity of reducing the severity of the sample
+efficiency problem in the robotic domain.
+
+
+Related Work
+
+
+A number of approaches leverage environment modeling, use the multitask
+approach for reinforcement learning, use memory to increase model
+capacity, or reweight training samples to yield better performance of
+the agent&apos;s learning process.
+
+
+Multitask reinforcement learning. Model-agnostic meta-learning
+[*REF*] alleviates multitask reinforcement learning by training a model
+with meta-objective, optimizing weights to be easily fine-tuned toward
+any task. Compared to that, our approach solves the tasks sequentially.
+Plan2Explore [*REF*] is quite close to our work as it answers the same
+research question: How to explore the environment so that the
+collected experience would be informative for future tasks? The main
+difference is that P2E explicitly includes the exploration stage
+maximizing a latent disagreement. In contrast, we focus on how to save
+as much environment interaction as possible by reusing and adapting
+experiences targeted at particular tasks. RL *MATH* [*REF*] uses RNN to
+encode information about the task into a fixed-size latent vector.
+
+
+Better models with memory. Variational Memory Addressing Variational
+Autoencoder (VMA-VAE) [*REF*], introduced an additional learnable
+addressing latent variable into VAE [*REF*] that was used to retrieve the
+data sample from memory in order to guide the generative process.
+Differentiable neural computers [*REF*] provide a read-write mechanism
+that allows explicitly memorizing, preserving, forgetting, and
+retrieving information from memory trained end-to-end.
+
+
+Memory in reinforcement learning. There is another branch of
+research similar to our work. It leverages memory for RL forming an
+episodic memory [*REF*; *REF*]. These models use
+continuously growing key-value storage where the key is a concatenated
+state-action pair representation, and the value is a Q-value estimate.
+The memory is used to build better action-value estimates using
+similarity search in the representation space. Compared to this
+approach, we store whole episodes into memory and set up memory to
+contain episodes that represent solutions for different tasks. MERLIN
+[*REF*] learns a world model with an auxiliary memory module that
+increases its predictive performance.
+
+
+Reweighting training samples. The Data Valuation algorithm (DVRL)
+[*REF*] is a meta-learning algorithm, which is close to our approach in
+the way that it trains the proposal distribution for data samples,
+optimized jointly with the main model. In contrast to our work, it uses
+one dataset to focus on robustifying the supervised model while we use
+multitask data built within one RL domain to focus on speeding up the RL
+algorithm on the current task. Learning-to-Reweight
+[*REF*] is a model-agnostic approach to reweighting data
+samples that aim at increasing the robustness.
+
+
+Background
+
+
+Reinforcement Learning
+
+
+We formulate the problem of reinforcement learning as the
+Partially-Observable Markov Decision Process (POMDP). Formally, POMDP is
+a tuple *MATH*, where *MATH* is the set of states of POMDP, *MATH* is the
+set of actions, and *MATH* is the set of observations. The
+environment changes its state according to the conditional transition
+distribution *MATH*, but the agent only has access to the
+output of the observation function *MATH*, *MATH*.
+The agent is defined by policy *MATH*.
+It interacts with a partially observable environment by taking actions
+on the environment and getting a next observation. We write
+*MATH* as a shorthand for *MATH*.
+The goal of the agent is to maximize its expected discounted sum of
+rewards *MATH*.
+
+
+Model-Based Reinforcement Learning with RSSM
+
+
+World models explicitly learn environment dynamics to generate novel
+experience [*REF*; *REF*]. Visual control tasks require efficient
+approaches to state prediction. When observations are non-Markovian,
+this can be achieved only by incorporating latent states. For latent
+dynamics learning, we use the RSSM [*REF*], which learns the dynamics
+by building a Markovian latent state for each timestep *MATH* given
+previous action *MATH* by autoencoding observations *MATH* and rewards
+*MATH*, which are non-Markovian. The world model consists of a
+representation model, or an encoder *MATH*,
+a transition model *MATH*, an observation model
+*MATH*, and a reward model *MATH*. The
+representation and transition models share common parameters in the RSSM
+network [*REF*]. The world model is trained to maximize the
+variational lower bound on the likelihood (ELBO) of the observed
+trajectory conditioned on actions *MATH*. This is done by
+incorporating an approximate posterior model
+*MATH*, which is known as a representation
+model. This model acts as a proposal distribution for states *MATH*.
+
+
+For behavioral training, we use the Dreamer agent [*REF*; *REF*]
+which trains the policy and its value function by latent imagination,
+an approach where policy *MATH* is optimized by predicting
+both actions *MATH* and states *MATH* without environment interaction.
+In particular, it uses a state-value function estimate on the latent
+state *MATH* on which the policy is trained to maximize, i.e. *MATH* where *MATH* is a
+multi-step value estimate with a hyperparameter *MATH* which controls
+the bias variance trade-off [*REF*]. As the transition and value
+models are parameterized by neural networks, we can backpropagate
+through the value function, the transition model, and the action
+sampling to compute symbolic gradients of the value estimates w.r.t.
+policy parameters.
+
+
+Multitask Adaptation by Retrospective Exploration 
+
+
+Having a set of tasks *MATH*, we train a model that proposes
+samples each solving *MATH*. Those samples are used to
+train the model-based agent. For each task in *MATH*, the agent
+is initialized from scratch, then is trained using a proposal model,
+putting the gathered experience into the global multitask dataset
+*MATH*. That is, all information about prior tasks is stored in
+*MATH* and in the parameters of the proposal model. In general,
+tasks may come from arbitrarily different environments. We, therefore,
+assume that environments for each of the tasks are semantically similar
+to each other and represent different aspects of the domain. Tasks may
+differ in their own task-specific reward function *MATH* and also in
+the state transition distribution (e.g. for the robotic manipulation of
+objects with different shapes). In our case, we approach the problem
+of multitask adaptation, which is the problem of adapting prior
+experiences that solve different tasks, to the current task. We
+leverage a mechanism that retrieves experiences and uses them to
+accelerate the training of the reinforcement learning agent for the
+current task *MATH*. We emphasize that, in general,
+*MATH*, where *MATH* are the tasks from
+*MATH* whose solutions are stored in *MATH*. Therefore, we
+have chosen model-based RL as we may need to approximate *MATH* for
+a newly retrieved experience.
+
+
+To enable the efficient selection of a multitask experience, we train
+the proposal distribution to score episodes from *MATH* and
+obtain the weights of categorical distribution to sample from. The
+samples are passed to the agent forming training batches. We refer to
+this model as the addressing model. For multitask adaptation, the
+addressing model is trained in a lifelong fashion. This is done by first
+training the MBRL agent with the addressing model on the first task
+*MATH*, with the same task experience being
+bootstrapped by the addressing model into the world model. Once the
+agent is converged, we proceed to the next task, with the agent being
+reinitialized, and the process repeats. The whole cycle is summarized in.
+
+
+ALGORITHM
+
+
+The adaptation is made by retrieving experiences relevant to the current
+task and similar to the current episode. To ensure the training episode
+will be relevant for the current task, we train the addressing model to
+select trajectories of experience which maximize the agent&apos;s performance
+on the current task. To select an episode that would be similar to one
+of the current tasks, the addressing model scores not just individual
+multitask trajectories but in comparison to the episode of the current
+task. This forces the addressing mechanism to retrospectively explore
+the past experience seeking for promising behavior to accelerate the
+agent&apos;s training for the current task.
+
+
+We refer to our method as Retrospective Addressing for Multitask
+Adaptation (RAMa). As we build addressing to make retrospectively
+explored episodes promising for the current task, a successful strategy
+would be to select such an experience that maximizes the expected
+agent&apos;s performance over imagined rollouts. Therefore, starting from
+real states, the imagination would be conditioned on exploratory states
+as they were not collected to optimize the current task.
+
+
+Adressing Mechanism
+
+
+FIGURE
+
+
+For selecting multitask trajectories from *MATH*, we use the
+learned addressing model parameterized by a neural network. The model
+compares trajectory *MATH* from the current
+task with a batch of multitask trajectories *MATH*. The model projects *MATH* 
+and each *MATH* into the embedding space and then calculates softmax
+logits for each *MATH* pair as a dot product in the embedding space.
+To select the multitask trajectory, we sample index *MATH* from
+distribution *MATH* that has the form: *MATH* where
+*MATH* is the learnable embedding of trajectory *MATH* or *MATH* 
+parametrized by a recurrent neural network with parameters *MATH*. We
+implement *MATH* as a recurrent neural network that consumes a
+sequence of actions concatenated with observation embeddings obtained
+from CNN. As the output, we use the last output vector of the recurrent
+network. In other words, we project trajectory *MATH* and each *MATH* into
+the embedding space. Next, we calculate the inner product between the
+embedding of *MATH* and the embedding of each *MATH*, and finally, we pass
+the resulting vector of the inner products to the softmax that gives
+probabilities for a categorical distribution. At preliminary
+experiments, we have observed that a trained CNN is crucial here as its
+presence significantly boosts the performance (see supplementary
+materials). This indicates that the features that are key to a good
+representation are not those that are required for good addressing.
+
+
+Expected Performance as an Objective for the Addressing Model
+
+
+We consider several approaches for training the address network. First,
+we feed each trajectory *MATH*,
+which is selected with respect to a particular trajectory *MATH* (i.e.
+*MATH*) to the RSSM and run latent imagination
+procedure to obtain its value estimates *MATH*. Then we
+sum the estimates over the imagination timesteps *MATH* and backpropagate
+gradients of the resulting scalar loss up to the gradients w.r.t. the
+weights *MATH* of the address network. We train the address network to
+minimize the objective: *MATH*. To enable efficient gradient computation, we use the
+straight-through gradient estimator [*REF*] to obtain differentiable
+samples *MATH* returned as one-hot vectors. We then multiply each of these
+one-hot vectors by a batch of expert trajectories *MATH* to obtain
+selection by index in a differentiable fashion. The overall process is
+outlined in Fig. We refer to this method as Value-based
+Retrospective Addressing for Multitask Adaptation (VRAMa).
+
+
+The multitask batch *MATH* is sampled from the multitask buffer
+*MATH*. The current task batch *MATH* is sampled from the same
+buffer sliced to only current task experience *MATH*. The
+addressing model learns to select such trajectories from batch *MATH*,
+leading to high rewards according to the imagined experience. As the
+addressing model is trained to maximize value estimates over the
+selection, it will learn features specific to the reward function of the
+current task. And also, as the model projects both *MATH* and *MATH* into the
+embedding space using the same parameters *MATH*, it can adaptively
+perform selection, anchoring each *MATH* around the current object *MATH*.
+These two properties combined lead to a model that clusters the
+trajectories in some space according to their behavior characteristics
+regarding the current task (e.g. by expected performance). This allows
+the model to select *MATH* from the locality of *MATH* in this space.
+
+
+Another approach for training the address network is to use the
+REINFORCE algorithm [*REF*]. For this, we sample
+*MATH*. Then we predict the rewards of the selected
+trajectory *MATH* using the Dreamer&apos;s reward model: *MATH*,
+*MATH* and update the address network to minimize the objective: *MATH*. 
+
+
+We refer to this meta-objective as REINFORCE Retrospective Addressing
+for Multitask adaptation (RRAMa) with the RSSM. Note that, unlike the
+previous objective, this one is agnostic to the choice of the world
+model kind as it only requires the reward prediction.
+
+
+In this case, REINFORCE acts as a meta-objective for training a
+contextual bandit, which, in our case, is the addressing model. The
+bandit acts in the one-step meta-MDP where *MATH* is a state object, *MATH* is
+action, and reward is determined by *MATH*. To pose the objective into
+our framework of the expected performance maximization, a natural choice
+would be to meta-reward the bandit with the sum of predicted rewards
+along the trajectory *MATH*. This approach is also in line with our
+general paradigm of expected performance maximization by selection since
+*MATH* can serve as the estimate of the value of the whole
+trajectory for the current task.
+
+
+Inspired by policy gradient algorithms [*REF*; *REF*],
+we can subtract a state-dependent baseline from the bandit&apos;s reward.
+Since the baseline can depend only on state, a natural choice will be to
+use the same quantity but for *MATH*, i.e. the MBRL agent&apos;s estimate of
+episode *MATH* reward. These rewards are sampled from the reward head
+*MATH*, *MATH*, where *MATH*. The baseline version of the
+previous objective: *MATH*.
+
+
+We refer to this meta-objective as REINFORCE baseline Retrospective
+Addressing for Multitask adaptation (RbRAMa) with RSSM.
+
+
+Another important observation about the approach is that we use the same
+model *MATH* to encode both *MATH* and each *MATH*. This means, for a
+fixed index *MATH* the logit which is equal to
+*MATH* would not change if *MATH* were used in place
+of *MATH* and *MATH* in place of *MATH*. However, the target which REINFORCE
+is training towards will change after such a swap. Despite the
+corresponding gradients w.r.t. *MATH* and w.r.t *MATH* still will differ
+from each other, this motivates us to use a detached version of
+*MATH* i.e. *MATH* in logit
+calculation. In this case, the addressing model will learn to adjust
+only the embedding of the *MATH*.
+
+
+TABLE
+
+
+Training World Models with Address Network
+
+
+For training the MBRL agent using address network to accelerate the
+training, we modify the input batch as follows. Given the training batch
+*MATH* and the multitask dataset *MATH*, for each *MATH*, we sample
+*MATH* and feed the RSSM with an updated training batch *MATH*,
+where *MATH* is a fraction of the multitask experience. As the size of
+the multitask data may be tremendous, we can amortize the logits
+calculation by preserving the set of previously calculated addressing
+embeddings of *MATH* for many training steps. Practically, we recalculate
+the whole set of multitask embeddings and use them for *MATH* training
+steps and then the process repeats. Once the batches are merged, we
+disable reward learning for parts of the batch that came from different
+tasks.
+
+
+We have found it crucial not just to score individual samples *MATH* to
+obtain softmax weights but to do so in an adaptive way having *MATH* in the
+condition of the addressing model. If the addressing model would just
+scored trajectories *MATH* alone, it would converge to selection
+proportional to the current task reward of *MATH*. This is equivalent to
+just skew the selection of multitask trajectories toward higher rewards
+(obtained from the reward head). However, our experiments have shown
+that the most successful agent is not the one that gets the maximal
+predicted trajectory reward by selection.
+
+
+The whole process of training RSSM and address network is described in
+Algorithm described in Appendix.
+
+
+Experimental Setup 
+
+
+DeepMind Control Environment. We test our model on five visual tasks
+from DeepMind Control Suite [*REF*] based on MuJoCo physics engine
+[*REF*]. Observations of an Agent are *MATH* images,
+the actions range from one to 12 dimensions, the rewards range from zero
+to one, the episodes last for 1,000 steps and have randomized initial
+states. The tasks include Walker Stand, Walker Walk, Walker Run, Hopper
+Stand, and Hopper Hop. These tasks represent different tasks within two
+domains, namely, Walker and Hopper. For each domain, we define a
+sequence of tasks with increasing difficulty. For the Walker domain,
+these are Stand, Walk, and Run. The multitask adaptation procedure will
+first solve Stand, then, with trajectories for the Stand task in the
+multitask buffer, solve the Walk task, and finally, having experience
+for the Stand and Walk tasks, solve Run. For the Hopper domain, the set
+of tasks consists of two tasks --- Stand and Hop.
+
+
+Metaworld [*REF*] is a set of robotic manipulation environments
+that offers both parametric and non-parametric task variability. After
+preliminary experiments, we adjusted camera positioning to make it more
+accessible for the visual agents. The agent observes
+*MATH* images, action is *MATH* -dimensional vector ranging
+in *MATH*. Meta-World offers a set of different manipulation tasks,
+e.g. picking, pushing, pulling objects and different parametrizations
+within each task (e.g. goal position). In the Meta-World benchmark, the
+main source of the difficulty is the intra-task variability, i.e. each
+episode had its goal or initial object positions slightly different,
+making the tasks much harder. In all experiments, we enabled such task
+variability, i.e. the environment samples 50 random vectors at startup
+and makes one of them active on each reset. Notably, between two
+different runs, the task vectors are different.
+
+
+NVIDIA Issac Environment. For our model, we built a custom
+continuous control environment implemented in NVIDIA Isaac SDK. The env
+has *MATH* images as observations, *MATH* -dimensional
+continuous actions within the range *MATH*, and unbounded rewards,
+which can be both positive and negative. The env simulates a robot that
+has to move an object (e.g. a blue box or a blue cone) toward the goal
+position. The environment represents a simulated kitchen, with a robot
+standing near the table. The goal of the robot is to move a specific
+type of object to the goal zone, which is colored blue. One of the key
+features of this environment is the photorealistic rendering mode that
+uses a ray-tracing algorithm. We added the detailed description of the
+Isaac environment into the Appendix.
+
+
+Hyperparameters. In all experiments, we implemented the address
+network with a GRU cell [*REF*]. We trained the address network with Adam
+[*REF*] optimizer using a learning rate *MATH*. We left all non-address
+net specific hyperparameters to be default to the Dreamer algorithm
+[*REF*], i.e. we trained the model with batch size *MATH*; each batch
+consisted of sequences of length *MATH*. We trained the RSSM and the
+address net, each for *MATH* optimizer steps between the episode
+collection. We set the *MATH* -return parameter to be *MATH* and
+*MATH*. The probability of using multitask data in the training
+batch was *MATH*, the fraction of the multitask data in such batch was
+*MATH*. The number of the episodes for initial pre-training was
+*MATH* (i.e. no pre-training on random episodes), and the initial size of
+the multitask buffer was set to *MATH* episodes (we randomly subsample
+the episodes resulted from the previous task training, only to decrease
+memory consumption). For the DeepMind Control Suite environments, we
+trained each model for *MATH* environment steps. For Isaac
+Environment and Meta-World, each model was trained with *MATH* and
+*MATH* environment steps, respectively. For all experiments within
+the Isaac domain, we increased imagination horizon from *MATH* to
+*MATH*. We include the ablation study justifying hyperparameters in
+Appendix.
+
+
+Results 
+
+
+TABLES
+
+
+Same Task Experiment 
+
+
+To test the ability of our model to reuse prior task information in
+principal, we tested the addressing model the case when prior episodes
+solve the same task as does the current agent. For the Walker domain, we
+ran each of three tasks: Stand, Walk, Run first using vanilla Dreamer.
+After training Dreamer we initialized *MATH* with *MATH* episodes
+obtained while training. Also, we filtered *MATH* to have only
+episodes with high episode returns. For the walk task, the filter
+threshold was set to *MATH* for the stand task in both Walker and Hopper
+domains it was set to *MATH*, i.e. no filtering. For the Isaac domain, we
+also did not filter prior data. Using this buffer, in each task, we
+launched VRAMa, RRAMa, and a vanilla Dreamer but with buffer prefilled
+with *MATH*. We repeated each run twice and reported the average
+train return with standard errors. For the Hopper Hop task, we repeated
+the runs four times as it has much higher variance. The results are
+shown in Table. For each domain and algorithm, we report the
+average episode return over the course of training. For this and the
+following experiment, each run took around 24 hours on Titan RTX GPU and
+10 CPUs.
+
+
+Though the main improvement against the baseline was made by just giving
+the world model access to high-quality trajectories, our approaches
+constantly show improvement over two baselines for Hopper and Walker
+domains. Although this experiment should be considered as a toy
+experiment, it indicates that the model can still gain performance by
+just reweighting the training distribution. Also, the variance for our
+methods is lower than for baselines, indicating that they are less
+vulnerable to stochasticity. In contrast, for the Isaac domain, RRAMa
+outperformed both baselines significantly. Importantly, the no
+addressing baseline performed no better than vanilla Dreamer, which
+means, for this domain, it is not enough just to provide the agent with
+higher quality episodes, and there is a necessary stage of adaptive
+batch sampling.
+
+
+Multitask Experiment
+
+
+To see how the proposed model would generalize across the tasks, we
+first trained the agent to solve simpler tasks. We performed multitask
+experiments on the DMC, Isaac, and Meta-World benchmarks. For the Hopper
+domain, we collected experience of the Stand task and then used it as
+multitask buffer for the Hop task. As in the previous experiment, we
+trained VRAMa, RRAMa, and two baselines. We averaged each model
+performance over two runs. Both of our approaches outperformed the
+baseline, which indicates the positive performance of the addressing
+model.
+
+
+For the Meta-World [*REF*] domain, we tested the ability of the
+model to generalize over a parametric task variability. That is, we
+fixed the general goal (such as pushing or turning) and changed only the
+task parameter vector encoding starting and goal object position.
+Importantly, we did not provide the task parameter vector to the model
+explicitly. The addressing was able to gain the performance over the
+vanilla Dreamer for the Push, Dial-turn, and Peg-insert-side tasks. For
+Push and Dial-turn, the addressing outperformed two baselines. We note
+that the addressing is able to perform better for the tasks of the
+intermediate difficulty. For the Sweep-into domain, we do not mark any
+algorithm in bold as all of them failed on this task due to its
+complexity. On the other hand, the Drawer-close task is too simple to
+get any meaningful speedup. Therefore, all algorithms are in bold. The
+results are shown in Table. Averaged train episode returns are shows.
+Full plots are presented in the Appendix.
+
+
+For the Isaac domain, we collected experience of the Bluebox task and
+then changed the shape of the target object from blue box to blue cone.
+The Bluebox task experience was used as the multitask storage in this
+case. For the Bluecone task, we ran the RRAMa and the vanilla Dreamer
+models. We additionally turned off the world model training for
+addressed batches, which we found beneficial for this domain. The
+results are presented in Table.
+
+
+Discussion 
+
+
+The obtained results suggest that the addressing model can indeed
+generalize among different tasks. However, a successful generalization
+requires overcoming the phenomenon known as the catastrophic
+forgetting [*REF*]. Therefore, one should carefully apply the
+suggested method in the case of a higher number of tasks. We presented
+results on the novel NVIDIA Isaac environment and recent Meta-World
+benchmark, which we found much harder to solve than the DeepMind Control
+Suite. We plan to investigate the addressing model for these robotic
+domains to build a more robust addressing model.
+
+
+Conclusion
+
+
+In this paper, we considered the problem of generalization between the
+tasks when solving a sequence of different tasks. We have proposed a new
+model-based reinforcement learning RAMa method that uses Retrospective
+Addressing for Multitask Adaptation. RAMa adapts the accumulated
+experience in solving various tasks through a retrospective study of
+specially organized address memory. We propose formalizing the multitask
+adaptation problem in the form of a meta-MDP, for which the agent forms
+a separate policy for finding the necessary agent&apos;s behaviors from the
+current experience to solve a new task. We have suggested two ways to
+train the mechanism for selecting previous cases from address memory:
+based on value (VRAMa) and REINFORCE (RRAMa). The proposed approach is
+one of the first attempts to use a trainable mechanism for selecting
+behavior cases using recurrent neural world models. Using the DMC suite,
+we demonstrate the effectiveness of using information from solving
+previous problems to speed up the construction of a policy to achieve a
+new goal. We have also demonstrated the efficiency of the RAMa method in
+robotic manipulation environments.
