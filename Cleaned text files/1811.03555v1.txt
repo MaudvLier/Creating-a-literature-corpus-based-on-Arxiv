@@ -1,0 +1,216 @@
+Modular Architecture for StarCraft II with Deep Reinforcement Learning
+
+
+Introduction
+
+
+Deep reinforcement learning (deep RL) has become a promising tool for acquiring competitive game-playing agents, achieving success on Atari [*REF*], Go [*REF*], Minecraft [*REF*], Dota 2 [*REF*], and many other games. It is capable of processing complex sensory inputs, leveraging massive training data, and bootstrapping performance without human knowledge via self-play [*REF*]. However, StarCraft II, a well recognized new milestone for AI research, continues to present a grand challenge to deep RL due to its complex visual input, large action space, imperfect information, and long horizon. In fact, the direct end-to-end learning approach cannot even defeat the easiest built-in AI [*REF*].
+
+
+StarCraft II is a real-time strategy game that involves collecting resources, building production facilities, researching technologies, and managing armies to defeat the opponent. Its predecessor StarCraft has attracted numerous research efforts, including hierarchical planning [*REF*] and tree search [*REF*] (see survey by *REF* [*REF*]. Most prior approaches focus on substantial manual designs, yet still unable to defeat professional players, potentially due to their inability to utilize game play experiences [*REF*].
+
+
+FIGURE 
+
+
+We believe that deep RL with properly integrated human knowledge can effectively reduce the complexity of the problem without compromising policy expressiveness or performance. To achieve this goal, we propose a flexible modular architecture that shares the decision responsibilities among multiple independent modules, including worker management, build order, tactics, micromanagement, and scouting (Figure [1]). Each module can be manually scripted or handled by a neural network policy, depending on whether the task is routine and hence easy to handcraft, or highly complex and requires learning from data. All modules suggest macros (predefined action sequences) to the scheduler, which decides their order of execution. In addition, an updater keeps track of environment information and adaptively executes macros selected by the scheduler.
+
+
+We further evaluate the modular architecture by reinforcement learning with self-play, focusing on important aspects of the game that can benefit more from massive training experiences, including build order and tactics. The agent is trained on the PySC2 environment [*REF*] that exposes a challenging human-like control interface. We adopt an iterative training approach that first trains one module while others follow very simple scripted behaviors, and then replace the scripted component of another module with a neural network policy, which continues to train while the previously trained modules remain fixed. We evaluate our agent playing Zerg v.s. Zerg against built-in bots on ladder maps, obtaining win rates 94 or 87 against the &quot;Harder&quot; bot, with or without fog-of-war. Furthermore, our agent generalizes well to held-out test maps and achieves similar performance.
+
+
+Our main contribution is to demonstrate that deep RL and self-play combined with the modular architecture and proper human knowledge can achieve competitive performance on StarCraft II. Though this paper focuses on StarCraft II, it is possible to generalize the presented techniques to other complex problems that are beyond the reach of the current end-to-end RL training paradigm.
+
+
+Related Work
+
+
+Classical approaches towards playing the full game of StarCraft are usually based on planning or search. Notable examples include case-based reasoning [*REF*], goal-driven autonomy [*REF*], and Monte-Carlo tree search [*REF*]. Most other research efforts focus on a specific aspect of the decision hierarchy, namely strategy (macromanagement), tactics, and reactive control (micromanaging). See the survey of *REF*  *REF* and *REF* *REF* for complete summaries. Our modular architecture is inspired by hierarchical and modular designs that won past AIIDE competitions, especially UAlbertaBot [*REF*], but features the integration of deep RL training and self-play instead of intense hard-coding.
+
+
+Reinforcement learning studies how to act optimally in a Markov Decision Process to maximize the discounted sum of rewards *MATH*. The book by *REF*  *REF* gives a good overview. Deep reinforcement learning uses neural networks to represent the policy and/or the value function, which can approximate arbitrary functions and process complex inputs (e.g. visual information).
+
+
+Recently, *REF*  *REF* have released PySC2, a python interface for StarCraft II AI, and evaluated state-of-the-art deep RL methods. Their end-to-end training approach, although shows potential for integrating deep RL to RTS games, cannot beat the easiest built-in AI. Other efforts of applying deep learning or deep RL to StarCraft (I/II) include controlling multiple units in micromanagement scenarios [*REF*; *REF*; *REF*; *REF*] and learning build orders from human replays [*REF*]. To our knowledge, no published deep RL approach has succeeded in playing the full game yet.
+
+
+Optimizing different modules can also be cast as a cooperative multi-agent learning problem. Apart from aforementioned multi-agent learning works on micromanagement, other promising methods include optimistic and hysteretic Q learning [*REF*; *REF*; *REF*], and centralized critic with decentralized actors [*REF*].
+Here we use a simple iterative training approach that alternately optimizes a single module while keeping others fixed, though incorporating multi-agent learning methods is possible and can be future work.
+
+
+Self-play is a powerful technique to bootstrap from an initially random agent, without access to external data or existing agents. The combination of deep learning, planning, and self-play led to the well-known Go-playing agents AlphaGo [*REF*] and AlphaZero [*REF*]. More recently, *REF*  *REF* has extended self-play to asymmetric environments and learns complex behavior of simulated robots.
+
+
+This work was developed concurrently with the hierarchical, modular design by *REF*  *REF*, which also utilizes similar macro actions. An important difference is that our agent is trained by playing against only itself and several scripted agents under the modular architecture, but never sees the built-in bots until the evaluation time.
+
+
+TABLE 
+
+
+Modular Architecture
+
+
+TABLE 
+
+
+Tabl summarizes the role and design of each module. In the following sections, we will describe them in details for our implemented agent playing the Zerg race. Note that the design presented here is only an instance of all possible ways to implement this modular architecture. One can incorporate other methods, such as planning, into one of the modules as long as it works coherently with other modules.
+
+
+Updater
+
+
+The updater serves as a memory unit, a communication hub for modules, and a portal to the PySC2 environment. To allow a fair comparison between AI and humans, *REF*  *REF* define observation inputs from PySC2 as similar to those exposed to human players, including imagery feature maps of the camera screen and the minimap (e.g. unit type, player identity), and a list of non-spatial features such as the total amount of minerals collected. Because past actions, past events, and out-of-camera information are crucial for decision making but not directly accessible from current observations, the agent has to develop an efficient memory. Though it is possible to learn such a memory from experiences, we think a properly hand-designed set of memories can serve a similar purpose, while also reducing the burden on reinforcement learning. Table  [1] lists example memories the updater maintains.
+Some memories (e.g. build queue) can be inferred from previous actions taken. Some (e.g. friendly units) can be inferred from inspecting the list of all units. Others (e.g. enemy units) require further processing PySC2 observations and collaborating with the scouting module.
+
+
+The &quot;notifications&quot; entry holds any information a module wants to notify other modules, thus allowing them to communicate and cooperate. For example, when the build order module decides to build a new base, it notifies the tactics module, which may move armies to protect the new base.
+
+
+Finally, the updater handles communication between the agent and PySC2 by concretizing macros into sequences of PySC2 actions and executing them in the environment.
+
+
+Macros
+
+
+When playing StarCraft II, humans usually choose their actions from a list of subroutines, rather than from raw environment actions. For example, to build a new base, a player identifies an unoccupied neutral base, selects a worker, and then builds a base there. Here we name these subroutines as macros (examples shown in Table. Learning a policy to output macros directly can hide the trivial execution details of certain higher level commands, therefore allowing the policy to explore different strategies more effectively.
+
+
+Build Order
+
+
+A StarCraft II agent must balance our consumption of resources between many needs, including supply (population capacity), economy, combat units, upgrades, etc. The build order module plays the crucial role of choosing the correct thing to build. For example, in the early game, the agent needs to focus on building enough workers to gather resources, and while in the mid game, it should choose the correct types of armies that can beat the opposing ones. Though there exist numerous efficient build orders developed by professional players, executing one naively without adaptation can result in highly exploitable behavior. Instead of relying on complex if-else logic or planning to handle various scenarios, the agent&apos;s build order module can benefit effectively from massive game-play experiences. Therefore we choose to optimize this module by deep reinforcement learning.
+
+
+FIGURE 
+
+
+Here we start with a classic hardcoded build order [^1], as the builds are often the same towards the beginning of the game, and the optimal trajectory is simple but requires precisely timed commands. Once the hard-coded build is exhausted, a neural network policy takes control (See Figure [2]). This policy operates once every 5 seconds. Its input consists of the agent&apos;s resources (minerals, gas, larva, and supply), its building counts, its unit counts, and enemy unit counts (assuming no fog-of-war). We choose to exclude spatial inputs like screen and minimap features, because choosing what to build is a high-level strategic choice that depends more on the global information.
+The output is the type of unit or structure to produce. For units (Drones, Overlords, and combat units), it also chooses an amount *MATH* to build. For structures (Hatchery, Extractor) or Queen, it only produces one at a time. The policy uses a fully connected (FC) network with four hidden layers and 512 hidden units for each layer.
+
+
+We also mask out invalid actions, such as producing more units than the current resources can afford, to enable efficient exploration. If a unit type requires a certain tech structure (e.g. Roaches need a Roach Warren) but it doesn&apos;t exist and is not under construction, then the policy will build the tech structure instead.
+
+
+Tactics
+
+
+Once our agent possesses an army provided by the build order module, it must learn to use it effectively. The tactics module handles map-level army commands, such as attacking or retreating to a specific location with a group of units. Though it is possible to hardcode certain tactics, we will show in the Evaluation section that a learned tactics can perform better.
+
+
+In the current version, our tactics simply decides where on the minimap to move all of its armies towards. The input consists of *MATH*  bitmaps of friendly units, enemy units (assuming no fog-of-war), and all selected friendly units on the minimap. The output is a probability distribution over minimap locations. The policy uses a three-layer Fully Convolutional Network (FCN) with 16, 32 and 1 filters, 5, 3 and 1 kernel sizes, and 2, 1 and 1 strides respectively. A softmax operation over the FCN output gives the probability over the minimap. The advantage of FCN is that its output is invariant to translations in the input, allowing the agent to generalize better to new scenarios or even new maps. The learned tactics policy operates every 10 seconds.
+
+
+Scouting
+
+
+Because the fog-of-war hides certain areas, enemy-dependent decisions can be very difficult to make, such as building the correct army types to counter the opponent&apos;s.
+
+
+Our current agent assumes no fog-of-war during self-play training, but can be evaluated under fog-of-war at test time, with a scouting module that supplies missing information. In particular, the scouting module sends Overlords to several predefined locations on the map, regularly moves the camera to those places and updates enemy information. It maintains an exponential moving average estimate of enemy unit counts for the build order module, and uses a neural network to predict enemy unit locations on the minimap for the tactics module. The prediction neural network applies two convolutions with 16, 32 filters and 5, 3 kernel sizes to the current minimap, followed by an LSTM of 512 hidden units, whose output is reshaped to the same size of the minimap, followed by pixel-wise sigmoid to predict the probabilities of enemy units. Future work will involve adding further predictions beyond enemy locations and using RL to manage scouts.
+
+
+Micromanagement
+
+
+Micromanagement requires issuing precise commands to individual units, such as attacking specific opposing units, in order to maximize combat outcomes. Here we use simple scripted micros in our current version, leaving the learning of more complex behavior to future work, for example, by leveraging existing techniques presented in the Related Work. Our current micromanagement module operates when the updater detects that friendly units are close to enemies. It moves the camera to the combat location, groups up the army, attacks the location with most enemies nearby, and uses a few special abilities (e.g. burrowing lurkers, spawning infested terrans).
+
+
+Worker Management
+
+
+Worker management has been extensively studied for StarCraft: Brood War [*REF*]. StarCraft II simplifies the process, so the suggested worker assignment (2 per mineral patch, 3 per vespene geyser) is often sufficient for professional players. We script this module by letting it constantly review worker counts of all bases and transferring excess workers to under-saturated mining locations, prioritizing gas over minerals. It also periodically commands Queens to inject larva at all bases, which is crucial for boosting unit production.
+
+
+Scheduler
+
+
+The PySC2 environment places a restriction on the number of actions per minute (APM) to ensure a fair comparison between AI and human. Therefore when multiple modules propose too many macros at the same time, not all macros can be executed and a scheduler is required to order them by priority. Our current version uses little APM, so the scheduler simply cycles through all modules and executes the oldest macro proposals. When APM increases in the future, for example when complex micromanagement comes into play, a cleverer or even learned scheduler will be required.
+
+
+Training Procedure
+
+
+Our agent is trained to play Zerg v.s. Zerg on the ladder map Abyssal Reef on the 4.0 version of StarCraft II. For most games, Fog-of-war is disabled. Note that built-in bots can also utilize full observations, so the comparison is fair. Each game lasts 60 minutes, after which a tie is declared.
+
+
+Self-Play
+
+
+We follow the self-play procedure suggested by *REF*  *REF* to save snapshots of the current agent into a training pool periodically (every *MATH* policy steps). Each game the agent plays against a random opponent sampled uniformly from the training pool. To increase the diversity of opponents, we initialize the training pool with a random agent and other scripted modular agents that use fixed build orders and simple scripted tactics. The fixed build orders are optimized to prioritize specific unique types and include zerglings, banelings, roaches_and_ravagers, hydralisks, mutalisks, roaches_and_infestors, and corruptors_and_broodlords.
+Zerglings are available to every build order. The scripted tactics attacks the enemy bases with all armies whenever its army supply is above 50 or its total supply is above 100. The agent never faces the built-in bots until test time.
+
+
+Reinforcement Learning
+
+
+If winning games is the only concern, in principle the agent should only receive a binary win-loss reward. However, we have found that the win-loss provides too sparse training signals and thus slows down training. Instead we use the supply difference (*MATH*) between the agent and the enemy as a reward function. A positive supply difference is often correlated with an advantageous status. Specifically, to ensure that the game is always zero-sum, the reward is the change in supply difference *MATH* for each time step. Summing up all rewards yields a total reward equal to the end-game supply difference.
+
+
+We use Asynchronous Advantage Actor-Critic [*REF*] to optimize the policies with 18 parallel CPU workers. The learning rate is *MATH* and the entropy bonus coefficient is *MATH* for build order, *MATH* for tactics (smaller due to a larger action space).
+Each worker commits a gradient update to the central parameter server every 3 minutes in game (every 40 gradient steps for build order and 20 for tactics)
+
+
+Iterative Training
+
+
+One major benefit of the modular architecture is that modules act relatively independently and can therefore be optimized separately. We illustrate this by comparing iterative training, namely optimizing one module while keeping others fixed, against joint training, namely optimizing all modules together. We hypothesize that iterative training can be more effective because it stabilizes the experiences gathered by the training module and avoids the complex module-wise coordination during joint training.
+
+
+In particular, we pretrain a build order module with a scripted tactics described in the Self Play section, and meanwhile pretrain a tactics module with a scripted build order (all Roaches). Once both pretrained modules stabilize, we combine them, freeze the tactics, and only train the build order. After build order stabilizes, we freeze its parameters and train tactics instead. The procedure is abbreviated &quot;iterative, pretrained build order and tactics&quot;.
+
+
+Evaluation 
+
+
+Videos our agent playing against itself and qualitative analysis of the tactics module are available on WEBSITE. In this section, we would like to analyze the quantitative and qualitative performance of our agent by answering the following questions.
+1. Does our agent trained with self-play outperform scripted modular agents and built-in bots? 2. Does iterative training outperform joint training? 3. How does the learned build order behave qualitatively? E.g. does it choose army types that beat the opponent&apos;s? 4. Can our agent generalize to other maps after being trained on only one map?
+
+
+Quantitative Performance
+
+
+FIGURE 
+
+
+Figure [3] shows the win rates of our agent throughout training, under the &quot;iterative, pretrained build order and tactics&quot; procedure. Pretrained build order and tactics can already achieve 67 and 41 win rates against the Harder bot. The win rate of combined modules increase to 87 after iterative training. Moreover, it outperforms simple scripted agents (also see Table, indicating the effectiveness of reinforcement learning.
+
+
+Table shows that iterative training outperforms joint training by a large margin. Even when joint training also starts with a pretrained bulid order, its stability quickly drops and results in 52 less win rate than iterative against the Harder bot.
+Pretraining both build order and tactics lead to better overall performance.
+
+
+Qualitative Evaluation of the Learned Build Order
+
+
+FIGURE 
+
+
+TABLE 
+
+
+Figure [4] shows how our learned build order module reacts to different scripted opponents that it sees during training. Though our agent prefers the Zergling-Roach-Ravager composition in general, it can correctly react to the Zerglings with more Banelings, to Banelings with fewer Zerglings and more Roaches, and to Mutalisks with more hydralisks. Currently, the reactions are not perfectly tailored to the specific opponents, likely because the Zergling-Roach-Ravager composition is strong enough to defeat the opponents before they can produce enough units.
+
+
+Generalization to Different Maps
+
+
+Many parts of the agent, including the modular architecture, macros, choice of policy inputs, and neural network architectures (specifically FCN), are designed with certain prior knowledge that can help with generalization to different scenarios. We test the effect of prior knowledge by evaluating our agent against different opponents on maps not seen during training. These test maps have various sizes, terrains, and mining locations. The 4-player map Darkness Sanctuary even randomly spawns players at 2 out or 4 locations.
+Table [2] summarizes the results. Though our agent&apos;s win rates drop by 7.5 on average against Harder, it is still very competitive.
+
+
+TABLE 
+
+
+Testing under Fog-of-War
+
+
+Though the agent was trained without fog-of-war, we can test its performance by filling missing information with estimates from the scouting module. Table [3] shows that the agent actually performs much better under fog-of-war, achieving 10 higher win rates on average, potentially because the learned build orders and tactics generalize better to noisy/imperfect information, while the built-in agents rely on concrete observations.
+
+
+Conclusions and Future Work
+
+
+In this paper, we demonstrate that proper combination of human knowledge and deep reinforcement learning can result in competitive StarCraft II agents. Certain techniques like modular architecture, macros, and iterative training can provide insights to dealing with other challenging problems at the scale of StarCraft II.
+
+
+However, our current version is still far from beating the hardest built-in bots, let alone skilled humans. Many improvements are under research, including deeper neural networks, multi-army-group tactics, researching upgrades, and learned micromanagement policies. We believe that such improvements can eventually close the gap between our modular agent and professional human players.

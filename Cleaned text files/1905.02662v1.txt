@@ -1,0 +1,304 @@
+Continual and Multi-task Reinforcement Learning With Shared Episodic Memory
+
+
+[Introduction]
+
+
+Humans and other animals use episodic memory to adapt quickly in
+complex environments *REF*. 
+A striking feature of animal behaviour is
+ability to achieve several different goals in the same environment.
+Both of these features of adaptive behavior are being actively
+studied in the field of reinforcement learning *REF*. 
+However, the majority of the studies consider them in isolation, focusing either
+on episodic memory *REF* or on learning several policies for achieving
+different goals *REF*. Yet, the content of the episodic memory can be
+useful not only for a single task, but for completing multiple
+consecutive tasks, in addition to the general acquisition of new
+skills. For example, one can imagine a robotic home assistant
+instructed to retrieve a certain object. If the robot has encountered
+this object during a past house cleaning and recalls it, then this
+memory can greatly facilitate locating the requested object.
+
+
+In this work, we propose a deep neural architecture able to store the
+episodic representation of an environment to improve the solution of
+multi-task problems and facilitate continual learning of new skills.
+
+
+[Related Work]
+
+
+One of the most popular general approaches to multi-task learning is
+to train an agent on all tasks simultaneously. This method is called
+batch multi-task learning *REF* *REF*. In the field of deep reinforcement learning, it
+is often coupled with the weight sharing technique. In that case
+sub-task networks share part of their layers and the representation of
+the agent&apos;s current task is often fed in as additional input to the
+network *REF*. Weight sharing allows to generalize experience over tasks and
+facilitates the learning of individual tasks *REF* 
+A remarkable extension of this approach is the representation of sub-tasks with a descriptive
+system *REF* *REF* Previous work on neuroevolution in a multi-task stochastic environment
+*REF* *REF* demonstrated that agents evolve representation for episodic memory and use it in
+behavior. Several studies have been done on the mapping of natural language task descriptions into sequences of
+actions *REF*. Another work in that area *REF* 
+*REF* used a sequence of instructions to guide the
+agent in Montezuma&apos;s Revenge game. However, the majority of current
+research in the field is focused on the isolated execution of
+sub-tasks, ignoring the transfer of episodic memory between sub-tasks.
+
+
+In the past couple of years, numerous works have been completed on
+adding memory to deep RL architectures *REF*. One direction of research is to improve the
+agent&apos;s ability to store relevant memory about the state of
+environment *REF*. Alternatively, memories about recent state
+transitions can be used to facilitate rapid learning *REF*.
+
+
+It has been demonstrated that recurrent neural networks (RNNs) are
+capable of meta-learning *REF*. Meta-learning in this case
+typically refers to the interaction of two learning processes. Slow
+adaptation when the weights of the neural network gradually learn
+persistent regularities in the environment. And fast dynamics of the
+recurrent network to adapt for rapid changes in the environment.
+Recently, this approach was extended to the RL setting
+*REF*. In another work *REF* a similar
+training technique helped to transfer a policy learned in simulation
+to a physical robot. While current focus of meta-RL with recurrent
+architectures is mainly on the adaptation of one policy to different
+variations of the environment we will consider a joint adaptation of
+several goal-oriented policies via shared memory.
+
+
+[Shared Episodic Memory for Multi-Task Reinforcement]
+
+
+[Learning]
+
+
+In this work, we use two ideas to facilitate the transfer of useful
+episodic representation between multiple sub-task policies. The first
+is an introduction of two separate recurrent sub-networks (1) for the
+environment and (2) for task-specific memories. The second is to use
+meta-learning setting *REF* to optimize the agent over a series of tasks in
+the same environment.
+
+
+Traditionally in multi-task reinforcement learning setting, a new task
+is selected at the beginning of each episode so that one episode
+corresponds to one task. An agent then simultaneously interacts with
+several instances of the environment and updates policy using samples
+collected for different tasks. This procedure is ineffective in
+storing a representation for more than one task. To make episodic
+memory useful we train a multi-task agent in a setting similar to the
+one used in meta-RL *REF*.
+
+
+In our study, training consisted of episodes lasting T steps. For
+every episode, the environment was modified to some extent, i.e.
+locations of walls, targets, or objects. At the beginning of an
+episode, a task was randomly selected. If the task was completed by
+the agent, a new task was activated, but the state of the environment
+remained the same. Upon task completion, the agent received a reward
+and a &quot;completion&quot; signal shared among all tasks. The agent optimized
+the cumulative reward for all T steps.
+
+
+Thus, the more tasks an agent completed in the available time budge
+more reward it received. This training mode encourages the agent&apos;s
+neural network not only to learn suitable policies for tasks but also
+to share between them a memory about the state of the environment.
+
+
+To train the agent, we used the Parallel Advantage Actor Critic
+(A2C) algorithm *REF*. Our proposed
+network architecture with shared episodic memory (SEMA2C) is
+presented in Figure *REF* Instead of LSTM layer of the
+recurrent A2C, we introduce separate memory sub-networks for the
+environment state and task. At each step t, the network receives the
+current observation ot, and the task identifier gt.
+Observation ot is processed by the observation encoder E^obs^.
+and identifier gt by task embedder E^task^. In our experiments,
+E^obs^ is a two-layered convolutional network, and E^task^ is an
+embedding matrix that stores trainable task embeddings in its rows.
+
+
+The core of the proposed architecture consists of RNN ^sem^ and RNN
+^tsm^ recurrent sub-networks. RNN ^sem^ takes observation embedding
+E^obs^ (ot) and returns its hidden state h^sem^, which is
+reset to zero values only at the end of each episode. RNN ^tsm^
+takes the same input as RNN ^sem^ as well t
+as h^sem^ and task embedding vg. Unlike RNN ^sem^ the hidden
+state h^tsm^ of the RNN ^tsm^ is reset t t sem t
+after the completion of the current task. The idea is that RNN is
+responsible for capturing and storing a task-agnostic representation of the environment state, and
+RNN ^tsm^ encodes a task specific representation. In contrast, RNN
+^sem^ has no knowledge of the current task, but is continuously
+updated over a longer period, which would correspond to several tasks
+in the batch multi-task setting.
+
+
+In our experiments, we use a single LSTM layer *REF* for RNN ^sem^.
+For RNN ^tsm^, we use a factorized LSTM layer (F-LSTM) to generate
+weights of RNN ^tsm^ on the fly with the task embedding vector
+vgt and the multiplication of three smaller matrices (see suppl. [A.1]).
+
+
+Outputs of RNN ^tsm^ and RNN ^sem^ are concatenated and fed to
+three separate heads implemented as fully-connected layers. The first
+two are standard actor-critic heads where F^val^ predicts the state
+value function and F^pol^ generates the probabilities of the
+actions. The last head F^comp^ predicts the probability of task
+completion (see suppl. [A.2]).
+
+
+Parameters are updated in SEM-A2C in the same way as in A2C *REF* and A3C *REF* algorithms. To learn the
+task completion prediction dˆt we use cross-entropy loss.
+
+
+FIGURE
+
+
+[Experiments]
+
+
+We studied SEM-A2C performance in randomized grid-worlds implemented
+on top of the Mazebase engine *REF* 
+*REF* For multi-task experiments, (sect. *REF*) an agent was trained for the sub-tasks of the Taxi
+problem *REF* *REF* reach passenger (Reach(P)), pick up passenger (Pickup(P)), reach
+destination (Reach(D)), and drop off passenger (Dropoff (P)). For
+continual learning experiments (sect. [4.2]),
+we added a new cargo object on the map and three associated sub-tasks.
+
+
+The map was filled with randomly placed walls and ponds. To make the
+problem harder an agent can only see objects in a small 7x7 cell grid
+which surrounds it, and has no direct information about the
+coordinates of the passenger, cargo and destination (see Figure
+*REF*).
+
+
+In our study, we consider sub-tasks as separate goals for the agent.
+If the agent completes its current sub-task, the next sub-task is
+selected from those which may follow logically in the current state.
+We place the agent and every pickable object at a new location on the
+map after completion of every two or three sub-tasks. However, the map
+and location of the target remain unchanged throughout all T steps
+of the episode. Thus, it is beneficial for the agent to transfer
+acquired knowledge about the structure of the maze and location of the
+target between sub-tasks to facilitate their completion.
+
+
+1. [Multi-task learning]
+
+
+As a baseline we used a batch multi-task A2C (Multitask-A2C) with
+weight sharing and task parametrization *REF*. It received the same
+input as SEM-A2C including gt, but instead of separate RNN ^tsm^
+and RNN ^sem^ sub-networks, it has a single LSTM layer with
+approximately the same number of parameters. Multitask-A2C is
+trained via batch multi-task learning, where each episode corresponds
+to one task.
+
+
+To evaluate the utility of episodic memory shared between the learned
+policies, we tested SEMA2C and Multitask-A2C on the full taxi
+problem, where each agent had to perform the following sequence of
+tasks: Reach(P), Pickup(P), Reach(D), Dropoff (P). After
+dropping off a passenger at the target location a new one was spawned
+at a random location on the map. Each algorithm was previously trained
+for 80 million steps.
+
+
+The results are presented in the Table *REF* The table
+shows the number of steps required to complete tasks Reach(P) and
+Reach(D) depending on the order in which the tasks were performed in
+the episode. As can be seen from the table, SEM-A2C but not the
+Multitask-A2C baseline, manages to optimize the solution of Reach(D)
+sub-task. After the agent with shared episodic memory discovers the
+target it can deliver future passengers to the same location 40%
+faster. Due to episodic memory SEM-A2C solves the full Taxi problem
+with 20% less steps than Multitask-A2C.
+
+
+Figure *REF* shows the difference between SEM-A2C and
+Multitask-A2C agents on a random fixed map. SEM-A2C drastically
+improves its policy by utilizing the experience obtained by performing
+previous tasks in this episode (Figures *REF* 
+*REF*). Conversely, the Multitask-A2C Baseline did not
+learn to account its experience from the previous tasks performed in
+the same environment (Figures *REF* *REF*).
+
+
+TABLE 
+
+
+FIGURE
+
+
+2. [][Continual learning]
+
+
+To study continual learning, we added a new cargo object to the map,
+as well as three associated tasks: reach cargo (Reach(C)), pickup
+cargo (Pickup(C)), deliver and drop off cargo at the target location
+(Deliver(C)). This experiment consisted of two stages. We first
+pre-trained our model and two new baselines together on 4 taxi
+sub-tasks and a new Reach(C) sub-task. The Reach(C) was included
+into pre-training to teach the E^obs^ sub-network to recognitize the
+cargo object on the map. The learning procedure in this stage was the
+same as in the multi-task experiment. In the cargo
+delivery training stage, we added Pickup(C) and Deliver(C)
+sub-tasks and fine-tuned the output layers and task embedding
+E^task^ of pre-trained models for 5 × 10^6^ steps, keeping all
+other layers frozen.
+
+
+To test the utility of the explicit division between task-agnostic
+episodic memory and recurrent taskdependent policies, we used two
+baselines:
+1. Baseline (concat) has the same architecture as Multitask-A2C,
+but uses the same learning procedure as SEM-A2C (see sec.[3]).
+2. Baseline (factorized) is identical to the previous baseline.
+However, rather than concatenating the task embedding with the
+LSTM input, we use the same factorization as in RNN ^tsm^ module.
+
+
+Figure *REF* shows learning curves for new tasks during the
+fine-tuning stage. Baseline (concat) did not succeed in learning both
+new tasks. Baseline (factorized) was able to fully learn only the
+simpler Pickup(C) task. On the other hand, SEM-A2C managed to learn
+both tasks in one million steps.
+
+
+FIGURE
+
+
+[Conclusions]
+
+
+Episodic memory helps to solve a significant number of tasks in the
+real world. Yet in spite of recent progress in the fields of deep
+reinforcement learning and meta-learning, the question about effective
+reuse of episodic memory is still open. We proposed and studied a deep
+neural architecture with shared episodic memory for multi-task
+problems (SEM-A2C).
+
+
+The results of our experiments on the Taxi problem demonstrate that
+our proposed architecture is able to effectively learn how to store
+and use episodic representation in order to more quickly deliver a
+passenger. SEM-A2C displayed a better performance compared to
+alternative deep architectures included into the study. We also found
+that task agnostic episodic memory facilitates acquisition of novel
+skills for extra tasks in the same environment. Another important
+result is ability of SEM-A2C to learn sub-task completion. This opens
+possibility for more autonomous execution of hierarchical tasks by
+robotic and virtual agents, as a sub-task completion signal can
+activate the following task in a high level preprogrammed sequence.
+
+
+We use A2C *REF* as a starting
+point for our modifications and baselines. However, out proposed
+modifications do not rely on the unique properties of the A2C and can
+be applied to other general-purpose RL algorithms (PPO, DRQN, etc).

@@ -1,0 +1,605 @@
+Multi-Agent Deep Reinforcement Learning with Adaptive Policies
+
+
+Introduction
+
+
+The development of modern deep learning has made reinforcement learning
+(RL) more powerful to solve complex decision problems. This leads to
+success in many real-world applications, such as Atari games
+[*REF*], playing Go [*REF*] and robotics control
+[*REF*]. Recently, there is growing focus on applying deep RL
+techniques to multi-agent systems. Many promising approaches for
+multi-agent deep RL have been proposed to solve a variety of multi-agent
+problems, such as traffic control [*REF*], multi-player games
+(e.g., StarCraft, Dota 2), and multi-robot systems [*REF*].
+
+
+Despite the recent success of deep RL in single-agent domains, there are
+additional challenges in multi-agent RL. One major challenge is the
+non-stationarity of multi-agent environment caused by agents that
+change their policies during the training and testing procedures.
+Specifically, at the training time, each agent&apos;s policy is changing
+simultaneously and therefore the environment becomes non-stationary from
+the perspective of any individual agent. To handle this issue,
+multi-agent deep deterministic policy gradient (MADDPG)
+[*REF*] proposed to utilized a centralized critic with
+decentralized actors in the actor-critic learning framework. Since the
+centralized Q-function of each agent is conditioned on the actions of
+all the other agents, each agent can perceive the learning environment
+as stationary even when the policies of the other agents change.
+
+
+Although using a centralized critic stabilizes training, the learned
+policy of each agent can still be brittle and sensitive to its training
+environment and partners. It has been observed that the performance of
+the learned policies can be drastically worse when some agents alter
+their policies during execution [*REF*]. To improve the
+robustness of the learned policies, minimax multi-agent deep
+deterministic policy gradient (M3DDPG) [*REF*] --- a minimax
+extension of MADDPG --- proposed to update policies considering the
+worst-case situation by assuming that all the other agents acts
+adversarially. This minimax optimization is useful to learn robust
+policies in very competitive domains but can be too pessimistic in
+mixed competitive and cooperative or fully cooperative problems as shown
+later in our experiments.
+
+
+In this paper, we consider one aspect of the non-stationarity issue in
+multi-agent RL, where the other agents may alter their policies as a
+result of changes in some environmental factors. This frequently happens
+in real-world activities. For example, in a soccer game, a heavy rain or
+high temperature usually causes the teams to change their strategies
+against each other. Take disaster response as another example. First
+responders often need to constantly adjust their plan in order to
+complete their tasks in the highly dynamic and danger environment.
+Therefore, it is often desirable for the agents to learn policies that
+can adapt with changes of the environment and the other agents&apos;
+policies.
+
+
+Against this background, we propose policy adaptive multi-agent deep
+deterministic policy gradient (PAMADDPG) --- a novel approach based on
+MADDPG --- to learn adaptive policies for non-stationary environments.
+Specifically, it learns multiple policies for each agent and postpone
+the selection of the best policy at execution time. By doing so, each
+agent is able to adapt its policy when the environment changes.
+Specifically, we model the non-stationary environment by a finite set of
+known scenarios, where each scenario captures possible changing factors
+of the environment (e.g., weather, temperature, wind, etc. in soccer).
+For each scenario, a policy is learned by each agent to perform well in
+that specific scenario. Together with multiple policies for each agent,
+we also train a policy predictor to predict the best policy using the
+agent&apos;s local information. At execution time, each agent first selects a
+policy based on the policy predictor and then choose an action according
+to the selected policy. We evaluated our PAMADDPG algorithm on three
+common benchmark environments and compared it with MADDPG and M3DDPG.
+Our experimental results show that PAMADDPG outperforms both MADDPG and
+M3DDPG in all the tested environments.
+
+
+The rest of the paper is organized as follows. We first briefly review
+the related work about handling non-stationary in multi-agent deep RL.
+Then, we describe the background on the Markov game and the MADDPG
+method, which are building blocks of our algorithm. Next, we propose our
+PAMADDPG algorithm to learn multiple policies and policy predictors.
+After that, we present the experiments with environments, setup, and
+results. Finally, we conclude the paper with possible future work.
+
+
+Related Work
+
+
+In recent years, various approaches [*REF*] have been
+proposed to tackle different aspects of non-stationarity in multi-agent
+deep RL. We sample a few related work about multi-agent deep RL as
+listed below.
+
+
+1.25ex -1em Centralized critic. Using the centralized critic techniques,
+*REF* ([*REF*]) proposed MADDPG for multi-agent RL
+using a centralized critic and a decentralized actor, where the training
+of each agent is conditioned on the observation and action of all the
+other agents so the agent can perceive the environment as stationary.
+*REF* ([*REF*]) extended MADDPG and proposed M3DDPG
+using minimax Q-learning in the critic to exhibit robustness against
+different adversaries with altered policies. *REF* 
+([*REF*]) proposed COMA using also a centralized
+critic with the counterfactual advantage estimation to address the
+credit assignment problem --- another key challenge in multi-agent RL.
+
+
+1.25ex -1em Decentralized learning. A useful decentralized learning
+technique to handle non-stationarity is self-play. Recent self-play
+approaches store the neural network parameters at different points
+during learning. By doing so, self-play managed to train policies that
+can generalize well in environments like Go [*REF*] and
+complex locomotion tasks [*REF*]. Another technique
+[*REF*] is by stabilizing experience replay using
+importance sampling corrections to adjust the weight of previous
+experience to the current environment dynamics.
+
+
+1.25ex -1em Opponent modeling. By modeling the opponent, *REF* 
+([*REF*]) developed a second separate network to encode the
+opponent&apos;s behaviour. The combination of the two networks is done either
+by concatenating their hidden states or by the use of a mixture of
+experts. In contrast, *REF* ([*REF*])
+proposed an actor-critic method using the same policy network for
+estimating the goals of the other agents. *REF* 
+([*REF*]) proposed a modification of the optimization
+function to incorporate the learning procedure of the opponents in the
+training of agents.
+
+
+1.25ex -1em Meta-learning. By extending meta-learning approaches for
+single-agent RL such as model agnostic meta-learning [*REF*] to
+handle non-stationarity in multi-agent domains, *REF* 
+([*REF*]) proposed an optimization method to search for
+initial neural network parameters that can quickly adapt to
+non-stationarity, by explicitly optimizing the initial model parameters
+based on their expected performance after learning. This was tested in
+iterated adaptation games, where an agent repeatedly play against the
+same opponent while only allowed to learn in between each game.
+
+
+1.25ex -1em Communication. In this direction, *REF* 
+([*REF*]) proposed the deep distributed recurrent
+Q-networks, where all the agents share the same hidden layers and learn
+to communicate to solve riddles. *REF* 
+([*REF*]) proposed the CommNet architecture, where
+the input to each hidden layer is the previous layer and a communication
+message. *REF* ([*REF*]) proposed the
+individualized controlled continuous communication model, which is an
+extension of CommNet in competitive setting. *REF* 
+([*REF*]) proposed reinforced inter-agent learning
+with two Q-networks for each agents where the first network outputs an
+action and the second a communication message.
+
+
+As briefly reviewed above, most of the existing work focus on handling
+non-stationarity mainly during training procedure. Although
+meta-learning approaches can learn to adapt agents&apos; policies between
+different game, it requires to repeatedly play iterated adaptation
+games. In contrast, we build our algorithm on top of MADDPG to address
+the non-stationarity problem in general multi-agent RL at execution
+time. Additionally, we do not assume explicit communication among the
+agents during execution as in MADDPG.
+
+
+A complete survey about recent efforts of dealing non-stationarity in
+multi-agent RL can be found in [*REF*; *REF*].
+
+
+Background
+
+
+In this section, we introduce our problem settings and some basic
+algorithms on which our approach is based.
+
+
+Partially Observable Markov Games
+
+
+In this work, we consider a partially observable Markov games
+[*REF*] with *MATH* agents, defined by: a set of states
+*MATH* describing the possible configurations of all agents, a
+set of actions *MATH* and a set of
+observations *MATH* for each agent. To
+choose actions, each agent *MATH* uses a stochastic policy
+*MATH*, which produces the next state according to the state transition function *MATH*.
+
+
+At each time step, each agent *MATH* obtains rewards as a function of the
+state and agent&apos;s action *MATH*, and
+receives a local observation correlated with the state
+*MATH*. The initial states are determined by a state distribution
+*MATH*. Each agent *MATH* aims to maximize its
+own total expected return: *MATH*, where
+*MATH* is a discount factor and *MATH* is the time horizon.
+
+
+Here, we assume that the state transition function *MATH* is
+unknown and therefore consider to learn the policies *MATH* 
+for each agent *MATH* using multi-agent reinforcement learning (RL)
+methods. Note that each agent must choose an action based on its own
+policy and local observation during execution.
+
+
+Multi-Agent Deep Deterministic Policy Gradient
+
+
+Policy gradient methods are a popular choice for a variety of RL tasks.
+The main idea is to directly adjust the parameters *MATH* of the
+policy in order to maximize the objective
+*MATH* by taking steps in the direction of *MATH*, i.e., the
+gradient of the policy written as:
+*MATH* where *MATH* is the state distribution and *MATH* is the Q-function.
+
+
+The policy gradient framework has been extended to deterministic
+policies *MATH*. In particular,
+under certain conditions the gradient of the objective
+*MATH* can be written as:
+*MATH*. Since the deterministic policy gradient (DPG)
+[*REF*] relies on *MATH*, it
+requires that the action space *MATH* (and thus the policy *MATH*)
+be continuous. Deep deterministic policy gradient (DDPG)
+[*REF*] is a variant of DPG where the policy *MATH* 
+and critic *MATH* are approximated with deep neural networks. DDPG is
+an off-policy algorithm, and samples trajectories from a replay buffer
+of experiences that are stored throughout training. It also makes use of
+a target network, as in DQN [*REF*].
+
+
+Multi-agent DDPG (MADDPG) [*REF*] extends the DDPG method to
+multi-agent domains. The main idea behind MADDPG is to consider action
+policies of other agents. The environment is stationary even as the
+policies change, since *MATH* for any *MATH*. The gradient can be written as:
+*MATH* where *MATH* is a centralized action-value function that takes as input the actions of
+all agents, *MATH*, in addition to the state information
+*MATH*, and outputs the Q-value for agent *MATH*. Here, *MATH* 
+can be updated as: *MATH* where *MATH* is sampled from
+the experience replay buffer *MATH*, recoding experiences of all agents.
+
+
+Dealing Non-Stationarity in MADDPG
+
+
+As aforementioned, one of the key challenges in multi-agent RL is the
+environment non-stationarity. This non-stationarity stems from breaking
+the Markov assumption that governs most single-agent RL algorithms.
+Since the transitions and rewards depend on actions of all agents, whose
+decision policies keep changing in the learning process, each agent can
+enter an endless cycle of adapting to other agents. Although using a
+centralized critic stabilizes training in MADDPG, the learned policies
+can still be brittle and sensitive to changes of the other agents&apos;s
+policies.
+
+
+To obtain policies that are more robust to changes in the policy of
+other agents, MADDPG proposes to first train a collection of *MATH* 
+different sub-policies and then maximizing the ensemble objective
+*MATH* as: *MATH* where *MATH* is the *MATH* -th sub-policies of agent
+*MATH*. By training agents with an ensemble of policies, the agents require
+interaction with a variety of the other agents&apos; policies. Intuitively,
+this is useful to avoid converging to local optima of the agents&apos;
+policies. However, the ensemble objective only considers the average
+performance of agents&apos; policies training by uniformly sampling the
+policies of the other agents.
+
+
+Alternatively, M3DDPG [*REF*] --- a variation of MADDPG ---
+proposes to update policies considering the worst situation for the
+purpose of learning robust policies. During training, it optimizes the
+policy of each agent *MATH* under the assumption that all other agents acts
+adversarially, which yields the minimax objective
+*MATH* as: *MATH* where *MATH* is the modified
+Q function representing the current reward of executing
+*MATH* in *MATH* plus the discounted worst case future return
+starting from *MATH*. With the minimax objective, the training environment
+of each agent becomes stationary because the behavior of all the other
+agents only depends on *MATH*, i.e., the negative reward of agent *MATH* 
+itself. However, this adversarial assumption could be too pessimistic
+if the game among the agents is not zero-sum or even is cooperative.
+
+
+Ideally, the well trained agents should be able to adapt their
+policies with the changes in the environment. This motivated the
+development of our algorithm introduced next.
+
+
+Policy Adaptive Multi-Agent Deep Deterministic Policy Gradient
+
+
+ALGORITHM
+
+
+In this section, we propose policy adaptive multi-agent deep
+deterministic policy gradient (PAMADDPG), which is based on MADDPG, to
+deal with environment non-stationarity in multi-agent RL. As in MADDPG,
+our algorithm operate under the framework of centralized training with
+decentralized execution. Thus, we allow the agents to share extra
+information for training, as long as this information is not used at
+execution time. We assume that the learned policies can only use local
+information and there is no explicit communication among agents during
+execution. Specifically, our algorithm is an extension of actor-critic
+policy gradient methods with multiple decentralized actors and one
+centralized critic, where the critic is augmented with extra information
+on the policies of the other agents.
+
+
+In this work, we consider a setting where agents are trained and
+executed in an environment that can categorized into a finite set of
+scenarios. These scenarios are known during training. However, at
+execution time, agents have no prior knowledge about which scenario they
+will locate in. Therefore, the agents must act adaptively during
+execution. Note that the scenarios cannot be modeled as state variables
+because we make no assumption about the initial distribution and
+transition probabilities of scenarios, which can be any probabilities in
+our setting. Intuitively, a scenario in our setting models a collection
+of environmental factors that can cause the agents to alter their
+policies.
+
+
+Let *MATH* denote a finite set of scenarios for the agents. Here,
+each scenario *MATH* can be modeled by a partially
+observable Markov game as aforementioned. We assume that all the
+scenarios in *MATH* have identical state space and the same
+action and observation space for all the agents. Particularly, each
+scenario *MATH* may have different state transition function
+*MATH* and different reward function *MATH* for each agent
+*MATH*, so that agents in different scenarios may require different
+policies. Formally, we define a scenario *MATH* as a tuple:
+*MATH* with notations in Markov games.
+
+
+As aforementioned, to be able to adapt in different scenarios, we
+propose to train multiple policies for each agent and postpone the
+selection of its policy at execution time. In addition to multiple
+policies for each agent, we also train a policy predictor that can be
+used by the agent to determine the best policy during execution. Given
+this, the agent is able to adapt its policy when the environment
+changes. As summarized in Algorithm,
+PAMADDPG consists of two main procedures: 1) learning multiple policies
+and 2) learning policy predictors, which will be described in details next.
+
+
+Learning Multiple Policies
+
+
+We can extend the actor-critic policy gradient method as described in
+MADDPG to work with each scenario. Specifically, given a scenario
+*MATH*, the gradient for policy *MATH* with respect to
+parameters *MATH* can be written as: *MATH* where *MATH* is the experience replay buffer
+recording experiences with tuples *MATH* of all
+agents at the scenario *MATH* and *MATH*. Here,
+the centralized action-value function *MATH* is updated as:
+*MATH* where *MATH* is the set of target policies with delayed parameters *MATH*.
+
+
+Here, the key challenge is that policies trained by MADDPG may converge
+to different local optima. Therefore, the other agents may choose
+policies that are different from the ones learned by MADDPG. To address
+this, we propose to train a collection of *MATH* different policies for
+each agent in a single scenario. Each policy can have different initial
+parameters and selection of the partners&apos; policies. This will grow the
+populations in the policy set of each agent and further improve the
+robustness during testing. Unlike MADDPG, we do not ensemble the *MATH* 
+policies to a single policy but keep all the individual policies as
+candidates for execution.
+
+
+Learning Policy Predictors
+
+
+We denote *MATH* the policy predictor that uses agent *MATH* &apos;s local observation history
+*MATH* to compute the distribution over agent
+*MATH* &apos;s policy set *MATH*. Our goal is to determine at execution time
+which policy should be used by agent *MATH* in order to achieve the best
+performance. Here, we use a recurrent neural network to train a policy
+predictor *MATH*, containing a layer of LSTM and some other layers.
+This structure allows the agent to reason about the current scenario
+using its observation sequence.
+
+
+Here, *MATH* is a function that takes the input of
+the current observation *MATH* and the last-step history *MATH* at
+the time step *MATH*, and outputs the policy distribution
+*MATH* over agent *MATH* &apos;s policy set *MATH*. Now, the
+action selection process of agent *MATH* at time step *MATH* can be written
+as: *MATH*. 
+
+
+Together with training the policy, we use replay buffer to train
+*MATH* in order to avoid the early instability and adverse effects
+during training process. Specifically, we create a dedicated replay
+buffer *MATH* for *MATH* during training. It stores
+*MATH* at the end of each episode, where
+*MATH* is agent *MATH* &apos;s observation sequence at this
+episode and *MATH* is the currently trained policy. The main training
+procedure of *MATH* is to sample a random minibatch of samples
+*MATH* from *MATH* and update the parameters of
+*MATH* by minimizing the cross-entropy loss function as follow: *MATH*.
+The overall learning procedures of our PAMADDPG method are outlined in Algorithm.
+
+
+ALGORITHM
+
+
+Experiments
+
+
+We empirically evaluate our algorithm on three domains built on top of
+the particle-world environments[^1] originally used by the MADDPG paper
+[*REF*]. To create various scenarios, we modify some of the
+physical properties of the environments so that the agents must alter
+their policies in order to success in different scenarios. By doing so,
+we expect to examine the adaptiveness of our PAMADDPG algorithm when
+testing in different scenarios.
+
+
+Environments
+
+
+FIGURE
+
+
+The particle world environment consists of *MATH* cooperative agents, *MATH* 
+adversarial agents and *MATH* landmarks in a two-dimensional world with
+continuous space. In the experiments, we consider two mixed cooperative
+and competitive domains (i.e., Keep-away and Predator-prey) and one
+fully cooperative domain (i.e., Cooperative navigation), as shown in
+Figure [1], and modify these environments to generate different scenarios as below.
+
+
+1.25ex -1em Keep-away. This environment consists of *MATH* landmarks
+including a target landmark, *MATH* cooperating agents who know the
+target landmark and are rewarded based on their distance to the target,
+and *MATH* agents who must prevent the cooperating agents from reaching
+the target. Adversaries accomplish this by physically pushing the agents
+away from the landmark, temporarily occupying it. While the adversaries
+are also rewarded based on their distance to the target landmark, they
+do not know the correct target.
+
+
+We create *MATH* scenarios that require agents to learn to adapt with. In
+each scenario, we simulate different &quot;wind&quot; conditions in the
+environment. The wind will affect the moving speed of the agents in a
+certain direction computed as: *MATH*, where *MATH* 
+is the original speed, *MATH* is the wind force for
+four directions, and *MATH* is the acceleration rate. In the
+experiments, we consider no wind (i.e., *MATH*) in Scenario 1,
+southwest wind (i.e., *MATH* and 0 otherwise) in Scenario 2,
+and northeast wind (i.e., *MATH* and 0 otherwise) in Scenario 3 respectively.
+
+
+1.25ex -1em Predator-prey. In this environment, *MATH* slower cooperating
+agents must chase *MATH* faster adversary around a randomly generated
+environment with *MATH* large landmarks impeding the way. Each time the
+cooperative agents collide with an adversary, the agents are rewarded
+while the adversary is penalized. Agents observe the relative positions
+and velocities of the agents, and the landmark positions.
+
+
+We create *MATH* scenarios to simulate different body conditions for the
+good and bad agents. This is done by using different maximum speeds
+*MATH* and accelerations *MATH* for the agents in the environment,
+i.e., *MATH*. We set the parameters so that the agents will compete in different levels,
+i.e., weak, medium, and strong. Specifically, we set
+*MATH* in Scenario 1, *MATH* in Scenario 2, and *MATH* in Scenario 3.
+
+
+1.25ex -1em Cooperative navigation. In this environment, agents must
+cooperate through physical actions to reach a set of *MATH* landmarks.
+Agents observe the relative positions of other agents and landmarks, and
+are collectively rewarded based on the proximity of any agent to each
+landmark. In other words, the agents have to &quot;cover&quot; all of the
+landmarks. Furthermore, the agents occupy significant physical space and
+are penalized when colliding with each other.
+
+
+Similar to the Keep-away environment described above, we created *MATH* 
+scenarios in this environment also with three wind conditions, i.e., no
+wind for Scenario 1, southeast wind for Scenario 2, and northwest wind
+for Scenario 3.
+
+
+Setup
+
+
+We compared our PAMADDPG algorithm with MADDPG[^2] and M3DDPG[^3], which
+are currently the leading algorithms for multi-agent deep RL, on the
+environments as described above. In our implementation, the agents&apos;
+policies are represented by a two-layer ReLU MLP with 64 units per
+layer, which is the same as MADDPG and M3DDPG, and the policy predictors
+are represented by a two-layer ReLU MLP and a layer of LSTM on top of
+them.
+
+
+We used the same training configurations as MADDPG and M3DDPG, and ran
+all the algorithms until convergence. Then, we tested the policies
+computed by the algorithms on each environment with 10,000 further
+episodes and report the averaged results. For fair comparison, all
+algorithms were tested on a fixed set of environment configurations.
+Each testing environment is generated by randomizing the basic
+configurations and randomly selecting a scenario. As aforementioned, the
+agents do not know which scenario is selected for the environment during
+testing procedure.
+
+
+Note that MADDPG and M3DDPG do not consider different scenarios in their
+original implementations. For fair comparison, we try to train their
+policies in a way that their performance is improved when working with
+different scenarios. Specifically, in our experiments, MADDPG trained
+policies with all scenarios and optimized the objective as:
+*MATH*. As aforementioned, we do not know the true distribution before testing
+so MADDPG was trained with the uniformly distributed scenarios.
+Following the minmax idea of the standard version, M3DDPG maximized the
+objective in the worst-case scenario in the experiments as:
+*MATH*. By doing so, we can evaluate the effectiveness of our algorithm with
+multiple policies comparing with MADDPG and M3DDPG using only a single
+policy for each agent when the environment changes.
+
+
+Results
+
+
+FIGURE
+
+
+We measure the performance of agents with policies learned by our
+PAMADDPG and agents with policies learned by MADDPG and M3DDPG in each
+environment. In the first two mixed cooperative and competitive domains,
+we switch the roles of both normal agent and adversary as in the MADDPG
+and M3DDPG papers to evaluate the quality of learned policies trained by
+different algorithms.
+
+
+The results on the three environments are demonstrated in Figure
+[2]. As shown in the figure, each group of bar shows the 0 *MATH*
+normalized score for the environment, where a higher score shows better
+performance for the algorithm. In the first two environments, PAMADDPG
+outperforms M3DDPG and MADDPG because PAMADDPG achieves higher scores
+when playing normal agents (i.e., PA vs MA, PA vs M3) than the ones as
+adversaries (i.e., MA vs PA, M3 vs PA). Interestingly, PAMADDPG performs
+better when playing against MADDPG (i.e., PA vs MA, MA vs PA) than the
+case against M3DDPG (i.e., PA vs M3, M3 vs PA) in the Keep-away
+environment, while PAMADDPG shows better performance against M3DDPG than
+the case against MADDPG in the Predator-prey environment. Intuitively,
+this is because the Predator-prey environment is more competitive than
+the Keep-away environment so that M3DDPG who considers the worst-case
+situation works better than MADDPG when paired with our algorithm. In
+the Cooperative navigation environment, PAMADDPG consistently
+outperforms MADDPG and M3DDPG. M3DDPG has the worst performance in terms
+of scores because this environment is a fully cooperative domain while
+M3DDPG makes unrealistic assumption that all the other agents act
+adversarially.
+
+
+Figure [3] shows the results of our PAMADDPG
+comparing with MADDPG and M3DDPG when testing on different scenarios in
+each environment. In the Keep-away environment, PAMADDPG outperforms
+MADDPG and M3DDPG on Scenarios 2 and 3 while performs similarly on
+Scenario 1. This is because MADDPG and M3DDPG tends to converge to the
+policies fitting Scenario 1, which is expected to work poorly in
+Scenarios 2 and 3. In contrast, our PAMADDPG can adapt its policies to
+fit different scenarios during testing. In the Predator-prey
+environment, PAMADDPG outperforms MADDPG on Scenarios 1 and 3 but not
+Scenario 2, and M3DDPG on Scenarios 1 and 2 but not Scenario 3. Similar
+to the Keep-away environment, this is because MADDPG converges to the
+policies fitting Scenario 2 while M3DDPG converges to the policies
+fitting Scenario 3. As we can see from the figure, PAMADDPG achieves
+slightly less scores than MADDPG and M3DDPG on Scenarios 2 and 3
+respectively. This is because the Predator-prey environment is very
+competitive and the policy predictors in PAMADDPG take time to form
+correct predictions. In the Cooperative navigation environment, our
+PAMADDPG outperforms MADDPG and M3DDPG for all the scenarios. Again,
+M3DDPG has the worst performance because this is a fully cooperative
+environment.
+
+
+Figure [4] shows the average reward of different
+approaches on the Cooperative navigation environment during the training
+process. As we can see from the figure, our PAMADDPG algorithm converges
+to better reward than all the other methods. As expected, the reward of
+DDPG decreases after 80,000 episodes due to non-stationarity in
+multi-agent RL. As shown in the figure, the reward of MADDPG fluctuates
+about 60,000 episodes while the reward of our PAMADDPG becomes stable
+after convergence.
+
+
+Conclusion
+
+
+In this paper, we addressed the non-stationarity problem in multi-agent
+RL and proposed the PAMADDPG algorithm. we model the non-stationarity in
+the environment as a finite set of scenarios. At training time, each
+agent learns multiple policies, one for each scenario, and trains a
+policy predictor that can be used to predict the best policy during
+execution. With the multiple policies and policy predictor, each agent
+is able to adapt its policy and choose the best one for the current
+scenario. We tested our algorithm on three common benchmark environments
+and showed that PAMADDPG outperforms MADDPG and M3DDPG in all the tested
+environment. In the future, we plan to conduct research on learning the
+scenarios directly from the environment.

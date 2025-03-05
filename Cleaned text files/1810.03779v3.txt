@@ -1,0 +1,181 @@
+Reinforcement Learning for Improving Agent Design
+
+
+Introduction
+
+
+Embodied cognition [*REF*; *REF*; *REF*] is the theory that an organism&apos;s cognitive abilities is shaped by its body. It is even argued that an agent&apos;s cognition extends beyond its brain, and is strongly influenced by aspects of its body and also the experiences from its various sensorimotor functions [*REF*; *REF*]. Evolution plays a vital role in shaping an organism&apos;s body to adapt to its environment; the brain and its ability to learn is only one of many body components that is co-evolved together [*REF*; *REF*]. We can recognize embodiment in nature by observing that many organisms exhibit complex motor skills, such as the ability to jump [*REF*] or swim [*REF*] even after brain death.
+
+
+FIGURE 
+
+
+While evolution shapes the overall structure of the body of a particular species, an organism can also change and adapt its body to its environment during its life. For instance, professional athletes spend their lives body training while also improving specific mental skills required to master a particular sport [*REF*]. In everyday life, regular exercise not only strengthens the body but also improves mental conditions [*REF*; *REF*]. We not only learn and improve our skills and abilities during our lives, but also learn to shape our bodies for the lives we want to live.
+
+
+We are interested to investigate embodied cognition within the reinforcement learning (RL) framework. Most baseline tasks [*REF*; *REF*] in the RL literature test an algorithm&apos;s ability to learn a policy to control the actions of an agent, with a predetermined body design, to accomplish a given task inside an environment. The design of the agent&apos;s body is rarely optimal for the task, and sometimes even intentionally designed to make policy search challenging. In this work, we explore enabling learning versions of an agent&apos;s body that are better suited for its task, jointly with its policy. We demonstrate that an agent can learn a better structure of its body that is not only better for its task, but also facilitates policy learning. We can even optimize our agent&apos;s body for certain desired characteristics, such as material usage. Our approach may help uncover design principles useful for assisted-design.
+
+
+Furthermore, we believe the ability to learn useful morphology is an important area for the advancement of AI. Although morphology learning originally initiated from the field of evolutionary computation, there has also been great advances in RL in recent years, and we believe much of what happens in ALife should be in principle be of interest to the RL community and vice versa, since learning and evolution are just two sides of the same coin.
+
+
+We believe that conducting experiments using standardized simulation environments facilitate the communication of ideas across disciplines, and for this reason we design our experiments based on applying ideas from ALife, namely morphology learning, to standardized tasks in the OpenAI Gym environment, a popular testbed for conducting experiments in the RL community. We decide to use standardized Gym environments such as Ant (based on Bullet physics engine) and Bipedal Walker (based on Box2D) not only for their simplicity, but also because their difficulty is well-understood due to the large number of RL publications that use them as benchmarks. As we shall see later, the ’BipedalWalkerHardcore-v2’ task, while simple looking, is especially difficult to solve with modern Deep RL methods. By applying simple morphology learning concepts from ALife, we are able to make a difficult task solvable with much fewer compute resources. We also made the code for augmenting OpenAI Gym for morphology learning, along with all pretrained models for reproducing results in this paper available at WEBSITE.
+
+
+We hope this paper can serve as a catalyst to precipitate a cultural shift in both fields and encourage researchers to open up our minds to each other. By drawing ideas from ALife and demonstrating them in the OpenAI Gym platform used by RL, we hope this work can set an example to bring both the RL and ALife communities closer together to find synergies and push the AI field forward.
+
+
+Related Work
+
+
+There is a broad literature in evolutionary computation, artificial life and robotics devoted to studying, and modelling embodied cognition [*REF*]. In 1994, Karl Sims demonstrated that artificial evolution can produce novel morphology that resemble organisms observed in nature [*REF*; *REF*].
+Subsequent works further investigated morphology evolution [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*], modular robotics [*REF*; *REF*; *REF*; *REF*], and evolving soft robots [*REF*; *REF*], using indirect encoding [*REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+Literature in the area of passive dynamics study robot designs that rely on natural swings of motion of body components instead of deploying and controlling motors at each joint [*REF*; *REF*; *REF*; *REF*].
+Notably, artist Theo Jansen [*REF*] also employed evolutionary computation to design physical Strandbeests that can walk on their own consuming only wind energy to raise environmental awareness.
+
+
+Recent works in robotics investigate simultaneously optimizing body design and control of a legged robot [*REF*; *REF*] using constraint-based modelling, which is related to our RL-based approach. Related to our work, [*REF*; *REF*] employ CMA-ES [*REF*] to optimize over both the motion control and physical configuration of agents. A related recent work [*REF*; *REF*] employs RL to learn both the policy and design parameters in an alternating fashion, where a single shared policy controls a distribution of different designs, while in this work we simply treat both policy and design parameters the same way.
+
+
+Method
+
+
+In this section, we describe the method used for learning a version of the agent&apos;s design better suited for its task jointly with its policy.
+In addition to the weight parameters of our agent&apos;s policy network, we will also parameterize the agent&apos;s environment, which includes the specification of the agent&apos;s body structure. This extra parameter vector, which may govern the properties of items such as width, length, radius, mass, and orientation of an agent&apos;s body parts and their joints, will also be treated as a learnable parameter. Hence the weights *MATH* we need to learn will be the parameters of the agent&apos;s policy network combined with the environment&apos;s parameterization vector. During a rollout, an agent initialized with *MATH* will be deployed in an environment that is also parameterized with the same parameter vector *MATH*.
+
+
+FIGURE
+
+
+The goal is to learn *MATH* to maximize the expected cumulative reward, *MATH*, of an agent acting on a policy with parameters *MATH* in an environment governed by the same *MATH*. In our approach, we search for *MATH*  using a population-based policy gradient method based on Section 6 of Williams&apos; 1992 REINFORCE [*REF*]. The next section provides an overview of this algorithm.
+
+
+Armed with the ability to change the design configuration of an agent&apos;s own body, we also wish to explore encouraging the agent to challenge itself by rewarding it for trying more difficult designs. For instance, carrying the same payload using smaller legs may result in a higher reward than using larger legs. Hence the reward given to the agent may also be augmented according to its parameterized environment vector. We will discuss reward augmentation to optimize for desirable design properties later on in more detail in Section [4.2].
+
+
+Overview of Population-based Policy Gradient Method (REINFORCE) 
+
+
+In this section we provide an overview of the population-based policy gradient method described in Section 6 of William&apos;s REINFORCE [*REF*] paper for learning a parameter vector *MATH* in a reinforcement learning environment. In this approach, *MATH* is sampled from a probability distribution *MATH* parameterized by *MATH*. We define the expected cumulative reward *MATH* as: in *MATH* in Using the log-likelihood trick allows us to write the gradient of *MATH* with respect to *MATH* in *MATH*. In a population size of *MATH*, where we have solutions *MATH*, *MATH*, *MATH*, we can estimate this as: in *MATH*. With this approximated gradient *MATH*, we then can optimize *MATH* using gradient ascent: in *MATH* and sample a new set of candidate solutions *MATH* from updating the pdf using learning rate *MATH*. We follow the approach in REINFORCE where *MATH* is modelled as a factored multi-variate normal distribution.
+Williams derived closed-form formulas of the gradient *MATH*. In this special case, *MATH*  will be the set of mean *MATH* and standard deviation *MATH*  parameters. Therefore, each element of a solution can be sampled from a univariate normal distribution *MATH*. Williams derived the closed-form formulas for the *MATH* term in Equation, for each individual *MATH* and *MATH*  element of vector *MATH* on each solution *MATH* in the population: *MATH*. 
+
+
+For clarity, we use subscript *MATH*, to count across parameter space in *MATH*, and this is not to be confused with superscript *MATH*, used to count across each sampled member of the population of size *MATH*. Combining Equations with Equation, we can update *MATH* and *MATH* at each generation via a gradient update.
+
+
+We note that there is a connection between population-based REINFORCE, a population-based policy gradient method, and particular formulations of Evolution Strategies [*REF*; *REF*], namely ones that are not elitist. For instance, Natural Evolution Strategies (NES) [*REF*; *REF*] and OpenAI-ES [*REF*] are closely based on Sec. 6 of REINFORCE. There is also a connection between natural gradients (computed using NES) and CMA-ES [*REF*]. We refer to Akimoto et al. [*REF*] for a detailed theoretical treatment and discussion about the connection between CMA-ES and natural gradients.
+
+
+Experiments
+
+
+In this work, we experiment on the continuous control ’RoboschoolAnt-v1’ environment from Roboschool [*REF*], based on the open source Bullet [*REF*] physics engine, and also ’BipedalWalker-v2’ from the Box2D [*REF*] section of the OpenAI Gym [*REF*] set of environments. For simplicity, we first present results of anecdotal examples obtained over a single representative experimental run to convey qualitative results such as morphology and its relationship to performance. A more comprehensive quantitative study based on multiple runs using different random seeds will be presented in Section [4.3].
+
+
+The ’RoboschoolAnt-v1’ environment features a four-legged agent called the Ant. The body is supported by 4 legs, and each leg consists of 3 parts which are controlled by 2 motor joints. The bottom left diagram of Figure [3] describes the initial orientation of the agent. The length of each part of a leg is controlled by the *MATH*  and *MATH* distances from its joint connection. A size parameter also controls the radius of each leg part.
+
+
+FIGURE 
+
+
+In our experiment, we keep the volumetric mass density of all materials, along with the parameters of the motor joints identical to the original environment, and allow the 36 parameters (3 parameters per leg part, 3 leg parts per leg, 4 legs in total) to be learned. In particular, we allow each part to be scaled to a range of *MATH* 75 of its original value. This allows us to keep the sign and direction for each part to preserve the original intended structure of the design.
+
+
+TABLE 
+
+
+Figure [3] illustrates the learned agent design compared to the original design. With the exception of one leg part, it learns to develop longer, thinner legs while jointly learning to carry the body across the environment. While the original design is symmetric, the learned design (Table [1]) breaks symmetry, and biases towards larger rear legs while jointly learning the navigation policy using an asymmetric body. The original agent achieved an average cumulative score of 3447 *MATH* 251 over 100 trials, compared to 5789 *MATH* 479 for an agent that learned a better body design.
+
+
+The Bipedal Walker series of environments is based on the Box2D [*REF*] physics engine. Guided by LIDAR sensors, the agent is required to navigate across an environment of randomly generated terrain within a time limit, without falling over. The agent&apos;s payload -- its head, is supported by 2 legs. The top and bottom parts of each leg is controlled by two motor joints. In the easier ’BipedalWalker-v2’ [*REF*] environment, the agent needs to travel across small random variations of a flat terrain. The task is considered solved if an agent obtains an average score greater than 300 points over 100 rollouts.
+
+
+FIGURE 
+
+
+Keeping the head payload constant, and also keeping the density of materials and the configuration of the motor joints the same as the original environment, we only allow the lengths and widths for each of the 4 leg parts to be learnable, subject to the same range limit of *MATH* 75 of the original design. In the original environment in Figure [4] (top), the agent learns a policy that is reminiscent of a joyful skip across the terrain, achieving an average score of 347. In the learned version in Figure [4] (bottom), the agent&apos;s policy is to hop across the terrain using its legs as a pair of springs, achieving a score of 359.
+
+
+In our experiments, all agents were implemented using 3 layer fully-connected networks with *MATH* activations. The agent in ’RoboschoolAnt-v1’ has 28 inputs and 8 outputs, all bounded between *MATH*  and *MATH*, with hidden layers of 64 and 32 units. The agents in ’BipedalWalker-v2’ and ’BipedalWalkerHardcore-v2’ has 24 inputs and 4 outputs all bounded between *MATH* and *MATH*, with 2 hidden layers of 40 units each.
+
+
+Our population-based training experiments were conducted on 96-CPU core machines. Following the approach described in [*REF*], we used a population size of 192, and had each agent perform the task 16 times with different initial random seeds. The agent&apos;s reward signal used by the policy gradient method is the average reward of the 16 rollouts. The most challenging BipedalWalkerHardcore agents were trained for 10000 generations, while the easier BipedalWalker and Ant agents were trained for 5000 and 3000 generations respectively. As done in [*REF*], we save the parameters of the agent that achieves the best average cumulative reward during its entire training history.
+
+
+Joint learning of body design facilitates policy learning: ’BipedalWalkerHardcore-v2’
+
+
+Learning a better version of an agent&apos;s body not only helps achieve better performance, but also enables the agent to jointly learn policies more efficiently. We demonstrate this in the much more challenging ’BipedalWalkerHardcore-v2’ [*REF*] version of the task.
+Unlike the easier version, the agent must also learn to walk over obstacles, travel up and down hilly terrain, and even jump over pits.
+Figure [1] illustrates the original and learnable versions of the environment.
+
+
+FIGURE 
+
+
+In this environment, our agent generally learns to develop longer, thinner legs, with the exception in the rear leg where it developed a thicker lower limb to serve as useful stability function for navigation.
+Its front legs, which are smaller and more manoeuvrable, also act as a sensor for dangerous obstacles ahead that complement its LIDAR sensors.
+While learning to develop this newer structure, it jointly learns a policy to solve the task in 30 of the time it took the original, static version of the environment. The average scores over 100 rollouts for the learnable version is 335 *MATH* 37 compared to the baseline score of 313 *MATH* 53. The full results are summarized in Table [2].
+
+
+TABLE 
+
+
+Optimize for both the task and desired design properties 
+
+
+Allowing an agent to learn a better version of its body obviously enables it to achieve better performance. But what if we want to give back some of the additional performance gains, and also optimize also for desirable design properties that might not generally be beneficial for performance? For instance, we may want our agent to learn a design that utilizes the least amount of materials while still achieving satisfactory performance on the task. Here, we reward an agent for developing legs that are smaller in area, and augment its reward signal during training by scaling the rewards by a utility factor of *MATH*. Augmenting the reward encourages development of smaller legs.
+
+
+FIGURE 
+
+
+This reward augmentation resulted in much a smaller agent that is still able to support the same payload. In ’BipedalWalker’, given the simplicity of the task, the agent&apos;s leg dimensions eventually shrink to near the lower bound of *MATH* 25 of the original dimensions, with the exception of the heights of the top leg parts which settled at *MATH*  35 of the initial design, while still achieving an average (unaugmented) score of 323 *MATH* 68. For this task, the leg area used is 8 of the original design.
+
+
+However, the agent is unable to solve the more difficult ’BipedalWalkerHardcore’ task using a similar small body structure, due to the various obstacles presented. Instead, it learns to set the widths of each leg part close to the lower bound, and instead learn the shortest heights of each leg part required to navigate, achieving a score of 312 *MATH* 69. Here, the leg area used is 27 of the original.
+
+
+Results over Multiple Experimental Runs 
+
+
+In the previous sections, for simplicity, we have presented results over a single representative experimental run to convey qualitative results such as morphology description corresponding to average score achieved.
+Running the experiment from scratch with a different random seed may generate different morphology designs and different policies that lead to different performance scores. To demonstrate that morphology learning does indeed improve the performance of the agent over multiple experimental runs, we run each experiment 10 times and report the full range of average scores obtained in Table [3] and Table [4]. From multiple independent experimental runs, we see that morphology learning consistently produces higher scores over the normal task.
+
+
+TABLE 
+
+
+We also visualize the variations of morphology designs over different runs in Figure [7] to get a sense of the variations of morphology that can be discovered during training. As these models may take up to several days to train for a particular experiment on a powerful 96-core CPU machine, it may be costly for the reader to fully reproduce the variation of results here, especially when 10 machines running the same experiment with different random seeds are required. We also include all pretrained models from multiple independent runs in the GitHub repository containing the code to reproduce this paper. The interested reader can examine the variations in more detail using the pretrained models.
+
+
+FIGURE 
+
+
+Discussion and Future Work
+
+
+We have shown that allowing a simple population-based policy gradient method to learn not only the policy, but also a small set of parameters describing the environment, such as its body, offer many benefits. By allowing the agent&apos;s body to adapt to its task within some constraints, it can learn policies that are not only better for its task, but also learn them more quickly.
+
+
+The agent may discover design principles during this process of joint body and policy learning. In both ’RoboschoolAnt’ and ’BipedalWalker’ experiments, the agent has learned to break symmetry and learn relatively larger rear limbs to facilitate their navigation policies.
+While also optimizing for material usage for ’BipedalWalker’&apos;s limbs, the agent learns that it can still achieve the desired task even by setting the size of its legs to the minimum allowable size. Meanwhile, for the much more difficult ’BipedalWalkerHardcore-v2’ task, the agent learns the appropriate length of its limbs required for the task while still minimizing the material usage.
+
+
+This approach may lead to useful applications in machine learning-assisted design, in the spirit of [*REF*; *REF*].
+While not directly related to agent design, machine learning-assisted approaches have been used to procedurally generate game environments that can also facilitate policy learning of game playing agents [*REF*; *REF*; *REF*; *REF*; *REF*].
+Game designers can optimize the designs of game character assets while at the same time being able to constrain the characters to keep the essence of their original forms. Optimizing character design may complement existing work on machine learning-assisted procedural content generation for game design. By framing the approach within the popular OpenAI Gym framework, design firms can create more realistic environments -- for instance, incorporate strength of materials, safety factors, malfunctioning of components under stressed conditions, and plug existing algorithms into this framework to optimize also for design aspects such as energy usage, easy-of-manufacturing, or durability. The designer may even incorporate aesthetic constraints such as symmetry and aspect ratios that suits her design sense.
+
+
+In this work we have only explored using a simple population-based policy gradient method [*REF*] for learning. State-of-the-art model-free RL algorithms, such as TRPO [*REF*] and PPO [*REF*] work well when our agent is presented with a well-designed dense reward signal, while population-based methods offer computational advantages for sparse-reward problems [*REF*; *REF*]. In our setting, as the body design is parameterized by a small set of learnable parameters and is only set once at the beginning of a rollout, the problem of learning the body along with the policy becomes more sparse. In principle, we could allow an agent to augment its body during a rollout to obtain a dense reward signal, but we find this unpractical for realistic problems. Future work may look at separating the learning from dense-rewards and sparse-rewards into an inner loop and outer loop, and also examine differences in performance and behaviours in structures learned with various different RL algorithms.
+
+
+Separation of policy learning and body design into inner loop and outer loop will also enable the incorporation of evolution-based approaches to tackle the vast search space of morphology design, while utilizing efficient RL-based methods for policy learning. The limitations of the current approach is that our RL algorithm can learn to optimize only existing design properties of an agent&apos;s body, rather than learn truly novel morphology in the spirit of Karl Sims&apos; Evolving Virtual Creatures [*REF*].
+
+
+Nevertheless, our approach of optimizing the specifications of an existing design might be practical for many applications. While a powerful evolutionary algorithm that can also evolve novel morphology might come up with robot morphology that easily outperforms the best bipedal walkers in this work, the resulting designs may not be as useful to a game designer who is tasked to work explicitly with bipedal walkers that fit within the game&apos;s narrative (although it is debatable whether the game can be more entertaining and interesting if the designer is allowed to explore the space beyond given specifications). Due to the vast search space of all possible morphology, a search algorithm can easily come up with unrealistic or unusable designs that exploits its simulation environment, as discussed in detail in [*REF*], which may be why subsequent morphology evolution approaches constrain the search space of the agent&apos;s morphology, such as constraining to the space of soft-body voxels [*REF*] or constraining to a set of possible pipe frame connection settings [*REF*]. We note that unrealistic designs may also result in our approach, if we do not constrain the learned dimensions to be within *MATH* 75 of its original value. For some interesting examples of what REINFORCE discovers without any constraints, we invite the reader to view the Bloopers section of WEBSITE. 
+
+
+Just as REINFORCE [*REF*] can also be applied to the discrete search problem of neural network architecture designs [*REF*], similar RL-based approaches could be used for novel morphology design -- not simply for improving an existing design like in this work. We believe the ability to learn useful morphology is an important area for the advancement of AI. Although morphology learning originally initiated from the field of evolutionary computation, we hope this work will engage the RL community to investigate the concept further and encourage idea exchange across communities.

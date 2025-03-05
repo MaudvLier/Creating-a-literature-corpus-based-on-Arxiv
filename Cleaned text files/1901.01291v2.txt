@@ -1,0 +1,300 @@
+On the Utility of Model Learning in HRI
+
+
+Introduction
+
+
+An age-old debate that still animates the halls of computer science, robotics, neuroscience, and psychology departments is that between model-based and model-free (reinforcement) learning. Model-based methods work by building a model of the world -- dynamics that tells an agent how the world state will change as a consequence of its actions -- and optimizing a cost or reward function under the learned model. In contrast, model-free methods never attempt to explicitly learn how the world works. Instead, the agent learns a policy directly from acting in the world and learning from what works and what does not. Model-free methods are appealing because the agent implicitly learns what it needs to know about the world, and only what it needs. On the other hand, model-based methods are appealing because knowing how the world works might enable the agent to generalize beyond its experience and possibly explain why a decision is the best one.
+
+
+In neuroand cognitive science, the debate is about which paradigm best describes human learning [*REF*; *REF*]. On the other side of campus, in AI and robotics, the debate is instead about which paradigm enables an agent to perform its task best. As of today, model-free methods have produced many successes [*REF*; *REF*; *REF*], but some efforts are shifting towards model-based methods [*REF*; *REF*].
+
+
+FIGURE 
+
+
+In the context of Human-Robot Interaction (HRI), which is our focus in this work, the debate has a different nuance. For robots that do not work in isolation, but in worlds that contain people, the dynamics of the world are no longer just about how physical state changes, but also how human state changes -- what the human will do next, and how that is influenced by the robot&apos;s action. There is thus a lot of richness in what it means to be model-based. On the one hand, the robot can learn a model by observing human state transitions and fitting a policy to them, as it can with any other part of the environment (Fig.
+[1],b). This is a &quot;black-box&quot; approach to system identification. But on the other hand, the robot can structure its model and explicitly reason about the human differently: humans, unlike objects in the world, have agency, and treating them as such means using what Gopnik called a &quot;Theory of Mind&quot; (ToM) [*REF*]: a set of assumptions about how another agent works, including how they decide on their actions (Fig.
+[1],c). Rather than black-box, this is a &quot;gray-box&quot; approach.
+
+
+When it comes to our own interaction with other people, cognitive science research has amassed evidence that we might use such a theory of mind[*REF*; *REF*; *REF*; *REF*] -- in particular, that we assume that others are approximately rational, i.e. they tend to make the decisions that are approximately optimal under some objective (or utility, or reward) [*REF*]. But even if humans do use such tools in interaction, it is not at all clear that robots ought to as well. For robots and interaction, methods from all three paradigms exist: model-free [*REF*; *REF*; *REF*], regular model-based [*REF*], and ToM-based [*REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+Ideally, we&apos;d want to settle the debate for HRI by seeing what works best in practice. Unfortunately, several factors make it very difficult to get a definitive answer: 1) we do not yet have the best ToM assumptions we could get, as research in the psychological sciences and even economics is ongoing; as a result, any answer now is tied to the current models we have, not the ones we could have; 2) making the comparison requires immensely expensive evaluations with robots acting in the real world and failing in their interactions around real people -- this is very difficult especially for safety-critical tasks; 3) the answer might depend on the amount of data that can be available to the robot, and the distribution that data is sampled from, which is also hard to predict -- therefore, what we need to know is which paradigm to use as a function of the data available.
+
+
+In this work, rather than attempting to answer the practical and more general question of which paradigm the robot should use, our idea was to turn to a more scientific and focused question. We do not know how wrong the eventual ToM model will still be, and we do not know how much data we can afford, but we can compare the performance of these paradigms under different possible scenarios.
+
+
+We take inspiration from recent work in learning for control [*REF*] that studied the sample complexity of model-based and model-free methods for a very simple system: the linear quadratic regulator. Their idea was that performance in a controlled simple system that we have ground truth for is informative -- if a method struggles even on this system, what chance does it have in the real world?
+
+
+We thus set up a simplified HRI system: we have a robot that needs to optimize a reward function in the presence of a human who optimizes theirs, in response to the robot&apos;s actions. We instantiate this in an autonomous driving domain. This simplification from the real world enables us to start answering two fundamental questions: 1) how big the benefit of ToM would actually be, even in the optimistic case of having the perfect set of assumptions about human decision making; and 2) how exactly this benefit decreases as our assumptions become increasingly incorrect.
+
+
+Findings. We uncover evidence which suggests that if we had a perfect theory of mind, we&apos;d reduce the sample complexity of learning compared to black-box model-based learning, and, more importantly, we might be able to learn solely from off-policy data. In contrast, we found that it is possible for black-box model based approaches to fail to improve even with a lot of data, unless that data comes from the right distribution -- the off-policy method failed for us, and even iteratively collecting on-policy data did not seem to be enough in our system without targeted exploration. ToM was surprisingly robust to wrong assumptions: in our driving domain, even when the human deviates from ToM, it could produce useful predictions -- but this was in part due to ToM&apos;s wrong predictions interacting well with short-horizon planning, rather than ToM making better predictions than black-box approaches. Further, ToM tended to transfer better: when we used a trained model to interact in a new HRI system, the ToM model performed better even when the human deviated substantially from training behavior.
+
+
+Limitations. These findings should be of course taken with a grain of salt. The differences we introduce between the ToM and the ground truth &quot;human&quot; might not be representative of what differences we will see in real life. We also do this for one particular task, with one particular ToM instantiation. Because of the difference between accurate predictions and useful predictions, different tasks might lead to different results. In a previous iteration of this work, we investigated a task where a robot was attempting to influence the human driver from behind to move out of the way: we realized that most wrong predictions would lead to the correct plan in such a scenario, because most wrong predictions would lead to the human moving out of the robot&apos;s lane. We specifically designed the current task so that being able to capture the influence on the human would actually matter more to task performance.
+This is not true of all tasks. Further, the realities of planning in continuous state-action spaces even in our relatively simple scenario, such as limited planning horizons and convergence to local optima, put their own stamp on the findings. That said, the results give us a glimpse at what might happen, pointing to surprisingly nuanced trade-offs between ToM and black-box approaches, in particular with respect to the type of data required and the ease of initialization.
+
+
+Overall, we are excited to contribute a quantitative comparison of these paradigms for an HRI task, along with an analysis of their degradation as we make the wrong modeling assumptions, decrease the amount of data available, or restrict the ability to collect data on-policy and to explore.
+
+
+Interaction Learning Algorithms
+
+
+Notation
+
+
+For all of the following methods and experiments, we denote the human plan at time *MATH* by *MATH*, and the robot plan at time *MATH* by *MATH*. We also denote the action executed by the human at time *MATH* by *MATH*, and for the robot *MATH*. Both the human and robot states at time *MATH* are denoted by *MATH* and *MATH*.
+
+
+Robot Objective
+
+
+The robot&apos;s goal is to optimize a reward function *MATH*  that depends on both its state and action, as well as the human&apos;s state and action.
+
+
+Theory-of-Mind-Based Learning 
+
+
+In line with previous work [*REF*; *REF*; *REF*], our ToM will assume that the human optimizes a reward function. The robot will focus the learning on figuring out this reward via inverse reinforcement learning, and the ToM-based method will plan the robot&apos;s actions using the learned model.
+
+
+In particular, the reward will have the form *MATH* where *MATH* is a vector of weights and *MATH* is a feature map from the current state of the system, which depends on the robot&apos;s state and action as well, akin to the robot&apos;s reward. We describe the particular features we assumed in more detail in Sec. [3.1].
+
+
+To optimize their reward, the person needs to reason about the inter-dependency between their future actions and those of the robot.
+Work on ToM has investigated different ways to capture this, from infinite regress (i.e. &quot;I think about you thinking about me thinking about you...&quot;) to capping the regress to one or two levels. Our particular instance of ToM is based on prior work which avoids regress by giving the human access to the robot&apos;s future plan [*REF*], and is given by *MATH* with *MATH* denoting the cumulative reward, i.e. the sum of rewards over a finite horizon of the length of the trajectories *MATH* and *MATH*. This assumption is very strong, i.e.
+that the human can read the robot&apos;s mind. Part of our goal is to simulate the human as instantiating other approaches, and teasing out how useful or not ToM still is when its assumptions are wrong. This particular ToM instance will also assume that the person computes this at every step, takes the first action, observes the robot&apos;s new plan, and replans.
+
+
+To leverage this ToM model, the robot needs to know the human reward function *MATH*. In our experiments, we create a dataset of demonstrations *MATH* by placing our ground-truth human (be it a human perfectly matching the ToM model or one that does not) around another vehicle executing various trajectories, and recording the human&apos;s response. In the real world, this data would be collected from people driving in response to other people. We then run inverse reinforcement learning [*REF*; *REF*; *REF*; *REF* -human-rss2016] on *MATH* to obtain weights *MATH*.
+
+
+Finally, given the human reward function described by the learned weights *MATH*, the robot optimizes its own plan: *MATH* with *MATH* denoting the robot&apos;s cumulative reward. The robot plans, takes the first action, observes the next human action, and replans at every step. We use a Quasi-Newton optimization method [*REF*] and implicit differentiation to solve this optimization problem.
+
+
+The main challenge with the ToM approach is that in reality people will not act according to *MATH* for any *MATH*. In general, ToM models will be misspecified, failing to perfectly capture human behavior.
+
+
+Black-Box Model-Based Learning 
+
+
+The Theory-of-Mind approach models the human&apos;s actions as explicitly optimizing some cost function. An alternative is to learn this function directly from data via, e.g., a conditional neural network, as in [*REF*].
+
+
+Off-Policy (MB-OFF). In the &quot;off-policy&quot; black-box model-based approach, we collect a training dataset *MATH* of human-robot interactions as in the ToM approach and fit a neural network *MATH* to *MATH*. This allows us to estimate the human plan *MATH*, given the human and robot histories, the current state of the system, and the robot plan: *MATH*.  *MATH* and *MATH*  are the state-action histories of the robot and human over a finite time horizon. The model *MATH* is trained by minimizing the loss between *MATH*  and the observed data *MATH* in *MATH*. Specifically, we use a neural network with three fully connected layers, each with 128 neurons and ReLU activations, and train the network using ADAM [*REF*].
+
+
+Given this learned model, the vanilla model-based method generates a plan with trajectory optimization, just like the ToM method: *MATH*. The distinction is whether the prediction about *MATH* comes from optimizing *MATH*, or from the black box predictor *MATH*.
+
+
+On-Policy (MB-ON). The off-policy approach ignores the fact that the predictive model influences the behavior of the robot and therefore the future states on which the robot will query the predictor. In fact, if *MATH* attains a test error rate of *MATH* it can still exhibit prediction errors that are *MATH* when rolled out over a horizon *MATH*  [*REF*]. The trajectories generated by optimizing against a fixed model induce covariate shift that reduces the accuracy of the model.
+
+
+To deal with this, a typical approach in system identification is to alternate between fitting a model, and using it to act and collect more interaction data. This comes at a cost: the need for data collected on-policy, from interacting with the human, rather than from (off-policy/offline) demonstrations.
+
+
+In this method, we again use a neural network *MATH* to predict the human actions. But unlike the previous model-based method, which relies on training data collected beforehand, here we train *MATH* iteratively.
+
+
+Of course, needing interaction with the human can be prohibitive, especially if a) a lot of interaction data is needed, or b) the robot does not perform well initially, when its model is not yet good, which can harm adoption or lead to safety concerns.
+
+
+Idealized (MB-I). Even collecting data on-policy has no guarantee that the robot will acquire a human model that is conducive to the optimal robot policy, i.e. if we assume the human acts according to a function *MATH*, the robot learning on-policy might not converge to *MATH*. This is because the robot might not explore enough. However, getting exploration right is an open area of research.
+We thus also test a method that uses idealized exploration -- we collect data not only on-policy, but rather also &quot;on-the-optimal-policy&quot;. This method in a sense &quot;cheats&quot; by getting access to data collected by acting according to *MATH* from different initial states. We then mix this data with on-policy data, iteratively, to obtain a model that can cover both the current and previous distributions, as well as the idealized distribution (we found that this mixing was important to the performance compared to using the idealized distribution alone). The reason this method is worth considering, despite the very strong assumption of access to the idealized distribution for &quot;exploration&quot;, is that robots might be able to use human-human interaction data in situations where that optimal robot policy might coincide with what people do with each other.
+
+
+Model-Free Learning 
+
+
+A final approach is to employ fully model free methods, such as policy gradients or DQNs. These methods are quite general and fast at inference time as they make no assumptions about the environment and don&apos;t explicitly plan online. We use Proximal Policy Optimization (PPO) [*REF*], a model free reinforcement learning algorithm that has had strong results in other continuous control tasks. Although more sample efficient approaches exist, we selected PPO because it has been adopted as a sort of baseline for continuous control tasks.
+
+
+PPO works by computing clipped gradients of expected reward with respect to the parameters of a policy. This gradient is estimated with rollouts using the current policy parameters in the environment. The algorithm alternates between rolling out trajectories and performing gradient updates. See [*REF*] for a more complete explanation of the approach. We used the PPO2 implementation in the Stable Baselines repository [*REF*] with default parameters as our model-free algorithm. The primary difficulty in applying PPO to this setting is that the human simulator we implemented (for testing what happens where ToM assumptions are exactly right), does not, strictly speaking, fit into the environment model used for reinforcement learning. Because the human reacts to what the robot plans to do in the future, the environment is different depending on the current policy parameters. We implement this by having the human respond to a robot plan that was generated assuming the person continues at a constant velocity for the rest of the planning horizon. Because of how precise the controls need to be for this task, we do not sample from the distribution over actions the robot&apos;s policy outputs during evaluation time and instead use the mean. We also clip some of the penalties for catastrophic events like driving off the road or colliding with another vehicle and terminate the episode early to not poison the reward buffer of the policy gradient algorithm.
+
+
+Performance under Correct Modeling Assumptions
+
+
+We begin with comparing these methods in a driving domain.
+
+
+Experiment Design 
+
+
+(Ground Truth) Human Simulator. For our driving domain, states are tuples of the form *MATH*, where *MATH* and *MATH* are the positional coordinates, *MATH* the speed, and *MATH* the heading. The actions are *MATH*, where *MATH* is a linear acceleration, and *MATH* an angular velocity.
+
+
+The ground truth human simulator plans forward over a finite time horizon *MATH* (in all experiments, *MATH*) by optimizing over a linear combination of features: Car Proximity: This cost is based on the distance between the robot and human cars, which represents human&apos;s desire to not hit another vehicle. Given the human state *MATH* and the robot state *MATH*, this cost is given by *MATH*.
+
+
+Lane Edge Proximity: This cost is based on the distance to the nearest lane edge. This represents how humans generally prefer to stay in the middle of their lane. Letting the left edge of some lane be *MATH* and the right edge *MATH*, the lane cost is given by: *MATH*.
+
+
+Forward Progress: This cost is based on the vertical distance between the next state and the current state, representing how humans want to go forward when driving. This cost is given by: *MATH*.
+
+
+Bounded Control: This cost is based on accelerating or trying to turn more quickly than certain bounds, representing how humans prefer smoother rides and cars have actuator limits. The cost is given by *MATH*.
+
+
+Offroad: This cost represents how drivers want to stay on the road when driving. Letting the left edge of the road being *MATH* and the right edge *MATH*, the offroad cost is given by *MATH*.
+
+
+The weights on these features were tuned to produce plausible/natural driving in a series of scenarios. In addition to the features and weights, the ground truth human simulator is given the plan of the robot *MATH*. It then solves the cost minimization in. Importantly, this particular simulator exactly matches the assumptions made by the ToM learner (Section [2.3]), in both the features used and planning method. The next section modifies the simulator so that the ToM assumptions are wrong.
+
+
+Environment. The experiment environment consists of the human and robot car on a three-lane road, with the robot beginning in front of the person. The robot car starts in the middle lane while the human car starts in either the middle or left lane. The robot has a similar set of features to that of the human, incentivizing it to make progress, avoid collisions, keep off of the lane boundaries, and stay on the road.
+However, we add another feature representing the penalty associated with colliding into a pair of trucks that are in front of the robot and occupy the center and right lanes.
+
+
+We chose this as our environment because for all its simplicity, it can actually capture sophisticated interaction: given our ground truth human, to do well, the robot should merge in front of the person in the left lane by influencing the person to make space rather than passively waiting for the person to pass by and accumulating significantly less reward for forward progress. We use this scenario as an interesting challenge for HRI, because it requires being able to account for robot&apos;s influence on the human. Accordingly, we initialize the ToM and black-box model-based methods by pre-training them on a dataset in which the human drives in isolation -- this makes it so that both methods get access from the start to the basics of human driving (staying on the road, in the lane, accelerating to reach the speed limit), without giving away any of the aspects that are important to this particular task, i.e. the influence.
+
+
+FIGURE 
+
+
+Manipulated Variables. We manipulate two variables: the interaction learning algorithm (with the options described in the previous section) and the amount of data (number of samples) the learner gets access to. For the off-policy methods, we use data from a different type of interaction where the robot drives at constant velocity near the human.
+
+
+Dependent Measures. In each experiment, we measure the reward the robot accumulates after training over test environments drawn from a more challenging subset of the training environment initial state distribution. We train ToM and model-based 5 times with each data sample size and measure test reward for each trained model. We train model-free only four times due to the several orders of magnitude larger amount of data required.
+
+
+Analysis
+
+
+We plot the results and visualize trajectories from each paradigm in Fig. We see that ToM starts with higher performance even at 0 samples. This is because while both models are pre-trained with a data from a human acting in isolation and thus make very similar predictions, the gradients of those predictions with respect to the robot&apos;s plan are different, and that in turn leads to different plans. With the black-box model, the gradients are close to 0 due to the non-reactive training data. This results in the robot planning to let the human pass and merge behind. The ToM model, on the other hand, anticipates influence on the human&apos;s plan because of its structure (i.e. the collision avoidance feature), despite pre-training on non-reactive data (which settles on a nonzero weight for said feature). This enables the robot to figure out that it can merge in front of the human even from the start. This speaks to a certain extent to the ease of initializing ToM: because it encodes that people want to avoid collisions, and that human actions are influenced by robot actions, the original solution, albeit imperfect, is already qualitatively achieving the desired outcome.
+
+
+As the ToM model gets off-policy data from the ground truth human simulator, the robot&apos;s reward when planning with ToM improves. Looking at a representative trajectory (right of Fig.), we see that the robot gets in front of the human, who slows down to accommodate.
+
+
+On the other hand, the off-policy model-based method, which learns from the same demonstrations used by the ToM approach, is unable to learn to merge in front of the human car. One explanation for this behavior is the difference between the training and test distributions -- at test time the robot plans with the learned model, generating different kinds of trajectories with different human responses than in training.
+Concretely, the off-policy data has a mild influence of the robot&apos;s actions on the human, whereas solving our test merge task requires being able to model stronger influence. The ToM model can better cope with this because it has access to the strong predefined structure various features in the reward function, and can rely on trajectory optimization to produce the corresponding human trajectories in new situations, given new robot trajectories.
+
+
+What is more surprising at a first glance, however, is that the on-policy method also fails to improve. This points to a potentially fundamental problem with model-based methods in this type of interactive situation: they start not knowing how to influence the human, so the initial policy does not attempt to merge in front and instead lets the human pass. Then, they collect data on-policy, but none of the roll-outs end up influencing the human&apos;s behavior enough, so their model never evolves to capture that potential stronger influence. As a result, the robot&apos;s policy never attempts the merge and remains at a low reward.
+
+
+The idealized model-based, which &quot;explores&quot; by getting access to data from the optimal policy in response to the ground truth human model, does get up to the ToM performance, but requires more data. We also see these results reproduced in a setting where we eliminated the control bounds on the cars (Fig. [2]).
+
+
+For model-free learning, we used the PPO2 implementation in the Stable Baselines repository [*REF*] with default parameters as our model-free algorithm. This method takes several orders of magnitude more than the model-based methods and is not able to match their performance.
+This can likely be attributed to the fact that the model-free method is not handed the dynamics of the system and therefore cannot take advantage of online planning, which is fundamental to the way model-free methods operate. Additionally, the accuracy of the controls required to successfully perform a merge make exploration challenging in this scenario, so the Gaussian noise used by PPO2 might also play a factor in the algorithm&apos;s relatively poor performance.
+
+
+Takeaways. Overall, what we find confirms intuition: if we have a good model, learning its parameters leads to good performance compared to learning from scratch. More surprising is the performance of the black-box methods, both offand on-policy. Without seeing data of the human responding to the robot actually merging in front of them (which is what the idealized exploration brings), the black-box approach did not seem to be able to model this, and got stuck in the mode where the optimal solution is to go behind the human. In contrast, ToM could more easily make that leap from the data it was trained on. In our case, the pre-training already brought it most of the way there; in general though we expect that ToM can for instance take off-policy data of mild influence (when the robot is further away) and extrapolate it to stronger influence (when the robot is closer to the human) -- this seems to be difficult for the black-box model, judging by the off-policy black-box results. On the other hand, had we initialized ToM differently, and had the off-policy data not contain any influence, ToM would have looked the same as the onand off-policy black box methods, and it is entirely possible that not even an on-policy ToM could have fixed that. Overall, the results speak mostly to the difficulty that black-box models might have in extrapolating from one pattern of interaction to another, because they lack that structure that ToM exploits.
+
+
+Performance under Incorrect Modeling Assumptions
+
+
+From what we have found in the previous section, Theory of Mind is appealing because it has low sample complexity and works from off-policy data. However, the bias introduced with this approach could lead to underfitting. To quantify this, we compare the ToM and model-based methods when we modify the human simulator. Because of the tremendous difference in terms of performance and sample complexity of the model-free method, we chose to omit it to focus on the aforementioned comparison.
+
+
+FIGURE 
+
+
+Human Simulators that Contradict Modeling Assumptions
+
+
+Inconsistency in how humans plan, the &quot;features&quot; they might care about, or unexpected reactions to certain actions all violate the assumptions made by the ToM learner. We aimed to create ground truth modifications that are analogous to differences between reality and our ToM-based modeling -- things that designers of these systems might get wrong. As such, even though these are controlled experiments where we know the ground-truth, we think they provide some indication of how real-world differences would look like under different hypotheses. We group these modifications into 3 categories.
+
+
+FIGURE 
+
+
+Incorrect model of how the human plans
+
+
+One way our model could be wrong is if it inaccurately captures the planning process -- even if we assume the person is actually trying to optimize for a known reward, they might not optimize well or reason about the robot differently than ToM assumes.
+
+
+&quot;Obstructed-View&quot; -- Humans have blind spots. Our instance of ToM assumes humans have a *MATH* vision. In reality, drivers have blind spots. To model this we hide cars that are not in a double-cone from the human, with a vertex angle of 45 *MATH*. Robots that do not model blind spots will thus take more risky maneuvers, expecting to be seen by the person when they are not.
+
+
+&quot;Lane-Prediction&quot; -- Humans can plan conservatively. Given the inherent risks in driving, humans may be more cautious in their planning than necessary, taking evasive maneuvers when there is any chance of danger. This simulator swerves out of the current lane if the robot angles itself slightly towards said lane. A robot that does not know this might not be able to influence the human as much is possible. Note that this no longer matches our ToM&apos;s assumption that the human gets access to the robot&apos;s plan.
+
+
+&quot;Myopic&quot; -- Humans might not plan ahead for as long as the robot assumes. Another assumption ToM makes about the human&apos;s reasoning is that it plans as far forward as the robot does. In reality, however, humans may be more myopic, and plan forward for a shorter time horizon than we assume. Our &quot;Myopic&quot; human simulator only plans forward for one step.
+
+
+Incorrect model of what the human cares about
+
+
+Another class of inconsistency in modeling deals with reward features.
+
+
+&quot;Nonisotropic-Distance&quot; -- Humans care about avoiding other cars, but we might not know how sensitive they are to getting close to different areas of another car. The original human simulator has a cost based on a Gaussian that takes in the Euclidean distance between the centers of the two cars, the &quot;Nonisotropic-Distance&quot; simulator modifies the cost contours to be longer than they are wide, as show in Figure [3]. This models the fact that some people are more comfortable with cars to their sides rather than in their own lane.
+
+
+&quot;Bounded-Controls&quot;-- We might not know people&apos;s preferences for speed or their control limitations. Human drivers have different preferences for how fast they turn or accelerate as well as cars with different control bounds. To model this, the ground truth human simulator&apos;s values of *MATH* and *MATH* (see section 3.A) are reduced to *MATH*, reducing the capability of the human to react to the robot.
+
+
+&quot;Blindspot-Protective&quot; -- Humans might additionally care about not having another car in their blindspot. A subclass of modifications we have not yet considered is where the human might use features in planning that the robot might not know about. One example of this might be discomfort with having cars in one&apos;s blindspot. Drivers might speed up or slow down to avoid such an arrangement. This modification models this dislike by adding additional points of Gaussian cost where blindspots are, as illustrated in Fig.
+[3].
+
+
+&quot;Panicking&quot; -- Humans might be heuristic-driven. Humans might also use heuristics that are irrational. Our &quot;Panicking&quot; modification combines the slower speed of the &quot;Bounded-Controls&quot; modification with an additional heuristic of stopping immediately if another car is fewer than 2 car-lengths behind. This is inspired by a newer driver, whose inexperience causes him to drive slowly and panic when another car approaches.
+
+
+A modification purposefully detrimental to the robot
+
+
+Our last modification is meant to purposefully create dangerous situations when the robot is using the ToM assumption. &quot;Aggressive&quot; -- Humans might want to stay in front of autonomous cars. New autonomous vehicles might seem dangerous to drivers and they may want to stay in front of them so they do not have to worry about false stops by the car. This modification is implemented by flipping the sign of the car-avoidance feature and moving the center of the Gaussian to a spot in front of the robot car.
+
+
+Analysis
+
+
+Fig. and Fig. [4] plot the performance of ToM and black-box model-based. For the latter, we used the idealized distribution when possible by getting the robot to plan with the ground truth modified model and collecting data. Additionally, we also collected data from the robot planning with the unmodified model (&quot;MB-N&quot; in the plots, which performs comparably).
+
+
+Overall, we see the ToM performing better initially across the board, and black-box catching up in most modifications with enough data.
+Surprisingly, we do not see black-box surpassing the performance of ToM.
+We found this to be caused by an interesting facet of planning in these environments, rather than by the predictions failing to improve. ToM also ends up with imperfect predictions, but the robot planning with it achieves higher reward nonetheless. This is because our planner uses a short horizon and is locally optimal. As the trajectories in Fig.
+[4] show, the ToM method incorrectly predicts that the aggressive human will slow down more than they actually do. This fools the short horizon planner into deeming that merging in front of the human is the right option. While this is not actually right with respect to reward over that short horizon when interacting with the aggressive human, it ends up being the right decision for the long term, at least according to the reward function we specified. The robot ends up with an aggressive merge which accumulates more reward overall than the black-box model-based method.
+In a few of the modifications, the black-box approach failed to improve the robot&apos;s performance with more data, again because of the difference between prediction accuracy and planning with those predictions when using a suboptimal planner. There were also cases where ToM obtained maximum reward from the start, and that is because some modifications make the human slower and less aggressive, which enables the merge to happen seamlessly even from the start, when ToM operates solely based on the pre-training.
+
+
+FIGURE 
+
+
+Takeaways. The ToM performance tends to quickly asymptote, and it typically does so at a higher reward that the black-box methods. This is in part because these misspecified ToM models make wrong predictions that help compensate, in our environment, for the planner&apos;s short horizon. While we expect that in general, when given data from the right distribution, black-box model-based asymptotes to higher robot reward than ToM, our finding speaks to the intricate relationship between prediction and planning, and how better predictions do not always lead to better plans. This is a subtle aspect that practitioners will need to consider in the design of algorithms for robots that interact with people.
+
+
+Transferability of Learned Models
+
+
+FIGURE 
+
+
+Finally, we study the transferability of the models trained against the original human. We compare their performance when tested against the modified simulators from the previous section. Fig.
+[5] shows that all models transfer better when changes are small.
+
+
+Some modifications (myopic, bounded controls, and pankicking) make the human go slower in our environment, thereby making the merge that ToM attempts have high reward (even higher than with the original human).
+Despite the change in human behavior, ToM keeps making predictions that enable the robot to merge. On the other hand, the shift in the input distribution causes poor predictions from black-box model based, which in turn leads to poor performance. ToM also handles the aggressive and obstructed-view humans better. The blindspot-protective and lane-prediction humans behave similarly enough to the original human that both methods retain their original performance.
+
+
+Discussion
+
+
+Summary. We provided what is, to the best of our knowledge, the first comparison between model-free, black-box model-based, and Theory-of-Mind-based methods for interaction. We used a simple driving task to quantify the performance advantage of ToM-based when we have made the right assumptions, as well its data collection advantage: it does not seem to require on-policy interaction data during learning, and can be trained on observed human-human data.
+
+
+We also found that black-box model-based methods can perform as well as ToM, but the training distribution matters: in our example, neither offnor on-policy was successful, and instead the robot added exploration to on-policy via an idealized distribution (coming from the ground truth optimal policy). These methods did not seem able to extrapolate from mild effects of the robot on the human (in off-policy data) to strong effects (needed in the test environment). They also required much more data (an order of magnitude in our experiments). Further, we found that the model-free method required several orders of magnitude more data and was not able to achieve anywhere near the performance of the other methods considered.
+
+
+We also studied what happens as ToM&apos;s assumptions become increasingly wrong by emulating the kinds of deviations we might expect to encounter.
+Lastly, we saw that ToM methods seem to transfer better.
+
+
+Limitations. Ultimately, our work does not answer the question of which type of model to use, it merely provides a few data points that are based on hypothetical human behavior. Our results are also for a particular domain, environment, and a particular ToM model. There are a few major caveats to these results as a consequence. First, the interaction with the planner suboptimality led to ToM actually benefit from its wrong assumptions. In other enviroments, the opposite might be true, i.e. that ToM might combine particularly poorly with a short planning horizon. On average, we expect that black-box model-based methods eventually surpass the ToM performance with enough data, unlike what happened in our environment. Second, even with perfect planners, more accurate prediction does not always mean better performance, which can again affect these results. In some environments, such as the robot starting behind the person and accelerating to move the person out of the way, random predictions are just as useful as accurate ones, and a black-box approach would perform really well from the start. Third, the environment also made it so that ToM could start with a very high performance just based on pre-training. It is not clear how much easier it is to pre-train ToM generally. Further, even though on-policy black-box model-based did not perform well in our environment, this can be addressed with better exploration without requiring the idealized distribution (at the cost of data and cumulative regret), or by mixing in relevant enough human-human interaction data.
+
+
+Overall, these results only scratch the surface of understanding the trade-offs with using Theory-of-Mind approaches for inductive bias in HRI. These trade-offs are not just based on sample complexity, but are instead complicated by the interaction between prediction accuracy and planning suboptimality, and by the feasibility of collecting on-policy data and of exploring. Looking forward, we are also excited to research hybrid methods that might be able to take advantage of the best of each paradigm: using ToM assumptions in low-data regimes, having flexibility when there is enough data.

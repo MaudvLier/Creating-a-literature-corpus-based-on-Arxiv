@@ -1,0 +1,714 @@
+Visual Exploration and Energy-aware Path Planning via Reinforcement Learning
+
+
+Introduction
+
+
+Unmanned Aerial Vehicles (UAVs) are employed in variety of disciplines,
+for applications from vegetation detection in large farms to target
+search and rescue [*REF*]. Today, although UAVs are popularly
+in use, they suffer from limited battery life. Sufficient aerial imagery
+in large fields is typically achieved by multiple drone flights, which
+are often performed by complete coverage of the domain. Wind plays the
+most significant role in power consumption of aerial vehicles. It is
+shown that, by only changing the yaw of a quadrotor with respect to wind
+vector, we can improve the covered path by 30 *MATH* on the same battery
+life [*REF*]. Therefore, path planning of the UAVs and
+monitoring of power consumption with respect to wind is an attractive
+research topic during autonomous task completion missions.
+
+
+There are two folds to UAV motion control while addressing the
+completion of a Task. Firstly, flight control inherently implies
+stabilization and position control of an aircraft, which is executed by
+an onboard Flight Control Unit (FCU) in an &quot;inner loop&quot; level. Secondly,
+a control unit in &quot;outer loop&quot; level, is typically responsible for
+mission level objectives such as path planning, collision avoidance and
+navigation [*REF*]. Let us define the problem of
+periodic (i.e. daily) crop monitoring by covering the farm demonstrated
+in Fig. [1]. The task is to provide aerial imagery in
+the sparse locations in the field, frequent enough to reliably monitor
+the health of the crops, but not through redundant visits, which results
+in power depletion of the drone. While wind can assist the drone to
+reach certain far spots, it may increase the power cost of taking other
+paths. Importantly, disturbances like wind are time varying and often
+there is no model for the behavior of such natural objectives in-hand.
+Therefore, tackling such problems requires adaptive path planning and
+careful design for goal prioritization algorithms. In problems such as
+what is shown in Fig. [1], one approach is to evaluate the planned
+path at certain intervals via an implemented wind-power model in the
+control unit.Thus far, Bezzo et al. have comprehensively studied such
+goal scheduling problem under wind, with a model predictive control
+algorithm [*REF*] in simulation and lab experiment. A
+benchmark study on energy-aware coverage path planning of UAVs by Di
+Franco and Buttazzo[*REF*] have tackled the path planning
+problem to minimize energy consumption while satisfying mission
+requirements. However, model-based estimation of power cost cannot be
+reliably generalized across different robots. Considerations on the
+objective is vital for optimal operation of autonomous UAV agent. Among
+other components, the performance of the computer vision module normally
+plays a substantial role in vision-based exploratory
+missions [*REF*]. Therefore, it is preferred to
+utilize a framework, which simultaneously addresses the objective
+requirements and the power constraints. Thus, we employed a
+reinforcement learning (RL) approach to utilize the UAV&apos;s interaction
+with its environment for collecting sufficient power consumption
+information concerning varying wind fields while rewarding the robot by
+the detected objects so that it strives to explore.
+
+
+FIGURE
+
+
+Notably, Li et al. have proposed a Q-learning approach for the task of
+search for an optimal path in goal approaching [*REF*]. They followed
+the course coding paradigm in RL, where the search domain is broken down
+to a pixelated grid-world. More recently, the case of grid path planning
+with presence of obstacles was addressed with deep reinforcement
+learning [*REF*]. Our work follows the classic course-coding
+paradigm and reduces the search domain to a grid-world along the work of
+Le et al., but with the goal of tackling the power constraint problem
+for UAV path planning. The effect of power constraints in the control of
+multiple UAVs for the exploration of the environment was studied by Liu
+et al. [*REF*] using available power models.Quadrotors suffer
+from their short flight duration capacity, and wind is the determinant
+factor in their power consumption. Therefore, we are proposing a
+Q-learning based path planning and goal scheduling framework which does
+not operate on a preexisting power model but interacts with its
+environment to dynamically determine its action cost at every step. This
+framework follows the approach that is regarded as learning from model
+or End-to-End training category of robot reinforcement
+learning[*REF*], which is shown to bear a superior performance
+compared to the frameworks which operate via separate hand-engineered
+components for perception[*REF*:taco:2019], state
+estimation[*REF*], and low-level control[*REF*].
+In the benchmark study by Levine et al.,[*REF*] it is
+demonstrated that, training the perception and control systems jointly
+end-to-end provide better performance than training each component separately.
+
+
+In the studied case here, the flying agent starts with no knowledge of
+its power cost function, disturbance information, and behavior of
+objective function and achieves a path planning policy through solving a
+power optimization problem through interacting with a simulation
+environment. RL algorithms based on state-action value tables have been
+utilized to address the path planning problem. To the knowledge of the
+authors, this is the first time that RL is used for goal-selection and
+path planning on varying wind conditions. The developed model is
+evaluated in various scenarios where the agent is required to find
+randomly distributed target goals in a search domain, and its
+performance in planar and 3D motion is demonstrated. Particularly, for
+the first time we tackle the problems with large search domains, where
+the model is required to generate a path planning policy to find
+sparsely distributed goals and prioritize its targets in a
+disturbance-heavy environment.
+
+
+The rest of this article is organized as follows: Section II presents a
+high-level description of UAV flight dynamic and general RL framework.
+In Section III, the proposed framework is described besides further
+details on the design of RL-based path planning framework, such as
+effective random search functions, how to tune the trade-off between the
+punishment of each step and the reward of detection. The simulation
+results and a discussion on its expansion to real-world cases is given
+in Section IV and the closing remarks are provided in Section V.
+
+
+Overview
+
+
+Here, a generalized explanation for quadrotor flight dynamic is provided
+to create the background required to understand this work. Next, a brief
+overview of reinforcement learning (RL) and two commonly known RL
+algorithms: Q-learning and SARSA are presented.
+
+
+UAV flight dynamic
+
+
+The UAV flight dynamic in this study is simplified to a planar motion
+with 3 degrees of freedom which includes position in x and y axis and
+the heading angle *MATH* while the altitude of the quadrotor (position
+in z axis) remains constant. It is reasonable to consider the quadrotor
+as a rigid body, which accelerates by the torques and forces applied
+form its four rotors. The velocity and applied wind is simplified in
+order to reduce the complexities derived by the physics of the UAV, and
+shown schematically in Fig. [2]. For the given velocities, we can
+have: *MATH*. 
+
+
+Where, the variables *MATH* and *MATH*, represent the UAV&apos;s
+total velocity in the x and y direction respectively, relative to the
+ground. *MATH* and *MATH* are the wind speeds in the x and y directions,
+respectively. *MATH* gives the angular velocity *MATH* represents the
+UAV&apos;s minimum turning radius and *MATH* represents the relative velocity
+of the UAV. Finally, *MATH*, *MATH* gives global *MATH* and *MATH* coordinate of
+the UAV while *MATH* describes its heading angle [*REF*].
+
+
+Drag Coefficient
+
+
+In order to find the power consumption of the quadrotor, the fluid
+dynamic of the wind flow around the rigid body is modeled to give the
+drag coefficient, calculated numerically by Ansys
+Fluent [*REF*]. Drag coefficient is defined by Eq. Where *MATH* is the drag force, *MATH* 
+is the mass density of air, *MATH* is the velocity of the drone relative
+to the fluid and *MATH* is the surface area: *MATH*. 
+
+
+In all the simulations here, the quadrotor velocity was set to *MATH* 
+and the absolute value of the wind speed was set to
+*MATH*. The details on mathematical modelling
+and parameter identification of quadrotor can be found in the
+Ref. [*REF*]. Briefly, the drag coefficient
+represents a dimension-less measure for the drag force that is applied
+to a particle when moving in a fluid. In our case, the direction and
+speed of the wind with respect to the quadrotor&apos;s movement determines
+the amount of power consumed from its battery at each moment.
+
+
+the drag coefficient of the drone in various wind vectors was calculated
+in 8 different *MATH* s which will be further used for calculating the
+power cost of each taken action by the agent in the simulation
+environment. The data from Figure
+[3] was used as a database for estimating the power consumption of the agent
+at each step. Each line represents the relative velocity of the drone
+with respect to the headwind.
+
+
+FIGURE
+
+
+Reinforcement learning: Q-learning and SARSA
+
+
+Robot reinforcement learning is an increasingly popular method that
+offers the capability of learning the previously missing abilities.
+These can include behaviors that are priory unknown, are not facile to
+code, or optimizing problems without an accepted closed solution
+[*REF*]. The behavior optimization occurs through
+repetitive trial and error interaction between an agent and its
+environment. This machine learning method can be defined as a Markov
+decision process (MDP) through which the agent is trained by an
+action-sense-learn cycle [*REF*]. In a standard
+model-based RL algorithm (Fig. [4]), the agent observes the state *MATH* from
+its environment, and takes action *MATH* based on the prior
+knowledge resulting in its current policy *MATH*. The taken action
+results in a new state *MATH*, which here can be determined from the
+state transition distribution *MATH* and leads to the reward *MATH*.
+
+
+FIGURE
+
+
+In the solved cases here, generally the UAV agent receives update on its
+location and velocity at each state (x-y-z location). Based on the
+current policy *MATH* it takes an action by noting the value of the
+experienced state-action pairs *MATH*. Once reached to a new state, a
+reward value will be calculated by the model based on the agent movement
+cost and potential accomplished goals. The expected return (sum of
+discounted rewards) can consequently be used to give the optimal
+state-action value function for a given state-action pair *MATH*: *MATH*.
+
+
+Where t can be an iteration numerator (or time-step), *MATH* 
+is a pre-defined discount factor. Therefore, the agent learns to modify
+his action policy based on the cumulative rewards over iterations. The
+agent&apos;s policy is essentially a mapping from each state to its
+corresponding action. Using this state-action value function, we can
+calculate the optimal policy, *MATH* by: *MATH*.
+
+
+Various RL algorithms mostly vary in terms of trade-off between
+exploration and exploitation in creating and updating the value function
+[*REF*]. Here we will describe Q-learning and SARSA
+and further implement them in the experimental scenarios. Q-learning is
+an Off-Policy algorithm for temporal difference (TD) learning. While not
+requiring a model of the environment, based on an exploratory or random
+policy, Q-learning learns to optimize the policy when the actions are
+selected. In Q-learning, the learned action value function, Q, directly
+approximates *MATH* independent of the followed policy: *MATH*. 
+
+
+Where, *MATH* is the learning rate, which is a
+hyper-parameter to tune the significance of the most recent rewards.
+SARSA is an On-Policy temporal difference (TD) learning method which
+uses the following equation to update its action value function, Q: *MATH*.
+
+
+The major difference between SARSA and Q-learning lies upon the choice
+of action in each state. SARSA uses every element of these five events:
+*MATH* that creates the transition from
+one state-action pair to the next based on the current policy. In
+contrast the choice of action for the Q-learning algorithm, is normally
+performed by an *MATH* -greedy approach. Where for a small
+probability of *MATH* a random action is chosen to ensure
+exploration in the state-space [*REF*]. For the
+actions, where the probability of *MATH* is not triggered, the agent
+will take action that would maximize the reward based on the updated Q-matrix.
+
+
+Simulation environment
+
+
+A major challenge for Rl-traning in robot motion planning is the need
+for numerous trials, many of which, resulting in termination of the
+learning episode by an unwanted actions leading to failure of the
+mission. Therefore experimentation in real world is often initialized by
+the policy which is already generated in a simulation through what is
+often regarded as mental rehearsal for the robot [*REF*].
+In order to enable training of an autonomous UAV in a near real-world
+environment, the proposed framework is implemented in Unreal
+Engine [*REF*] using Microsoft AirSim
+[*REF*] API. Unreal Engine is a gaming engine that provides a
+platform for replicating realistic scenarios and leveraging the
+advantage of high definition visual details for the computer vision
+modules of the learning algorithm. Airsim acts as a medium to enable the
+interaction between the control algorithm and the simulation environment (Fig. [5]).
+
+
+FIGURE
+
+
+Methodology
+
+
+Operation of autonomous agents in large areas often bears an inherent
+goal exploration problem. RL is a desirable paradigm especially where
+there is no explicit model for the distribution of goal in hand. Due to
+the necessity of numerous trials for obtaining a behavioral policy,
+robustness and broad applicability of a RL control unit is essential.
+The presented framework here, operates on the classic state-action value
+matrix. However, characteristics of the agent and the target are desired
+to be finely reflected in the updating process of the Q-matrix. Fig. 
+demonstrates the architecture for the communication of RL and computer 
+vision module with the simulation environment.
+
+
+Reinforcement learning module
+
+
+In order to define the problem in the RL framework, the entire domain
+was broken down to a grid world with the course coding
+technique[*REF*]. The state of the agent is defined
+by its position on the grid, *MATH*, *MATH*, *MATH*,and its battery level
+*MATH* while the environment imposes *MATH*. The resolution
+of this discretization process can directly affect the accuracy of the
+whole framework and has been chosen as one of the main parameters of
+study.
+
+
+FIGURE
+
+
+At each state, the agent can choose from a list of 10 actions given in
+Fig. [6], where the first 8 transfer its state to
+the adjacent 8 lateral states, and action 9 and 10 increase or decrease
+its altitude. The actions which both enable change in altitude during
+lateral motion are not added to the action list to prevent the creation
+of an extraordinary large state-action space.
+
+
+Each episode is initialized at a predetermined start state and the
+battery level is set to its maximum (*MATH*). After choosing an
+action *MATH* from the valid action list the power cost of traveling
+between the two states (*MATH*) will be calculated based on the
+drag coefficient, drone speed and traveled distance between the two
+states to assign a step reward between each two steps, presented as
+*MATH*. As the drone traverses between the two steps, the
+computer vision module returns the number of the newly detected objects
+and assigns a reward of detection, *MATH* to (*MATH*, *MATH*). The
+two rewards will be summed with the tuning parameter, *MATH* given by Eq.
+to constitute the overall reward *MATH* of step *MATH*. 
+This value will be used to update the Q-matrix given in
+Eq. *MATH*.
+
+
+The role of *MATH* is to tune the trade-off between the object detection
+goal and the traveling cost. A very high value of *MATH* can result in a
+spike in the Q-matrix which may demotivate the agent to explore for
+other goals, while a very low value of *MATH* may lead to redundant steps
+which are solely concerned about minimizing the power cost. For
+instance, the *MATH* will acquire a value of -18.5 at its lowest
+(when moving with a headwind at the simulations maximum speed), *MATH* is
+set to *MATH* and the *MATH* is an integer equivalent to number
+of detected balls. In order to prevent the agent from leaving the
+domain, the Q-matrix is initialized with a set of conditions which
+assign the value of undesired actions to -100 in the edge states. An
+additional negative reward for recharging was set to -30 upon the
+battery charge *MATH* for the scenarios with a charging spot.
+
+
+It is assumed that the UAV moves in constant speed. Thus, *MATH* is
+dependent on the change of location in consecutive time-steps and wind
+vector at that location and time-step. Consequently, the agent can
+receive updates on its battery level solely by referring to the power
+use during each step based on its relative speed with respect to wind
+corresponding to the drag coefficient.
+
+
+One common problem in the path planning with Q-learning is the emergence
+of repetitive steps between two or more consecutive states. For
+instance, if the agent find an object at state *MATH* it will in high value
+of the actions leading to state *MATH*, and thus these values propagate to
+the adjacent states. Then the choice of highest rewarding state will
+constitute an oscillatory movement between the neighbors. In order to
+prevent such patterns, for each state a list of valid actions are
+created in the RL module and once the agent experienced the state-action
+pair *MATH* this pair will be removed from the valid choices in the
+Q-matrix for all time steps after *MATH* until the end of the episode. This
+may lead to situations where there may be no valid actions left for a
+state in corners and edges, which results in a reward of -200 and the
+termination of the episode.
+
+
+FIGURE
+
+
+*MATH*. 
+
+
+In order to initialize Q-learning, value update was performed through
+taking random actions with the propability of *MATH* for each wind
+scenario to train the RL planner, while *MATH* is a constant value.
+After the first convergence, the RL planner was trained on all wind
+fields until convergence using an exponentially decaying
+*MATH* given in Eq.
+
+
+Computer vision module
+
+
+Three image streams from the quadrotor&apos;s bottom-center camera, i.e.,
+Scene, Segmentation, and Depth Perspective were retrieved via Airsim.
+The segmentation view delivers a frame consisting of the objects
+assigned with a specific color in the range 0 - 255. A color
+segmentation methodology was employed on the segmented image for
+locating positive detections.
+
+
+The simulation in Unreal Engine consists of a city environment,
+quadrotor, and orange balls of variable number and sizes distributed
+across the domain as the goal objects. The landscape is divided into
+10x10 components, and each of these components is sub-divided into
+quads. The size of the quad is mutable, and the value is chosen based on
+the experimentation requirements.These objects are assigned a unique
+ground truth segmentation ID upon detection once the simulation
+commences. To avoid camera disorientation during quadrotor&apos;s rapid
+motions the Gimbal was stabilized with a fixed Pitch=270 *MATH*,
+Roll=270 *MATH* and Yaw=0.
+
+
+The experiment consists of three processes; RL algorithm (parent
+process), quadrotor survey (child process), and segmentation (child
+process), which run in synchronization with the help of shared variables
+in the memory (see Fig.). The RL algorithm runs across a specified
+number of episodes passing the state pair as a tuple of the current
+state and the next state, resulting in an action. This state pair is
+passed as an input to the child processes and rescaled to coordinates
+corresponding to Unreal Engine for simulating the quadrotor&apos;s flight.
+
+
+The segmentation process is responsible for identifying the goal
+objects, labeling them to avoid repetitive detections and assign rewards
+to the current state. A mask is applied on the segmented image to
+include only the pixels of the object of interest and then compute the
+centroid and bounding box coordinates from the connected components. The
+detections are depicted in the Scene view by enclosing them in a
+bounding box using these coordinates. The labels are the global
+locations assigned to the goal objects (*MATH*) calculated from the
+quadrotor position *MATH*, centroid coordinates of the goal
+object in the image *MATH*, center coordinates of the image
+*MATH*, and a precalculated focal length *MATH*. It should be
+noted that the segmented image size is (256,144), which is fixed. The
+relation between these variables in term of global label for the objects
+is given as: *MATH*.
+
+
+The environment in each episode generates multiple goals, *MATH* which
+are located at *MATH*, where *MATH*. Termination occurs in
+either of four conditions: (1) The agent finds all the goals resulting
+in a reward of 100. (2) The agent runs out of battery *MATH* with the
+reward of -100. (3) The agent takes an action that cause the drone to
+entirely leave the domain, which is allowed, but will result in the
+reward of -100. (4) The agent is left with no valid actions.
+
+
+Evaluation and Results
+
+
+Four scenarios are solved here summarized in Table 1. In the
+baseline scenario the RL planer can only operate in planar motion (*MATH* 
+axes). Nevertheless, minor altitude changes may occur for the drone
+stabilization purposes. These altitude changes may result in new
+detection instances which will be accounted for, in the policy
+development. A small *MATH* state space with four goal objects are
+designed to demonstrate path planning where an optimal path is manually
+determinable. Scenario 2, evaluates the ability of the agent for finding
+sparsely distributed goals which has broad applications in search and
+rescue missions [*REF*] and vegetation/pest detection in
+large farms [*REF*].
+
+
+FIGURE
+
+
+In the scenarios 3 and 4, the state-space is expanded vertically and the
+agent can choose to change its altitude. This can include the effect of
+the performance of the computer vision module on the path planning. The
+upper bound of the motion along *MATH* axis is set high enough so that the
+vision module fails to detect some of the smaller objects. In many cases
+the wind is extreme enough to prevent the possibility for the full
+coverage of the domain. In all of the following experiments the discount
+factor and learning rate in the RL modules were set to *MATH* and
+*MATH* respectively.
+
+
+Planar path planning
+
+
+FIGURE
+
+
+In this task, the agent is required to initially, explore the
+environment to find all the objects and then generate the path with
+minimum required power consumption for capturing the image of all
+objects. In contrast, the traditional algorithms will perform a sweeping
+path for complete coverage of the environment (Fig.
+[7]). In order to enable a tangible
+comparison of the algorithms, the complete coverage path is set to
+connect the center-point of all states. Nevertheless, providing a
+thorough aerial image of a domain, typically requires a sweep with image
+overlap of *MATH*  [*REF*]. The *MATH* and *MATH* are set to 5,5 and 1
+respectively which combined with 5 wind fields result in a state-action
+space with the size of 1000. The environment is initialized with 4 goals
+(*MATH*) in random spots. All the objects are intentionally placed at
+the center-point of the states to guarantee their detection by coverage
+algorithm upon its visit to the object&apos;s state object&apos;s state.
+
+
+FIGURE
+
+
+It can be shown that a small state-space with the size of 25, requires
+29 steps for a complete coverage, which its corresponding power cost
+depends on the wind speed and direction. Figure
+[8] shows that in a high wind scenario
+the Naive planner runs out of battery just after detecting the first
+ball resulting a constant reward of -50. In contrast, the RL planner
+generates the Q-matrix according to its power use during the first
+episodes. Upon the detection of the goal object via the computer vision
+module, the reward of detection increases the value of the state-action
+pairs leading to the goal object and the path convergence toward
+optimality. For the cases with low wind speed or no wind conditions, the
+negative rewards of every step often do not force the agent to reduce
+its number of steps and the agent will not strive to minimize its
+overall taken steps which can be adjusted by reducing the *MATH* in
+Eq. It is observable that after 10
+learning episodes, the RL planner is capable of finding all the balls
+and maximize its obtained reward. In contrast, the presence of high wind
+can lead to complete power depletion during the mission, if the complete
+coverage path is taken.
+
+
+Exploration for sparse goals
+
+
+If there are more than one path to be taken, the agent should find the
+most power-efficient strategy. The initial state is kept constant across
+the episodes, and the goals *MATH* are spread in sparse locations of
+the domain far from the initial state each are required to be visited
+only once *MATH* (Figure. [9]). The agent starts in the initial state with
+full battery, aiming to first, discover these goals and second, find the
+path that minimizes its power consumption under the applied constant
+wind vector *MATH*. In order to, evaluate the ability of the
+agent to adapt to the conditions; there exists an additional charging
+spot which might be beneficial to visit depending on the experienced
+power loss in severe wind. For the ease of representation, 5 constant
+wind intensities were applied: *MATH*.
+
+
+FIGURE
+
+
+The ability of Q-learning and SARSA for target search and path planning,
+while preventing severe power cost under various disturbance conditions
+is under question. Particularly, in this case we are interested to
+evaluate the adaptability of the two algorithms to the wind intensity.
+Figure., demonstrates the reward of both
+algorithms, upon finding the optimal path for each goal across all wind
+intensities. The reported rewards are an average of accumulated rewards
+of each episode for the last 10% of overall episodes prior to the
+convergence of policy.
+
+
+The results suggest that, goal 1 could be reached with minimal cost via
+both RL algorithms in a single battery life. However, the head-wind
+fields *MATH* could cause a fast drop in battery level
+due to the drag force. When the wind reached to its maximum amount, any
+path that did not visit the charging spot ended with a termination due
+to the battery loss. The interesting case however, is for
+*MATH*: SARSA generated the path to visit the charging spot
+resulting in lower rewards and lower overall cost, in comparison with
+the path of Q-learning. In contrast, Q-learning found a path to reach
+the goal 2 without recharging. If we look at other accumulated rewards,
+often SARSA generated a more conservative path. The reason behind this
+discrepancy is the greedier nature of Q-learning. Once the goal state is
+found, the value of state-action pairs that lead to the goal state
+increases due to the embedded maximization, in value update rule (Eq.).
+This updated value for the particular adjacent goal states propogates to
+other cells as the learning proceeds, resulting in the obtained path.
+
+
+FIGURE
+
+
+The task in hand for real-world application requires exploration in
+large areas when often no positive reward can be found for the duration
+of an episode. This is known as a common challenge where the RL agent
+should explore in an environment with sparse goals. In particular, for
+the task with the maximum head-wind it was observed that, moving the
+charging sport from where it is in Fig.[9] to
+*MATH* can increase the required number of episodes by a
+factor of 10 for reliable convergence. The exploration strategy was
+shown to be the prominent factor in the case of discovering the charging
+location. *MATH* -greedy algorithm is a common exploration technique
+for policy improvement [*REF*]. Nevertheless, a
+high-level supervision on the exploration-exploitation trade off can
+play a prominent role in the convergence of the RL algorithms.
+Therefore, the *MATH* (Eq.) was proven to improve the convergence rate of
+the RL agent by enhancing the exploratory actions in initial episodes
+and relying on the policy for the later episodes. For the scenarios with
+multiple goals in the same environment (no new instance of wind field,
+degradation factor or power model) we witnessed a significant
+improvement in convergence rate by updating *MATH* 
+exponentially once an estimate of overall number of required episodes is
+available.
+
+
+Ascend in camera&apos;s altitude normally constitutes a larger captured
+frame. However, it is evident that this ascend usually results in a
+compromise on the performance of typical on-board cameras and the
+associated object detection frameworks. Here we are trying to
+understand, if the path planner algorithm can adjust to the
+environmental (including the vehicles hardware) shortcomings.
+Particularly in this simulation environment, the upper altitude range is
+set high enough, so that color segmentation algorithm fails to detect
+some objects. This directly will be reflected in the reward function
+which demotivates the vehicle to rise too high, as the extremely high
+altitudes lead to fewer detected objects and lower rewards. On the other
+hand, due to the presence of the adaptive- *MATH* policy, the agent
+will strive to explore the available *MATH* states. This exploration
+comes at the cost of a slower convergence, as the termination in many
+episodes will occur due to the depletion of the battery in the newly
+explored states.
+
+
+3-Dimensional path planning
+
+
+FIGURE
+
+
+Fig. [10] demonstrates a comparison between a RL
+planner which can chose the actions 9 and 10 to move along the z axis.
+In order to compare the performance of the algorithms, a
+*MATH* environments with 10 objects were designed. The
+objects will be relocated every 100 episodes at random spots and new
+wind condition will be drawn from the wind state list
+(*MATH*). Fig. [11] demonstrates the average of collected rewards of the RL model in 3D and
+planar motion across 10 episode intervals across 5 various objective
+distribution. It can be seen that, operating in 3D motion will result in
+higher rewards, or more detected objects per battery life but the
+algorithm convergence significantly slower. It should be noted that, the
+conclusion drawn by this experiment may change depending on the object
+detection technique itself. This divergence may expand when the applied
+to pre-trained CNNs for drones. The idea is to enable robust
+adaptability of the learning framework depending on the operational
+shortcomings. The behavioral policy that is developed in the mental
+rehearsal stage throughout the simulations, is needed to inevitably
+adapt based on the end-point operational needs. This can include the
+change in power cost of the quadrotor (varying from day to day), and the
+failure of the RGB or Lidar sensor depending on rain and other
+uncertainties as repeatedly appears in the literature[*REF*; *REF*].
+
+
+Energy-aware exploration
+
+
+Learning from power model, can demonstrate its merits during exploration
+tasks in large outdoor areas. In such cases, complete coverage of the
+entire search domain may not be possible within a limited battery life.
+On the other hand, detecting the desired objects may be achievable in
+extremely shorter flight duration. Fig. [12] demonstrates a comparison between the
+performance of RL generated path and complete coverage counterpart, for
+the task of detecting 10 randomly distributed goals.
+
+
+FIGURE
+
+
+We first ignored the battery limitations on the UAV&apos;s battery life, and
+measured the required traversed time after 10 learning episodes. The
+results demonstrate the resultant flight duration across 5 experiments
+(5 different goal distribution) and 3 wind intensities that are
+normalized with respect to *MATH*. The search domain size is adjusted
+so that a quadrotor can sweep the entire domain with *MATH* overlap in a
+common SOTA flight time of 20 minutes. As it is expected, when there is
+no wind, the optimal path is rapidly found by the RL agent. However, the
+deviation of the flight duration grows under higher wind intensities,
+since the agent is highly discouraged by the value matrix to resist the
+wind and thus will stick to greedier actions with lower negative
+rewards, resulting in a longer flight time. The more interesting outcome
+can be found by looking at the performance of the two path planning
+algorithms within a limited battery life (Fig [12] right). From the drag dataset
+(Fig. [3]) we observed that the motion of the UAV with
+respect to wind can demonstrate a highly nonlinear power cost.
+Therefore, in cases with high intensities the complete coverage path
+often results in rapid depletion of the battery. In an average wind
+field (*MATH*), the energy-aware RL planner demonstrates a
+more than 2-fold improvement in the object detection performance.
+
+
+The notion of exploration strategy is a key factor for both scenarios 2
+and 4. In scenario 4, the state-space alone consists of 2205 which
+constitutes to state-action space of 110250 when solved for 5 wind
+fields and 3D actions are allowed. Thus, training the model in the
+simulation prior to transferring the action values appears to be
+essential. In summary, both the Goal selection and the path planning
+problem can benefit from the proposed RL framework in terms of the
+operational time of the quadrotor on a single battery while
+accomplishing the object detection task. The adaptive framework can pave
+the way for UAV operations with exploratory objectives such as
+vegetation detection, and target search and rescue in vast areas.
+
+
+Conclusion
+
+
+The idea of visual exploration with autonomous vehicles is an attractive
+topic, yet bearing many challenges. Energy-aware goal selection and path
+planning of such vehicles via reinforcement learning was addressed here.
+The challenge that was tackled is the presence of disturbance at the
+time of operation, which influences the performance of the robot both in
+terms of movement cost and the reliability of the computer vision
+components. The fundamental idea of this work revolves around
+incorporation of the reward from the detected goal objects and the cost
+from the movement of the agent. The proposed algorithm appeared to be
+particularly applicable, for the missions with spars goals where the
+agent is constrained by its limited battery life. The ability of a
+properly tuned RL-based agent to learn the effect of newly emerged wind
+field suggests the applicability of this algorithm for fully autonomous
+task completion in large fields. The capability of this framework to
+adapt to new wind fields and consequent power consumption model through
+value matrix updates suggests facile transfer of the developed policy
+from one flying robot to another. It was shown that, the classic
+Q-learning framework is capable of minimizing the power cost of UAV
+navigation while outperforming the complete coverage solutions by
+2-folds in an average wind field. Although an improvement on
+*MATH* -greedy exploration paradigm was incorporated here, there
+appears to be significant limitations at the time of exploration for the
+Q-learning algorithm. Additionally, the use of cameras with other
+heading angles are proved to be helpful and is considered for future
+work.

@@ -1,0 +1,165 @@
+PNS: Population-Guided Novelty Search for Reinforcement Learning in Hard Exploration Environments
+
+
+INTRODUCTION
+
+
+RL is a type of machine learning algorithm that relies on an agent interacting with the environment and learning an optimal policy by trial and error. It has performed amazing feats in the fields of games, navigation, and control of physical systems. However, it still suffers from many tough problems. In many complex control tasks, especially in some challenging environments with spare reward signals or deceptive reward functions, greedy strategies will lead to limited exploration, and the RL algorithms based on these strategies often fail to learn a good policy [*REF*]. To deal with that, many previous works focus on using manually designed dense reward functions [*REF*; *REF*], or multi-goal-based training [*REF*; *REF*]. But these methods may lead to suboptimal policies [*REF*], need domain knowledge [*REF*], and still require millions of training samples [*REF*]. We argue that one of the key ideas to solve this problem is to maintain efficient and meaningful exploration in these challenging environments.
+
+
+FIGURE 
+
+
+Up to now, a number of methods have been proposed to encourage exploration. A common idea is to encourage a single agent to explore the states that have rarely been explored. For example, Bellemare et al. [*REF*] and Haber et al. [*REF*] quantify the difference between the current state and previous ones and provide intrinsic rewards to encourage exploration. Houthooft et al. [*REF*] and Pathak et al. [*REF*] learn an environment dynamics model and encourage the agents to take actions that result in large updates to the dynamics model distribution.
+Those methods all approximate state visitation separately, may ultimately reduce to undirected exploration, and take the cost of high sample complexity. Another idea is to use multiple agents to explore the environment. For example, Jaderberg et al. [*REF*; *REF*] and Jung et al. [*REF*] use population-based training (PBT) to perform exploration with a population of agents. Using multiple agents to explore environments is an effective method and works well in practice [*REF*; *REF*], but existing methods do not make sufficient use of population-based exploration, and cannot learn efficiently in sparse reward settings.
+
+
+In this paper, based on the PBT method, a Population-guided Novelty Search (PNS) parallel learning scheme for deep RL algorithms is proposed to encourage direct exploration and enable agents to learn skills in hard exploration environments. The scheme consists of multiple sub-populations, each sub-population includes several exploring agents that explore the environment and learn the policy, and one chief agent that evaluates the performance and the novelty of the policies learned by exploring agents and shares the current optimal policy with all sub-populations. At the beginning of training, exploring agents will be initialized using different values. Then, they will explore the environment and update their parameters independently with the guidance of the current optimal policy. Simultaneously, exploring agents will compare the performance of the current execution policy with the performance of the current optimal policy. If the former performs better than the latter, the policy parameters corresponding to the former are uploaded to the corresponding chief agents. At the same time, chief agents will evaluate the cumulative return and the novelty of the uploaded policy to decide whether to update the current optimal policy or not. The novelty evaluation draws on the approach of novelty search (NS). After the optimal policy is decided, the chief agents will share it with all sub-populations so that exploring agents can learn from it, which helps agents avoid local optima and accelerate training process.
+Meanwhile, the use of NS in chief agents provides extra information of the environment and encourages the exploring agents to explore the areas of parameter space that are not or rarely explored, thus promotes directed exploration and enables the agents to learn from sparse signals.
+
+
+This paper makes the following contributions: (1) experimentally confirming that the combination of sub-population and NS in Deep RL can help the agents avoid local optima, promote directed exploration, and learn from sparse reward signals; (2) proposing PNS, which can be easily applied to any deep RL algorithm (e.g., TD3, PPO) and enhance learning performance; (3) proving that the proposed scheme performs better than SOTA parallel learning schemes, especially in environments with sparse or delayed reward signals.
+
+
+Background and related work 
+
+
+Distributed RL Distributed learning is a commonly used speed-up method. It is based on the idea of parallel computing, and it can speed up the training with a small change to the existing reinforcement learning algorithm. Most of the existing distributed RL algorithms use multiple agents interacting with multiple copies of the same environment in parallel to generate more data sets, collect gradients of all agents through a central parameter server, and then use these gradients to update the parameter, including the asynchronous update of parameters [*REF*; *REF*; *REF*; *REF*], prioritized experience replay buffer [*REF*], and V-trace to correct the distributional shift [*REF*; *REF*]. Different from our method, these distributed approaches use multiple actors to traverse different states in an asynchronous way to increase the sampling speed. The policy used by the actors responsible for sampling is a replica of the network, which does not take advantage of interactions among the populations and leads to the lack of strategy exploration capabilities.
+
+
+Population-Based Training (PBT) PBT is another kind of parallel algorithm used for finding optimal parameters of a network model [*REF*]. The key idea is that multiple learners have different parameters and hyper-parameters. During training, PBT evaluates each learner&apos;s performance first, then it selects and distributes the best parameters and hyper-parameters to other learners periodically. It is used in Quake III Arena [*REF*] and in AlphaStar&apos;s league [*REF*; *REF*], which proves its ability and application prospect in large-scale training for solving hard exploration problems. But they only use PBT as a simple training method and during training, the parameter of the best learner is just copied to other learners, which sacrifices the diversity and exploration. Recently, PBT is applied to Population-guided Parallel Policy Search (P3S) algorithm [*REF*]. P3S uses the optimal policy to guide other learners&apos; policy though an augmented loss function, but they do not consider the novelty of the policy and cannot learn efficiently in sparse reward settings.
+
+
+Novelty Search (NS) NS is a kind of algorithm to improve exploration. NS encourages population diversity by computing the novelty of the current policy with respect to previously executed policies and encourages the population distribution to move towards areas of parameter space with higher novelty. Conti et al. [*REF*] investigate how to combine NS with evolution strategies (ES). They add NS and quality diversity (QD) algorithms to ES to balance exploration and exploitation and improve the performance of ES on sparse and/or deceptive control tasks. However, NS occupies a lot of computer resources. While in the training process of RL algorithms, the parameters of the policy are updated at a high speed, so the novelty evaluation of each policy will greatly slow down the training speed. In this paper, we study how to incorporate the idea of NS into RL algorithms while reducing sacrificing data efficiency and saving the wall-clock time. We introduce NS and sub-population when learning the optimal policy, thus encouraging the population distribution to move towards areas that are not explored or rarely explored while maintaining a high score and training speed.
+
+
+Methods
+
+
+FIGURE
+
+
+In this paper, a Population-guided Novelty Search (PNS) parallel learning scheme is proposed. As shown in Fig.[2], our scheme consists of *MATH* sub-populations, each of which includes *MATH*  exploring agents and one chief agent. All of the exploring agents learn the optimal policy using the same RL algorithm, such as TD3. Each of the exploring agents has an independent environment *MATH*, which is a copy of the common environment *MATH*, independent value function parameters *MATH*, policy parameters *MATH*, and experience replay buffer *MATH*. Similar to the exploring agent, every chief agent also has an independent environment *MATH*. At the beginning of training, each of the exploring agents will first learn the policy independently. Then, each of them will select the best policy it learned, called local optimal policy and denoted by *MATH*, and upload it to his chief agent.
+*MATH* is also called candidate policy in this paper since all the local optimal policies are considered as the candidate for the optimal policy. Next, the chief agent will evaluate the local optimal policies according to their performance and novelty. Then it will upload the policies and their corresponding performance and novelty to the parameter set, which is used to store all the local optimal parameters, and select the current optimal policy among all the policies from the parameter set. After that, the exploring agents will learn their policies with the guidance of the current optimal policy. The chief agents can balance exploration and exploitation dynamically through ascribing different weights to performance and novelty when evaluating a policy, thus guide the whole population for better search in the parameter space of the policy. Detailed introduction can be found in following subsection. The pseudocode of PNS can be found in Sec.
+[5.1].
+
+
+Exploring agents: 
+
+
+In PNS, the exploring agent has two roles. The first is to search for the optimal policy. In order to explore the entire parameter space effectively, a population-based searching mechanism is adopted, in which the exploring agent will search the policy under the guidance of the current optimal policy. The update function of the policy parameters *MATH* of the *MATH* -th agent at time step *MATH* is *MATH* where *MATH* is the current optimal policy parameters, *MATH* is the loss function for the Q-function, *MATH* is the learning rate, *MATH* is random values from 0 to 1, *MATH* is the weight of the current optimal policy parameter, which is a hyper-parameter, and *MATH* is the regularization term. In Eq. 1, the third term, *MATH*, enables the exploring agents to learn the optimal policy in collaboration, that is, to use the policy information provided by the population to improve exploration, which can help exploring agents avoid local optima and thus improve the performance. The update function can also be formulated by gradient descent for minimizing an augmented loss function *MATH*.
+
+
+The other role of the exploring agents is to select the candidate policy *MATH* for the optimal policy. During training, each exploring agent will compare the performance of the current execution policy and the current optimal policy obtained from its chief agent. If the loss of the former is smaller than that of the latter multiplied by a loss coefficient *MATH*, it will be regarded as a candidate of the optimal policy *MATH* (i.e., local optimal policy), its parameters and the corresponding Q-value will be uploaded to the chief agent. After that, the chief agent will evaluate the uploaded local optimal policy *MATH* in terms of its performance and novelty.
+
+
+Chief agents 
+
+
+In PNS, the role of the chief agents is to find the optimal policy from all local optimal policies and share the current optimal policy with their exploring agents. To obtain a more effective optimal policy and guide future exploration of the entire population, the chief agent evaluates the performance of the candidate policy first, and then its novelty. The cumulative reward *MATH* the chief agent gets after executing the candidate policy *MATH* is used to evaluate its performance. After that, the novelty of this policy is computed. The novelty evaluation draws on the approach of novelty search (NS). To evaluate the novelty, we need a domain-dependent behavior characterization (BC) *MATH* to describe the behavior of a policy *MATH*, a cumulative reward *MATH* computed before to describe the performance of a policy *MATH*, and a parameter set *MATH*, of which elements are *MATH*, to store all the policies and their corresponding BC and performance. During the novelty evaluation of each local optimal policy *MATH*, the chief agent will first compare its performance. If the performance *MATH* is smaller than the mean performance of all the elements in set *MATH*, this policy will be abandoned, and the chief agent will move on to evaluate the next local optimal policy. Otherwise, the evaluation continues, and the parameter set *MATH* is updated using the following equation: *MATH* where *MATH* is a parameter with a negative value. This step removes all the outdated policies whose performance *MATH*  is much smaller than the performance of the current local optimal policy *MATH*. Next, the local optimal policy *MATH* will be assigned a corresponding *MATH* (see Sec.
+[3.3]), and *MATH* is added to the parameter set *MATH*. Finally, the novelty *MATH* of policy *MATH* is computed by first selecting the k-nearest neighbors of *MATH* from *MATH* and then computing the average distance between them: *MATH*. In Eq. 3, the distance between BCs is calculated with an L2 norm, but any distance function can be substituted. After the novelty of the candidate policy *MATH* is evaluated and stored, chief agents will select the policy with the highest novelty in set *MATH* as the current optimal policy *MATH*. Since Eq. 2 only keeps the elements with relatively high reward in set *MATH*, the chief agents will eventually select a policy that takes both novelty and high performance into account.
+
+
+In Eq. 2, in addition to controlling the size of set *MATH*, the parameter *MATH*  determines the preference of chief agents between performance and novelty. A smaller parameter *MATH* means that the chief agent puts more emphasis on novelty. During training, with the change of the policy novelty and performance, and of the preference of chief agents between them, the chief agents can balance exploration and exploitation dynamically, guide the direction for future exploration of the entire population, and thus lead to more effective training.
+
+
+Behavior Characterization (BC) 
+
+
+FIGURE 
+
+
+Another problem that needs to be solved during implementation is the choice of BC. NS requires a domain-dependent BC for each policy to evaluate the novelty. For example, for the Humanoid problem, BC can be the final *MATH* location [*REF*; *REF*].
+In our scheme, in order to make it easier to use, we need to find a more generic BC. Gomez [*REF*] uses action history as generic BC, while Doncieux et al. [*REF*] build BC based on state counts. Meyerson et al. [*REF*] learn BC through a learning method. Although using a more sophisticated BC will improve the performance, it may be hard to construct and compute. In this paper, we develop a standard process to calculate BC. Given a policy, we will let the chief agent explore *MATH* timesteps from a random state and record the final state of the agent. This process is repeated for *MATH* times.
+Assuming that the state space of a particular environment is a vector of length *MATH*, then a matrix of *MATH* is obtained. For each column of the matrix, the mean and variance are computed to obtain two vectors of length *MATH*. After stacking these two vectors into one, we get a vector of length *MATH*, which can be served as a generic informative BC.
+For example, for the HalfCheetah problem whose state space is a vector of length *MATH*. Given a policy, we test it for *MATH* episodes, and each episode includes executing the policy for *MATH* timesteps. Then the BC of this policy can be expressed as a vector of length *MATH*. Due to the use of sub-population and chief agents, this process does not affect the speed of the exploring agents.
+
+
+Experiments
+
+
+To evaluate the effectiveness of PNS, we apply it to the TD3 [*REF*] algorithm and evaluate its performance on the suite of MuJoCo environments [*REF*] and Fetch environments [*REF*] (simulated robotic benchmarks). We also use UR5 robots for real-world experiments. In addition, to prove its efficiency in avoiding local minima and learning from sparse reward signals, we follow Conti et al. [*REF*] and Zheng et al. [*REF*] and evaluate PNS on two modified simulated benchmarks. Please see the appendix for the ablation study, experiments on PPO, experiment setup, and hyper-parameters.
+
+
+Local optima avoidance and directed exploration 
+
+
+One of the main contributions of this paper is that the introduction of PNS in deep RL can promote direct exploration of the RL algorithm and help the agents avoid local minima. To demonstrate this contribution, we will first analyze its impact on the exploration of parameter space of the policy.
+
+
+Similar to Conti et al. [*REF*], we build a 2D humanoid locomotion environment, in which the reward function is only relevant to the agents&apos; final *MATH* position and the highest reward is set to be 2200. During training, the agent needs to learn to walk efficiently and then find a position with the highest reward. To increase the difficulty of training, we also design lots of deceptive rewards, local minima, and wide regions of constant reward in this 2D world. For this problem, the BC is the final *MATH* location.
+
+
+To demonstrate the effectiveness of PNS for local optima avoidance and directed exploration, we use TD3, P3S-TD3 [*REF*], and PNS-TD3 to train agents in this environment until convergence. Then we visualize the policies explored by each agent of these algorithms and compare the final rewards. P3S-TD3 is currently the highest-performing population-based scheme. For PNS-TD3, we randomly select 4 exploring agents for visualization. For TD3, we test 24 times and select the agent with the highest performance. For P3S-TD3, since it will find the best learner during training and then search the spread area with radius *MATH*  around the best learner for a better policy, we only visualize the policy of the current best learner. The update of each agent&apos;s policy during the training process is shown in Fig. 2.
+Different color represents the policy of different agents, with darker shading for later generations. The triangle represents the starting point of an agent and the square represents the final policy of the agent. As can be observed from Fig. 2, TD3 converges to a point only after exploring a small area of the parameter space, while P3S-TD3 and PNS-TD3 explore a larger area.
+
+
+If we take a close look at the trajectory of PNS-TD3 agents, it can be observed that at the beginning of training, one agent (visualized as green points) moves toward the position where TD3 converges, proving that it is indeed a local optimum. However, after weighing the performance and novelty, the optimal policy selected by the chief agents helps this green agent escape local optima. P3S-TD3 also escapes local optima where TD3 gets stuck. It can be observed that both P3S and PNS can encourage exploration of the algorithm and help the agent avoid local optima.
+
+
+In this experiment, P3S-TD3 and PNS-TD3 converge to a different position and achieve different final rewards. TD3 only achieves a reward of 849 as the final reward, P3S-TD3 achieves a reward of 1480, and PNS-TD3 achieves a reward of 2200, which is also the highest reward an agent can achieve in this 2D world. From the final reward we can observe that PNS has a better exploration efficiency and ability to address the problem of local optima than P3S.
+
+
+During the early period of training, which is represented as the points with shallower shading, the novelty of each policy is high while the performance is relatively low. At this period, the agents will put more emphasis on exploring new policies and they tend to explore different parts of the environment as shown in the training process of PNS in Fig. 2. As training goes on, the chief agents will balance the trade-off between exploration and exploitation according to the performance and the novelty of each policy. If an agent gets stuck in local optima, the performance will no longer be enhanced and the policy of the agent is no longer updated, thus the novelty of this policy that leads to local optima will decrease. The chief agents will encourage the agents to escape this area, and explore those areas with relatively higher novelty. During the late period of training, which is represented as darker shading points, the novelty of all policies decreases as the entire space is explored. The population distribution gradually moves closer to the position where the optimal policy can be obtained.
+Multiple agents explore near multiple possible optimal positions, allocating more computational resources for positions that are more likely to achieve high rewards. It dynamically balances the trade-off between exploration and exploitation during different training periods.
+
+
+Learning from sparse reward signals 
+
+
+TABLE 
+
+
+FIGURE 
+
+
+Learning from sparse reward functions is still a problem when training RL agents for robotic tasks. In this section, we demonstrate that PNS can enable robotics agents to learn efficiently from sparse reward signals (see Fig. [1]). For simulation experiments, we consider the reach, push, and pick-and-place tasks from the OpenAI Gym Fetch environment.
+The results are provided in Fig. [3]. We use UR5 robot for real-world experiments and consider the task of reaching a given point. We evaluate the results every 100 training epochs. During the evaluation, we fix a marker on the end effector to compute the distance between the final position of the end effector and the target. The results can be found in Table [1]. In all experiments, we use images as input and only provide success or not as the reward signals. From the results, we can found that PNS enables the baseline method to learn efficiently from sparse reward signals.
+
+
+Learning from delayed reward signals 
+
+
+FIGURE 
+
+
+To demonstrate the efficiency of PNS to learn from delayed reward signals, we also evaluate the performance of PNS in delayed reward environments (i.e., Delayed MuJoCo environments used in Zheng et al. [*REF*]). Delayed MuJoCo environments are reward-sparsified versions of MuJoCo environments. They only give non-zero rewards periodically with frequency *MATH* or at the end of episodes, which require more exploration to obtain a good policy. We evaluate the performance of PNS-TD3 against P3S-TD3 (the SOTA method), and the learning curves are shown in Fig.
+[4]. It can be observed that in these hard exploration environments, PNS-TD3 takes off a bit slower than P3S-TD3, but it outperforms P3S-TD3 a lot. Especially in the problem of delayed Ant where P3S-TD3 achieves an average reward of 1740 but PNS-TD3 achieves an average reward of 3395. The policy PNS learned is also more stable than the policy P3S-TD3 learned in the problem of delayed Ant and delayed Hopper. Empirically, PNS is more efficient than the SOTA population-based method in delayed reward settings.
+
+
+TABLE 
+
+
+FIGURE 
+
+
+Comparison with baselines 
+
+
+In the previous subsection, we analyze the improvement of exploration.
+Next, we will demonstrate the improved performance of PNS. We first compare PNS-TD3 with baseline algorithms in this subsection, then we compare it with other SOTA distributed algorithms in the following subsection.
+
+
+To demonstrate the effectiveness of using NS in deep RL, we modify the proposed PNS scheme. We remove the novelty evaluation part from the chief agents (i.e., now the chief agents only evaluate the policies by performance), and keep the rest of the structure and hyper-parameters to obtain the P-TD3 algorithm and use it as one baseline algorithm. We also use TD3 as another baseline algorithm.
+
+
+Fig. [5] shows the learning curves for several continuous control domains. We first compare PNS-TD3 with TD3. It can be observed that the PNS-TD3 outperforms the baseline algorithms in terms of both the speed of convergence and the final performance. Then we compare PNS-TD3 with P-TD3. We can find that PNS-TD3 yields improvement in the problem of HalfCheetah, Hopper, and Humanoid. However, it doesn&apos;t yield a significant improvement in the problem of Walker2d compared with P-TD3. We believe that there are mainly two reasons: One is that population-based training itself can also promote the exploration, so the additional improvement yielded by introducing NS can be observed in some problems but may not be obvious for other problems. The second reason is that the generic BC used in PNS may not be ideal in some MuJoCo problems. How to choose BC is still a question worth studying [*REF*; *REF*].
+However, our work aims to study the impact of introducing NS to deep RL algorithms, and the existing conclusions are sufficient to prove its efficiency, so we can leave the task of finding more generic and informative BC for future work.
+
+
+We can also observe that in HalfCheetah, Walk2d, and Humanoid, PNS-TD3 learns slower than P-TD3 in the early stage. It&apos;s because in this stage PNS prefers policy with higher novelty but maybe low-rewards but P-TD3 and other algorithms will always search for high-rewards policy. It is another example demonstrates that PNS can dynamically balance the trade-off between exploration and exploitation.
+
+
+Comparison with other parallel learning schemes
+
+
+Then, we compare the PNS scheme with other population-based schemes (i.e., P3S-TD3 [*REF*], CEM-TD3 [*REF*], and PBT-TD3 [*REF*]), and other distributed algorithms (i.e., IMPACT [*REF*], IMPALA [*REF*]). The learning curves are shown in Fig. 4 and the best rewards of each algorithm can be found in Table. All the algorithms use 24 agents. The performance of IMPALA is surprisingly bad in our experiments. However, the reported performance is the same as the results shown in Luo et al. [*REF*]. The reason for the bad performance could be that vanilla IMPALA is not very effective in continuous domains. It can be observed that PNS-TD3 outperforms most of the SOTA population-based and distributed algorithms.
+
+
+As mentioned before, PNS prefers policy with higher novelty but maybe low-rewards during the early period of training, which means PNS-TD3 may learn slower than P3S-TD3 in the early stage. Therefore, in some cases such as the problem of HalfCheetah, P3S-TD3 learns faster in the early stage, but PNS-TD3 can find a better policy.
+
+
+Discussion and Conclusion
+
+
+In this paper, we introduce a Population-guided Novelty Search (PNS) method for deep RL algorithms. The scheme is composed of multiple sub-populations, each of which has one chief agent and several exploring agents. Compared to other population-based parallel schemes, PNS uses chief agents and novelty search to encourage the population distribution to move toward areas of policy space with high performance and high novelty. Our experiments confirm that this method can promote directed exploration of RL algorithms and enable better policy search, and the collaboration among agents and sub-populations can help the agents avoid local optima. In addition, we demonstrate that PNS can learn efficiently from sparse reward and delayed reward signals in robot manipulation and other continuous control tasks.

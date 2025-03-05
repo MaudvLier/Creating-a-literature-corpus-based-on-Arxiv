@@ -1,0 +1,508 @@
+Look, Listen, and Act: Towards Audio-Visual Embodied Navigation 
+
+
+Introduction
+
+
+We humans perceive and navigate through the world by an integration of
+multiple sensory inputs, including but not limited to acoustic and
+visual representations. Extensive evidence from cognitive psychology and
+neuroscience suggests that humans, even in the young-child ages, are
+remarkably capable of capturing the correspondences between different
+signal modalities to arrive at a thorough understanding of natural
+phenomena [*REF*; *REF*].
+
+
+FIGURE
+
+
+In this work, we aim to build a machine model to achieve such human
+competency on audio-visual scene analysis. Particularly, we focus on an
+under-explored problem: how to teach an intelligent agent, equipped with
+a camera and a microphone, to interact with environments and navigate to
+the sound source. This task is more complex and challenging than
+understanding static images. We call it audio-visual embodied
+navigation. The agent has to sequentially make decisions from multiple
+sensory observations in order to navigate through an environment.
+
+
+Figure [1] illustrates an example of the audio-visual embodied navigation problem.
+An agent starts randomly from an indoor environment and provided a sound
+impulse (e.g\.., a phone is ringing). The agent then needs to figure
+out the shortest trajectory to navigate from its starting location to
+the source of the sound (the goal location). To accomplish this task,
+the agent must relate the sound to the visual environment and meanwhile
+map from the raw sensory inputs to the actions of path planing. This
+task is very challenging, because it essentially asks the agent to
+reverse-engineer the causal effect of the signals it perceives. It has
+to not only understand the visual surrounding but also reason upon it
+for the potential sound source. If the sound source is in a different
+room, the agent additionally has to learn how to move to another room.
+Progress on this task will facilitate many real-world applications in
+home robots. For example, the sound-source-seeking ability can empower
+the robots to help humans find their cellphones or turn off faucets.
+
+
+We tackle this problem by drawing insights from how humans complete this
+task. Imagine how a user seeks the sound source in a novel environment?
+S/he first gets a sense about the location, the surrounding, as well as
+an estimate about the distance and direction to sound source. As s/he
+moves around, the room layout and her/his memory about the sound and the
+room also play vital roles when s/he makes decisions for future actions.
+To this end, in this paper, we design an audio-visual network to let the
+machine agent imitate the navigation mechanism we humans use in real
+life. We systematically study two settings: explore-and-act and
+non-exploration. In the first setting, the agent is allowed to explore
+the environment up a certain number of steps before we alarm the sound;
+Thus it can build an incomplete spatial memory of the room from visual
+observations during the exploration and can refer back to this internal
+representation in resolving the subsequent navigation tasks. In the
+second setting, the agent has to build a dynamic spatial map during the
+navigation. When the agent is presented a task of searching for the
+sound source, akin to humans, the agent must first infer the relative
+position of the sound source and then makes sequential actions to move
+towards the source based on its spatial memory and visual-audio
+observations. It can also update its spatial memory at each time step.
+
+
+To sum up, our work makes the following contributions:
+
+
+COMPACT ITEM
+
+
+Related Work 
+
+
+Target-driven Navigation
+
+
+Early work solves the navigation task by building a map of the scene
+using SLAM and then planing the path in this
+map [*REF*]. More recently, deep learning--based
+methods have been used to plan actions directly from raw sensory data.
+Zhu et al. [*REF*] investigate a reactive deep RL based
+navigation approach to find the picture of the target object in a
+discretized 3D environment. Gupta et al. [*REF*] learn to
+navigate via a mapper and planner. Sadeghi et al. [*REF*]
+study a RL approach that can solely use simulated data to teach an agent
+to fly in real. Mirowski et al. [*REF*] improve the
+navigation results by jointly training with auxiliary tasks such as loop
+closure detection and depth estimations from RGB. Brahmbhatt et
+al. [*REF*] explore a CNN architecture to navigate
+large cities with street-view images. Wu et al. [*REF*]
+combine deep RL with curriculum learning in a first-person shooting game
+setting. Yang et al. [*REF*] propose to improve visual
+navigation with semantic priors. McLeod et al. [*REF*]
+leverage past experience to improve future robot navigation in
+dynamically unknown environments. Katyal et al. [*REF*]
+use generating networks to predict occupancy map representations for
+future robot motions. Mousavian et al. [*REF*]
+demonstrate the use of semantic segmentation and detection masks for
+target driven visual navigation. The work by Savinov et
+al. [*REF*] is inspirational to ours in terms of the use of
+memory in navigation. Unlike their topological graph memory, we use a
+key-value structure to better capture the incomplete nature of our
+agent&apos;s internal knowledge about the environment and also introduce a
+dynamic spatial memory for the non-exploration setting.
+
+
+There is also considerable work on vision-language based embodied
+navigation [*REF*; *REF*; *REF*; *REF*],
+which map directly from language instructions and visual observations to
+actions. In contrast to all these approaches, the goal of embodied
+audio-visual navigation task is to find the sound source, thus require
+the agent to integrate the visual and acoustic cues to plan a sequence
+of actions. Concurrent to our work, Chen et al. [*REF*] also
+poses the task of audio-visual embodied navigation on the Habitat
+platform [*REF*].
+
+
+Sound Localization
+
+
+The research problem of sound localization, which aims to identify which
+regions in a video make the sound, has been studied for decades.
+Existing approaches fall into two broad categories: computation-based
+approaches and learning-based approaches. Early work measure the
+correlations between pixels and sounds using a Gaussian process
+model [*REF*], subspace methods [*REF*],
+canonical correlation analysis [*REF*], hand-crafted
+motion [*REF*], and segmentation [*REF*]. More recently, researchers have
+proposed to train a deep neural network to see and hear many unlabeled
+videos to localize the objects that sound [*REF*].
+Such methods address the task of localizing the regions on videos. In
+contrast, our goal is to find the sound source that might also be
+non-line-of-sight in the virtual environment. Our work is also related
+to acoustic based approaches for the sound source
+localization [*REF*; *REF*; *REF*].
+They typically require special devices (e.g. microphone arrays) to
+record the sounds. Our work goes beyond that, since the mobile agent
+needs to further connect the result of sound localization with the
+visual environment for the path planing.
+
+
+Environment 
+
+
+We build a multi-modal virtual environment on top of the AI2-THOR
+platform [*REF*], which contains a set of scenes built by using
+the Unity Game engine. We further incorporate an spatial audio software
+development kit, Resonance Audio API [*REF*], into the
+Unity game engine to support the audio-visual embodied navigation task.
+An agent equipped with a camera and a microphone can then leverage two
+different sensing modalities (egocentric RGB images and sound) to
+perceive and navigate through the scenes.
+
+
+Scene
+
+
+The AI2-THOR platform provides near photo-realistic indoor scenes. It
+contains 120 scenes in four categories: kitchens, bedrooms, living
+rooms, and bathrooms. Each room category contains 30 rooms with
+diverse visual appearances. As the rooms in AI2-THOR are isolated from
+each other, they are not challenging enough for the area-goal navigation
+tasks. As shown in Figure [1], we instead manually concatenate several rooms
+into multi-room apartments. We were able to build seven apartments in
+total for this work. Similarly to Zhu et al. [*REF*], we also
+discretize the apartments into grid worlds for the ease of quantitative
+evaluation. Particularly, each grid square is *MATH* square
+meters. In total, there are about 150 to 200 grid cells for each
+apartment.
+
+
+Sound
+
+
+The acoustic engine is implemented using the Resonance Audio API. This
+spatial audio SDK can create high fidelity spatial sound in the virtual
+environment and support acoustic ray-tracing according to the geometry
+of object and house. The Resonance Audio API also supports the
+simulation of how sound waves interact with objects in various geometry
+and diverse materials by mapping visual materials to acoustic materials
+with realistic frequency-dependent sound reverberation properties. How
+sound waves interact with human ears can also be simulated accurately
+based on interaural time differences, interaural level differences, and
+the spectral effects. The scenes equipped with the Resonance Audio API
+create the illusion that sounds come from specific locations in the
+virtual world. Thus we can use this module to provide the agent with
+stereo sound frames. In our experimental setting, we mainly consider the
+continuous sound sources (e.g., ring tone and alarm alert).
+
+
+FIGURE
+
+
+Problem Setup
+
+
+We consider two problem setups in the visual-audio embodied navigation
+task: explore-and-act and non-exploration for seeking the sound sources.
+In the first setting, we let the agent conduct two stages of
+interactions with an environment, in spirit similar to the exploration
+setup in Savinov et al. [*REF*]: exploration and
+goal-directed navigation. During the exploration stage, the agent
+randomly walks around the environment until its trajectory&apos;s length
+reaches a given budget. This exploration experience can be utilized to
+build an internal world model of the environment for subsequent
+goal-directed navigation tasks. In the second setting, the agent has to
+simultaneously build a spatial memory of the environment while it
+navigates towards the goal.
+
+
+In the testing phase, we randomly select a starting position for the
+agent and a target position for the sound source. At each time step, the
+agent takes an egocentric visual observation *MATH* and sound observation
+*MATH* about the environment and then draws an action from a set *MATH*. The
+action set *MATH* comprises the following: Move Backward, Move Forward,
+Rotate Left, Rotate Right, and Stop.
+
+
+Approach 
+
+
+In this section, we introduce our algorithm for the audio-visual
+embodied navigation. As shown in Figure, it consists of three components: a visual
+perception mapper, an audio perception module, and a dynamic path
+planner.
+
+
+In an attempt to tackle the visual-audio embodied navigation task, the
+agent can either use the visual perception mapper to retrieve from its
+spatial memory constructed during the exploration stage or use the
+occupancy map estimated during navigation to build a partial 2D
+spatial map (a graph with edges) of the environment. After that, the
+agent leverages the sound perception module to estimate the direction
+and distance of the sound source from its current location. Finally, the
+agent plans to find the shortest possible path to reach the goal based
+on the inference results from the visual and sound perception modules
+and the partial spatial map. In the middle of the navigation, the
+dynamic planner can also update the the estimated goal location as well
+as the agent&apos;s navigation model based on any new visual and audio
+observations.
+
+
+FIGURE
+
+
+Visual Perception Mapper
+
+
+Explore-and-Act Visual Mapper.
+
+
+The exploration based visual mapper consists of a spatial memory and a
+non-parametric retrieval model. During the exploration, we use a
+key-value based spatial memory network [*REF*] to encode the
+environment visited by the agent. Visual observation is stored in the
+key part, while the meta-data (e.g., location coordinates and actions
+taken by the agent) is stored in the value part. Concretely, we forward
+each first-person view RGB image through an ImageNet-pretrained ConvNet
+model, ResNet [*REF*], to extract a visual feature vector,
+followed by *MATH* normalization. Each feature vector of the visual
+observation and the corresponding coordinates and orientation of the
+agent form a key-value pair (Figure (a)).
+
+
+In the goal-oriented navigation stage, we use the same feature
+extraction pipeline to obtain a query feature vector extracted from the
+agent&apos;s first-person view. A non-parametric retrieval step is then
+conducted over the keys of the spatial memory. The top three memory
+slots that are closest to the query under the cosine distance are
+returned. We average the stored coordinates to estimate the location of
+the agent. Note that, in our experiments, we enforce the starting
+location of the agent has no overlap with the explored positions, so the
+localization of the agent in the early navigation stage has significant
+amount of uncertainty.
+
+
+Non-Exploration Visual Mapper.
+
+
+Since the random exploration stage might not always be allowed in real
+applications, we further introduce a visual perception mapper that can
+construct a dynamic spatial memory on the fly while the agent navigates
+through an environment. We construct the spatial memory as a top-down 2D
+occupancy map *MATH* about the grid world environment
+(Figure (b)). Each entry of the memory represents a
+grid cell in the environment, taking values in the range \ [0, 1\] and
+indicating the agent&apos;s belief about whether the grid cell can be
+traversed. We initialize the value to 0.5 and the starting position of
+the agent at the center of the memory *MATH*. Since the agent only has
+access to the visual observations of the nearby area, the visual
+perception mapper produces a local occupancy map in front of the agent
+at each time step. The agent then updates the local occupancy map using
+Bayes&apos; rule [*REF*].
+
+
+In order to infer if a cell is tranversable or not, we train a
+convolutional neural network to map from RGB images to the agent&apos;s
+believes. We collect training data by utilizing RGB images and
+groundtruth 2D occupancy maps in two training apartments. We feed a
+first-person RGB image into the network to predict the free space
+probability in a small window size (5 *MATH* 5 grids in our
+experiments).
+
+
+Sound Perception Module
+
+
+Motivated by the fact that humans can mentally infer the sound
+locations, here we introduce a sound perception module used for
+estimating the coordinates of the goal, i.e., the location of the sound
+source in our environment.
+
+
+To make the network easy to learn, we use relative locations to estimate
+the coordinates of the goal. We define the relative location in a grid
+world as follows. The relative location of the audio source from the
+agent&apos;s perspective, denoted by *MATH*, represents that the audio
+source is located *MATH* meters to the right of the agent and *MATH* meters in
+front of the agent. The relative position can thus be calculated by
+jointly considering the orientation of the agent and the absolute
+coordinates of the sound source and the agent. In the absolute
+coordinate system, the east axis is the positive *MATH* axis and the north
+axis is the positive *MATH* axis. Assuming that the absolute coordinates of
+the sound source and the agent in the grid world are (16, 18) and (4,
+8), respectively, the relative location of the sound source is then (12,
+10) if the orientation of the agent is towards the north. If the agent
+faces the west, the relative location of the sound source becomes (10, -12).
+
+
+We collect training data by using all the recorded audio clips in two
+training apartments. To pre-process the stereo sound, we first re-sample
+the sound to 16 HZ and then convert it into a spectrogram through
+Short-Time Fourier Transform (STFT). We feed the spectrogram into a
+five-layer convolutional network. The training objective is to estimate
+the relative sound location with respect to the agent. Specifically, we
+train the sound perception module with the mean square error (MSE) loss
+in a supervised way. The absolute coordinate of the target can be
+calculated from the relative location and the agent&apos;s coordinates. The
+sound perception module also contains noises, since the layout and the
+surface materials of the room influence the sound. We also train a
+separate sound classification model to decide if the agent reaches the
+goal; if so, it will take a stop action.
+
+
+Dynamic Path Planner
+
+
+The agent employs a dynamic path planner to navigate in the environment
+upon observing changes and meanwhile updating the memory as a result of
+those actions.
+
+
+For the explore-and-act setting, the agent can construct a partial
+graph *MATH* of the room based on a sequence of the agent&apos;s
+exploration trajectory (*MATH*, *MATH*, *MATH*, *MATH*) and actions
+(*MATH*, *MATH*, *MATH*, *MATH*). Denote by *MATH* and *MATH* the nodes and
+edges, respectively. Each node *MATH* in the graph stores a
+location (coordinates) in the environment. The edge exists between two
+nodes *MATH* and *MATH* if the nodes correspond to consecutive time steps.
+
+
+For the non-exploration based approach, the agent can use the memory to
+construct a partial graph of the environment. According to the spatial
+memory, each grid can be divided into three types: free spaces,
+obstacles, and unexplored areas. The partial graph *MATH* is
+generated by assuming the unexplored and unoccupied grids are
+transversable, converting the traversable grids into nodes, and
+connecting adjacent nodes via edges. When a new obstacle is detected,
+the corresponding node and edge(s) will be deleted.
+
+
+The dynamic planner outputs a path (sequence of actions) that transits
+the agent to the desired target location based on the graph of the
+environment and the estimated target coordinates. At each time step *MATH*,
+the agent tries to find a shortest path from the graph node of the agent
+itself *MATH* to the graph node *MATH* that is nearest to
+the estimated coordinates of the sound source *MATH*. We use the
+Dijkstra&apos;s algorithm to solve this problem. Specifically, we can use
+this algorithm to obtain a shortest path denoted as
+*MATH*. We select *MATH* as the action to take at time *MATH*.
+
+
+FIGURE
+
+
+Experiment 
+
+
+In this section, we first describe the dataset and environment we
+created for the sound-source-seeking audio-visual embodied navigation
+task, followed by demonstrating the benefits of our method against
+several competing baselines.
+
+
+The Visual-Audio Room Dataset
+
+
+In order to systematically evaluate the multi-modal navigation
+performances and facilitate future study on this research direction, we
+collect a new Visual-Audio Room (VAR) benchmark. Our ultimate goal is to
+enable robots to navigate in indoor environments by fusing visual and
+audio observations. As it is very challenging to conduct thorough and
+controlled experiment with physical robots, we instead use a 3D
+simulated environments, built on the top of AI-Thor
+platform [*REF*]. There are seven apartments used in the
+experiment. We split them to two apartments for training and five
+apartments for testing. We consider three recorded audio categories:
+ring tone, alert alarm, and clock clicking as the sound source in the
+work. To generate navigation data, we pre-extract the first person view
+RGB images in four orientations over all the grids of the seven
+apartments. For the training apartments, we randomly pick up ten
+locations to put the sound source and then record the sound the agent
+hears in four orientations of all locations in the room. For the five
+testing apartments, we pick five grid locations to put the sound source
+and also record the sound the agent hears in all locations. In total, we
+collect 3,728 RGB images, and record 75,720 audio clips.
+
+
+Experiment Setup
+
+
+Setup. We aim to test the agent&apos;s ability to navigate in a new
+environment. During evaluation, for each of the five possible locations
+of the sound source in each room, we randomly pick 20 locations and
+orientations of the agent. Therefore, we conduct 100 testing episodes
+for each sound. We set the time duration of each sound at each time step
+as 1 second. The number of random walk steps in the explore-and-act
+setting are set as 400.
+
+
+Evaluation metrics. We use two metrics to evaluate the models:
+success rates and Success weighted by Path Length
+(SPL) [*REF*]. SPL measures the agent&apos;s navigation
+performance across all the testing scenarios as
+*MATH*, where *MATH* denotes the number of testing episodes, *MATH* is a binary indicator of
+success in the testing episode *MATH*, *MATH* represents path length, and
+*MATH* indicates the shortest distance to the goal.
+
+
+TABLE
+
+
+Baseline
+
+
+We consider seven baseline methods for evaluations.
+
+
+COMPACT ITEM 
+
+
+Results
+
+
+Table summarizes the results for the three different
+sounds sources in the five testing apartments. The proposed audio-visual
+agent performs better than all baselines across all metrics. In the
+exploration-and-act setting, our model (w/Exp.) remarkably achieves over
+a 65% success rate in average for every sound source, almost doubling
+the best-performing baseline. Figure presents the results in two testing rooms in
+more detail, by plotting the trajectory of our approach against that of
+the best performing baseline (A3C (V+A+M+Mapper)). In the
+non-exploration based setting, our approach (no Exp.) can also achieve
+nearly 60% success rate, even outperform the strongest baseline with
+explorations. These results indicate that our system is better to
+leverage the layout of the room and find the shortest path to reach the
+goal. For instance, the agent tends to come to the door when the sound
+is in another room, and thus efficiently reaches the goal. More
+qualitative results are available in the supplementary material.
+
+
+From Table, it is not surprising to find that the success
+rates of the random walk--based approaches are very low, because it is
+very challenging to conduct navigation in our environment without any
+prior knowledge. Greedy search is slightly better than random search, as
+the agent can anticipate the location of the goal from the sound.
+However, the success rates are still below 15%, because the agent has no
+visual prior knowledge of the room layout and misunderstands the
+shortest geometric distance as the shortest path, which does not always
+hold in our setting. These results demonstrate that it is important to
+connect visual and sound information for the audio-visual navigation
+task. [The performance of the A3C based approaches is significantly weaker than
+those previously reported in literature [*REF*]]. The key
+reason is that we focus on generalizations---putting agents in
+previously unseen environments. This is a much more challenging, but
+also more realistic scenarios. We also find that the performance gap is
+still large between our approach and A3C, which uses both implicit
+spatial memory from exploration and explicit spatial memory during
+navigation. We speculate that our approach can disentangle the visual
+perception and sound perception from path planing, thus providing better
+generalizability in new testing environments.
+
+
+Conclusion 
+
+
+We tackle a novel problem, audio-visual embodied navigation, in a
+multi-modal virtual environment. The agent can use the internal
+structured representation of the environment to efficiently navigate to
+targets in previously unseen environments. Our multi-modal virtual
+environment consists of complex apartments with a sound module and
+realistic layouts. We demonstrate that the state-of-the-art deep
+reinforcement learning approaches meet difficulties in generalization.
+Our approach generalizes to new targets and new environments with
+remarkable results.

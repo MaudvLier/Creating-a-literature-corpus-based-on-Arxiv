@@ -1,0 +1,289 @@
+Introduction
+
+
+Model-free Reinforcement Learning (RL) algorithms, attempts to find an
+optimal policy through learning the values of agent&apos;s actions at any
+state by computing the expected future rewards without having access to
+a model of the environment [*REF*]. To learn an efficient
+policy, the agent should balance its exploration, i.e. visiting
+already observed rewarding states, with its exploration, i.e.
+searching for better rewarding states. Exploitation is an strategy to
+maximize the expected reward on the one step, but exploration may lead
+to a greater return, i.e. total rewards, in the long run [*REF*].
+
+
+One of the challenges that arise in RL in real-world problems is that
+the state space can be very large. This has classically been called the
+curse of dimensionality. Non-linear function approximators coupled
+with reinforcement learning have made it possible to learn abstractions
+over high dimensional state spaces [*REF*; *REF*; *REF*; *REF*].
+
+
+Common approaches to exploration, such as the *MATH* -greedy method
+[*REF*], are not sufficiently efficient in
+exploring the state space to succeed on large-scale complex problems
+with sparse delayed rewards feedback [*REF*]. Exploration
+methods based on novelty detection [*REF*; *REF*] and
+curiosity-driven learning [*REF*] have been particularly
+successful in sparse tasks but these methods typically require a
+generative or predictive model of the state transition probabilities,
+which can be difficult to train when the states space are very
+high-dimensional [*REF*; *REF*]. Learning representations of
+the value function is challenging for these tasks, since the agent
+receives an undiagnostic constant value, such as *MATH* for most experiences.
+
+
+Hierarchical Reinforcement Learning (HRL) methods attempt to address the
+issues of RL in sparse tasks [*REF*; *REF*; *REF*; *REF*]
+by learning to operate over different levels of temporal abstraction
+[*REF*; *REF*; *REF*]. One approach to temporal abstraction involves identifying a set of
+states that make for useful subgoals. This introduces a major open
+problem in HRL: that of subgoal discovery. The efficient exploration
+of the environment states has a direct effect on successful subgoal
+discovery. Some approaches to subgoal discovery maintain the value
+function in a large look-up table [*REF*; *REF*; *REF*; *REF*],
+and most of these methods require building the state transition graph,
+providing a model of the environment and the agent&apos;s possible
+interactions with it [*REF*; *REF*; *REF*].
+Subgoal discovery problem is specifically challenging for the model-free
+HRL framework, since the agent does not have access to a model of the environment.
+
+
+Once useful subgoals are discovered, an HRL agent should be able to
+learn the skills to attain those subgoals through the use of intrinsic
+motivation --- artificially rewarding the agent for attaining selected
+subgoals [*REF*; *REF*]. In such systems, knowledge of the current subgoal is needed to estimate
+future intrinsic reward, resulting in value functions that consider
+subgoals along with states [*REF*]. Such a parameterized
+universal value function, *MATH*, integrates the value functions
+for multiple skills into a single function, taking the current subgoal,
+*MATH*, as an argument. Intrinsic motivation intend to provide a way for
+exploration while learning useful skills [*REF*].
+[*REF*] has shown a connection between theoretical
+foundations of intrinsic motivation and the count-based exploration
+methods. However, the role of intrinsic motivation learning in efficient
+exploration of sparse tasks, its effect on learning representations in
+model-free HRL and its connection to the subgoal discovery problem are
+open research problems.
+
+
+It is important to note that model-free HRL, which does not require a
+model of the environment, still often requires the learning of useful
+internal representations of states. Recently,
+[*REF*] has offered a model-free HRL approach,
+called Meta-controller and Controller framework, in order to integrate
+temporal abstraction and intrinsic motivation learning and successfully
+solved the first room of the Montezuma&apos;s Revenge. But, their method
+relied on a prior knowledge of the environment, including manual
+selection of interesting objects as subgoals for intrinsic motivation learning.
+
+
+In our previous work, [*REF*; *REF*; *REF*],
+we have addressed major open problems in the integration of internal
+representation learning, temporal abstraction, automatic subgoal
+discovery, and intrinsic motivation learning, all within the model-free
+HRL framework We propose and implement efficient and general methods for
+subgoal discovery using unsupervised learning and anomaly (outlier)
+detection [*REF*; *REF*]. The proposed method do not require information beyond that which is
+typically collected by the agent during model-free reinforcement
+learning, such as a small memory of recent experiences (agent
+trajectories). In our proposed approach for learning representations in
+model-free HRL, we were fundamentally constrained in three ways, by
+design. First, we remained faithful to a model-free reinforcement
+learning framework, eschewing any approach that requires the learning or
+use of an environment model. Second, we were devoted to integrating
+subgoal discovery with intrinsic motivation learning, and temporal
+abstraction. Lastly, we focused on subgoal discovery algorithms that are
+likely to scale to large reinforcement learning tasks. The result was a
+unified model-free HRL algorithm that incorporates the learning of
+useful internal representations of states, automatic subgoal discovery,
+intrinsic motivation learning of skills, and the learning of subgoal
+selection by a &quot;meta-controller&quot;. We demonstrated the effectiveness of
+this algorithm by applying it to a variant of the rooms task, as well as
+the initial screen of the ATARI 2600 game called Montezuma&apos;s Revenge.
+
+
+In this paper, we investigate the role of intrinsic motivation learning
+on efficient exploration of environments with sparse delayed rewards
+feedback, and its connection to the subgoal discovery problem in our
+model-free HRL framework. We introduce an efficient and general method
+for subgoal discovery using unsupervised learning methods, such as
+K-means clustering and anomaly detection, over a small memory of agent&apos;s
+experiences (trajectories) during intrinsic motivation learning.
+Finally, we conjecture that intrinsic motivation learning can increase
+appropriate state space coverage, and it produces a policy for efficient
+exploration that leads to a successful subgoal discovery. We demonstrate
+the effectiveness of our method on the rooms task (Figure(a)), as well as the initial screen of the
+Montezuma&apos;s Revenge (Figure(a)).
+
+
+A Model-Free HRL Framework
+
+
+Meta-controller/Controller Framework
+
+
+Inspired by Kulkarni et al. (*REF*) we start
+by using two levels of hierarchy for temporal abstraction learning
+(Figure [1]). The more abstract level of this
+hierarchy is managed by a meta-controller which guides the action
+selection processes of the lower level controller. This approach leads
+to integration of temporal abstraction and intrinsic motivation learning
+in deep model-free HRL framework. Separate value functions are learned
+for the meta-controller and the controller.
+
+
+At time step *MATH*, the meta-controller receives a state observation,
+*MATH*, from the environment. It then selects a subgoal, *MATH*,
+from a set of subgoals, *MATH* from an *MATH* -greedy policy
+derived from the meta-controller&apos;s value function, *MATH*.
+With the current subgoal selected, the controller uses its policy to
+select an action, *MATH*, based on the current state, *MATH*,
+and the current subgoal, *MATH*. We used *MATH* -greedy policy derived
+from the controller&apos;s value function, *MATH*, to choose an action
+*MATH*. In next time step, agent recieves a reward *MATH*, and the
+next state, *MATH*, and stores its direct experiences with the
+environment into an experience memory, *MATH*, Actions continue
+to be selected by the controller while an internal critic monitors the
+current state, comparing it to the current subgoal, and delivering an
+appropriate intrinsic reward, *MATH*, to the controller on each
+time step. Each transition experience, *MATH*, is
+recorded in the controller&apos;s experience memory set, *MATH*,
+to support learning. When the subgoal is attained, or a maximum amount
+of time has passed, the meta-controller observes the resulting state,
+*MATH*, and selects another subgoal, *MATH*. The transition
+experience for the meta-controller, *MATH* is recorded in the
+meta-controller&apos;s experience memory set, *MATH*, where
+*MATH* is the return between the
+selection of consecutive subgoals. For training the meta-controller
+value function, *MATH*, we minimize its loss function
+based on the experience received from the environment, *MATH*.
+The controller improves its subpolicy, *MATH*, by learning its
+value function, *MATH*, through minimization of its loss function
+over intrinsic experiences, *MATH*.
+
+
+Unsupervised Subgoal Discovery 
+
+
+The performance of the meta-controller/controller framework depends
+critically on selecting good candidate subgoals for the meta-controller
+to consider. In [*REF*]&apos;s approach to
+model-free HRL, the subgoals are manually specified for each task, and
+hence, the subgoal discovery in a model-free HRL framework and its
+contribution to learning representations of the meta-controller and
+controller value functions have not been addressed. In order to
+integrate the automatic subgoal discovery into the
+meta-controller/controller framework in model-free HRL, we should only
+use the information available from the intrinsic motivation learning.
+Our strategy for subgoal discovery involves applying unsupervised
+learning methods to a recent experience memory, *MATH*, to
+identify sets of states that may be good subgoal candidates. We focus
+specifically on two kinds of analysis that can be performed on the set
+of transition experiences. We hypothesize that good subgoals might be
+found by (1) attending to the states associated with anomalous
+transition experiences and (2) clustering experiences based on a
+similarity measure and collecting the set of associated states into a
+potential subgoal. Thus, our proposed method merges anomaly (outlier)
+detection with the *MATH* -means clustering of experiences.
+
+
+The anomaly (outlier) detection process identifies states associated
+with experiences that differ significantly from the others. In the
+context of subgoal discovery, a relevant anomalous experience would be
+one that includes a substantial positive reward in an environment in
+which reward is sparse. For example, in the rooms task, transitions that
+arrive at the key or the lock are quite dissimilar to most transitions,
+due to the large positive reward that is received at that point (see
+Figure (b-d)). Similarity in the Montezuma&apos;s Revenge
+game, action that lead to or the doors lead to rewarding experiences.
+Additionally, when agent enters a new room, the state becomes very
+different than the states from the previous room, allowing an anomaly
+detection method to identify the door that leads to a new room as a
+potentially useful subgoal.
+
+
+The idea behind using the clustering of experiences involves both
+&quot;spatial&quot; state space abstraction and dimensionality reduction with
+regard to the internal representations of states. The learning process
+might be made faster by considering representative states, such as
+cluster centroids as candidate subgoals, rather than considering all the
+states. For example, in the rooms task, the centroids of *MATH* -means
+clusters, with *MATH* (Figure(b)), lie close to the geometric center of each room, with the states
+within each room coming to belong to the corresponding subgoal&apos;s
+cluster. In this way, the clustering of transition experiences can
+approximately produce a coarser representation of state space, in this
+case replacing the fine grained &quot;grid square location&quot; with the coarser
+&quot;room location&quot;. Also, *MATH* -means clustering found useful subgoal
+regions, such as ladders, stages, and the rope in Montezuma&apos;s Revenge game (Figure (c)).
+
+
+A Unified Approach to Model-Free HRL
+
+
+Here, we offer a framework to integrate learning representations of the
+meta-controller and controller value functions, and also unsupervised
+subgoal discovery for model-free HRL approach. The agent&apos;s experience
+memory, *MATH*, which has been called experience replay memory
+in deep Q-learning, is the necessary element for integrating the HRL
+components into a unified framework. The information flow between the
+components of our unified model-free HRL is depicted in Figure
+[1]. We applied this method to a
+variant of rooms tasks with a key and a box (Figure(a)), 
+and also a first screen of the Montezuma&apos;s Revenge ATARI game
+(Figure (a)). In these simulations, learning occurred
+in one unified phase. The meta-controller and the controller, and
+unsupervised subgoal discovery, were trained all together. The average
+return for the unified HRL method, and regular RL is shown in Figure(f). 
+In Montezua&apos;s Revenge, the controller was
+initially trained to navigate the man in red to random subgoals on the
+screen, derived from the Canny edge detection algorithm (see Figure(b)). 
+Using this strategy, the agent learned
+navigation skills, detected the rewarding states: key and doors, and
+other interesting regions. Our model-free HRL could solved this room,
+while deep Q-learning networks [*REF*] could not.
+
+
+FIGURE
+
+
+Intrinsic Motivation for Efficient Exploration
+
+
+Intrinsic motivation learning is the core idea behind the learning of
+the value function for the controller. The intrinsic critic in this HRL
+framework can send much more regular feedback to the controller, since
+it is based on attaining subgoals, rather than ultimate goals. In our
+unified model-free HRL, the intrinsic motivation learning plays two
+major roles: (1) Learning skills to go from any observable states to
+other region of states through learning subpolices by the controller.
+(2) Providing efficient exploration to collect experiences that can be
+used for unsupervised subgoal discovery. The state space coverage rate,
+i.e. the number of visited states divided by the size of states space
+during training rooms tasks is shown in Figure (e). Intrinsic motivation learning coupled with
+unsupervised subgoal discovery and a random meta-controller can visit
+67% of the states. A regular Q-learning method converges to a solution
+that can finds and picks the key, but it doesn&apos;t have motivation to
+explore other regions to find more rewarding state, i.e. the box. When
+intrinsic motivation learning of the controller is integrated with
+unsupervised subgoal discovery and a meta-controller, the unified method
+can successfully cover 100% of the states. A random walk in Montezuma&apos;s
+Revenge can only visit two ladders and the rope (see Figure (d)). 
+But intrinsic motivation learning with
+unsupervised subgoal discovery can lead to discovery of all meaningful
+regions of the screen including rewarding ones (Figure (c)).
+
+
+FIGURE
+
+
+Conclusions
+
+
+We introduced a novel method for subgoal discovery, using unsupervised
+learning over a small memory of the most recent experiences of the
+agent. Intrinsic motivation learning provides a policy for efficient
+exploration of sparse tasks that leads to successful unsupervised
+subgoal discovery. We investigated the role of the intrinsic motivation
+learning on efficient exploration of the observable state space for
+discovering useful subgoals.

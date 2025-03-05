@@ -1,0 +1,774 @@
+Incremental Reinforcement Learning --- a New Continuous Reinforcement Learning 
+Frame Based on Stochastic Differential Equation methods
+
+
+
+Introduction
+
+
+Deep reinforcement learning (DRL) is the love child of deep learning (DL) and
+reinforcement learning (RL). Through extensive data training and pattern
+recognition, DL methods largely improve the efficiency of feature
+identification. In order to achieve the maximum reward for
+characterizing the environment, the optimal state action function from
+Bellman optimal equation are adopted in newer RL methods. DRL method
+combines the perceptive ability of DL with the decision-making ability
+of RL and thus offers strong versatility and direct control from input
+to output [*REF*]. These end-to-end learning systems have achieved
+great success in dealing with complex tasks.
+
+
+As shown in Figure 1, major RL methods are mostly Value based, Policy
+based and Actor-critic based. Initially, high-dimensional input data
+could not be processed directly due to lack of training data and
+computational power. We rely on Deep Neural Networks (DNN) to reduce the
+dimensionality of the input data for real world tasks. The well-known
+Q-learning algorithm in RL, proposed by Watkins [*REF*], is a very
+effective learning algorithm that are widely used in traditional
+RL[*REF*;  *REF*;  *REF*]. Various RL algorithms are developed from
+Q-learning such as Deep Q-network (DQN) algorithm[*REF*;  *REF*] (which
+combines the convolutional network with the traditional Q-learning
+algorithm in RL) and Deep Dual Q-network (DDQN) algorithm[*REF*].
+
+
+Although DQN and DDQN have achieved success in solving high-dimensional
+RL problems, their actions are based on discrete time and thus cannot be
+applied to continuous cases. To extend Q-learning to continuous state
+and motion spaces, Gu et al. [*REF*] propose a relatively simple
+solution called Normalized Advantage Functions (NAF). Although NAF can
+theoretically perform continuous action output, in fact, it is difficult
+to apply because of its large computational complexity and training
+complexity. The Deep Deterministic Policy Gradient (DDPG) based on the
+Actor-Critic (AC) framework [*REF*] uses policy gradient to perform
+continuous operation so it can be applied to broader tasks such as
+robotic control. Nevertheless, DDPG can easily expand rewards and
+randomness of the policy in complex and noisy situations. The
+Asynchronous Advantage Actor-Critic (A3C) algorithm [*REF*] is widely
+used in tasks with both discrete and continuous action space, and
+arguably achieves the best results concerns. However, the delay in
+policy update leads to instability. The Trust Region Policy Optimization
+(TRPO) [*REF*] improves the performance of DDPG by introducing a
+surrogate objective function and a KL divergence constraint, which
+guarantees a long-term reward without reductions. The Proximal Policy
+Optimization (PPO) [*REF*] algorithm is built on TRPO algorithm but as
+a policy gradient algorithm, it has the limitation on the policy
+gradient algorithm -- the parameters are updated along the direction of
+the policy gradient despite that PPO optimize TRPO by modifying the
+objective function.
+
+
+FIGURE
+
+
+DRL has been widely used in simulation [*REF*], robotic control
+[*REF*], optimization and scheduling [*REF*;  *REF*], video games
+[*REF*;  *REF*] and robotics [*REF*]. For example,
+Zhang et al. [*REF*] show that the trained depth Q-network system can
+use external visual observations to perform target contact learning so
+camera images could be replaced by the network composite images.
+
+
+Nevertheless, DRL still has many problems in industrial applications.
+The most important one of RL comes from its instability, which is also
+one of the most fundamental differences from the traditional adaptive
+control. The problem is related to the agent&apos;s wide-area exploration
+capability. Reducing the instability in the RL algorithm while ensuring
+and encouraging agents to explore during the training process is one of
+the biggest challenges in reinforcement learning. It is also considered
+an inherent weakness of classical continuous RL algorithms.
+
+
+For example in DDPG, the action policy *MATH* is generally
+*MATH*,  where *MATH* is environmental
+state, *MATH* is the parameter, *MATH* is the white noise or
+the Uhlenbeck-Ornstein random process. When the Uhlenbeck-Ornstein
+random process is chosen (which expression is *MATH*, 
+*MATH*,  *MATH*,  *MATH*), despite the continuity condition might be
+satisfied, we cannot guarantee the variance of the action output. When
+examining the A3C algorithm under the Gaussian strategy, its action
+strategy is generally *MATH*,  where *MATH* is white noise. Although the accuracy can be
+controlled according to Kolmogorov continuity theorem, A3C&apos;s action
+policy is not continuous, and it cannot find a continuous correction
+(Appendix A.1). A3C has to use the policy gradient principle to update
+the network parameters. If *MATH* and DDPG adopt the
+Uhlenbeck-Ornstein stochastic process, the distribution
+*MATH* will be very difficult to draw, and it is not suitable to use
+*MATH* to update the parameters, where *MATH* is the Q
+function in RL. In addition, because of the need for discretizing these
+formulas in practice, the above methods cannot control the size of the
+time interval. Therefore, when the environmental state is abrupt due to
+the Markov property, the range of motion changes can reach an unintended
+situation, which may cause damage to many RL applications such as
+robotics.
+
+
+Traditional RL methods have difficulties in balancing the uncertainties
+caused by continuity and variance control. This is also a drawback of
+the Markov control in RL. Solutions might be found in A3C&apos;s action
+strategy. In stochastic differential equations (SDE) [*REF*], the white
+noise *MATH* is often seen as the &quot;derivative\&quot; of the
+Brownian motion *MATH* [*REF*], so the total derivative of A3C algorithm
+can be written as: *MATH* 
+This gives a starting point for our research. Without taking direct
+action in the Markov controlled output, we focus on incremental changes
+denoted as *MATH*.  Then we have the SDE: *MATH*, 
+*MATH*.  In fact, this expression is quite common in
+practice. For example, a robot joint is usually controlled by its angle
+rather than the angular velocity. The problem is difficult to solve in
+traditional RL because the environmental state can hardly be predicted
+and consequently agents can only adapts to the environment. If the form
+of the change *MATH* is not clear, it is almost impossible to make any
+effective description of the above SDE. Hence, it is necessary to make
+corresponding estimates of the environmental state.
+
+
+In traditional RL theory, the distribution of the environmental state at
+the next moment is based on the current environmental state and the
+agent&apos;s action strategy (causing environmental changes), but in reality
+the environment state evolves continuously. Is it possible to construct
+a SDE similar to action strategy for the environmental state *MATH* ? The
+answer is *MATH* where *MATH*,  *MATH* 
+are functions for environmental change (the network is used instead in
+the actual process); *MATH* is the parameter set in the equation;
+*MATH* is the n-dimensional Brownian motion (each component is
+independent). This SDE shows that the environment is not only
+continuously changing, but also depends on the current state of the
+environment and actions, which satisfies both requirements for a ideal
+environment state dynamic.
+
+
+It is also necessary to modify the strategy followed by the action
+policy, *MATH* where *MATH*,  *MATH* is the
+equation followed by environmental change (the network is used instead
+in the actual process); *MATH* is the parameter set in the equation;
+*MATH* is the n-dimensional Brownian motion, it is also
+independent of *MATH* (each component is independent). Such modifications
+are reasonable. For example, when a robot makes an action under
+reinforcement learning, its current action needs to be considered for
+determining the amount of change. When the allowable angle of the joint
+rotation is large, the natural motion amplitude might be set larger;
+when it is close to the critical point, the allowable motion change
+range is smaller.
+
+
+The two core SDEs in this paper are therefore: *MATH*.  
+Although the two equations are observed separately, it must be a
+non-time-aligned SDE. If *MATH*,  the two equations
+can be merged into: *MATH* or: *MATH*.  Then *MATH* follows It̂o diffusion. This
+has brought great convenience to our discussion and it is also the core
+concept of this paper. In fact, this is aligned with the reality - the
+action of the agent is always interactive with the changing environment.
+Besides, the Q function in RL is often used to evaluate the future
+benefit of the current action and state, that is, *MATH*,  where
+*MATH* is the parameter set of the Q-value network. This expression
+can be changed to *MATH* under the current framework.
+
+
+In summary, the entire Incremental Reinforcement learning framework
+consists of three main parts (and its network) --- (1) Environmental
+state estimator (ESE); (2) Action policy generator (APG); (3) Value
+estimator (VE) (or Q function). The rest of the paper is arranged as
+following: Section [2] introduces our incremental
+reinforcement learning framework; Section [3] shows how to update the parameters in
+our proposed frame. Section [4] describes the experimental results;
+Section V concludes. Proofs for some steps are left in appendix.
+
+
+Theory 
+
+
+This section consists of four parts: the regulation terms derived from
+the existence and uniqueness of stochastic differential equations and
+the description of - ESE, APG and VE. Most of the knowledge about
+stochastic differential equations is elaborated in [*REF*] so we do not
+repeat their proof.
+
+
+As mentioned in the introduction, the entire system of IRL is in the
+form: *MATH* where *MATH* are all measuable functions. Suppose *MATH*,  then the
+stochastic differential equations of the whole system can be transformed
+into It̂o diffusion equation: *MATH* where *MATH*.
+
+
+As the basic model of IRL, the discussion of the It̂o diffusion equation
+of the above system will run through the entire algorithm framework.
+
+
+The regulation terms derived from the existence and uniqueness of stochastic differential equations
+
+
+Before discussing the other three core networks, it is necessary to
+discuss the existence and uniqueness of equation (3). It is obvious that
+if the solution of the diffusion equation does not exist, it would be
+hard to get a good interaction between the environment state and agent&apos;s
+action through network training. In order to ensure that the solution
+not only uniquely exist, but also satisfy the continuity condition, we
+use the existence and uniqueness theorem of the solution to the
+stochastic differential equation described below:
+
+
+LEMMA 1 
+
+
+Acording to lemma [1], it is
+obvious that if the solution of the stochastic differential equation (3)
+exists, the functions *MATH* have to satisfy
+*MATH*. The condition *MATH* is automatically satisfied because
+process *MATH* is a diffusion process. For condition *MATH*,  it means
+that *MATH* and *MATH* have to satisfy Lipschitz continuous condition,
+(*MATH* and *MATH*). It also means that it is necessary to limit the gradient of the parameters
+*MATH*,  so a gradient penalty should be added in the
+objective functions as a regularizer. Hence, two regularizers are
+constructed *MATH* where the constants *MATH* are the upper bounds of the gradients of
+the input pair of the network in ESE and APG; *MATH* are
+coefficients for regularizers; *MATH* is the differential operator
+(or divergence operator); *MATH* is 2-norm; and
+*MATH*.  In practice, we often do segmented trainings
+and collect parameters as well as gradient values associated with
+training date in each segment. If the sampling interval is *MATH*, 
+training period *MATH*,  *MATH*,  *MATH*, 
+then the regularizers could be rewritten as:  *MATH*. 
+
+
+These two regulation terms are added in the objective function of
+*MATH* and *MATH* respectively.
+
+
+Value Estimator(VE)
+
+
+We introduce the value estimator VE first since it is the core of
+reinforcement learning. Agents base on the Q function in VE to form
+expectations on future reward under current environment state and its
+current action policy. Note that the classical, discretized Q function
+under optimal parameters should satisfy:
+*MATH* where *MATH* is the conditional expectation, which is
+the expectation under known conditions *MATH*,  and *MATH* is
+the optimal parameters. It is obvious that random varible
+*MATH* satisifies Markov property in discrete time.
+*MATH* is therefore recursively determined by
+*MATH* where *MATH* represents the *MATH* algebra
+which is defined by *MATH*;  *MATH* is the
+reward at the *MATH* moment. So by recursive substitution, it is easy to
+find that at *MATH* moment, *MATH*. 
+
+
+This constraint for Q function in discrete cases can be easily extended
+to the continuous case. If the time interval is *MATH*,  the reward
+in the *MATH* moment is *MATH*,  the discrete time *MATH* can be
+replaced by the continuous time *MATH*: 
+*MATH* where *MATH* is the rate of the change of the reward. This equation is
+the constraint for Q function of VE in IRL. Now it raises two questions
+for Q function:
+-  Does a Q function that satisfies the constraint equation (12) exist?
+-  If such a Q function exists, how do we update the parameters of the
+network to approximate the optimal parameters and simultaneously
+satisfy the constraint equation(12) during the training process?
+
+
+Before answering these two questions, it is necessary to make some
+changes to the constraint equation (12). Let take the derivative of Q
+function with respect to t and make the first order condition equal to
+0: *MATH*. Since the actual process *MATH* is
+always bounded, dominated convergence theorem allows us to substitute
+the partial operator with expectation operator, so *MATH*. 
+
+
+By setting *MATH* and *MATH*,  the following formula is obtained:
+*MATH*.  The question is how to deal with the partial derivative of *MATH*,  or
+*MATH* with respect to time. Fortunately, it
+can be solved by using the theory of stochastic differential equations.
+In the following we show the definition of the characteristic operator
+of stochastic differential equations.
+
+
+Definition. Characteristic Operators of It̂o Diffusion and Their
+Expressions
+
+
+Suppose *MATH* is a It̂o diffusion process on *MATH*,  the
+generator of *MATH* can be defined as: *MATH*.
+So, the set of all functions *MATH* that have the upper limit at *MATH* can be
+defined as *MATH* where *MATH* is the set of
+functions whose upper limits exist when *MATH*. 
+*MATH* is also called characteristic operator. These
+two operators are equivalent when *MATH*. 
+
+
+Suppose *MATH* is a It̂o diffusion process with an initial condition
+*MATH* on *MATH*,  so *MATH*. 
+
+
+Suppose *MATH*,  *MATH* is a stopping time related to
+*MATH* with the condition *MATH*,  and *MATH* 
+is bounded on the support set of f, then *MATH* and the characteristic operator of It̂o diffusion process
+*MATH* can be defined as: *MATH* which is a second order linear partial differential operator.
+
+
+The next lemma shows the relationship between
+*MATH* and the characteristic operator.
+
+
+LEMMA 2
+
+
+Through applying the lemma [2], Kolmogorov backward
+equation, to Q function, it is possible to calculate
+*MATH*.  From the diffusion equation of *MATH*,  the characteristic operator *MATH* of *MATH* 
+can be written as *MATH* or *MATH* is the operator that *MATH*.  Let
+consider *MATH*. According to Kolmogorov backward equation, it is obvious that FORMULA.
+
+
+Combined with eq(14), we get the constraint equation of *MATH*: 
+*MATH* or *MATH*.
+
+
+A new second order elliptic partial differential operator appears as
+following *MATH*. And eq(27) can be rewritten as  *MATH*. This
+formula indicates that if Q function exists, *MATH* could be the
+solution of a class of second order elliptic partial differential
+equations. In other words, IRL is related to partial differential
+equation theory.
+
+
+The next step is eliminating the influence of the time, we discuss the
+case for *MATH*.  By setting *MATH* from the initial formula eq(12) we get
+*MATH*. Then apply operator *MATH* to both sides of the equation:
+*MATH*. The left side of the equation doesn&apos;t contain time
+variable, so *MATH* which means the right side of the equation only relate to *MATH*,  written
+as *MATH* (that is also the *MATH*). Now we get a
+partial differential equation of *MATH*,  *MATH* and such a
+Q function dose exist according to the partial differential equation
+theory. (Actually it is a Dirichlet-Poisson question.) However, if we
+want to use PDE theory, it is necessary to discuss the boundary
+condition of the Q function. Fortunately in practice, agent&apos;s action
+policies are generally bounded. It is hard to know the exact boundary
+conditions of environment states, but they are bounded in a large enough
+area. We write the domain of *MATH* as *MATH*,  and *MATH* where
+*MATH* is the boundary of *MATH*. 
+
+
+Now we have two equations: *MATH* where *MATH* is a second-order
+elliptic partial differential operator. This is a typical Dirichlet
+question. Here we only demonstrate the main theorem of the existence and
+uniqueness theorem of the solution to Dirichlet question. Detailed proof
+can be found in [*REF*].
+
+
+LEMMA 3
+
+
+In practice, when *MATH*,  we might consider *MATH* is at least
+second order continuous and *MATH* -order Hölder continuous. This gives
+the existence and uniqueness of the Q-function. However, if Q function
+exists, it must be at least second order continuous, which means any
+nonlinear functions that are not second order continuous (such as ReLU)
+cannot be used in the nonlinear function layers in the networks. On the
+other hand, sigmoid, which is both bounded and *MATH* continuous, is
+apparently a better choice.
+
+
+Once Q function exists, we can use optimization methods such as gradient
+descent, SGD, Adam algorithm to optimize
+*MATH*. In details, *MATH*.  This is the objective function used to update the
+network. Because it satisfies the Markov property, we can also use the
+training data in each step *MATH* of the process as the initial
+value. Suppose the number of training samples in one step is *MATH*,  then: *MATH*.
+
+
+In practice, it is difficult to solve such a partial differential
+equation with uncertain parameters by training the network through
+gradient descent, and the gradient can easily get too large and impede
+training preceeding. This can be alleviated by adding an additional
+objective function. Recall the Q function in equation (12). During the
+training process, we record the next state *MATH* and the above Q
+function can be written in discrete time: *MATH*.
+Then we get an additional objective function: *MATH*.
+
+
+Since the integration is discretizated, this objective function is less
+precise than the one with second-order gradient terms that we obtained
+earlier. However, this objective function is more intuitive and its
+convergence speed can be accelerated in training.
+
+
+Environment State Estimator(ESE)
+
+
+ESE is not necessary in classical reinforcement learning algorithms such
+as A3C and DDPG. However in IRL, ESE is essential to make *MATH* 
+It̂o diffusion. Note that there is a fundamental difference bewteen
+*MATH* and *MATH*:  *MATH* comes from the state
+change of the environment itself, so this parameter is objective;
+*MATH* are related to rewards set by human, so they are
+subjective. The difference makes ESE network updating process in IRL a
+process of parameter estimation. Now we raise two theorems as the
+starting point of the ESE update process.
+
+
+LEMMA 4
+
+
+Consider the It̂o difussion *MATH*,  applying Girsanov
+Theorem conditional on *MATH* is reversible and *MATH*,  then
+*MATH* and the log-likelihood function is defined as:
+*MATH* that is *MATH*. Recall that in IRL, the difussion process *MATH* is
+*MATH*.  *MATH*. According to lemma [4],
+*MATH* where *MATH*,  *MATH* is a constant
+parameter set that does not engage in ESE parameters update process.
+Then, the log-likelihood function *MATH* can be defined as:
+*MATH*. The next lemma shows how to use this log-likelihood function to estimate
+parameter *MATH*.  The detail of the proof can be found in [*REF*].
+
+
+LEMMA 5
+
+
+This theorem gives the error distribution of
+*MATH* when T approaches infinity. The
+ergodicity of stationary states the time average of a stochastic process
+(the mean of the integral of time) equivalent to the space average
+(expectation), *MATH*.  *MATH* is
+a measurable function which satisfies *MATH*,  where *MATH* is
+a random variable under a unknown distribution. Generally, if *MATH* is a
+solution to a certain stochastic differential equation, the ergodicity
+can be satisfied by adding constraints to the coefficients of the
+equation. If there are special requirements, regularizer can be added to
+the network to force it to meet the requirements. But in practice, it is
+not necessary because our approximation is always limited in time. We
+only need to ensure the corresponding accuracy. Condition A1 is always
+satisfied, and for other conditions, if we can guarantee that
+*MATH*,  they will be met automatically. Since the input
+and output of the network are always bounded, we only need to ensure
+that the non-linear layers of the network structure are at least second
+order continuous. Unfortunately, ReLU was once again disqualified under
+these conditions, while some *MATH* nonlinear function such as
+sigmoid meet all requirements. From lemma [5], we can get the
+objective function of ESE, that is, the discretization of eq(45) and
+(46). *MATH*,  where *MATH* (which is a main property of It̂o
+integral). From the properties of Brownian motion we can get
+*MATH*.  The random variables are eliminated
+after taking expected values. Then the objective function of ESE
+becomes: *MATH*. 
+
+
+Because only *MATH* is contained in the objective function, it is
+apparent that it is possible to eliminate some items which only contain
+*MATH* to reduce computation load. Since *MATH* the *MATH* has the form:
+*MATH* which means *MATH* can be eliminated during the update
+process of *MATH*.  Finally, *MATH*.  
+In addition, we can control the accuracy of the error. From the second
+conclusion of lemma 5, we can see that if the time period is long
+enough, *MATH* where *MATH* is the truth value. Generally, *MATH* in the
+control process can be approximated by fixed endpoints *MATH*,  then
+*MATH*. By setting a reasonable initial value and a long enough runtime, the
+error of the estimated parameters can be properly controlled.
+
+
+On the other hand, similar to previous value estimators, the
+environmental state estimator introduces an additional objective
+function to estimate the environmental state. Similar to our previous
+discussion, we record the next state *MATH* so the additional
+objective function of ESE is:
+*MATH*.  The simplified formula is as follows: *MATH*. Generally, the variance term *MATH* can be neglected to
+simplify the calculation, so *MATH*.  *MATH*. 
+This additional objective function of ESE can be used to measure the
+accuracy of ESE in estimating future state changes.
+
+
+Action Policy Generator (APG)
+
+
+The policy gradient method can be used to update the network parameters
+in the action policy generator (APG). In classical reinforcement
+learning, given the objective function of action policy network
+*MATH*,  we have *MATH* where *MATH* is the conditional distribution of
+action *MATH* when current environment state *MATH* is known. This policy
+gradient updating method can be used in IRL after making some modifications.
+
+
+Recall that *MATH*. 
+
+
+Suppose *MATH* is the minimal time interval, so from the above SDE,
+we can see that in a short period of time
+*MATH* or *MATH* where *MATH* so
+action *MATH* follows the conditional normal distribution with the
+condition *MATH*,  or *MATH*. 
+
+
+Then we get the expression of conditional probability distribution of
+*MATH* as follows, *MATH* where *MATH* is a constant independent of *MATH*,  so
+*MATH* can be written as *MATH*. 
+
+
+After discretization and sampling data *MATH* for several time
+periods, we have *MATH*.  Variance can be ignored in the update period, so
+*MATH* which is one objective function of APG.
+
+
+From the definition of the Q function, another objective function of
+action strategy generator is obtained. Obviously, we hope that the
+action policy made by the agent maximize the Q value for the next
+moment. This means that agent&apos;s action policy should maximize the
+gradient of Q function. *MATH*.
+
+
+We have learned that according to Kolmogorov&apos;s backward equation,
+*MATH* where *MATH*. By maximizing the parameters *MATH* in
+*MATH* we ensure that the action policy
+generated by the agent makes the Q value increasing continuously.
+Finally, we have *MATH* as the other obejctive function of APG. Because only
+*MATH* is optimized in this process, our objective function can be
+simplified as *MATH*.
+
+
+The above two objective functions are derived from the classical policy
+gradient methods and the framework of IRL. In practice, although the
+second objective function is more suitable for the overall IRL
+framework, its optimization process shows some difficulties in
+converging. The first objective function based on the classical policy
+gradient also has converging and gradient explosion issues in the IRL
+training process. How to improve APG&apos;s action strategy to make the
+estimation process more reliable remains an important research question.
+
+
+In the next section, we introduce the algorithm, framework, network
+structure, flow chart and other technical challenges of IRL.
+
+
+Technical Frame 
+
+
+In the previous sections, we obtained the objective functions (38),
+(49), (62), and (67), which play a critical role in the network
+training. There are some technical challenges in achieving IRL:
+-  How to choose the network model and what problems should be
+considered when choosing the model?
+-  When the parameter update process is executed, what quantity is
+required in the parameter update process?
+-  How to reduce the computational complexity?
+
+
+In this section we discuss these technical problems and establishes the
+framework for IRL.
+
+
+FIGURE
+
+
+ALGORITHM 
+
+
+Figure[2] shows the execution procedure of IRL. At each step, the system inputs the current
+environment state and action state *MATH*,  and returns the current
+increment *MATH* inside APG, while ESE and VE are dormant. In this
+process, it is necessary to store the training data in the memory to
+update the network by randomly sampling. The training units are
+*MATH*,  where *MATH* is the next state. The
+sampling method could be average sampling, or we can first compress the
+reward into certain interval, (e.g. (0.3, 0.9)), and Bernoulli sampling
+to decide which training units should be stored in the Memory.
+
+
+FIGURE
+
+
+Because the network processes time series data, it seems that the
+network model with hidden variables such as RNN and its variants LSTM,
+GRU, SRU is suitable for the network structure of IRL. However, they are
+not ideal choices. As we can see from eq (1) and eq (2), the increment
+of action and environment follows Markov property, and the output of the
+network is incremental. If we adopt a recurrent neural network with time
+series, the incremental generation will no longer follow the Markov
+property, which is contrary to our model assumptions. The process of
+estimating the value of Q function in VE is to estimate the expected
+future revenue. From the deduction process after eq (10), we can see
+that Q function also satisfies Markov property. Therefore, it is not
+suitable to use recurrent neural network. In summary, although we deal
+with time series data in the training process, it is not ideal to use
+RNN and other recurrent neural networks, so we just use general depth
+network. On the other hands, we have mentioned earlier that because of
+the need to ensure the second-order continuity of functions in ESE and
+VE, the ReLU class of non-linear functions can not be used in the
+network structure. Otherwise, we can not even calculate the
+differentials of those objective functions. In the actual computation,
+we rarely encounter zero points which are the non-differentiable points
+of ReLU, so we might still use ReLU or PreLU. The possible influence of
+taking this kind of non-linear function as the non-linear layer of the
+network is beyond the scope of this paper.
+
+
+The current action output of the agent does not seem to depend on the
+current state *MATH*,  but on the past *MATH*,  which means
+IRL is not Markov control method. Figure [2] shows that the
+agent does not make actions based on the current environment state,
+instead they estimates the increment of actions based on the previous
+environment and action state, which shows their ability to predict under
+IRL. This ability help adjust its actions continuously. In this
+situation, agents no longer adapt to the environment to get better
+rewards. Instead, they adjust according to the environment and its own
+state. Taking robots in executing tasks for example, when the sensors of
+the robot transform physical signal and then process the network to make
+actions, delay occurs, and the external environment of the robot could
+have changed during the delay. Despite that more advanced sensors,
+actuators and controllers can largely reduce such a effect, its impacts
+cannot be ignored. Consequently, the real-time performance of Markov
+control is always a big challenge. IRL, on the other hand, does not
+suffer from time delay at all.
+
+
+The pseudo-code for offline IRL can be seen in Algorithm1. In the next
+section, we show the performance of IRL, and compare it with other
+classical continuous reinforcement learning methods.
+
+
+Experiments Results 
+
+
+In this section, we present a comparative experiment that compares IRL
+and three classical continuous reinforcement learning algorithms (DDPG,
+A2C and PPO) using three sets of OpenAI Baselines (which are sets of
+improved implementations of RL algorithms and high-quality
+implementations of reinforcement learning algorithms [*REF*]). We
+conduct experiments under three testing environments, Pendulum-v0,
+MountainCarContinuous-v0 and CartPole-v1 from OpenAI Gym. We record the
+reward values of each learning method, and plot them against episodes in
+a episodes-rewards diagram. The goal of our experiments is to verify the
+feasibility and effectiveness of IRL algorithm.
+
+
+In our experiments, time interval *MATH* is 0.05, *MATH* is 0.6,
+the step number in every epoch is 200. In APG, two kinds of object
+functions eq(62) and eq(67) jointly update APG network. The weighting
+coefficient of two objective functions is set to be (0.1,1). In DDPG,
+A2C and PPO, 200 steps were trained in each episode for a total of 2000
+training episodes.
+
+
+As shown in the Figure, the experimental effect and performance
+of IRL basically exceeds those of A2C method, but generally
+under-performs comparing to DDPG method. Especially in the
+MountainCarContinuous, IRL is less stable than the other three methods
+and converges slower. This may be attributed to the fact that the action
+policy of the network in this experiment is discrete (positively and
+negatively correlated with the output of the action network) so it is
+not a strictly continuous control problem and might cause unstability of
+IRL in the experiment. In the Pendulum-v0 experiment, despite a slower
+converging speed, IRL reaches same average rewards level as the DDPG.
+The stability of the dynamic in training process is also quite good.
+Similar performance is found in CartPole-v1.
+
+
+The reason why our experiments results do not reflect the superiority of
+the theory might be understood as follows:
+
+
+-  The updating process of IRL includes partial differential equations
+as constraints. However, the parameters of the partial differential
+equations vary during the algorithm updating process. The influence
+of parameter changes during estimation process due to parameter
+gradient updates on the constrains requires additional studies on
+the partial differential equation theory.
+
+
+-  The convergence of the action network is slower than the value
+estimation network and the environment estimation network. It
+indicates that the two action updates used currently are less
+convergent so the theory on parameter adjustment might need
+improvement.
+
+
+-  The current discretization of our control problem may also have some
+impacts. The theoretical derivation in this paper is based on
+stochastic differential equation, which is discretized in practical
+experiments. Other more complex discretization methods may yield
+different results.
+
+
+-  One problem with IRL is that it does not constrain the output of an
+action by adding tanh to the end like DDPG, which might cause
+boundary overflow problem. In this paper, a boundary penalty
+regulation term is added *MATH* where + represent ReLU function, *MATH* 
+and *MATH* are the upper and lower bounds of the
+parameter boundary conditions for the action and the environment.
+However, it is not clear whether this strategy would affect the
+convergence of our algorithm.
+
+
+Conclusion 
+
+
+We propose a new continuous reinforcement learning frame IRL. This
+method guarantees the continuity of actions and the existence and
+uniqueness of the value estimation network. On one hand, the variance of
+action strategy is adjusted to control for the randomness of action
+strategy. On the other hand, an environment estimation network is
+introduced to improve agents&apos; action adjustments. With our method,
+agents no longer blindly adapt to the environment but instead estimates
+the increment of actions based on the previous environment &amp; action
+states and make corresponding adjustments continuously. Our method
+largely reduces the real time delay in the information updates and
+decision making process so agents&apos; actions are smoother and more
+accurate.
+
+
+Moreover, the IRL is constructed based on stochastic differential
+equation methods. Its differential behavior, which is also the important
+inherent feature of the physical world, makes it suitable for
+controlling the continuous systems naturally. This behavioral
+consistency between the target model and the method not only makes the
+simulation be more realistic than the classical continuous RL methods,
+such as A3C and DDPG, so as to obtain better continuity and stability,
+but also obtains better motion correction and control optimization, as
+shown in figure [3]. In summary, the proposed IRL provides a new theoretical 
+basis and technical approach for the practical control applications.
+
+
+Our stimulation results are largely consistent with our theory
+prediction. Although it does not fully reflect the advantage of our
+theory due to slow convergence issues, we have identified some of the
+limitations in our experiment, so in the future research we will
+experiment on using partial differential equation theory to estimate Q
+function and improve the convergence speed during optimization. We will
+also solve the boundary overflow problem.
+
+
+FIGURE 
+
+
+In the appendix we prove that the
+action policy of some classical reinforcement learning methods such as
+A3C cannot guarantee the continuity of action, which means those methods
+cannon be applied in many tasks such as robot self-adaptive control. We
+start with a definition of the modification of stochastic process.
+
+
+Definition Suppose process *MATH* and *MATH* are both the
+stochastic processes on *MATH*.  If *MATH* then *MATH* is
+a modification of *MATH*,  and they will have the same finite
+dimensional distribution.
+
+
+Now give an important continuity theorem -- the Kolmogorov continuity
+theorem.
+
+
+Theorem Suppose process *MATH* meets the conditions:
+*MATH*,  if there exists positive constants *MATH* such that
+*MATH* then there exists a continuous modification of *MATH*. 
+
+
+Now let&apos;s prove that AC method using Gauss policy as action policy can&apos;t
+satisfy the conditions for continuity of agents&apos; actions. The general
+form of this action policy is *MATH* where *MATH* 
+is white noise. Suppose *MATH* are independent of each other
+at any time and *MATH* is one-dimensional.
+
+
+Proof. *MATH* follows Gauss distribution, that *MATH*,  and
+*MATH*  for all *MATH*,  the moment conditions of absolute values can be expressed in
+terms of confluent hypergeometric functions: *MATH* where *MATH* is the Gamma function and *MATH* is the
+Confluent hypergeometric function: *MATH*. It is easy to see there
+exists a positive *MATH* even with *MATH* satisfying Hölder condition, so *MATH* cannot satisfy
+Kolmogorov continuity and it doesn&apos;t exists a continuous modification.

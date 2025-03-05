@@ -1,0 +1,441 @@
+Deep learning control of artificial avatars in group coordination tasks 
+
+
+INTRODUCTION 
+
+
+Interest in using robots and artificial avatars in joint tasks with
+humans to reach a common goal is growing rapidly. Indeed, it is possible
+to find numerous applications that span from industrial tasks to
+entertainment, from navigation to orientation and so on, in which
+artificial agents are required to interact cooperatively with people.
+Examples of human-robot interaction include the problem of jointly
+handling an object [*REF*], sawing a log of wood
+[*REF*], managing a common work-piece in a production system
+[*REF*], or performing a &quot;pick and place&quot; coordination task
+[*REF*]. While dyadic coordination between humans and robots is the
+subject of much ongoing research, the problem of having robots or
+avatars interacting with a human team remains a seldom investigated
+field. This is probably due to the complex mechanisms underlying
+interpersonal coordination, the different ways in which coordination can
+emerge in human groups, and the potentially large amount of data to be
+collected and processed in real-time.
+
+
+From a control viewpoint, the emergence of multi-agent synchronisation
+while performing a joint task is a phenomenon characterised by
+non-linear dynamics in which an individual has to predict what
+others are going to do and adjust his/her movements in order to
+complement the movements of the others in order to achieve precise and
+accurate temporal correspondence [*REF*].
+
+
+In this context, an open question is to investigate whether it is
+possible to influence the emergent group behaviour via the introduction
+of artificial agents able be accepted in a natural way by the group and
+help it achieving a collective control goal. To reach such a goal, the
+artificial agent has to be able to integrate its motion with that of the
+others exhibiting at the same time typical human-like kinematic
+features. In this way, the artificial agent can merge with the rest of
+the group and enhance, rather disrupt, social attachment between its
+members and group cohesiveness.
+
+
+The problem is crucial in social robotics, where new advancements in
+human-robot interaction can promote novel diagnostic and rehabilitation
+strategies for patient suffering from social and motor disorders
+[*REF*].
+
+
+In this work we define a &quot;human-like\&quot; motion by using the concept of
+&quot;Individual Motor Signature\&quot; (IMS), proposed in [*REF*] as a
+valid biomarker able to capture the peculiarity of the human motion.
+Specifically, the IMS has been defined in terms of the probability
+density function (PDF) of the velocity profiles characterising a
+specific joint task.
+
+
+The aim of this paper is to present a control architecture based on deep
+learning to drive an artificial agent able in performing a joint task in
+a multi-agent scenario while exhibiting a desired IMS. As a scenario of
+interest, we take a multiplayer version of the mirror game proposed in
+[*REF*] as a paradigmatic task of interpersonal motor coordination.
+In our version of the mirror game, first proposed in [*REF*], a
+group of players is asked to oscillate a finger sideways performing some
+interesting motion and synchronising theirs with that of the others (see
+[*REF*] for further details).
+
+
+The approach we follow is an extension to groups of the strategy we
+presented in [*REF*; *REF*; *REF*] in the case of
+dyadic interactions. Specifically, in [*REF*] we designed an
+autonomous cyber player able to play dyadic leader-follower sessions of
+the mirror game with different human players. Such a cyber player was
+driven by a Q-learning algorithm aiming at exhibiting the kinematic
+features of a target human player in order to emulate hers/his way of
+moving when engaged in a dyadic interaction.
+
+
+Extending the Q-learning approach to multi-agent systems is cumbersome
+as the approach is unscalable with the growth of the system state space
+due to the addition of other players. To overcome this limitation, we
+use &quot;deep reinforcement learning\&quot; [*REF*; *REF*; *REF*], combining the reinforcement
+learning strategy with the powerful generalization capabilities of
+neural networks. To design the control architecture of the cyber player,
+we collect motor measurements signals of four different players involved
+in a joint oscillatory task and then train the CP to mimic the way of
+moving of one of them. The validation is done replacing the target
+player with the cyber player and comparing the group performance in
+order to prove the effectiveness of the proposed control approach.
+
+
+PRELIMINARIES 
+
+
+A group of people interacting with each other can be described as a
+complex network system in which each individual is represented as a node
+(or agent) with its own dynamics while the visual coupling with the
+other members of the group as edges in a graph describing the network of
+their interactions. The structure of the interconnections established
+among the groups&apos; members is formalised by the adjacency matrix
+*MATH*, in which the element *MATH* only if the node *MATH* is
+linked with the node *MATH*, or in other terms if the individual *MATH* is
+visually coupled with the individual *MATH*.
+
+
+Four different topologies are considered in this work as shown in Fig.
+[1]. As described in [*REF*] these different topologies can be
+implemented experimentally by changing the way in which participants sit
+with respect to each other and by asking them to wear appropriate
+goggles restricting their field-of-view.
+
+
+FIGURE
+
+
+Let *MATH* be the phase of the *MATH* th agent estimated
+by taking the Hilbert transform of its position signal, say
+*MATH*. The cluster phase of *MATH* agents is defined as
+*MATH*, which represents the average phase of the group at time *MATH*. The term
+*MATH* is the relative phase
+between the *MATH* th agent and the group phase at time *MATH*.
+
+
+The level of coordination reached by a human group performing an
+oscillatory task can be investigated by evaluating the group
+synchronisation index *MATH* introduced in
+[*REF*; *REF*] and defined as follows:
+*MATH* where *MATH* is *MATH* averaged over time. Closer the
+synchronisation index is to *MATH*, higher is the level of synchronisation
+in the group.
+
+
+DEEP REINFORCEMENT LEARNING APPROACH
+
+
+Brief overview 
+
+
+FIGURE
+
+
+Reinforcement learning is a machine learning technique in which an agent
+tries to learn how to behave in an unknown environment taking, in any
+situation, the best action that it can perform. The problem is
+formalized by considering a set *MATH* of all possible states in which the
+environment can be (state-space), a set *MATH* of all possible actions that
+the agent can take (action-space) and an auxiliary function, named
+action-value function (or Q-function), that quantifies the expected
+return (reward) starting from a specific state and taking a specific
+action. Through the action-value function, the goal of the learning
+agent is to iteratively refine its policy in order to maximise the
+expected reward. Solving a problem with the classical Q-learning
+approach [*REF*] means to iteratively explore all possible
+combinations between the set *MATH* and the set *MATH* in order to evaluate
+them in terms of action-value functions in a tabular form. As this is
+unfeasible in our group scenario, we use the deep learning control
+approach shown in Fig. where:
+- the state space is *MATH* where *MATH* are position and velocity of the CP,
+while *MATH* are mean position and mean velocity of the players connected to the target players; 
+- the action space is made up of *MATH* different values of
+acceleration in *MATH*, empirically chosen looking at
+the typical human accelerations while performing the same joint
+tasks;
+- the reward function is selected as
+*MATH* where *MATH* are position and velocity of
+the target player, while the constant parameter *MATH* tunes the
+control effort. Maximising a reward function so designed means to
+minimise the squared error both in position and in velocity between
+the CP and the target player;
+- the policy *MATH* according to which the CP chooses the action to
+take in a specific state is an *MATH* -greedy policy
+[*REF*]. Following that policy, the CP takes the best known
+action with *MATH* probability (exploitation),
+whereas with *MATH* probability it takes a random action
+(exploration). The value *MATH* follows a monotonic decreasing
+function, since as time increases the exploration phase is replaced
+by the exploitation phase.
+
+
+In particular, we exploit the Deep Q-network (DQN) strategy where an
+artificial neural network (ANN) is used to approximate the optimal
+action-value function *MATH* defined as: *MATH* which maximises 
+the expected value of the sum of the rewards *MATH* discounted by 
+a positive factor *MATH*, obtained
+taking the action *MATH* in the state *MATH* following the policy
+*MATH* at any time instant *MATH*.
+
+
+Training an ANN in order to approximate a desired function (Q-function)
+means to find the vector of network weights *MATH* of the
+connections between the neurons, iteratively evaluated by
+back-propagation algorithms in order to minimise a loss function. The
+loss function is used to measure the error between the actual and the
+predicted output of the neural network (e.g. mean squared error) (see
+[*REF*] for further details).
+
+
+Contrary to what is done in traditional supervised learning with ANN
+where the predicted output is well defined, in the Deep Q-network
+approach the loss function is iteratively changed because the predicted
+output itself depends on the network parameters *MATH* at every
+instant *MATH*. Namely, the loss function is chosen as: *MATH* 
+which represents the mean squared error between the current estimated 
+*MATH* function and the approximate optimal action-value function.
+
+
+It has been proved that an ANN with a single hidden layer containing a
+large enough number of sigmoid units can approximate any continuous
+function, while a second layer is added to improve accuracy
+[*REF*]. Relying on that, the neural network we considered to
+approximate the action-value function *MATH* in
+equation is designed as a feedforward
+network with (Fig.):
+- an input layer with *MATH* different nodes, one for each state
+variable *MATH*;
+- two hidden layers, empirically found, made up of *MATH* and *MATH* 
+nodes each implementing a sigmoidal activation function;
+- an output layer with *MATH* different nodes, one for each action
+available in the set *MATH*. In the DQN, the network output returns the
+estimated action-value *MATH* for each possible action *MATH* in
+a single shot reducing in this way the time needed for the training.
+Then, the action corresponding to the maximum q-value (neuron&apos;s
+output) is chosen as the next control input.
+
+
+Reinforcement learning is known to be unstable or even to diverge when a
+nonlinear function approximator, such as an ANN, is used to estimate the
+Q-function [*REF*; *REF*]. According to the existing
+literature, this instability is caused by: (i) the presence of
+correlation in the sequence of observed states and (ii) the presence of
+correlation between the current estimated *MATH* and the target network,
+resulting in the loss of the Markov property. The correlation in the
+observation sequence is removed by introducing the experience replay
+mechanism, where the observed states used to train the ANN are not
+taken sequentially but are sampled randomly from a circular buffer.
+Also, the correlation between the current estimate of the function *MATH* 
+and the target optimal one *MATH* is reduced updating the latter at a
+slower rate.
+
+
+CP Implementation
+
+
+According to the reinforcement learning strategy with the Deep Q-network
+described above, the CP refines its policy according to the system
+states and the reward received so as to take the best action it can to
+mimic the target player(s). To implement the DQN as a first step, a
+feedforward neural network needs to be initialized with random values.
+The experience replay mechanism is implemented instantiating an empty
+circular buffer in order to store the system&apos;s state at each iteration.
+
+
+Then at each iteration we have (Fig.):
+1. the CP observes the process&apos;s state *MATH* at time instant
+*MATH* and performs an action *MATH* according to the policy *MATH*, that
+is an *MATH* -greedy policy;
+2. the process evolves to a new state *MATH* and the CP
+receives the reward *MATH* that measures how good taking the
+action *MATH* in the state *MATH* has been;
+3. the new sample *MATH* 
+is added to the circular buffer and a random batch taken from it is
+used to train the NN. The training is done through the gradient
+descend back-propagation algorithm with momentum [*REF*] so as
+to tune the network&apos;s weights *MATH* in order to minimize
+the loss function (equation). We denote the network&apos;s weights
+between the layer *MATH* and *MATH* at instant *MATH* as *MATH*.
+
+
+The steps above are repeated until convergence is achieved according to
+the &quot;termination criterion&quot;: *MATH* where *MATH* is the root mean square
+error between the position of the player *MATH* and the mean
+position of the group, while *MATH* is a non-negative parameter.
+
+
+TRAINING AND VALIDATION
+
+
+Training
+
+
+Ideally, data used to train the CP are extracted from real human players
+playing the mirror game. In our case, due to the lack of a large enough
+dataset, the data needed to feed the CP during the training are
+generated synthetically making artificial agents modelling human players
+perform sessions of the mirror game against each other. We refer to
+these other artificial agents as Virtual Players (VP) to distinguish
+them from the CP since they are driven by a completely different
+architecture which is not based on AI and was presented in [*REF*]
+and improved in [*REF*]. The use of virtual players for
+training AI based CPs was first proposed in [*REF*] for dyadic
+interaction and is applied here for the first time to the multi-player
+version of the game.
+
+
+Specifically, the motion of the virtual player used to generate
+synthetic data is that of a controlled nonlinear HKB oscillator
+[*REF*] of the form: *MATH* 
+where *MATH* and *MATH* are position, velocity and
+acceleration of the VP end effector, respectively,
+*MATH* are positive empirically tuned damping
+parameters while *MATH* is the oscillation frequency. The control
+input *MATH* is chosen following an optimal control strategy aiming at
+minimising the following cost function [*REF*]: *MATH* where *MATH* is the position and the velocity
+time series of the partner player, *MATH* is the reference
+signal modelling the desired human motor signature, *MATH* tunes the
+control effort, *MATH* and *MATH* represent the current and the next
+optimization time instant. *MATH* are positive
+control parameters satisfying the constraint
+*MATH*. By tuning appropriately these
+parameters, it is possible to change the VP configuration making it act
+as a leader, follower or joint improviser (more details are in
+[*REF*; *REF*]). In the case of a multi-player scenario, *MATH* 
+and *MATH* are taken as the mean value of the position and the
+velocity of the target player&apos;s neighbours, that is:
+*MATH* where *MATH* is the number of neighbours and *MATH* and *MATH* are the
+position and the velocity of the *MATH* th neighbour.
+
+
+The reference signal *MATH* captures in some way the desired
+human kinematic features that the VP has to exhibit during the game. In
+[*REF*] we developed a methodology based on the theory of
+stochastic processes and observational learning to generate human-like
+trajectories in real time. In particular, a Markov Chain (MC) was
+derived to capture the peculiar internal description model of the motion
+of a human player simply observing him/her playing sessions of the
+mirror game in isolation.
+
+
+To train the CP to coordinate its movements in the group like the
+virtual player target does, a group of *MATH* different virtual players
+interconnected in a complete graph were used (Fig. [2]). In particular we selected four Markov
+models (one for each player) of different human players which were
+parametrized in [*REF*]. Without loss of generality, VP *MATH* was
+taken as the target player the Deep Learning driven CP has to mimic.
+
+
+The parameters proposed for the control architecture of the VPs were
+tuned experimentally as follows: *MATH* 
+for the inner dynamics, *MATH* 
+and *MATH* for the control law. The experience replay in the CP
+algorithm was implemented with a buffer of *MATH* elements, batches
+of *MATH* sampled states were used to train the feedforward neural network
+at each iteration. A target network updated every *MATH* time steps was
+considered in the Q-function, with a discount factor *MATH*.
+
+
+FIGURE 
+
+
+The training stage was carried out on a Desktop computer having an Intel
+Core i7-6700 CPU, 16 GB of RAM and 64-bit Windows operative system. It
+took *MATH* trials of *MATH* observations each to converge (around *MATH* 
+hours) according to the criterion
+(equation). In Fig. [3] the training curve is reported showing
+for each trial the RMS between the VP and the group (in blue), and
+between the CP and the group (in red). Convergence is reached in about
+*MATH* trials on.
+
+
+Validation
+
+
+FIGURE
+
+
+To show that the CP is effectively able to emulate the VP target when
+engaged in a group, training was carried out by considering a group
+described by a complete graph, we then validated the performance of the
+CP when interacting over different topologies. Specifically we used the
+ring graph, path graph, star graph (described in Sec. [2])
+with node *MATH* as center. For the sake of brevity, in Fig. only the validation for the
+complete and the path graph are reported. The performance of the CP has
+been evaluated by comparing its behaviour with that of the target
+virtual player it was trained to mimic. The CP (in red) successfully
+tracks the mean position of the group (dashed line in black) being able
+to mimic the target player it has been trained to imitate (in blue)
+\[panel (a)\]. The relative position error (RPE) defined as *MATH* has been also 
+evaluated between the VP target and the
+mean position of the neighbours and compared with the relative position
+error between the CP and the same mean position \[panel (c)\]. Both the
+errors are very small and with comparable mean values.
+
+
+Similar considerations can be done for behaviour of the CP when the
+group topology is a path graph as shown in panels (b) and (d).
+
+
+The key features of the motion of the CP and the VP it has been trained
+upon are captured by the following metrics: 1) relative phase error
+defined as *MATH*, 2) the RMS
+error between the position of the CP (or VP) and that of the group mean
+position, and 3) the time lag which describes the amount of time shift
+that achieves the maximum cross-covariance between the two position time
+series. This can be interpreted as the average reaction time of the
+player in the mirror game [*REF*].
+
+
+The metrics described above were evaluated performing *MATH* trials and
+reporting both the mean value and the standard deviation for both the
+complete graph (Tab.) and the path graph (Tab. [2]). It is possible to notice that all
+indexes show a remarkable degree of similarity between the motion of the
+CP and that of the target VP.
+
+
+TABLE
+
+
+FIGURE
+
+
+For further evidence, in Fig. [4] the group level synchronization is reported
+for each tested topology. Despite the different topologies, the presence
+of the CP does not alter the group dynamics when the CP is substituted
+to the VP it was trained upon. We notice that the level of coordination
+varies with the topology, confirming what found in [*REF*].
+Specifically, in [*REF*] as confirmed by Fig. [4],
+the complete and the star graph were found to be associated with the
+highest level of synchronization.
+
+
+CONCLUSIONS 
+
+
+In this work we addressed the problem of synthesizing an autonomous
+artificial agent able to coordinate its movements and perform a joint
+motor task in a group setting. In particular, a multiplayer version of
+the mirror game was used as a paradigmatic task where different
+individuals have to synchronize their oscillatory motion. To achieve our
+goal and overcome the limitations of previous approaches, we introduced
+a deep reinforcement learning control algorithm in which a feedforward
+neural network is used to approximate the nonlinear action-value
+function. The DQN allowed us to overcome the limitations of the
+Q-learning approach presented in [*REF*] which is impractical
+when the state space becomes too large, as in the case of multiplayer
+coordination tasks. The effectiveness of the cyber player trained upon a
+target group member was shown by comparing its performance when playing
+in groups with different interconnection topologies. The numerical
+validations show the effectiveness of our approach. Ongoing work is
+being carried out to validate the behaviour of the CP when interacting
+with a real group of people through the experimental platform Chronos we
+presented in [*REF*].

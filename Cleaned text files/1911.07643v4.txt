@@ -1,0 +1,637 @@
+Introduction 
+
+
+It is not always guaranteed that an agent will have access to a full
+description of the environment to solve a particular task. In fact, most
+real-world problems are by nature partially observable. This means that
+some of the variables that define the state space are hidden
+[*REF*]. This type of problems can be modeled as partially
+observable Markov decision processes (POMDP) [*REF*]. The
+model is an extension of the MDP framework [*REF*], which, unlike
+the original formulation, does not not assume states to be fully
+observable. This implies that the Markov property is no longer
+satisfied. That is, future observations do not solely depend on the most recent one.
+
+
+Most POMDP methods try to extract information from the full
+action-observation history to disambiguate hidden state. We argue
+however, that in many cases, memorizing all the observed variables is
+costly and requires unnecessary effort. Instead, we can exploit the
+structure of our problem and abstract away from our history those
+variables that have no direct influence on the hidden ones.
+
+
+Previous work on influence-based abstraction (IBA)
+[*REF* ; *REF*] demonstrates that, in certain
+POMDPs, the non-Markovian dependencies in the transition and reward
+functions can be fully determined given a subset of variables in the
+history. Hence, the combination of this subset together with the current
+observation forms a Markov representation that is sufficient to compute
+the optimal policy. In this paper, we use these theoretical insights to
+propose a new memory model that tries to correct certain flaws in
+standard RNNs that limit their effectiveness when applied to
+reinforcement learning (RL). We identify two key features that make our
+model stand apart from the most widely used recurrent architectures,
+LSTMs [*REF*] and GRUs [*REF*]:
+1. The input of the RNN is restricted to a subset of observation
+variables which in principle should contain sufficient information
+to estimate the hidden state.
+2. There is a feedforward connection parallel to the recurrent layers,
+through which the information that is important for estimating Q
+values but that does not need to be memorized can flow.
+
+
+Although these two features might be overlooked as minor modifications
+to the standard architectures, together, they provide a theoretically
+sound inductive bias that brings the structure of the model into line
+with the problem of hidden state. Moreover, as shown in our experiments,
+they have an important effect on convergence, learning speed, and final
+performance of the agents.
+
+
+Related Work
+
+
+Partial observability:
+
+
+The problem of partial observability has been extensively studied in the
+past. The main bulk of the work, comes from the planning community where
+most solutions rely on forming a belief over the states of the
+environment using agent&apos;s past observations
+[*REF* ; *REF* ; *REF*]. Classic RL
+algorithms, on the other hand, cannot directly apply the above solution
+due to the lack of a fully specified transition model. Instead, they
+learn stochastic policies that rely only on the current observation
+[*REF* ; *REF*], or use a finite-sized history window to estimate the hidden state
+[*REF* ; *REF*]. Curiously enough, even
+though the previous solutions do not scale to large and continuous state
+spaces, in the field of Deep RL the problem is most of the times either
+ignored, or naively overcome by stacking a window of past observations
+[*REF*]. Other more sophisticated approaches incorporate
+external memories [*REF*] or use RNNs to keep track of the past
+history [*REF* ; *REF* ; *REF*].
+Although this solution is much more scalable, recurrent models are
+computationally expensive and often have convergence difficulties when
+working with high dimensions [*REF*]. A few works, have tried
+to aid the RNN by using auxiliary tasks like predicting game feature
+information [*REF*] or image reconstruction [*REF*]. We,
+on the other hand, recognize that the internal structure of standard
+RNNs might not always be appropriate and propose a new memory
+architecture that is better aligned with the RL problem.
+
+
+Attention:
+
+
+One of the variants of the memory architecture we propose implements a
+spatial attention mechanism [*REF*] to provide the network with a
+layer of dynamic weights. This form of attention is different from the
+temporal attention mechanism that is used in seq2seq models
+[*REF* ; *REF*]. While the latter allows
+the RNN to condition on multiple past internal memories to make
+predictions, the spatial attention mechanism we use, is meant to filter
+out a fraction of the information that comes in with the observations.
+Attention mechanisms have recently been used in the context of Deep RL
+to facilitate the interpretation of the agent&apos;s behavior
+[*REF* ; *REF*] or to tackle multi-agent
+problems [*REF*]. Similar to our model, the architecture
+proposed by Sorokin et al. [*REF*] also uses an attention
+mechanism to find the relevant information in the game screen and feed
+it into the RNN. However, their model misses the feedforward connection
+through which the information that is useful for predicting action
+values but that does not need to be stored in memory can flow (see Section [4.1]).
+
+
+Background
+
+
+The memory architecture presented in Section 4 builds on the POMDP
+framework, and the concept of influence-based abstraction. For the
+sake of completeness, we briefly introduce each of them here and refer
+interested readers to [*REF* ; *REF*].
+
+
+FIGURE
+
+
+Partially Observable Markov Decision Process
+
+
+DEFINITION
+
+
+In the POMDP setting, the task is to find the policy *MATH* that
+maximizes the expected discounted sum of rewards [*REF*]. Since
+the agent receives only a partial observation of the true state *MATH*, a
+policy that is based only on the most recent information can be
+arbitrarily bad [*REF*]. In general, the agent is required to
+keep track of its past experiences to make the right action choices.
+Policies are therefore mappings from the history of past actions and
+observations *MATH* to actions.
+
+
+Memory
+
+
+As mentioned in the previous section, ignoring the fact that the
+observations are not Markovian can lead to sub-optimal decisions.
+Therefore, most Deep RL methods that target partial observability use
+some form of memory to disambiguate hidden state. In our experiments we
+compare our method with the two techniques that are most widely used in
+practice:
+
+
+Frame Stacking: 
+
+
+This simple solution was popularized by the authors of the DQN paper
+[*REF*], who successfully applied it to train agents on playing
+the Atari video games. Although the entire game screen is provided at
+every iteration, some of the games, contain moving sprites whose
+velocity cannot be measured using only the current frame. The solution
+they adopted was to provide the agent with a moving window of the past 4
+observations. Of course, the practicality of this approach is limited to
+relatively small observation spaces and short history dependencies.
+
+
+Recurrent Neural Networks: 
+
+
+A more scalable solution is to train an RNN on keeping track of the
+information by embedding the past action-observation history in its
+internal memory. However, standard recurrent neural networks, such as
+LSTMs [*REF*] or GRUs [*REF*] are known to be
+difficult to train and have convergence difficulties when dealing with
+high dimensions. The central argument of this paper is that these
+popular architectures, which were especially designed for a particular
+set of time series problems, (e.g. machine translation, speech
+recognition) are not the most suited for the RL task, as they fail to
+account for the structure many problems exhibit.
+
+
+Influence-Based Abstraction
+
+
+As mentioned in the introduction, the memory architecture we propose
+incorporates some of the theoretical insights developed by the framework
+of influence-based abstraction (IBA). Although we do not make strict use
+of the mathematical properties introduced below, we consider it
+important to include them here to motivate the memory architecture we
+propose.
+
+
+The fundamental idea of IBA is to build compact POMDP models in which
+hidden state variables are abstracted away by conditioning on the
+relevant parts of the agent&apos;s observation history. Here, rather than
+simplifying the transition function, we use these insights to model the
+agent&apos;s policy. Although according to the POMDP framework, optimal
+policies should condition on past actions and observations, it turns out
+that, in most partially observable problems, not all previous
+information is actually relevant.
+
+
+Example (Warehouse Commissioning): 
+
+
+Figure 1 shows a robot (purple) which needs to fetch the items (yellow)
+that appear with probability *MATH* on the shelves at the edges of the
+*MATH* grid representing a warehouse. The robot receives a reward of
+*MATH* every time it collects an item. The added difficulty of this task
+is that item orders get canceled if they are not collected before 8
+timesteps since they appear. Thus, the robot needs to maintain a time
+counter for each item and decide which one is best to go for.
+
+
+The dynamics of the problem are represented by the dynamic Bayesian
+network (DBN) [*REF* ; *REF*] in Figure (right), where *MATH* denotes the robot&apos;s
+current location in the warehouse, and *MATH* and *MATH* are binary
+variables indicating if the item order is active and whether or not the
+robot is at the item pick-up location. The hidden variable *MATH* is the
+item&apos;s time counter, to which the robot has no access. The robot can
+only infer the time counter based on past observations. To do so,
+however, it does not need to remember the full history, but only whether
+or not a given item order was active at a particular timestep. More
+formally, inspecting the DBN, we see that *MATH* is only indirectly
+influenced by the agent&apos;s past location *MATH* via *MATH* and the
+item variable *MATH*. Therefore, we say that *MATH* is conditionally
+independent of *MATH* given *MATH* and *MATH*,
+*MATH*. This means that in order to infer the hidden variable *MATH* at any timestep it
+is sufficient to condition on the past values of *MATH* and *MATH*. The
+history of these two variables, highlighted in green in Figure, constitutes the d-separating set (d-set).
+
+
+DEFINITION 2
+
+
+FIGURE
+
+
+Influence-aware Memory
+
+
+The properties outlined in the previous section, are not we unique to
+the warehouse example. In fact, as we show in our experiments, it is
+often the case in partially observable problems that only a fraction of
+the observation variables influence the hidden state. This does not
+necessarily imply that the agent can completely ignore the rest of the
+information. In the warehouse example, the robot&apos;s current location,
+despite being irrelevant for inferring the hidden state, is in fact
+crucial for estimating the current action values.
+
+
+The Bellman equation for the optimal action value function *MATH* of a
+POMDP can be expressed in terms of the history of actions and
+observations *MATH* as *MATH* where *MATH* is the expected
+immediate reward at time *MATH* over the set of possible states *MATH* given
+a particular history *MATH*.
+
+
+According to IBA, we can replace the dependence on the full history of
+actions and observations *MATH* by a dependence on the d-set *MATH* 
+(Definition [2]), *MATH* and *MATH*,
+where *MATH* is the d-set selection operator, which chooses the
+variables in *MATH* that are added to *MATH*. Note that, although
+*MATH* contains enough information to estimate the hidden state (Equation
+and Definition [2]), *MATH* is still needed to estimate *MATH*. Hence, given the tuple
+*MATH* we can write *MATH*. The upshot is that in most POMDPs the combination
+of *MATH* and *MATH* forms a Markov representation that the agent can use
+to find the optimal policy. Unfortunately, in the RL setting, we are
+normally not provided a fully specified DBN to determine the exact
+d-set. Nonetheless, in many problems like in our warehouse example it is
+not difficult to make an educated guess about the variables containing
+sufficient information to predict the hidden ones. The network
+architecture we present in the next section enables us to select
+beforehand what variables the agent should memorize. This is however not
+an prerequisite since, as we explain in Section
+[4.2], we can also force the RNN to find such
+variables by restricting its capacity.
+
+
+Influence-aware Memory Network 
+
+
+The Influence-aware Memory (IAM) architecture we propose is depicted in
+Figure. The network tries to encode the ideas of IBA as
+inductive biases with the goal of being able to learn policies and value
+functions more effectively. Following from equation, our
+architecture implements two separate networks in parallel: an FNN, which
+processes the entire observation, *MATH* and an
+RNN, which receives only *MATH* and updates its internal state,
+*MATH* where we use the notation *MATH* to indicate that the d-set is embedded in the
+RNN&apos;s internal memory. The output of the FNN *MATH* is then concatenated
+with *MATH* and passed through two separate linear layers which
+compute values *MATH* and action probabilities *MATH*.
+
+
+IAM vs. standard RNNs:
+
+
+We try to facilitate the task of the RNN by feeding only the information
+that, in principle, should be enough to uncover hidden state. This is
+only possible thanks to the parallel FNN channel, which serves as an
+extra gate through which the information that is useful for predicting
+action values but that does not need to be stored in memory can flow.
+This is in contrast to the standard recurrent architectures that are
+normally used in Deep RL (e.g. LSTM, GRU, etc.), which suffer from the
+fact that every piece of information that is used for estimating values
+is inevitably fed back into the network for the next prediction.
+Intuitively, standard RNNs face a conflict: they need to choose between
+ignoring those variables that are unnecessary for future predictions,
+risking worse *MATH* estimates, or processing them at the expense of
+corrupting their internal memory with irrelevant details. Figure [1]
+illustrates this idea by comparing the information flow in both architectures.
+
+
+FIGURE
+
+
+Finally, since the recurrent layers in IAM are freed from the burden of
+having to remember irrelevant information, they can be dimensioned
+according to the memory needs of the problem at hand. This translates
+into networks that combine regular size FNNs together with small RNNs.
+
+
+Image data:
+
+
+If our agent receives images rather than feature vectors, we first
+preprocess the raw observations *MATH* with a CNN,
+*MATH* and obtain *MATH* vectors *MATH* 
+of size *MATH*, where *MATH* is the number of filters in the last
+convolutional layer and *MATH* the dimensions of the 2D output
+array of each filter (Figure right). Fortunately, since the convolution
+operator preserves the topology of the input, each of these vectors
+corresponds to a particular region of the input image. Thus, we can
+still use domain knowledge to to choose which vectors should go into the RNN.
+
+
+Learning approximate d-sets 
+
+
+Having the FNN channel can help detach the RNN from the task of
+estimating the current *MATH* values. However, without the d-set selection
+operator *MATH*, nothing prevents the information that does not need to be
+remembered from going through the RNN. Although, as we show in our first
+two experiments, it is often possible for the designer to guess what
+variables directly influence the hidden state information, it might not
+always be so straightforward. In such cases, rather than manually
+selecting the d-set, the agent will have to learn *MATH* from experience.
+In particular, we add a linear layer before the RNN, to act as
+information bottleneck [*REF*] and filter out all that
+information that is irrelevant: *MATH* where *MATH* indicates that the operator
+is learned rather than handcrafted and *MATH* is a matrix of weights of
+size *MATH*, where *MATH* is the number of observation variables (the
+number of filters in the last convolutional layer when using images) and
+*MATH* is a hyperparameter that determines the dimensions of the output.
+The matrix A needs to be computed differently depending on the nature of
+the problem:
+
+
+Static d-sets:
+
+
+If the variables that must go into the d-set do not change from one
+timestep to another. That is, if *MATH* always needs to choose the same
+subset of observation variables, as occurs in the warehouse example, we
+just need a fixed matrix *MATH* to filter all observations in the same way.
+*MATH* can be implemented as a separate linear layer before the RNN or we
+can just directly restrict the size the RNN&apos;s input layer.
+
+
+Dynamic d-sets:
+
+
+If, on the other hand, the variables that must go into the d-set do
+change from one timestep to another, we use a multi-head spatial
+attention mechanism [*REF* ; *REF*] to recompute
+the weights in every iteration. Thus we write *MATH* to indicate that the
+weights can now adapt to *MATH* and *MATH*. The need for such
+dynamism can be easily understood by considering the Atari game of
+breakout. To be able to predict where the ball will be next, the agent
+does not need to memorize the whole set of pixels in the game screen,
+but only the ones containing the ball, whose location differs in every
+observation and hence the need of a varying matrix *MATH*. Specifically,
+for each row *MATH* in *MATH*, each element *MATH* is computed by
+a two-layer fully connected network that takes as input the
+corresponding element in the observation vector *MATH* and
+*MATH*, followed by a softmax operator. Figure
+is a diagram of how each of the attention heads
+operates for the case of using as input the output of the CNN
+*MATH* instead of the observation vector *MATH*. Please refer to
+the Appendix for more details about the technical implementation of this mechanism.
+
+
+Note that the above solutions would not be able to filter out the
+information that is only useful for the current *MATH* estimates without
+the parallel FNN connection (Figure [1]). 
+We would also like to stress that these mechanisms are by no means
+guaranteed to find the optimal d-set. Nonetheless, as shown in our
+experiments, they constitute an effective inductive bias that
+facilitates the learning process.
+
+
+Experiments
+
+
+We empirically evaluate the performance of our memory architecture on
+the warehouse example (Section), a
+traffic control task, and the flickering version of the Atari video
+games [*REF*]. The goal of our experiments is:
+1. Learning performance and convergence: Evaluate whether our model
+improves over standard recurrent architectures. We compare learning
+performance, convergence and training time.
+2. High dimensional observation spaces: Show that our solution
+scales to high dimensional problems with continuous observation
+spaces.
+3. Learning approximate d-sets: Demonstrate the advantages of
+restricting the input to the RNN and compare the relative
+performance of learning vs. manually specifying the d-sets.
+4. Architecture analysis: Analyze the impact of the architecture on
+the learned representations by inspecting the network hidden
+activations.
+
+
+Environments
+
+
+Below is a brief description of the three domains on which we evaluate
+our model. Please refer to the Appendix for more details.
+
+
+Warehouse:
+
+
+This is the same task we describe in our example in Section. The observations are a combination of the
+agent&apos;s location (one-hot encoded vector) and the 24 item binary
+variables. In the experiments where d-sets are manually selected, the
+RNN in IAM only receives the latter variables while the FNN processes
+the entire vector.
+
+
+Traffic Control: 
+
+
+In this environment [*REF*], the agent must optimize the traffic
+flow at the intersection in Figure
+[2]. The agent can take two different
+actions: either switching the traffic light on the top to green, which
+automatically turns the other to red, or vice versa. The observations
+are binary vectors that encode whether not there is a car at a
+particular location. Cars are only visible when they enter the red box.
+There is a 6 seconds delay between the moment an action is taken and the
+time the lights actually switch. During this period the green light
+turns yellow, and no cars are allowed to cross the road. Agents need to
+anticipate cars entering the red box and switch the lights in time for
+them to continue without stopping. This forces the recurrent models to
+remember the location and the time at which cars left the intersection
+and limits the performance of agents with no memory. In the
+experiments where d-sets are manually selected, the RNN in IAM receives
+the last two elements in each of the two vectors encoding the road
+segments (i.e. 4 bits in total). The location of these elements is
+indicated by the small grey boxes in Figure
+[2]. This information should be sufficient to infer hidden state.
+
+
+FIGURE
+
+
+Flickering Atari: 
+
+
+In this version of the Atari video games [*REF*] the
+observations are replaced by black frames with probability *MATH*. This
+adds uncertainty to the environment and makes it more difficult for the
+agent to keep track of moving elements. The modification was introduced
+by Hausknecht &amp; Stone [*REF*] to test their recurrent
+version of DQN and has become the standard benchmark for Deep RL in
+POMDPs [*REF* ; *REF*].
+
+
+Experimental Setup
+
+
+We compare IAM against two other network configurations: A model with no
+internal memory that uses frame stacking (FNN) and a standard recurrent
+architecture (LSTM). All three models are trained using PPO
+[*REF*]. For a fair comparison, and in order to ensure
+that both types of memory have access to the same amount of information,
+the sequence length parameter in the recurrent models (i.e. number of
+time steps the network is unrolled when updating the model) is chosen to
+be equal to the number of frames that are fed into the FNN baseline. We
+evaluate the performance of our agents at different time steps during
+training by calculating the mean episodic return. The results are
+averaged over three random seeds. A table containing the full list of
+hyperparameters used for each domain and for each of the three
+architectures, together with a detailed description of the tuning
+process is provided in the Appendix.
+
+
+Learning performance and convergence
+
+
+FIGURE
+
+
+We first evaluate the performance of our model on the warehouse and
+traffic control environments. Although the observation sizes are
+relatively small compared to most deep RL benchmarks (*MATH* and *MATH* 
+variables respectively), the two tasks are quite demanding memory-wise.
+In the warehouse environment, the agent is required to remember for how
+long each of the items has been active. In the traffic domain, cars take
+32 timesteps to reappear again in the red box when driving around the
+big loop (Figure [2]).
+
+
+Figure [3], shows the learning curves of IAM and
+LSTM in the two environments. While both LSTM and IAM reach similar
+levels of performance on the traffic control task the LSTM network takes
+much longer to converge (bottom). On the other hand, in the warehouse
+environment, IAM clearly outperforms the LSTM baseline (top). The final
+scores obtained by FNNs with (red) and without memory (black) (i.e.
+observation stacking) are also included for reference. These results are
+strong evidence that the parallel feedforward channel in IAM is indeed
+helping overcome the convergence difficulties of LSTMs, by bypassing the
+recurrent layers (Section [4.1]).
+
+
+FIGURE
+
+
+Figure [4] is a performance comparison of LSTM and IAM
+for various recurrent layer sizes. While the best recurrent layer
+size for the LSTM baseline is *MATH* in both domains, the size of
+the recurrent model of IAM can be brought down to *MATH* for the
+warehouse environment and just *MATH* recurrent neurons for the
+traffic task, and still outperform the memoryless FNN baseline (dashed
+black curve). This, of course, translates into a significant reduction
+in the total number of weights and computational speedups. A full
+summary of the average runtime for each architecture, along with a
+description of the computing infrastructure used is given in the
+Appendix.
+
+
+High dimensional observation spaces
+
+
+The advantage of IAM over LSTMs and FNNs becomes even more apparent as
+the dimensionality of the problem increases. Table compares the average scores obtained in
+Flickering Atari by the FNN and LSTM baselines with those of IAM. Both
+IAM and LSTM receive only *MATH* frame. The sequence length parameter is
+set to *MATH* time steps for the two networks. The FNN model, on the other
+hand, receives the last *MATH* frames as input. The learning curves are
+shown in the Appendix together with the results obtained in the original
+games and the average runtime.
+
+
+FIGURE
+
+
+Learning approximate d-sets.
+
+
+As explained in Section [4.2], if the optimal d-set is static, like in
+the warehouse and traffic environments, we might be able to learn
+*MATH* by simply restricting the size of the RNN. The first two rows
+in Table, show a performance comparison between
+manually selecting our d-set, and forcing the network weights to filter
+out the irrelevant variables by limiting its capacity. The problem needs
+to be treated with a bit more care in cases where the variables that
+influence the hidden state change from one observation to another, as
+occurs in the Atari games. In such situations, just restricting the size
+of the RNN is not sufficient since the weights are static, and hence
+unable to settle for any particular subset of pixels in the game screen
+(Section [4.2]). The last two columns in Table are the scores obtained in Flickering
+Atari with static weights (2nd column) and with the dynamic weights
+computed by the attention mechanism (3rd column). Manual selection is
+not feasible in the Atari domain.
+
+
+Architecture Analysis 
+
+
+Decoding the agent&apos;s internal memory: 
+
+
+We evaluated if the information stored in the agent&apos;s internal memory
+after selecting the d-set and discarding the rest of the observation
+variables was sufficient to uncover hidden state. To do so, we trained a
+decoder on predicting the full game screen given the encoded observation
+*MATH* and *MATH*, using a dataset of images and hidden activations
+collected after training the policy. The image on the leftmost of Figure
+shows an example of the full game screen, from which the agent only receives
+the region delimited by the red box. The second image from the right
+shows the prediction made by the decoder. Note that although everything
+outside the red box is invisible to the agent, the decoder is able to
+make a fair reconstruction of the entire game screen based on the d-set
+encoded in the agent&apos;s internal memory *MATH*. This implies that IAM
+can capture the necessary information and remember how many cars left
+the intersection and when without being explicitly trained to do so.
+
+
+Analysis of the hidden activations: 
+
+
+Finally, we used Canonical Correlation Analysis (CCA)
+[*REF*] to measure the correlation between the network
+hidden activations when playing Breakout and two important game
+features: ball velocity and number of bricks destroyed. The projections
+of the hidden activations onto the space spanned by the canonical
+variates are depicted in the two plots on the right of Figure. The
+scatter plot on the left shows four distinct clusters of hidden memories
+*MATH*. Each of these clusters corresponds directly to one of the
+four possible directions of the velocity vector. The plot on the right,
+shows a clear uptrend. High values of the first canonical component of
+*MATH* correspond to frames with many missing bricks. While the FNN is
+taking care of the information that does not need to be memorized (i.e.
+number of bricks destroyed) the RNN is focused on inferring hidden state
+variables (i.e. ball velocity). More details about this experiment are
+given in the Appendix.
+
+
+Conclusion
+
+
+The primary goal of this paper was to reconcile neural network design
+choices with the problem of partial observability. We studied the
+underlying properties of POMDPs and developed a new memory architecture
+that tries to decouple hidden state inference from value estimation.
+Influence-aware memory (IAM) connects an FNN and an RNN in parallel.
+This simple solution allows the RNN to focus on remembering just the
+essential pieces of information. This is not the case in other recurrent
+architectures. Gradients in LSTMs and GRUs need to reach a compromise
+between two, often competing, goals. On the one hand, they need to
+provide good *MATH* estimates and on the other, they should remove from the
+internal memory everything that is irrelevant for future predictions.
+Our model enables the designer to select beforehand what variables the
+agent should memorize. This is however not an prerequisite since, as
+shown in our experiments, we can force the RNN to find such variables by
+restricting its capacity. We also investigated a solution for those
+problems in which the variables influencing the hidden state information
+differ from one observation to another. Our results suggest that while
+standard architectures have severe convergence difficulties, IAM can
+even outperform methods that stack multiple frames to remove partial
+observability. Finally, aside from the clear benefits in learning
+performance, our analysis of the network hidden activations suggests
+that the inductive bias introduced in our memory architecture enables
+the agent to choose what to remember.

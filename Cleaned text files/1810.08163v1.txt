@@ -1,0 +1,172 @@
+Fast deep reinforcement learning using online adjustments from the past
+
+
+Introduction
+
+
+Complementary learning systems [*REF* CLS] combine two mechanisms for learning: one, fast learning and highly adaptive but poor at generalising, the other, slow at learning and consequentially better at generalising across many examples. The need for two systems reflects the typical trade-off between the sample efficiency and the computational complexity of a learning algorithm. We argue that the majority of contemporary deep reinforcement learning systems fall into the latter category: slow, gradient-based updates combined with incremental updates from Bellman backups result in systems that are good at generalising, as evidenced by many successes [*REF*; *REF*; *REF*], but take many steps in an environment to achieve this feat.
+
+
+RL methods are often categorised as either model-free methods or model-based RL methods [*REF*]. In practice, model-free methods are typically fast at acting time, but computationally expensive to update from experience, whilst model-based methods can be quick to update but expensive to act with (as on-the-fly planning is required).
+Recently there has been interest in incorporating episodic memory-like into reinforcement learning algorithms [*REF*; *REF*], potentially providing increases in flexibility and learning speed, driven by motivations from the neuroscience literature known as Episodic Control [*REF*; *REF*]. Episodic Control use episodic memory in lieu of a learnt model of the environment, aiming for a different computational trade-off to model-free and model-based approaches.
+
+
+We will be interested in a hybrid approach, motivated by the observations of CLS [*REF*], where we will build an agent with two systems: one slow and general (model-free) and the other fast and adaptive (episodic control-like). Similar to previous proposals for agents, the fast, adaptive subsystem of our agent uses episodic memories to remember and later mimic previously experienced rewarding sequences of states and actions. This can be seen as a memory-based form of planning [*REF*], in which related experiences are recalled to inform decisions. Planning in this context can be thought as the re-evaluation of the past experience using current knowledge to improve model-free value estimates.
+
+
+Critical to many approaches to deep reinforcement learning is the replay buffer [*REF*; *REF*]. The replay buffer stores previously seen tuples of experience: state, action, reward, and next state. These stored experience tuples are then used to train a value function approximator using gradient descent. Typically one step of gradient descent on data from the replay buffer is taken per action in the environment, as (with the exception of [*REF*]) a greater reliance on replay data leads to unstable performance.
+Consequently, we propose that the replay buffer may frequently contain information that could significantly improve the policy of an agent but never be fully integrated into the decision making of an agent. We posit that this happens for three reasons: (i) the slow, global gradient updates to the value function due to noisy gradients and the stability of learning dynamics, (ii) the replay buffer is of limited size and experience tuples are regularly removed (thus limiting the opportunity for gradient descent to learn from it), (iii) training from experience tuples neglects the trajectory nature of an agents experience: one tuple occurs after another and so information about the value of the next state should be quickly integrated into the value of the current state.
+
+
+In this work we explore a method of allowing deep reinforcement learning agents to simultaneously: (i) learn the parameters of the value function approximation slowly, and (ii) adapt the value function quickly and locally within an episode. Adaptation of the value function is achieved by planning over previously experienced trajectories (sequences of temporally adjacent tuples) that are grounded in estimates from the value function approximation. This process provides a complementary way of estimating the value function.
+
+
+Interestingly our approach requires very little modification of existing replay-based deep reinforcement learning agents: in addition to storing the current state and next state (which are typically large: full inputs to the network), we propose to also store trajectory information (pointers to successor tuples) and one layer of current hidden activations (typically much smaller than the state). Using this information our method adapts the value function prediction using memory-based rollouts of previous experience based on the hidden representation. The adjustment to the value function is not stored after it is used to take an action (thus it is ephemeral). We call our method Ephemeral Value Adjustment (EVA).
+
+
+Background 
+
+
+The action-value function of a policy *MATH* is defined as *MATH*  [*REF*], where *MATH* and *MATH* are the initial state and action respectively, *MATH* is a discount factor, and the expectation denotes that the *MATH* is followed thereafter. Similarly, the value function under the policy *MATH* at state *MATH* is given by *MATH* and is simply the expected return for following policy *MATH* starting at state *MATH*.
+
+
+In value-based model-free reinforcement learning methods, the action-value function is represented using a function approximator. Deep Q-Network agents [*REF* DQN] use Q-learning [*REF*] to learn an action-value function *MATH* to rank which action *MATH* is best to take in each state *MATH* at step *MATH*.
+*MATH* is parameterised by a convolutional neural network (CNN), with parameters collectively denoted by *MATH*, that takes a 2D pixel representation of the state *MATH* as input, and outputs a vector containing the value of each action at that state. The agent executes an *MATH* -greedy policy to trade-off exploration and exploitation: with probability *MATH* the agent picks an action uniformly at random, otherwise it picks the action *MATH*.
+
+
+When the agent observes a transition, DQN stores the *MATH* tuple in a replay buffer, the contents of which are used for training. This neural network is trained by minimizing the squared error between the network&apos;s output and the *MATH* -learning target *MATH*, for a subset of transitions sampled at random from the replay buffer.
+The target network *MATH* is an older version of the value network that is updated periodically. It was shown by [*REF*] that both, the use of a target network and sampling uncorrelated transitions from the replay buffer, are critical for stable training.
+
+
+Ephemeral Value Adjustments
+
+
+Ephemeral value adjustments are a way to augment an arbitrary value-based off-policy agent. This is accomplished through a trace computation algorithm, which rapidly produces value estimates by combining previously encountered trajectories with parametric estimates.
+Our agent consists of three components: a standard parametric reinforcement learner with its replay buffer augmented to maintains trajectory information, a trace computation algorithm that periodically plans over subsets of data in the replay buffer, a small value buffer which stores the value estimates resulting from the planning process.
+The overall policy of EVA is dictated by the action-value function, *MATH* is the value estimate from the parametric model and *MATH* is the value estimate from the trace computation algorithm (non-parametric).
+Figure [1] (Right) shows a block diagram of the method. The parametric component of EVA consists of the standard DQN-style architecture, *MATH*, a feedforward convolutional neural network: several convolution layers followed by two linear layers that ultimately produce action-value function estimates. Training is done exactly as in DQN, briefly reviewed in Section [2] and fully described in [*REF*].
+
+
+Trajectory selection and planning
+
+
+The second to final layer of the DQN network is used to embed the currently observed state (pixels) into a lower dimensional space. Note that similarity in this space has been optimised for action-value estimation by the parametric model. Periodically (every 20 steps in all the reported experiments), the k nearest neighbours in the global buffer are queried from the current state embedding (on the basis of their *MATH* distance). Using the stored trajectory information, the 50 subsequent steps are also retrieved for each neighbour. Each of these k trajectories are passed to a trace computation algorithm (described below), and all of the resulting Q values are stored into the value buffer alongside their embedding. Figure [1] (Left) shows a diagram of this procedure. The non-parametric nature of this process means that while these estimates are less reliant on the accuracy of the parametric model, they are more relevant locally. This local buffer is meant to cache the results of the trace computation for states that are likely to be nearby the current state.
+
+
+FIGURE 
+
+
+Computing value estimates on memory traces 
+
+
+By having the replay buffer maintain trajectory information, values can be propagated through time to produce trajectory-centric value estimates *MATH*. Figure [1] (Right) shows how the value buffer is used to derive the action-value estimate. There are several methods for estimating this value function, we shall describe n-step, trajectory-centric planning (TCP) and kernel-based RL (KBRL) trace computation algorithms. N-step estimates for trajectories from the replay buffer are calculated as follows, *MATH* where *MATH* is the length of the trajectory and *MATH* are the states and rewards of the trajectory. These estimates utilise information in the replay buffer that might not be consolidated into the parametric model, and thus should be complementary to the purely parametric estimates. While this process will serve as a useful baseline, the n-step return just evaluates the policy defined by the sampled trajectory; only the initial parametric bootstrap involves an estimate of the optimal value function. W Ideally, the values at all time-steps should estimate the optimal value function, *MATH* Thus another way to estimate *MATH*  is to apply the Bellman policy improvement operator at each time step, as shown in. While could be applied recursively, traversing the trajectory backwards, this improvement operator requires knowing the value of the counter-factual actions. We call this trajectory-centric planning. We propose using the parametric model for these off-trajectory value estimates, constructing the complete set of action-conditional value-estimates, called this trajectory-centric planning (TCP): *MATH*.  The trajectory-centric estimates for the k nearest neighbours are then averaged with the parametric estimate on the basis of a hyper-parameter *MATH*, as shown in Algorithm and represented graphically on Figure [1] (Left). Refer to the supplementary material for a detailed algorithm.
+
+
+ALGORITHM 
+
+
+From trajectory-centric to kernel-based planning
+
+
+The above method may seem ad hoc -- why trust the on-trajectory samples completely and only utilise the parametric estimates for the counter-factual actions? Why not analyse the trajectories together, rather than treating them independently? To address these concerns, we propose a generalisation of the trajectory-centric method which extends kernel-based reinforcement learning (KBRL)[*REF*]. KBRL is a non-parametric approach to planning with strong theoretical guarantees.
+
+
+For each action *MATH*, KBRL stores experience tuples *MATH*. Since *MATH* is finite (equal to the number of stored transitions), and these states have known transitions, we can perform value iteration to obtain value estimates for all resultant states *MATH* (the values of the origin states *MATH* are not needed, as the Bellman equation only evaluates states after a transition). We can obtain an approximate version of the Bellman equation by using the kernel to compare all resultant states to all origin states, as shown in Equation. We define a similarity kernel on states (in fact, embeddings of the current state, as described above), *MATH*, typically a Gaussian kernel. The action-value function of KBRL is then estimated using: *MATH*. In effect, the stored &apos;origin&apos; states (*MATH*) transition to some &apos;resultant state&apos; (*MATH*) and get the stored reward. By using a similarity kernel *MATH*, we can map resultant states to a distribution over the origin states. This makes the state transitions from *MATH* instead of *MATH*, meaning that all transitions only involve states that have been previously encountered.
+
+
+In the context of trajectory-centric planning, KBRL can be seen as an alternative way of dealing with counter-factual actions: estimate their effects using nearby transitions. Additionally, KBRL is not constrained to dealing with individual trajectories, since it treats all transitions independently.
+
+
+We propose to add an absorbing pseudo-state *MATH* to KBRL&apos;s model whose similarity to the other pseudo-states is fixed, that is, *MATH* for some *MATH* for all *MATH*. Using this definition we can make KBRL softly blend similarity and parametric counter-factual action evaluation. This is accomplished by setting the pseudo-state&apos;s value to be equal to the parametric value function evaluated at the state under comparison: when *MATH* is being evaluated, *MATH* thus by setting *MATH* appropriately, we can guarantee that the parametric estimates will dominate when data density is low. Note that this is in addition to the blending of value functions described in Equation.
+
+
+KBRL can be made numerically identical to trajectory-centric planning by shrinking the kernel bandwidth (i.e., the length scale of the Gaussian kernel) and pseudo-state similarity. With the appropriate values, this will result in value estimates being dominated by exact matches (on-trajectory) and parametric estimates when none are found. This reduction is of interest as KBRL is significantly more expensive than trajectory-centric planning. KBRL&apos;s computational complexity is *MATH* and trajectory-centric planning has a complexity of *MATH*, where *MATH* is the number of stored transitions and *MATH* is the cardinality of the action space. We can thus think of this parametrically augmented version of KBRL as the theoretical foundation for trajectory-centric planning. In practice, we use the TCP trace computation algorithm (Equations and unless otherwise noted.
+
+
+Related work
+
+
+There has been a lot of recent work on using memory-augmented neural networks as a function approximation for RL agents: using LSTMs [*REF*; *REF*], or more sophisticated architectures [*REF*; *REF*; *REF*].
+However, the motivation behind these works is to obtain a better state representation in partially observable or non-Markovian environments, in which feed-forward models would not be appropriate. The focus of this work is on data efficiency, which is improved in a representation agnostic manner.
+
+
+The main use of long term episodic memory is the replay buffer introduced by DQN.
+
+
+While it is central to stable training, it also allows to significantly improve the data efficiency of the method, compare with the online counterparts that achieve stable training by having several actors [*REF*]. The replay frequency is hyper-parameter that has been carefully tuned in DQN. Learning cannot be sped-up by increasing the frequency of replay without harming end performance. The problem is that the network would overfit to the content of the replay buffer affecting its ability to learn a better policy. An alternative approach is prioritised experience replay [*REF*], which changes the data distribution used during training by biasing it toward transitions with high temporal difference error. These works use the replay buffer during training time only. Our approach aims at leveraging the replay buffer at decision time and thus is complementary to prioritisation, as it impacts the behaviour policy but not how the replay buffer is sampled from (the supplementary materials for a preliminary comparison).
+
+
+Using previous experience at decision time is closely related to non-parametric approaches for *MATH* -function approximation [*REF*; *REF*; *REF*]. Our work is particularly related to techniques following the ideas of episodic control. *REF*  [MFEC] recently used local regression for *MATH* -function estimation using the mean of the k-nearest neighbours searched over random projections of the pixel inputs. [*REF*] extended this line of work with NEC, using the reward signal to learn an embedding space in which to perform the local-regression. These works showed dramatic improvements in data efficiency, specially in early stages of training. This work differs from these approaches in that, rather than using memory for local regression, memory is used as a form of local planning, which is made possible by exploiting the trajectory structure of the memories in the replay buffer. Furthermore, the memory requirements of NEC is significantly larger than that of EVA. NEC uses a large memory buffer per action in addition to a replay buffer. Our work only adds a small overhead over the standard DQN replay buffer and needs to query a single replay buffer one time every several acting steps (20 in our experiments) during training. In addition, NEC and MFEC fundamentally change the structure of the model, whereas EVA is strictly supplemental.
+More recent works have looked at including NEC type of architecture to aid the learning of a parametric model [*REF*; *REF*], sharing memory requirements with NEC.
+
+
+The memory-based planning aspect of our approach also has precedent in the literature. *REF* explicitly compare a local regression approach (NEC) to prioritised sweeping and find that the latter is preferable, but fail to show scalable result. *REF*  build a memory-based graph and plan over it, but rely on a fixed exploration policy. *REF* combine MCTS planning with NEC, but relies on a built-in model of the environment.
+
+
+FIGURE 
+
+
+In the context of supervised learning, several works have looked at using non-parametric type of approaches to improve the performance of models using neural networks. *REF* introduced a differentiable layer of key-value pairs that can be plugged into a neural network to help it remember rare events. Works in the context of language modelling have augmented prediction with attention over recent examples to account for the distributional shift between training and testing settings, such as neural cache [*REF*] and pointer sentinel networks [*REF*]. The work by *REF* is also motivated by the CLS framework. However, they use an episodic memory to improve a parametric model in the context of supervised learning and do not consider reinforcement learning.
+
+
+Experiments
+
+
+A simple example 
+
+
+We begin the experimental section by showing how EVA works on a simple &quot;gridworld&quot; environment implemented with the pycolab game engine [*REF*]. The task is to collect a given number of coins in the minimum number of steps possible, that can be thought as a very simple variant of the travel salesman problem. At the beginning of each episode, the agent and the coins are placed at a random location of a grid with size *MATH*, see the supplementary material for a screen-shot. The agent can take four possible actions *MATH* left, right, up, down *MATH* and receives a reward of *MATH* when collecting a coin and a reward of *MATH* at every step. If the agent takes an action that would it move into a wall, it stays at its current position. We restrict the maximum length of an episode to *MATH* steps. We use an agent featuring a two-layer convolutional neural network, followed by a fully connected layer producing a 64-dimensional embedding which is then used for the look-ups in the replay buffer of size *MATH*. The input is an RGB image of the maze. Results are reported in Figure [5].
+
+
+Evaluation of a single episode
+
+
+We use the same pre-trained network (with its corresponding replay buffer) and run a single episode with and without using EVA, see Figure [5] (Left). We can see that, by leveraging the trajectories in the replay buffer, EVA immediately boosts performance of the baseline. Note that the weights of the network are exactly the same in both cases. The benefits saturate around *MATH*, which suggests that the policy of the non-parametric component alone is unable to generalise properly.
+
+
+Evaluation of the full EVA algorithm
+
+
+Figure [5] (Center, Left) shows the performance of EVA on ful episodes using one and two coins evaluating different values of the mixing parameter *MATH*. *MATH* corresponds to the standard DQN baseline. We show the hyper-parameters that lead to the highest end performance of the baseline DQN. We can see that EVA provides a significant boost in data efficiency. For the single coin case, it requires slightly more than half of the data to obtain final performance and higher value of lambda is better. This is likely due to the fact that there are only *MATH*  unique states, thus all states are likely to be in the replay buffer. On the two case setting, however, the number of possible states for the two coin case is approximately *MATH*, which is significantly larger than the replay buffer size. Again here, performance saturates around *MATH*.
+
+
+FIGURE 
+
+
+EVA and Atari games
+
+
+In order to validate whether EVA leads to gains in complex domains we evaluated our approach on the Atari Learning Environment(ALE; [*REF*]).
+We used the set of 55 Atari Games, please see the supplementary material for details. The hyper-parameters were tuned using a subset of 5 games (Pong, H.E.R.O., Frostbite, Ms Pacman and Qbert). The hyper-parameters shared between the baseline and EVA (e.g. learning rate) were chosen to maximise the performance of the baseline (*MATH*) on a run over *MATH* frames on the selected subset of games. The influence of these hyper-parameters on EVA and the baseline are highly correlated.
+Performance saturates around *MATH* as in the simple example. We chose the lowest frequency that would not harm performance (20 steps), the rollout length was set to *MATH* and the number of neighbours used for estimating *MATH* was set to 5. We observed that performance decreases as the number of neighbours increases. See the supplementary material for details on all hyper-parameters used.
+
+
+We compared absolute performance of agents according to human normalised score as in *REF*. Figure [7] summarises the obtained results, where we ran three random seeds for *MATH* (which is our version of DQN) and EVA with *MATH*. In order to obtain uncertainty estimates, we report the mean and standard deviation per time step of the curves obtained by randomly selecting one random seed per game (this is, one out of three possible seeds for each of the 55 games). For reference, we also included the original DQN results from [*REF*]. EVA is able to improve the learning speed as well as the final performance level using exactly the same architecture and learning parameters as our baseline. It is able to achieve the end performance of the baseline in *MATH* million frames.
+
+
+Effect of trace computation
+
+
+To understand how EVA helps performance, we compare three different versions of the trace computation at the core of the EVA approach. The standard (trajectory-centric) trace computation can be simplified by removing the parametric evaluations of counter-factual actions. This ablation results in the n-step trace computation (as shown in). Since the standard trace computation can be seen as a special-case of parametrically-augmented KBRL, we also consider this trace computation. Due to the increased computation of this trace computation, these experiments are only run for *MATH* million frames. For parametrically-augmented KBRL, a Gaussian similarity kernel is used with a bandwidth parameter of *MATH* and a paramteric similarity of *MATH*.
+
+
+FIGURE 
+
+
+EVA is significantly worse than the baseline with the n-step trace computation. This can be seen as evidence for the importance of the parametric evaluation of counter-factual actions. Without this additional computation, EVA&apos;s policy is too dependant on the quality of the policy expressed in the trajectories, a negative feedback loop that results in divergence on several games. Interesting, the standard trace computation is as good as, if not better than, the much more costly KBRL method. While KBRL is capable of merging the data from the different trajectories into a global plan, it does not given on-trajectory information a privileged status without an extremely small bandwidth. In near-deterministic environments like Atari, this privileged status is appropriate and acts as a strong prior, as can be seen in the lower variance of this method.
+
+
+Consolidation
+
+
+EVA relies in the TCP at decision time. However, one would expect that after training, the parametric model would be able to consolidate the information available on the episodic memory and be capable of acting without relying on the planning process. We verified that annealing the value of *MATH* to zero over two million steps leads to no degradation in performance on our Atari experiments. Note that when *MATH* our agent reduces to the standard DQN agent.
+
+
+Discussion
+
+
+Despite only changing the value function underlying the behaviour policy, EVA improves the overall rate of learning. This is due to two factors. The first is that the adjusted policy should be closer to the optimal policy by better exploiting the information in the replay data.
+The second is that this improved policy should fill the replay buffer with more useful data. This means that the ephemeral adjustments indirectly impact the parametric value function by changing the distribution of data that it is trained on.
+
+
+During the training process, as the agent explores the environment, knowledge about value functions are extracted gradually from the interactions with the environment. Since the value-function drives the data acquisition process, the ability to quickly incorporate on highly rewarded experiences could significantly boost the sample efficiency of the learning process.

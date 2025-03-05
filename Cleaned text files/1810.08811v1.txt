@@ -1,0 +1,152 @@
+Autonomous Self-Explanation of Behavior for Interactive Reinforcement Learning Agents
+
+
+Introduction
+
+
+Human Robot Cooperation (HRC), in which people and robots work on the same task together in a shared environment, is an effective concept for both industrial and domestic robots [*REF*; *REF*]. By working in a complementary manner, both robots and people overcome the disadvantages of each other in order to achieve difficult tasks that cannot be achieved by either of them. Cooperative robots require the ability to deal with complicated real-world information, and machine learning technics, such as deep reinforcement learning (DRL), are expected to realize the real-world information processing.
+
+
+In cooperation, the workers must know how the other co-workers behave, in order to avoid dangerous misunderstandings and decide what roles to take in the situation [*REF*]. However, it is difficult for people to predict the machine learning agent&apos;s behavior. The control logic embedded in a statistical machine learning model, especially in a deep learning model, is incomprehensible for most people, and requires much time and knowledge to understand.
+
+
+Previous studies have shown that the interaction between people and robots develops the people&apos;s understandings of robots and improves the performance of the cooperation. Andresen et al. proposed a robot that projects the robot&apos;s own intentions and instructions on real-world objects [*REF*]. This robot detects the locations and shapes of nearby objects, and projects information directly on them. The projection improved the effectiveness and efficiency of collaboration tasks. Hayes et al. proposed an answering system that explains autonomous agents&apos; policy [*REF*]. This system builds a statistical model for the autonomous agent&apos;s actions, and deals with some sets of natural language questions based on the model, so that people can get insights into the control logic of the agent. The proposed method successfully summarized the policies of both hand-coded and machine learning agents in some domains, regardless of internal representation of the agent&apos;s control logic.
+
+
+FIGURE 
+
+
+However, all the information provided by the projection robot is designed by programmers. More complex behaviors acquired autonomously by machine learning technics make it impossible for people to design information to show their co-workers. The natural language answering system also requires designers to prepare a mapping from the agent&apos;s action to a communicable predicate that explains the action. In addition, Hayes et al. assumed that the policy of an agent does not change after building a model of the agent&apos;s behavior; therefore, this method does not work on a developmental agent that renews its policy gradually in actual human robot collaboration. Moreover, the work attempts to assign a communicable predicate to an action in one time step; however, explaining one step action is usually fine-spun when we consider a machine learning model that controls complex behavior of a robot. An agent&apos;s behavior that people can recognize is the result of a sequence of actions. In order to explain the behavior of an agent to people, we have to consider the agent&apos;s actions with longer time granularity.
+
+
+This paper proposes Instruction-based Behavior Explanation (IBE), which is a method that explains the future behavior of a reinforcement learning agent in any situation. In IBE, we consider a setting of Interactive Reinforcement Learning (IRL) [*REF*]. IRL is a framework in which a machine learning agent receives expert&apos;s instructions to accelerate the agent&apos;s policy acquisition. The IBE reuses the instruction as representations to explain an agent&apos;s behavior ). However, in contrast to IRL, the designer or the instructor of agents does not have to give the relationship between instructions and agent&apos;s actions explicitly. In IBE, an agent guesses the meanings of instructions on the assumption that, when an agent receives more rewards, it is more likely that the behavior of the agent followed the instruction. With this assumption, an agent can autonomously acquire the expression to explain the behavior. Besides, IBE estimates an agent&apos;s behavior by simulating the transitions of the environment in each time step. The successive simulations make it possible to deal with a developmental agent whose policy is changeable. Moreover, by broadening the time span of the simulation, IBE can output information with sufficient time granularity.
+
+
+FIGURE 
+
+
+Reinforcement Learning (RL)
+
+
+RL is a type of learning, which acquires an agent&apos;s policy autonomously in a sequential decision making process [*REF*]. An agent observes the state of the environment *MATH* and selects an action *MATH* in time *MATH*. The state of the environment changes to *MATH* by the agent&apos;s action *MATH*, and the agent receives a reward *MATH* from the environment. An agent decides the action based on its policy *MATH*, where *MATH* is the probability of the agent to take an action *MATH*  in the environment state *MATH*. The goal of an RL agent is to find the optimal policy *MATH* that maximizes the total reward *MATH*. In this paper, we consider an agent that learns its policy with RL.
+
+
+Interactive Reinforcement Learning (IRL)
+
+
+In a complex situation in which the state spaces and action spaces are very large, the learning process of an RL becomes excessively long [*REF*]. In order for a cooperative agent to acquire its policy in the real-world with machine learning technics, it is necessary to deal with an increase in the search time. IRL is an approach that can solve the search time problem. In IRL, a human or an agent expert instructs a beginner agent in real time so that the beginner can learn the policy efficiently [*REF*]. Narrowing down the search spaces with the instruction can also help a cooperative agent learn the policy in the real-world.
+
+
+Therefore, in this study, we consider a scenario in which a human expert instructs to an agent (Fig. [2]). An expert gives an instruction signal *MATH*  to a beginner agent for every time step. *MATH* is a real number, which represents an instruction from an expert to an agent.
+
+
+The instruction spaces are much narrower than the state spaces.
+Therefore, it is expected that the instructions can be linked to the actions more quickly than the environment states while agents will be able to select actions with the environment state information more delicately because the instruction signal is less informative than the state information.
+
+
+Instruction-based Behavior Explanation (IBE)
+
+
+In this paper, we propose IBE, a method to explain an autonomous agent&apos;s behavior with the expressions given by a human expert as instruction).
+IBE consists of two steps: (i) estimating the target of the agent&apos;s actions by simulation and (ii) acquiring a mapping from the target of the agent&apos;s actions to the expressions, in order to explain the action target based on the instruction signal given by a human expert.
+
+
+FIGURE 
+
+
+Estimation of the action target
+
+
+In this study, we define the target of the agent&apos;s actions at time *MATH*  as a change in the environment state after the agent&apos;s actions in *MATH*  steps *MATH*. *MATH* With the introduction of the time span *MATH*, IBE can output the behavior explanation with human-understandable time granularity. IBE estimates *MATH* with the agent&apos;s policy *MATH* and *MATH* (Algorithm). *MATH* predicts the environment state in the next time step *MATH* with current state *MATH* and agent&apos;s action *MATH* as input.
+
+
+ALGORITHM 
+
+
+Mapping from the agent&apos;s behavior to the explanation signal
+
+
+Next, the IBE decides an expression *MATH* to explain the change in the environment *MATH*. In other words, we consider the mapping *MATH*.
+
+
+By autonomously acquiring the relationship between instructions and states of the environment, we can also use the relationship to accelerate the learning process. For example, we will be able to judge whether the agent followed the instructions and give additional feedback to the agent&apos;s actions.
+
+
+First of all, we collect the history of the environment state *MATH*, rewards *MATH*, and the instruction at the time *MATH*. Then we choose the episodes in which the total reward is top *MATH*, and calculate the changes in the environment caused by the agent&apos;s actions *MATH*.
+After that, we divide the sets of *MATH* into clusters *MATH* with a clustering method. The classifier acquired in the clustering process can divide any *MATH* into a cluster. The mapping *MATH* is obtained by determining the explanation for each cluster (*MATH*). *MATH* is a set of instructions accompanied by *MATH*.
+*MATH* To decide the explanation *MATH*, we assume that it is more likely for the agent to have followed an expert&apos;s instruction when the agent received more rewards. We calculate the expected values of the instructions *MATH* for each cluster.
+*MATH*. Finally, we normalize *MATH* between the clusters to be *MATH*.
+
+
+Case study
+
+
+We constructed a game environment based on Lunar Lander v2, which was released on Open AI gym [*REF*] to evaluate the IBE. The goal of the game is to soft-land a rocket on the moon (Fig.
+[4]). The available actions *MATH* are as follows: do nothing, fire left orientation engine, fire main engine, and fire right orientation engine. The landing pad of the original Lunar Lander v2 is always in the center; however, we randomly changed the landing location to the left, center, and right, to make it more difficult for people to anticipate the agent&apos;s behavior. In every time step, the reward for a rocket agent is calculated based on five parameters: the distance to the goal, the speed of the rocket, the degree of inclination, the amount of use of fuel, and whether the legs of rockets are grounded on the moon.
+
+
+We prepared two rocket agents with deep reinforcement learning models [*REF*]. Agent A is in the middle of the policy acquisition, and possibility to soft-land on the goal is 63.3. Agent B has better policy than Agent A, and possibility is 83.3.
+We prepared agent A in order to consider the applicability of the IBE to agents in an earlier stage of action acquisition. Unskilled agents can act unexpected immature behavior, so it is better to be able to explain the agent&apos;s behavior as soon as possible.
+We decided the instruction *MATH* for an agent as given by formula EQUATION. *MATH* means *MATH* respectively.
+In the experiments, we prepared the predictor module using the same game engine as the Lunar Lander v2 to eliminate the uncertainty of the prediction.
+
+
+FIGURE 
+
+
+Preliminary Experiment
+
+
+Firstly, we inspected the assumption that when an agent received more rewards, it is more likely that the behavior of the agent followed the instruction in the Lunar Lander. The histogram in Fig. [5] shows the probability distribution of the amount of the agents&apos; moves in the horizontal direction *MATH*, when the experts told the agents to *MATH* and *MATH*. *MATH* is negative when the agent moves left, and zero when the agent falls straight down. We divided the episodes into two groups: episodes whose total reward is the top 25, and the others. The time spun for the simulation *MATH*.
+
+
+FIGURE 
+
+
+Fig [5] shows that in the high-score episodes, agents follow the instruction more often than in the low-score episodes, especially for the low-score agent (Agent A). The result shows that considering the total reward in an episode helps in extracting the the agents&apos; behavior that follows the expert&apos;s instructions.
+
+
+Prediction Task
+
+
+We conducted an experiment to inspect the effect of explanation of an agent&apos;s behavior by IBE. We flattened the ground and got rid of the flags so that the participants could not know where the goal is, and recorded the game scenes of agent B. Then we selected 20 episodes whose length was more than 80 frames, and cut out 80 frames until landing. The participants of the experiment watched the first 20 frames to predict where the agent landed with or without the explanation by IBE, and then checked the actual behavior of the agent.
+
+
+Nine male students aged 21 to 28 who had never played the game participated in the experiment. We showed the output of the IBE to five of the participants, and the others predicted the landing spot without the output.
+
+
+The number of clusters *MATH* was eight, and the time spun for the simulation *MATH* was 60. The outputs of IBE was normalized between *MATH* to 1, and visualized as shown in Fig.
+[6]. The *MATH* of IBE was Box2d [*REF*], which is the same 2D game engine as Lunar Lander v2. Before the clustering of the change in the environment *MATH*, we normalized *MATH* and used k-means clustering.
+
+
+FIGURE 
+
+
+Result
+
+
+We compared the accuracy of the participants&apos; predictions. The calculation of T-test confirmed significant differences between the participants with the IBE&apos;s explanation (group A) and without the explanation (group B) in two episodes (Fig. [7]). In episode 1) group A was significantly more accurate than group B, and episode 2 was the reverse of episode 1 (Fig. [9]).
+
+
+FIGURE 
+
+
+The IBE generated complementary expressions from the three expressions given by the experts (Fig. [6]). The complementary expression makes it possible to explain the degree of agent&apos;s behavior, whereas the expert&apos;s instruction does not. In the first 20 frames of episode 1, the rocket agent fell linearly, but deviated greatly to the right. We can say that in episode 1, it is difficult for group B to predict the rocket&apos;s behavior, because the movements of the agent in the first 20 frames and the last 60 frames are quite different. However, the outputs of IBE was stuck to the right; therefore, the participants in group A could anticipate that the agent moved to the right considerably.
+
+
+FIGURE 
+
+
+On the other hand, Fig. [6] shows that the clusters are unevenly distributed. Since the clusters are skewed to the right, it is possible that the resolution of the explanation was low when the agent moved to the left. In other words, IBE can explain the movements to the right in more detail than left. In the episode 2, rocket gently fell to the left ); however, IBE did not output *MATH*. The output of IBE gathered around zero. Therefore, the participants misunderstood that the rocket fell straight down. The result suggests that we need to consider how to divide the environment change *MATH* to assign an explanation signal.
+
+
+Conclusion
+
+
+This paper proposed Instruction-based Behavior Explanation, a method to guess the meaning of an expert&apos;s instruction and reuse the expression of the instruction to explain the agent&apos;s behavior. With IBE, the designer of an agent does not have to prepare a mapping from the agent&apos;s behavior to an expression, in order to explain the behavior. By simulating the agent&apos;s behavior, we can deal with a developmental agent whose policy changes during the interaction with the environment. Simulating the long-spun behavior of an agent also makes it possible to explain an agent&apos;s behavior with sufficient time granularity. The results of the experiments showed the partial contribution that the explanation autonomously acquired by the IBE enriched people&apos;s understandings of the agent&apos;s future behavior.
+
+
+Meanwhile, the IBE still has challenges. The results of the experiments also suggested the difficulty in dividing the state space to assign an explanation signal. Prediction of environmental change in world with high complexity is still a challenging topic of research.
+
+
+Moreover, we fixed the spun of simulation *MATH* in this paper, but in human communication, time granularity of the explanation differs depending on the context. The problem of time granularity also occurs when an agent interprets the meaning of an instruction. In future works, we wish to consider the appropriate time spun *MATH* for the explanation of the behavior. In addition, we are seeking the possibility of the application of IBE for agent&apos;s policy acquisition.

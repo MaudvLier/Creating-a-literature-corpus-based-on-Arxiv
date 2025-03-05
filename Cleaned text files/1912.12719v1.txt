@@ -1,0 +1,416 @@
+Augmented Replay Memory in Reinforcement Learning With Continuous Control
+
+
+Introduction 
+
+
+Studies concerning human and animal learning have identified that the
+process of encoding new memories into long term storage is not so
+straightforward as previously thought. Recent studies have found that it
+involves a process of active memory consolidation, or
+AMC [*REF*; *REF*; *REF*], that
+facilitates a better memory integration into the higher level cortical
+structures and also prevents forgetting previously encoded information.
+This process occurs while sleeping, a time when the brain is not
+encoding or perceiving new stimuli and relies on the memories stored in
+a short-term hippocampal structure when awake. Before their integration
+in the long term cortical structures, experiences are reactivated or
+replayed in the hippocampal memory as a part of the active
+consolidation. The word &quot;active&quot; in AMC implies that, in the process of
+consolidation, memories are altered in a way that their further
+integration into the existing knowledge wouldn&apos;t induce forgetting of
+the previous ones.
+
+
+The active structural modification of the consolidated memories is
+selective and, for the memories that are deemed to be the more important
+ones it will facilitate strengthening to reach a certain retrieval
+threshold. However, if the memory trace is deemed not strong enough for
+some memories it will result in their
+loss [*REF*; *REF*].
+
+
+Biological architectures found in human brain and the computational
+reinforcement learning processes both use a functionally similar
+mechanism of replay memory. Along the introduction of artificial neural
+networks, or ANN, as function approximators in temporal-difference, or
+TD, learning [*REF*], the techniques that aim at their
+efficient training most commonly use a replay buffer of previous
+experiences out of which a mini-batch is sampled for re-learning at each
+time step. This technique has been recently revived in Deep
+Q-learning [*REF*; *REF*]. Since in TD approaches the
+ANN is constantly updated to better represent the state-action value
+pairs *MATH*, which govern the agent&apos;s policy *MATH*, the mechanisms
+involved in its training such as mini-batch replay became increasingly
+influential to the learning process itself.
+
+
+Another advantage of the replay memory structure is that, when
+implemented, it acts as a form of agent&apos;s cognition: depending on the
+way it is populated, it can alter how the agent perceives the
+information. In this way, a learning agent is not only concerned about
+the information it receives from its immediate environment, but also
+about the way in which this information is interpreted by this cognitive
+mechanism.
+
+
+In the proposed approach an effective, but simple, mechanism of replay
+memory is extended with the ability to actively and dynamically process
+the information during the replay and thus bringing it closer to the
+functional characteristics of actual biological mechanisms. The dynamic
+processing mechanism of Augmented Memory Replay or AMR presented
+here is inspired by human active memory consolidation and it is
+capable of altering the importance of specific memories by altering
+their reward values, thus mimicking the AMC&apos;s process of deeming the
+memory above the retrieval threshold. In the experiments reported in
+this paper, the augmentation dynamics are evolved over generations of
+learning agents performing reinforcement learning tasks in various
+environments. Their fitness function is defined in a straightforward way
+as their cumulative performance over a specific environment.
+Experimental results indicate that AMR type of memory buffer shows an
+improvement in learning performance over the standard static replay
+method in all of the tested environments.
+
+
+Related Work
+
+
+An extension of DDPG algorithm was proposed by Hausknecht and
+Stone [*REF*] allowing it to deal with a low level
+parameterized-continouos action space. However the evaluation of the
+approach was limited to a single simulated environment of RoboCup 2D
+Half-Field-Offense [*REF*]. Hoothoft et. al [*REF*] proposed a meta-learning approach capable of
+evolving a specialized loss function for a specific task distribution
+that would provide higher rewards during its minimization by stochastic
+gradient descent. The algorithm is capable to produce a significant
+improvement of the agent&apos;s convergence to the optimal policy but as its
+the case with the AMR approach the evolved improvements are task specific.
+
+
+In contrast with the distributed methods like Apex which was proposed by
+Horgan et. al [*REF*] which rely on a hundreds of
+actors learning in their own instance of the environment AMR algorithm
+works with a single instance just like vanilla
+DDPG [*REF*] does. This fact has a significant impact
+on the computational time a specific algorithm induces to the problem.
+
+
+Wang et. al [*REF*] introduced an approach that is combining
+the importance or prioritized sampling techniques together with
+stochastic dueling networks in order to improve the convergence of some
+continuous action tasks such as Cheetah, Walker and Humanoid.
+
+
+Another improvement of a vanilla DDPG is presented by Dai et.
+al [*REF*] as Dual-Critic architecture where the critic is
+not updated using the standard temporal-difference algorithms but it&apos;s
+optimized according to the gradient of the actor.
+
+
+An approach by Pacella et. al [*REF*] evolved basic emotions
+such as fear, used as a kind of motivational drive that governed the
+agent&apos;s behavior by directly influencing action selection. Similar to
+the AMR approach a population of virtual agents were tested at each
+generation. In this process, each of the agents evolved a specific
+neural network that was capable of selecting its actions based on the
+input; this consisted of temporal information, visual perception and
+good and bad sensation neurons. Over time, the selection of best
+performing agents gave rise to populations that adopted specific
+behavioral drives such as being cautious or fearful as a part of a
+survival strategy. Contrary to the AMR which evolves a cognitive
+mechanism which only complements the main learning process,
+in [*REF*] the genetic algorithm represents the learning process itself.
+
+
+Another evolutionary approach that is used to complement the main
+reinforcement learning algorithm was presented
+in [*REF*]. Similarly to AMR, it uses a genetic
+algorithm to evolve an optimal reward function which builds upon the
+basic reward function in a way that maximizes the agent&apos;s fitness over a
+distribution of environments. Experimental results show the emergence of
+an intrinsic reward function that supports the actions that are not in
+line with the primary goal of the agent. [*REF*] also
+presented an a reinforcement learning approach which relied on a evolved
+reinforcer in order to support learning atomic meta-skills. The
+reinforcement was evolved in a childhood phase, which equipped the
+agents with the meta-actions or skills for the use in the adulthood phase.
+
+
+Persiani et al. [*REF*] proposes a cognitive improvement
+through the use of replay memory structure like AMR. The algorithm
+makes it possible to learn which chunks of agent&apos;s experiences are most
+appropriate for replay based on their ability to maximize the future
+expected reward.
+
+
+A cognitive filter structure was proposed by Ramicic and
+Bonarini [*REF*] able to improve the convergence of
+temporal-difference learning implementing discrete control rather than a
+continuous one. It was able to evolve the ANN capable to select whether
+a specific experience will be sampled into replay memory or not. Unlike
+AMR this approach did not modify the properties of the experiences.
+
+
+Theoretical Background
+
+
+Temporal-difference learning
+
+
+The goal of a reinforcement learning agent is to constantly update the
+function which maps its state to their actions i.e. its policy *MATH* as
+close as possible to the optimal policy *MATH*. The optimal policy
+is a policy that selects the actions which maximize the future expected
+reward of an agent in the long run [*REF*] and it is
+represented by a function, possibly approximated by an Artificial
+Neural Network or ANN. The process of updating the policy is performed
+iteratively after each of the consecutive discrete time-steps in which
+the agent interacts with its environment by executing its action *MATH* 
+and gets the immediate reward scalar *MATH* defined by the reinforcement
+function. This iterative step is defined as a transition over Markov
+Decision Process, and represented it by a tuple
+*MATH*. After each transition the agent
+corrects its existing policy *MATH* according to the optimal action-value
+function shown in equation in order to maximize its expected reward within
+the existing policy. In the approaches that deal with discrete action
+spaces, such as [*REF*], the agent can follow the optimal policy
+*MATH* by taking an optimal action *MATH* which maximizes the optimal
+action-value function *MATH* defined by equation. *MATH*.
+
+
+The correction update to the policy *MATH* starts by determining how
+wrong the current policy is with respect to the expectation, or value
+for the current state-action pair *MATH*. In case of a discrete action
+space this expectation of return is defined by the Bellman-optimality
+equation and it is basically the sum of the immediate
+reward *MATH* and the discounted prediction of a maximum Q-value, given the
+state *MATH* over all of the possible actions *MATH*.
+
+
+Going continuous
+
+
+Maximizing over actions in equation is not a problem when facing discrete action
+spaces, because the Q-values for each of the possible actions can be
+estimated and compared. However, when coping with continuous action
+values this approach is not realistic: we cannot just explore brute
+force the values of the whole action space in order to find the maximum.
+The more recent approach of [*REF*] eliminates the
+maximization problem by approximating the optimal action *MATH* and
+thus creating a deterministic policy *MATH* in addition to the optimal
+state-value function *MATH*. Taking the new approximated policy into
+consideration the Bellman-optimality equation takes the form of
+equation and avoids the inner expectation. *MATH*.
+
+
+In common among all the before mentioned approaches is the concept of
+temporal difference, or TD error, which is basically a difference
+between the current approximate prediction and the expectation of the Q
+value. The learning process performs an iterative reduction of a TD
+error using Bellman-optimality equation as a target, which guarantees
+the convergence of the agent&apos;s policy to the optimal one given an
+infinite amount of steps [*REF*].
+
+
+Function approximation
+
+
+In order to deal with the increasing dimensionality and continuous
+nature of state and action spaces imposed by the real-life applications
+the aforementioned algorithms depend heavily on approximate methods
+usually implemented using ANN. A primary function approximation makes it
+possible to predict a *MATH* value for each of the possible actions
+available to the agent by providing an agent&apos;s current state as input of
+the ANN. After each time step, the expected Q value is computed using
+equation, and then compared to the estimate that
+the function approximator provides as its output
+*MATH* by forwarding the state s0 as its
+input. The difference between the previous estimate of the approximator
+and the expectation is the TD error. This discrepancy is actually a loss
+function *MATH* that can bi minimized by performing a
+stochastic gradient descent on the parameters *MATH* in order to
+update the current approximation of *MATH* according to equation: *MATH* 
+where *MATH* is in fact the Bellman equation
+defining the target value which depends on an yet another ANN that
+approximates the policy function *MATH* in policy-gradient approaches
+such as [*REF*]. The update to the policy function
+approximator *MATH* is more straightforward as it is possible
+to perform a gradient ascent on the respective network parameters
+*MATH* in order to maximize the *MATH* as shown in
+equation *MATH*.
+
+
+Model Architecture and Learning Algorithm
+
+
+In this section we propose a new model that combines the learning
+approaches of genetic algorithm with reinforcement learning order to
+improve the convergence of the latter. For clarity, the proposed model
+is separated in two main functional parts: evaluation and evolution.
+
+
+The evaluation part is defined as a temporal-difference reinforcement
+problem where a reward function is dynamically modified by the proposed
+AMR block. AMR is a function approximator implemented by an ANN,
+which receives in input characteristics of experience that is perceived
+by the learning agent, and outputs a single scalar value, used to
+modify the reinforcement value of the transition.
+
+
+The architecture of the AFB neural network approximator *MATH* consists
+of three layers: three input nodes fully connected to a hidden layer of
+four nodes, in turn connected to two softmax nodes to produce the final
+classification. This ANN is able to approximate the four parameters of
+the experience, respectively given in input, as TD error, reinforcement
+*MATH*, entropy of the starting state *MATH*, and entropy of the next
+transitioning state *MATH*, to a regression output layer that
+provides a scalar augmentation value or *MATH*. The
+augmentation process alters the reward value of each transition by an
+augmentation rate or *MATH* as shown in equation. *MATH*.
+
+
+FIGURE
+
+
+While altering the reward scalar *MATH* the AMR block is able to
+precisely and dynamically change the amount of influence each transition
+exerts on the learning process ant thus mimic the aforementioned
+biological processes [*REF*; *REF*; *REF*].
+
+
+The second component of the proposed architecture evolves the AMR
+block using a genetic algorithm, or *MATH*, in order to maximize its
+fitness function which is represented by the total learning score
+received by an agent during its evaluation phase.
+
+
+ALGORITHM
+
+
+Experimental Setup
+
+
+Environment
+
+
+The evaluation phase applied the proposed variations of the *MATH* 
+learning algorithm to a variety of continuous control tasks running on
+an efficient and realistic physics simulator as a part of OpenAI Gym
+framework [*REF*] and shown in figure.
+The considered environments range from a relatively simple 2D robot
+(Reacher-v2), with a humble 11-dimensional state space, to a complex
+four-legged 3D robot such as Ant-v2 [*REF*], which boasts a
+total of 111-dimensional states coupled with 8 possible continuous
+actions. Various different tasks of intermediate complexity like making
+a 2D animal robot run (HalfCheetah-v2), and making a 2D snake-like
+robot move on a flat surface (Swimmer-v2 [*REF*])
+have also be faced.
+
+
+FIGURE
+
+
+Function Approximation
+
+
+An approximation of *MATH* has been
+implemented using an ANN with one hidden fully connected layer of 50
+neurons, able to take an agent&apos;s state as an input and produce as output
+the Q values of all the actions available to the agent. The learning
+rate of an critic *MATH* approximator *MATH* is set to *MATH*.
+
+
+The actor function approximator of *MATH* is
+implemented using one hidden dense layer of 30 neurons which outputs a
+deterministic action policy based on the agent&apos;s current state. The
+actor ANN has been trained using slightly higher learning rate of
+*MATH* compared to the critic one.
+
+
+The architecture of the AMR function approximator consists of three
+layers: four input nodes connected to a fully connected hidden layer of
+four nodes, in turn connected to a single regression node able to
+produce an augmentation scalar as output. This ANN is able to
+approximate four parameters of the current agent&apos;s experience,
+respectively given in input as an absolute value of TD error,
+reinforcement, entropy of the starting state *MATH*, entropy of the
+transitioning state *MATH*, to scalar value *MATH* that indicates how
+important the specific experience it to the learning algorithm.
+
+
+Meta Learning Parameters
+
+
+During the evaluations phase at each learning step a batch of 32
+experiences were replayed from the fixed capacity memory buffer of
+10000. Learning steps per episode were limited to a maximum of 2000.
+Reward discount factor *MATH* was set to a high *MATH* and soft
+replacement parameter *MATH* was *MATH*. In order to achieve action
+space exploration an artificially generated noise is added to the
+deterministic action policy which is approximated by the actor ANN.
+The noise is gradually decreased or adjusted linearly from an initial
+scalar value *MATH* to *MATH* towards the end of the learning.
+
+
+Experimental Results
+
+
+The proposed algorithm evolved the AMR&apos;s neural network weights
+*MATH* trough a total of 75 generations. At each generation, the
+learning performance of 10 agents were evaluated based on their their
+total cumulative score during 200 learning episodes. Only the best 5
+scoring agents of each generation had an opportunity to propagate their
+genotypes to the next generation in order to form a new population. As
+shown in figure this process involved common *MATH* techniques such as
+crossover and random mutation. The crossover of the genotypes, which are
+actually the AMR weights, were prioritized based on the agents
+cumulative score and the mutation was additionally applied at a rate of
+*MATH* by adding a random scalar between *MATH* and *MATH* to the
+weights. The obtained experimental results which are presented along the
+Figures [2], [3], [4], [5] indicate that the most complex setup of
+Ant-v2 improved its learning performance the most when using the
+proposed AMR approach when compared to the baseline approach that have
+not used memory augmentation. Regardless of the environment, it i
+evident that the proposed evolutionary approach with memory augmentation
+underperforms at the very first generations but quickly surpasses the
+baseline in less than 10 generations and further improves the total
+score of the agent in the following generations. As we can see
+from [2] the AMR evolutionary approach improves the Ant&apos;s quad-legged robot learning
+about how to walk by a total of *MATH* towards the end of the 75th
+generation. AMR algorithm have also showed a significant improvement
+in Reacher: the simplest of the environments. In this task the
+proposed evolutionary approach made the 2D robot hand with one actuating
+joint learn to fetch a randomly instantiated target faster and produced
+a *MATH* increase in agent&apos;s total cumulative score. Although not as
+significant as in Ant and Reacher setups, the AMR approach is also
+able to improve the performance in the Cheetah and Swimmer
+environments as evident from the
+[4] and [5], respectively. We can also notice the
+difference of the score variance between the setups which can be
+attributed to distinctive robot/environment characteristics; while Ant
+and Reacher show relatively low variance in their scores, other
+problems like Cheetah and Swimmer have a very high variance.
+
+
+FIGURE
+
+
+Discussion
+
+
+The presented approach represents yet another inspiration from
+biological systems, which implements a biologically inspired mechanisms
+that enables artificial learning agents to better adapt to a specific
+environment by selectively increasing the relevance of the information
+perceived. An agent implementing an AMR neural network is able to
+evolve its memory augmentation criteria to best fit the environment that
+is facing, in few generations. The evolved AMR&apos;s augmentation criteria
+modifies the relevance of the information that an agents collects from
+its immediate environment into its replay memory allowing it to use the
+same data in a more efficient way during the learning process; this
+yields a direct improvement in the performance.
+
+
+Thus, augmenting memory allows for the emergence of an artificial
+cognition as a intermediary dynamic filtering mechanism in learning
+agents, which opens a possibility for a variety of applications in the future.

@@ -1,0 +1,442 @@
+I. [Introduction]
+
+
+Maximizing available transfer capabilities (ATCs) is of critical
+importance to bulk power systems from both security and economic
+perspectives, which represents the remaining transfer margin of
+transmission network for further energy transactions. Due to
+environmental and economic concerns, transmission expansion via building
+new lines for enlarging transfer capabilities is no longer an easy
+option for many utilities across the world. Additionally, the increasing
+penetration of renewable energy, demand response, electric vehicles, and
+power-electronics equipment has caused more stochastic and dynamic
+behavior that threatens safe operation of the modern power grid
+*REF* - *REF*. Thus, it becomes essential to develop fast and effective
+control strategies for maximizing ATCs considering uncertainties while
+satisfying various security constraints.
+
+
+Compared with re-dispatching generators, shedding electricity demands,
+and installing FACTS devices, active network topology control via
+transmission line switching or bus splitting for increasing ATCs and
+mitigating congestions provides a low-cost and effective solution,
+especially for aderegulated power market or utilities with limited choices (e.g., RTE
+France with nuclear power supplying vast majority of its demands). This
+idea was first proposed in the early 1980s when several research efforts
+were conducted for achieving multiple control purposes such as cost
+minimization, voltage, and line flow regulation *REF* - *REF*.
+Transmission line switching or bus splitting/rejoining is essentially a
+multivariate discrete programming problem that is difficult to solve,
+given the complexity and uncertainties of bulk power systems. Various
+approaches have been reported to tackle this problem. In *REF*, a
+mixed-integer linear programming (MIP) model is proposed with DC power
+flow approximation of the power network, where the generalized
+optimization solver, CPLEX, is adopted to solve the MIP. In *REF*, the
+transmission switching (TS) optimization process with DCOPF is decoupled
+from a master unit commitment procedure, where the optimal TS schedule
+is formulated as a MIP problem that is again solved using CPLEX.
+Reference *REF* presents a fast heuristic method to speed up the
+convergence using the aforementioned modeling and solution practice.
+Similar approaches with variations are also reported in *REF* and *REF*,
+which use a point estimation method for modeling system uncertainties
+with AC power flow feasibility checking and correction modules.
+
+
+However, several limitations are observed in existing methods,
+including: (a) Linear approximation in DC power flow without considering
+all security constraints is typically utilized, which affects the
+solution accuracy for a real-world power grid. Using full AC power flow
+with all security constraints for optimization becomes non-convex due to
+the high nonlinear nature of power grids, which cannot be effectively
+solved using state-of-the-art techniques without relaxing/sacrificing
+certain security constraints or solution accuracy. (b) The combination
+set of lines and bus-bars to be switched simultaneously grows
+exponentially; in addition, sensitivity-based methods are susceptible to
+changing system operating conditions. Thus, it may take a long time to
+solve such an optimization process for a large power grid, preventing
+the solution from being deployed in the real-time environment.
+
+
+To fill these technology gaps, this research presents a novel method
+that adopts AI-based algorithms (IL and DRL) with several innovative
+techniques (including guided exploration and early warning) for training
+effective agents in providing fast and autonomous topology control
+strategies for maximizing time-series ATCs. The developed techniques
+were used to participate in the 2019 L2RPN, a global power system AI
+competition hosted by RTE France and ChaLearn *REF*, considering full 
+AC power flow and practical constraints, which
+eventually outperformed all competitors&apos; algorithms. The remainder of
+the paper is organized as follows: section II presents the problem formulation and introduces the
+principle of reinforcement learning for solving
+5 key elements: a state space 𝒮, an action space 𝒜, a transition matrix
+𝒫, a reward function ℛ, and a discount factor 𝛾. In this work, an AC
+power flow simulator is used to represent the environment *REF*. The
+agent state (𝑠^𝑎^ ∈ 𝒮) is a partial observation from the environment state (𝑠^𝑒^ ∈ 𝒮). 
+State FORMULA the Markov Decision Process (MDP). Section III provides the detailed
+architecture design, key steps, AI algorithms with several innovative
+techniques, and implementation of the proposed methodology for
+autonomous topology control. Case studies are presented in section IV to
+demonstrate the effectiveness of the proposed method. Finally,
+conclusions are drawn in section V with future work discussed.
+
+
+II. [Problem Formulation]
+
+
+contains 538 features, including active power outputs and voltage
+setpoints of generators, loads, line status, line flows, thermal limits,
+timestamps, etc. The action space 𝒜 is formed by including line
+switching, node splitting/rejoining, and a combination set of both. An
+immediate reward 𝑟𝑡 at each time step is defined in Eq. (2) to assess
+the remaining available transfer capabilities: FORMULA.
+
+
+The problem to solve in this research is discussed in the 2019 L2RPN
+challenge with full details *REF*. The main objective is to maximize
+the ATCs of a given power grid over all time steps of various scenarios.
+Each scenario is defined as operating the grid for a consecutive time
+period, e.g., four weeks with a fixed time interval of 5 minutes,
+considering daily load variations, pre-determined generation schedules
+and real-time adjustment, voltage setpoints of generator terminal buses,
+network maintenance schedules and contingencies. The control decisions
+only include network topology adjustment, namely, one node
+splitting/rejoining operation, one line switching, and the combination
+of these two. System generation and loads are not allowed to be
+controlled for enhancing ATCs. Several hard constraints are considered
+for all the scenarios of interest: (a) system demands should be met at
+any time without load shedding; (b) no more than one power plant can be tripped; (c) no electrical
+islands can be formed as a result of topology control; (d) AC power flow
+should converge at all time. 
+
+
+In MDP, a cumulative future return 𝑅𝑡 is defined which contains the
+immediate reward and the discounted future rewards, defined in Eq. (3)
+*REF*: FORMULA where T is the length of the MDP chain, and 𝛾 ∈ \[0, 1\] is the
+discount factor.
+
+
+C. Solving MDP via reinforcement learning
+
+
+With recent success in various control problems with high nonlinearity
+and stochastics, reinforcement learning is adopted which exhibits great
+potentials in maximizing longterm rewards for achieving a specific
+goal *REF* - *REF*. Various RL algorithms exist with pros and cons. One
+typical example is Q-learning, which utilizes a Q-table to map each
+state and action pair using an action-value, 𝑄(𝑠, 𝑎), which evaluates
+action a taken at state s by considering the future cumulative
+return 𝑅𝑡. According to the Bellman Equation *REF*, the
+cumulative return can be represented as an expected return,
+shown in Eq. (4): FORMULA will cause &quot;game over&quot; if any hard constraint is violated. For soft
+constraints, violations lead to certain consequences
+instead of immediate &quot;game over&quot;. Overloaded lines over 150% of their
+ratings are tripped immediately, which can be recovered after 50 minutes
+(10 time steps); while for overloaded lines below 150% of their ratings,
+control measures can be used to mitigate the overloading issue with a
+time limit of 10 minutes (2 time steps). If still overloaded, the line
+will be tripped, and cannot be recovered until after 50 minutes. In
+addition, a practical constraint is considered that is to allow a
+&quot;cooldown time&quot; (15 minutes) before a switched line or node can be
+reused for action. Both soft and hard constraints make the problem more
+practical and close to real-world grid operation. To examine the
+performance of agents, metrics in Eq. (1) are used, which measure the
+timeseries ATCs for a power grid. FORMULA. 
+
+
+To obtain the optimal action-value 𝑄^∗^(𝑠, 𝑎), Q-learning looks one step
+ahead after taking action a at state 𝑠𝑡, and greedily considers the
+action 𝑎𝑡+1 at state 𝑠𝑡+1 for maximizing the expected target value 𝑟𝑡 +
+𝛾𝑄^∗^(𝑠𝑡+1, 𝑎𝑡+1). Using the Bellman equation, the algorithm can
+perform online updates to control the Q-value towards the Q-target.
+FORMULA where 𝛼 represents the learning rate. Using a Q-table, both the state
+and action need to be discrete, thus making it difficult to handle
+complex problems. To overcome this issue, the deep Q network (DQN)
+method was developed which uses neural networks as a function
+approximator to estimate the Q-values, 𝑄(𝑠, 𝑎), 
+so it can support continuous states in the RL process FORMULA
+without discretization of states or building the Q-table. FORMULA.
+The detailed mathematical formulation can be found in *REF* and
+therefore is not repeated here due to space limitation.
+
+
+B. Problem formulated as MDP
+
+
+Maximizing time-series ATCs via topology control or adjustment can be
+modeled as an MDP *REF*, which consists of Weights 𝜃 of the neural 
+network represent the mapping from states to
+Q-values, and therefore, a loss function 𝐿𝑖(𝜃) is needed to update the
+weights and their corresponding Qvalues, using Eq. (6) *REF*:
+FORULA where FORMULA, and 𝜌 is the
+probability distribution of the state and action pair (s, a). By
+differentiating the loss function using Eq. (7) and
+performing stochastic gradient descent, weights of the agent can be
+updated *REF*. FORMULA.
+
+
+Given its advantages, DQN is selected as the fundamental DRL algorithm
+in this work to train AI agents for providing topology control actions.
+However, overestimation is a wellknown and long-standing problem for
+all Q-learning based algorithms. To address this issue, Double DQN
+(DDQN) that decouples the action selection and action evaluation using
+two separate neural networks is proposed in *REF*. It demonstrates good
+performance in overcoming the overestimation problem and can obtain
+better results on ATARI 2600 games than other Q-learning based methods.
+In addition, a new model architecture, Dueling DQN is proposed in
+*REF*, which decouples a single-stream DDQN into a state-value stream
+and an action-advantage stream, and therefore, the Q-value can be
+represented as Eq. (8) *REF*. FORMULA.
+
+
+The stand-alone state value stream is updated at each step of training
+process. The frequently updated state-values and the biased advantage
+values allow better approximation of the Qvalues, which is the key in
+value-based methods. It allows a more accurate and stable update for the
+agent. Thus, dueling DQN is selected as the baseline model in this work
+to achieve good control performance.
+
+
+III. [The Proposed Methodologies]
+
+
+A. Architecture design
+
+
+The architecture of training DRL agents for maximizing ATCs is shown in
+Fig. 1, where several novel methods are developed. First, imitation
+learning is used to generate a good initial policy for the dueling DQN
+agent so that exploration and training time can be greatly reduced;
+additionally, the agent is less likely to fall into a local optimum.
+Second, a guided exploration method is used to train the agent instead
+of the traditional Epsilon-greedy exploration. Third, importance
+sampling is used to increase the mini-batch update efficiency *REF*.
+Moreover, an Early Warning (EW) system is designed to increase the
+system robustness. Details regarding these techniques are discussed in
+the following subsections.
+
+
+trained off-policy and decouples the strong correlations between the
+consecutive training data; (2) importance sampling is used to increase
+the algorithm learning efficiency and final policy quality *REF*, by
+measuring importance of the data using absolute TD-error and giving
+important data higher priority to be sampled from memory buffer during
+the training process; and (3) adoption of a DDQN structure, which fixes
+the q-targets periodically, and then stabilizes the agent updates. The
+algorithm for training dueling DQN agents is given in Algorithm I.
+
+
+FIGURE
+
+
+C. Imitation Learning
+
+
+Imitation learning is essentially a supervised learning method that is
+used to pre-train DRL agents by providing good initial policies in the
+form of neural network weights. A power grid simulator is used to
+generate massive data sets, which are then further processed before
+being used to train the DQN agent. This process allows the RL agent to
+obtain good Q(s, a) distributions regarding different input
+states. The loss function used to train the agent is defined as weighted
+Mean-Squared-Error (MSE), in Eq. (9): FORMULA. 
+
+
+FIGURE
+
+
+B. Dueling DQN Agent
+
+
+The architecture of dueling DQN is given in Fig. 2. The original
+structure is adopted with a batch normalization layer added to the input
+layer, and the number of neurons in the hidden layer is modified
+according to the dimensions of inputs
+where FORMULA is the size of action space, and vector FORMULA is sorted in
+descending order. The loss function 𝐽𝜃 gives a higher weight to
+actions resulting in high scores, which makes the agent more sensitive
+to score peaks during the training process, and therefore helps the
+agent better extract good actions.
+
+
+D. Guided exploration training method
+
+
+Imitation learning provides a good initial policy for snapshots, and
+then DRL is used to train the agent for longterm planning capability
+and to obtain a globally-concerned policy. For DRL training in this
+problem, the traditional Epsilon-greedy exploration method is
+inefficient. First, the action space is pretty large and the MDP chain
+is long. Second, the agent is easy to fall into a local optimum. Thus, a
+guided exploration method is developed, where actions with the
+
+
+𝑁𝑔 highest Q-values are selected at every timestep, the performance of
+which are simulated and evaluated on the fly. Then, the action with the
+highest reward is chosen for implementation and such experience will be
+stored in the memory. The guided exploration helps the agent to further
+extract out the good actions. With the help of the action simulation
+function, the training process is more stable, and better experience is
+stored and used to update the agent. Thus, guided-exploration
+significantly increases the training efficiency.
+
+
+E. Early warning
+
+
+Power systems are highly sensitive to various operating conditions,
+especially with major topology changes. One bad action may have a
+long-term adverse effect since the system topology control is successive
+in a long period of time. The trained DRL agent is not guaranteed to
+provide a good action every time at various complex system states. Thus,
+an adaptive mechanism, named Early Warning, is developed in this work
+which can help the agent determine when to apply action and simulate
+more actions with high 𝑄(𝑠, 𝑎) values to increase the error-tolerance
+and enhance system robustness, with Fig. 3 illustrating its operation
+logic.
+
+
+FIGURE
+
+
+Initially, at every timestep, it simulates the result of taking no
+action to the environment, using a warning flag (WF) defined in Eq.
+(10). FORMULA.
+
+
+If the loading level of a line is higher than a pre-determined threshold
+𝜆, a WF is raised. As a result, the 𝑁𝑔 top-scored actions are provided
+by the agent for further simulation. Consequently, the best action with
+the highest score will be taken. Both guided exploration and the early
+warning mechanism improve the performance and robustness of the proposed
+RL algorithm.
+
+
+IV. [Case Studies and Discussion]
+
+
+A. Environment and framework
+
+
+A power grid simulator, Python Power Network (Pypownet) *REF*, is
+adopted to represent the environment for training RL agents, which is
+built upon the MATPOWER open-source tool for power grid simulations. It
+is able to emulate a large-scale power grid with various operating
+conditions that supports both AC and DC power flow
+
+
+solutions. The framework is developed in Linux, with an interface
+designed and provided for Reinforcement Learning. The RL agents are
+trained and tuned using python scripts through massive interactions with
+Pypowernet. Besides, a visualization module is provided for the users to
+visualize the system operating status and evaluate control actions in
+realtime. Several power system models have been provided in this
+framework with datasets representing realistic time-series operating
+conditions. The dataset for the IEEE 14-bus model contains 1,000
+scenarios with data for 28 continuous days. Each scenario has 8,065 time
+steps, each representing a 5minute interval. All models and associated
+datasets can be directly downloaded from *REF*.
+
+
+With the developed environment and framework, the IEEE 14-bus system
+with the supporting dataset is used to test performance of the proposed
+DRL agents in autonomous network topology control over long time-series
+scenarios. In this system, there are a total of 156 different node
+splitting actions and 20 line switching actions. Thus, an action space
+of 3,120 is formed by considering null action and all combinations of
+one node splitting and one line switching without those that can create
+islands. The DRL agents are trained using Python 3.6 scripts on a Linux
+server with 48 CPU cores and 128 GB of memory.
+
+
+B. Effectiveness of imitation learning for generating good initial
+policies
+
+
+In the first test, a brute-force method is used to train the agent using
+randomly initialized neural network weights and the full action space
+with a dimension of 3,120. As expected, due to the large action space
+and the long time-sequences, the proposed dueling DQN method didn&apos;t work
+well. To solve this problem, the following process is employed to
+effectively reduce the action space, which includes: (1) 155 node
+splitting/rejoining actions, (2) 19 line switching actions, and
+
+
+(3) 76 most effective actions with one bus action and one line
+switching action, and one do-nothing action. In this way, the action
+space 𝒜 is reduced to 251. Then, the imitation learning method
+introduced in Section III. C is used to obtain good initial policies.
+Forty scenarios, each with 1,000 timesteps (instead of 8,065), are used
+for imitation learning, yielding a total number of 40,000 sample pairs,
+(state, Q(s, a)), which are then separated into a training set
+(90%) and a validation set (10%). Fig. 4 shows a sample prediction and
+label using IL. After training 100 epochs with a batch size of 1, the
+weighted MSE decreased to around 0.05, indicating neural networks can
+generally catch the peaks and trends, and provide relatively effective
+actions.
+
+
+FIGURE
+
+
+C. Improved training performance with guided exploration
+
+
+To shorten the MDP chain and decrease the training difficulty, the
+28-day scenarios are divided into single days, each with 288 timesteps.
+For comparison, the training process of dueling DQN agents with 
+Epsilon-greedy exploration and the proposed
+guided exploration are depicted in Fig. 5(a) and Fig. 5(b), respectively.
+
+
+With Epsilon-greedy exploration, the agent can hardly control the entire
+288 timesteps continuously before Episode 7,000, without game over,
+although the agent&apos;s performance keeps improving towards higher reward
+values (defined in Eq. (2)). The proposed training process using guided
+exploration with 𝑁𝑔=10 is shown in Fig. 5(b). The agent can control more
+steps successfully in the earlier phases of the training process
+compared to Epsilon-greedy exploration. More importantly, it takes a
+much shorter time to train an agent with a better policy.
+
+
+FIGURE
+
+
+D. Testing and performance comparison of different agents
+
+
+With the proposed methodology, several case studies are conducted with
+their performance compared in Table I. It is observed that the agent
+trained only with IL failed for most scenarios. With guided exploration,
+the agent&apos;s performance is greatly improved, where only 7 out of 200
+scenarios failed. Using EW (with threshold 𝜆 ranging from 0.85 to
+0.975), the agent can almost handle all the scenarios well with very few
+cases failed; and the scores are much improved. Similarly, 200 long
+scenarios with 5,184 time steps are tested using DRL agents, where the
+best score achieved is 82,687.17, using an EW threshold of 0.93. Only 12
+scenarios out of 200 experienced bad control performance. Finally, a
+well-trained agent was submitted to the L2RPN competition with EW
+𝜆=0.885, which was automatically tested using 10 unseen scenarios by the
+host of the competition, outperformed the other participants, and
+eventually won the competition. The average decision time for each time
+step using the proposed agent is roughly 50 ms. The corresponding code
+and DRL models are open-sourced, which can be found in *REF*.
+
+
+V. [Conclusion]
+
+
+This paper presents a novel AI-based method to maximize time-series ATCs
+considering various practical constraints. Several innovative techniques
+are developed including dueling DQN, imitation learning for generating
+good initial policies, reduction of action space via simulation and
+domain knowledge, guided exploration and EW for improving DRL agent&apos;s
+stability and robustness. Massive experiments demonstrate a well-trained
+AI agent can learn and master the optimal topology control problem for a
+power grid considering various uncertainties and practical constraints.
+
+
+Future work will focus on further improving the performance of RL
+agents, which will be tested on larger power system models. The
+developed methodologies will also be merged into an AI-based platform
+developed by the team, Grid Mind *REF* - *REF*, for autonomous grid
+operation and control.

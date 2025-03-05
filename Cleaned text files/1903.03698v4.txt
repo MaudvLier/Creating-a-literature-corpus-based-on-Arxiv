@@ -1,0 +1,663 @@
+Introduction 
+
+
+FIGURE
+
+
+Reinforcement learning (RL) provides an appealing formalism for
+automated learning of behavioral skills, but separately learning every
+potentially useful skill becomes prohibitively time consuming, both in
+terms of the experience required for the agent and the effort required
+for the user to design reward functions for each behavior. What if we
+could instead design an unsupervised RL algorithm that automatically
+explores the environment and iteratively distills this experience into
+general-purpose policies that can accomplish new user-specified tasks at
+test time?
+
+
+In the absence of any prior knowledge, an effective exploration scheme
+is one that visits as many states as possible, allowing a policy to
+autonomously prepare for user-specified tasks that it might see at test
+time. We can formalize the problem of visiting as many states as
+possible as one of maximizing the state entropy
+*MATH* under the current policy.
+Unfortunately, optimizing this objective alone does not result in a
+policy that can solve new tasks: it only knows how to maximize state
+entropy. In other words, to develop principled unsupervised RL
+algorithms that result in useful policies, maximizing
+*MATH* is not enough. We need a mechanism that
+allows us to reuse the resulting policy to achieve new tasks at
+test-time.
+
+
+We argue that this can be accomplished by performing goal-directed
+exploration: a policy should autonomously visit as many states as
+possible, but after autonomous exploration, a user should be able to
+reuse this policy by giving it a goal *MATH* that corresponds to a
+state that it must reach. While not all test-time tasks can be expressed
+as reaching a goal state, a wide range of tasks can be represented in
+this way. Mathematically, the goal-conditioned policy should minimize
+the conditional entropy over the states given a goal,
+*MATH*, so that there is little
+uncertainty over its state given a commanded goal. This objective
+provides us with a principled way to train a policy to explore all
+states (maximize *MATH*) such that the state that
+is reached can be determined by commanding goals (minimize *MATH*).
+
+
+Directly optimizing this objective is in general intractable, since it
+requires optimizing the entropy of the marginal state distribution,
+*MATH*. However, we can sidestep this issue by
+noting that the objective is the mutual information between the state
+and the goal, *MATH*, which can be written as: *MATH*.
+Equation thus gives an equivalent objective for an
+unsupervised RL algorithm: the agent should set diverse goals,
+maximizing *MATH*, and learn how to reach them, minimizing *MATH*.
+
+
+While learning to reach goals is the typical objective studied in
+goal-conditioned RL [*REF*; *REF*], setting
+goals that have maximum diversity is crucial for effectively learning to
+reach all possible states. Acquiring such a maximum-entropy goal
+distribution is challenging in environments with complex,
+high-dimensional state spaces, where even knowing which states are valid
+presents a major challenge. For example, in image-based domains, a
+uniform goal distribution requires sampling uniformly from the set of
+realistic images, which in general is unknown a priori.
+
+
+Our paper makes the following contributions. First, we propose a
+principled objective for unsupervised RL, based on
+equation. While a number of prior works ignore the
+*MATH* term, we argue that jointly optimizing the
+entire quantity is needed to develop effective exploration. Second, we
+present a general algorithm called Skew-Fit and prove that under
+regularity conditions Skew-Fit learns a sequence of generative models
+that converges to a uniform distribution over the goal space, even when
+the set of valid states is unknown (e.g., as in the case of images).
+Third, we describe a concrete implementation of Skew-Fit and empirically
+demonstrate that this method achieves state of the art results compared
+to a large number of prior methods for goal reaching with visually
+indicated goals, including a real-world manipulation task, which
+requires a robot to learn to open a door from scratch in about five
+hours, directly from images, and without any manually-designed reward function.
+
+
+Problem Formulation 
+
+
+To ensure that an unsupervised reinforcement learning agent learns to
+reach all possible states in a controllable way, we maximize the mutual
+information between the state *MATH* and the goal *MATH*,
+*MATH*, as stated in Equation. This section discusses how to optimize
+Equation by splitting the optimization into two parts:
+minimizing *MATH* and maximizing *MATH*.
+
+
+Minimizing *MATH*: Goal-Conditioned Reinforcement Learning
+
+
+Standard RL considers a Markov decision process (MDP), which has a state
+space *MATH*, action space *MATH*, and unknown dynamics *MATH*.
+Goal-conditioned RL also includes a goal space *MATH*. For
+simplicity, we will assume in our derivation that the goal space matches
+the state space, such that *MATH*, though the
+approach extends trivially to the case where *MATH* is a
+hand-specified subset of *MATH*, such as the global XY position
+of a robot. A goal-conditioned policy *MATH* maps a state
+*MATH* and goal *MATH* to a distribution over actions *MATH*, and its
+objective is to reach the goal, i.e., to make the current state equal to the goal.
+
+
+Goal-reaching can be formulated as minimizing
+*MATH*, and many practical goal-reaching
+algorithms [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*]
+can be viewed as approximations to this objective by observing that the
+optimal goal-conditioned policy will deterministically reach the goal,
+resulting in a conditional entropy of zero:
+*MATH*. See [13] for more details. Our method may thus
+be used in conjunction with any of these prior goal-conditioned RL
+methods in order to jointly minimize *MATH* and maximize *MATH*.
+
+
+Maximizing *MATH*: Setting Diverse Goals 
+
+
+We now turn to the problem of setting diverse goals or, mathematically,
+maximizing the entropy of the goal distribution
+*MATH*. Let *MATH* be the uniform
+distribution over *MATH*, where we assume *MATH* has
+finite volume so that the uniform distribution is well-defined. Let
+*MATH* be the goal distribution from which goals *MATH* 
+are sampled, parameterized by *MATH*. Our goal is to maximize the
+entropy of *MATH*, which we write as
+*MATH*. Since the maximum entropy distribution over
+*MATH* is the uniform distribution *MATH*,
+maximizing *MATH* may seem as simple as choosing
+the uniform distribution to be our goal distribution:
+*MATH*. However, this requires knowing the
+uniform distribution over valid states, which may be difficult to obtain
+when *MATH* is a subset of *MATH*, for some *MATH*. For
+example, if the states correspond to images viewed through a robot&apos;s
+camera, *MATH* corresponds to the (unknown) set of valid images
+of the robot&apos;s environment, while *MATH* corresponds to all
+possible arrays of pixel values of a particular size. In such
+environments, sampling from the uniform distribution *MATH* is
+unlikely to correspond to a valid image of the real world. Sampling
+uniformly from *MATH* would require knowing the set of all
+possible valid images, which we assume the agent does not know when
+starting to explore the environment.
+
+
+While we cannot sample arbitrary states from *MATH*, we can
+sample states by performing goal-directed exploration. To derive and
+analyze our method, we introduce a simple model of this process: a goal
+*MATH* is sampled from the goal distribution
+*MATH*, and then the goal-conditioned policy *MATH* attempts to
+achieve this goal, which results in a distribution of terminal states
+*MATH*. We abstract this entire process by
+writing the resulting marginal distribution over *MATH* as
+*MATH*,where the subscript *MATH* indicates that the marginal
+*MATH* depends indirectly on *MATH* via the
+goal-conditioned policy *MATH*. We assume that *MATH* has full
+support, which can be accomplished with an epsilon-greedy goal reaching
+policy in a communicating MDP. We also assume that the entropy of the
+resulting state distribution *MATH* is no less
+than the entropy of the goal distribution
+*MATH*. Without this assumption, a policy could
+ignore the goal and stay in a single state, no matter how diverse and
+realistic the goals are. This simplified model allows us to analyze
+the behavior of our goal-setting scheme separately from any specific
+goal-reaching algorithm. We will however show in
+Section [6] that we can instantiate this approach into
+a practical algorithm that jointly learns the goal-reaching policy. In
+summary, our goal is to acquire a maximum-entropy goal distribution
+*MATH* over valid states *MATH*, while only having
+access to state samples from *MATH*.
+
+
+Skew-Fit: Learning a Maximum Entropy Goal Distribution 
+
+
+Our method, Skew-Fit, learns a maximum entropy goal distribution
+*MATH* using samples collected from a goal-conditioned policy.
+We analyze the algorithm and show that Skew-Fit maximizes the goal
+distribution entropy, and present a practical instantiation for
+unsupervised deep RL.
+
+
+Skew-Fit Algorithm 
+
+
+To learn a uniform distribution over valid goal states, we present a
+method that iteratively increases the entropy of a generative model
+*MATH*. In particular, given a generative model
+*MATH* at iteration *MATH*, we want to train a new generative
+model, *MATH* that has higher entropy. While we do not
+know the set of valid states *MATH*, we could sample states
+*MATH* using the goal-conditioned policy, and use the samples to train
+*MATH*. However, there is no guarantee that this would
+increase the entropy of *MATH*.
+
+
+FIGURE 
+
+
+The intuition behind our method is simple: rather than fitting a
+generative model to these samples *MATH*, we skew the samples
+so that rarely visited states are given more weight. See
+Figure [2] for a visualization of this process. How should we skew the samples if
+we want to maximize the entropy of *MATH*? If we had
+access to the density of each state, *MATH*,
+then we could simply weight each state by
+*MATH*. We could then perform maximum
+likelihood estimation (MLE) for the uniform distribution by using the
+following importance sampling (IS) loss to train *MATH*:
+*MATH* where we use the fact that the uniform distribution
+*MATH* has constant density for all states in
+*MATH*. However, computing this density
+*MATH* requires marginalizing out the MDP
+dynamics, which requires an accurate model of both the dynamics and the
+goal-conditioned policy.
+
+
+We avoid needing to model the entire MDP process by approximating
+*MATH* with our previous learned generative
+model: *MATH*. We therefore weight each state by the following weight function
+*MATH* where *MATH* is a hyperparameter that controls how
+heavily we weight each state. If our approximation *MATH* is
+exact, we can choose *MATH* and recover the exact IS procedure
+described above. If *MATH*, then this skew step has no effect. By
+choosing intermediate values of *MATH*, we trade off the reliability
+of our estimate *MATH* with the speed at which
+we want to increase the goal distribution entropy.
+
+
+Variance Reduction
+
+
+As described, this procedure relies on IS, which can have high variance,
+particularly if *MATH*. We therefore
+choose a class of generative models where the probabilities are
+prevented from collapsing to zero, as we will describe in
+[4] where we provide generative model details.
+To further reduce the variance, we train *MATH* with
+sampling importance resampling (SIR) [*REF*] rather than IS.
+Rather than sampling from *MATH* and weighting the update
+from each sample by *MATH*, SIR explicitly defines a skewed
+empirical distribution as *MATH* where *MATH* is the indicator function and *MATH* 
+is the normalizing coefficient. We note that computing *MATH* adds
+little computational overhead, since all of the weights already need to
+be computed. We then fit the generative model at the next iteration
+*MATH* to *MATH* using standard MLE. We
+found that using SIR resulted in significantly lower variance than IS.
+See [10.2] for this comparision.
+
+
+Goal Sampling Alternative
+
+
+Because *MATH*, at iteration *MATH*, one can sample goals from either *MATH* 
+or *MATH*. Sampling goals from *MATH* 
+may be preferred if sampling from the learned generative model
+*MATH* is computationally or otherwise challenging. In
+either case, one still needs to train the generative model
+*MATH* to create *MATH*. In our experiments, we found that both methods perform well.
+
+
+Summary
+
+
+Overall, Skew-Fit collects states from the environment and resamples
+each state in proportion to equation so that low-density states are resampled
+more often. Skew-Fit is shown in
+Figure [2] and summarized in Algorithm. We now discuss conditions under which Skew-Fit
+converges to the uniform distribution.
+
+
+ALGORITHM
+
+
+Skew-Fit Analysis 
+
+
+This section provides conditions under which *MATH* 
+converges in the limit to the uniform distribution over the state space
+*MATH*. We consider the case where *MATH*,
+which allows us to study the limit behavior of the goal distribution
+*MATH*. Our most general result is stated as follows:
+
+
+LEMMA 1
+
+
+PROOF
+
+
+We will apply Lemma [1] to be the map from *MATH* to *MATH* to show that
+*MATH* converges to *MATH*. If we assume
+that the goal-conditioned policy and generative model learning procedure
+are well behaved (i.e., the maps from *MATH* to *MATH* and from *MATH* to
+*MATH* are continuous), then to apply
+Lemma [1], we only need to show that *MATH* 
+with equality if and only if *MATH*. For
+the simple case when *MATH* identically at
+each iteration, we prove the convergence of Skew-Fit true for any value
+of *MATH* in [9.3]. However, in practice,
+*MATH* only approximates *MATH*. To address this
+more realistic situation, we prove the following result:
+
+
+LEMMA 2 
+
+
+PROOF
+
+
+This lemma tells us that our generative model *MATH* does
+not need to exactly fit the sampled states. Rather, we merely need the
+log densities of *MATH* and *MATH* to be
+correlated, which we expect to happen frequently with an accurate
+goal-conditioned policy, since *MATH* is the set of states
+seen when trying to reach goals from *MATH*. In this case,
+if we choose negative values of *MATH* that are small enough, then the
+entropy of *MATH* will be higher than that of
+*MATH*. Empirically, we found that *MATH* values as low as
+*MATH* performed well.
+
+
+In summary, *MATH* converges to *MATH* 
+under certain assumptions. Since we train each generative model
+*MATH* by fitting it to *MATH* with
+MLE, *MATH* will also converge to *MATH*.
+
+
+Training Goal-Conditioned Policies with Skew-Fit 
+
+
+Thus far, we have presented Skew-Fit assuming that we have access to a
+goal-reaching policy, allowing us to separately analyze how we can
+maximize *MATH*. However, in practice we do not
+have access to such a policy, and this section discusses how we
+concurrently train a goal-reaching policy.
+
+
+Maximizing *MATH* can be done by simultaneously
+performing Skew-Fit and training a goal-conditioned policy to minimize
+*MATH*, or, equivalently, maximize *MATH*. Maximizing
+*MATH* requires computing the density *MATH*, which may be difficult to
+compute without strong modeling assumptions. However, for any
+distribution *MATH*, the following lower bound on
+*MATH*: *MATH*, we train a policy to
+maximize the reward *MATH*. 
+
+
+The RL algorithm we use is reinforcement learning with imagined goals
+(RIG) [*REF*], though in principle any goal-conditioned method
+could be used. RIG is an efficient off-policy goal-conditioned method
+that solves vision-based RL problems in a learned latent space. In
+particular, RIG fits a *MATH* -VAE [*REF*] and uses it to
+encode observations and goals into a latent space, which it uses as the
+state representation. RIG also uses the *MATH* -VAE to compute rewards,
+*MATH*. Unlike RIG, we use the goal
+distribution from Skew-Fit to sample goals for exploration and for
+relabeling goals during training [*REF*]. Since RIG
+already trains a generative model over states, we reuse this *MATH* -VAE
+for the generative model *MATH* of Skew-Fit. To make the most
+use of the data, we train *MATH* on all visited state rather
+than only the terminal states, which we found to work well in practice.
+To prevent the estimated state likelihoods from collapsing to zero, we
+model the posterior of the *MATH* -VAE as a multivariate Gaussian
+distribution with a fixed variance and only learn the mean. We summarize
+RIG and provide details for how we combine Skew-Fit and RIG in
+[11.4] and describe how we estimate the
+likelihoods given the *MATH* -VAE in [11.1].
+
+
+Related Work 
+
+
+Many prior methods in the goal-conditioned reinforcement learning
+literature focus on training goal-conditioned policies and assume that a
+goal distribution is available to sample from during
+exploration [*REF*; *REF*; *REF*; *REF*],
+or use a heuristic to design a
+non-parametric [*REF*; *REF*; *REF*]
+or parametric [*REF*; *REF*] goal distribution
+based on previously visited states. These methods are largely
+complementary to our work: rather than proposing a better method for
+training goal-reaching policies, we propose a principled method for
+maximizing the entropy of a goal sampling distribution,
+*MATH*, such that these policies cover a wide range of states.
+
+
+Our method learns without any task rewards, directly acquiring a policy
+that can be reused to reach user-specified goals. This stands in
+contrast to exploration methods that modify the reward based on state
+visitation frequency [*REF*]. While these methods can also be used without a task reward, they provide
+no mechanism for distilling the knowledge gained from visiting diverse
+states into flexible policies that can be applied to accomplish new
+goals at test-time: their policies visit novel states, and they quickly
+forget about them as other states become more novel. Similarly, methods
+that provably maximize state entropy without using goal-directed
+exploration [*REF*] or methods that define new rewards to
+capture measures of intrinsic motivation [*REF*] and
+reachability [*REF*] do not produce reusable policies.
+
+
+Other prior methods extract reusable skills in the form of
+latent-variable-conditioned policies, where latent variables are
+interpreted as options [*REF*] or abstract
+skills [*REF*; *REF*; *REF*; *REF*; *REF*].
+The resulting skills are diverse, but have no grounded interpretation,
+while Skew-Fit policies can be used immediately after unsupervised
+training to reach diverse user-specified goals.
+
+
+Some prior methods propose to choose goals based on heuristics such as
+learning progress [*REF*; *REF*; *REF*],
+how off-policy the goal is [*REF*], level of
+difficulty [*REF*], or likelihood
+ranking [*REF*]. In contrast, our approach provides a
+principled framework for optimizing a concrete and well-motivated
+exploration objective, can provably maximize this objective under
+regularity assumptions, and empirically outperforms many of these prior
+work (see [6]).
+
+
+Experiments 
+
+
+Our experiments study the following questions: (1) Does Skew-Fit
+empirically result in a goal distribution with increasing entropy?
+(2) Does Skew-Fit improve exploration for goal-conditioned RL?
+(3) How does Skew-Fit compare to prior work on choosing goals for
+vision-based, goal-conditioned RL? (4) Can Skew-Fit be applied to a
+real-world, vision-based robot task?
+
+
+FIGURE
+
+
+Does Skew-Fit Maximize Entropy?
+
+
+To see the effects of Skew-Fit on goal distribution entropy in isolation
+of learning a goal-reaching policy, we study an idealized example where
+the policy is a near-perfect goal-reaching policy. The environment
+consists of four rooms [*REF*]. At the beginning of an
+episode, the agent begins in the bottom-right room and samples a goal
+from the goal distribution *MATH*. To simulate stochasticity
+of the policy and environment, we add a Gaussian noise with standard
+deviation of *MATH* units to this goal, where the entire environment is
+*MATH* units. The policy reaches the state that is closest to
+this noisy goal and inside the rooms, giving us a state sample
+*MATH* for training *MATH*. Due to the relatively
+small noise, the agent cannot rely on this stochasticity to explore the
+different rooms and must instead learn to set goals that are
+progressively farther and farther from the initial state. We compare
+multiple values of *MATH*, where *MATH* corresponds to not using
+Skew-Fit. The *MATH* -VAE hyperparameters used to train
+*MATH* are given in [11.2]. As seen in Figure [3],
+sampling uniformly from previous experience (*MATH*) to set goals
+results in a policy that primarily sets goal near the initial state
+distribution. In contrast, Skew-Fit results in quickly learning a high
+entropy, near-uniform distribution over the state space.
+
+
+FIGURE
+
+
+Exploration with Skew-Fit
+
+
+We next evaluate Skew-Fit while concurrently learning a goal-conditioned
+policy on a task with state inputs, which enables us study exploration
+performance independently of the challenges with image observations. We
+evaluate on a task that requires training a simulated quadruped &quot;ant&quot;
+robot to navigate to different XY positions in a labyrinth, as shown in
+Figure [4]. The reward is the negative distance to the goal XY-position, and
+additional environment details are provided in
+[12]. This task presents a challenge for
+goal-directed exploration: the set of valid goals is unknown due to the
+walls, and random actions do not result in exploring locations far from
+the start. Thus, Skew-Fit must set goals that meaningfully explore the
+space while simultaneously learning to reach those goals.
+
+
+We use this domain to compare Skew-Fit to a number of existing
+goal-sampling methods. We compare to the relabeling scheme described in
+the hindsight experience replay (labeled HER). We compare to
+curiosity-driven prioritization (Ranked-Based
+Priority) [*REF*], a variant of HER that samples goals for
+relabeling based on their ranked likelihoods. *REF* samples
+goals from a GAN based on the difficulty of reaching the goal. We
+compare against this method by replacing *MATH* with the GAN
+and label it AutoGoal GAN. We also compare to the non-parametric
+goal proposal mechanism proposed by [*REF*], which we
+label DISCERN-g. Lastly, to demonstrate the difficulty of the
+exploration challenge in these domains, we compare to
+-Exploration [*REF*], an exploration method that assigns
+bonus rewards based on the novelty of new states. We train the
+goal-conditioned policy for each method using soft actor critic
+(SAC) [*REF*]. Implementation details of SAC and the prior
+works are given in [11.3].
+
+
+We see in Figure [4] that Skew-Fit is the only method that makes
+significant progress on this challenging labyrinth locomotion task. The
+prior methods on goal-sampling primarily set goals close to the start
+location, while the extrinsic exploration reward in -Exploration
+dominated the goal-reaching reward. These results demonstrate that
+Skew-Fit accelerates exploration by setting diverse goals in tasks with
+unknown goal spaces.
+
+
+Vision-Based Continuous Control Tasks
+
+
+FIGURE
+
+
+We now evaluate Skew-Fit on a variety of image-based continuous control
+tasks, where the policy must control a robot arm using only image
+observations, there is no state-based or task-specific reward, and
+Skew-Fit must directly set image goals. We test our method on three
+different image-based simulated continuous control tasks released by the
+authors of RIG [*REF*]: Visual Door, Visual Pusher, and
+Visual Pickup. These environments contain a robot that can open a
+door, push a puck, and lift up a ball to different configurations,
+respectively. To our knowledge, these are the only goal-conditioned,
+vision-based continuous control environments that are publicly available
+and experimentally evaluated in prior work, making them a good point of
+comparison. See [5] for visuals and [11] for environment details. The
+policies are trained in a completely unsupervised manner, without access
+to any prior information about the image-space or any pre-defined
+goal-sampling distribution. To evaluate their performance, we sample
+goal images from a uniform distribution over valid states and report the
+agent&apos;s final distance to the corresponding simulator states (e.g.,
+distance of the object to the target object location), but the agent
+never has access to this true uniform distribution nor the ground-truth
+state information during training. While this evaluation method is only
+practical in simulation, it provides us with a quantitative measure of a
+policy&apos;s ability to reach a broad coverage of goals in a vision-based
+setting.
+
+
+We compare Skew-Fit to a number of existing methods on this domain.
+First, we compare to the methods described in the previous experiment
+(HER, Rank-Based Priority, -Exploration, Autogoal GAN, and DISCERN-g).
+These methods that we compare to were developed in non-vision,
+state-based environments. To ensure a fair comparison across methods, we
+combine these prior methods with a policy trained using RIG. We
+additionally compare to *REF*, an exploration method that
+assigns bonus rewards based on the likelihood of a state (labeled
+Hazan et al.). Next, we compare to RIG without Skew-Fit. Lastly,
+we compare to DISCERN [*REF*], a vision-based
+method which uses a non-parametric clustering approach to sample goals
+and an image discriminator to compute rewards.
+
+
+FIGURE
+
+
+FIGURE
+
+
+We see in Figure [6] that Skew-Fit significantly outperforms
+prior methods both in terms of task performance and sample complexity.
+The most common failure mode for prior methods is that the goal
+distributions collapse, resulting in the agent learning to reach only a
+fraction of the state space, as shown in
+[1]. For comparison, additional samples of
+*MATH* when trained with and without Skew-Fit are shown in
+[10.3]. Those images show that without Skew-Fit,
+*MATH* produces a small, non-diverse distribution for each
+environment: the object is in the same place for pickup, the puck is
+often in the starting position for pushing, and the door is always
+closed. In contrast, Skew-Fit proposes goals where the object is in the
+air and on the ground, where the puck positions are varied, and the door
+angle changes.
+
+
+We can see the effect of these goal choices by visualizing more example
+rollouts for RIG and Skew-Fit. These visuals, shown in
+Figure in [10.3], show that RIG only learns to reach states
+close to the initial position, while Skew-Fit learns to reach the entire
+state space. For a quantitative comparison,
+Figure [7] shows the cumulative total
+exploration pickups for each method. From the graph, we see that many
+methods have a near-constant rate of object lifts throughout all of
+training. Skew-Fit is the only method that significantly increases the
+rate at which the policy picks up the object during exploration,
+suggesting that only Skew-Fit sets goals that encourage the policy to
+interact with the object.
+
+
+FIGURE
+
+
+Real-World Vision-Based Robotic Manipulation
+
+
+We also demonstrate that Skew-Fit scales well to the real world with a
+door opening task, Real World Visual Door, as shown in
+Figure [5]. While a number of prior works have studied
+RL-based learning of door
+opening [*REF*; *REF*], we demonstrate
+the first method for autonomous learning of door opening without a
+user-provided, task-specific reward function. As in simulation, we do
+not provide any goals to the agent and simply let it interact with the
+door, without any human guidance or reward signal. We train two agents
+using RIG and RIG with Skew-Fit. Every seven and a half minutes of
+interaction time, we evaluate on *MATH* goals and plot the cumulative
+successes for each method. Unlike in simulation, we cannot easily
+measure the difference between the policy&apos;s achieved and desired door
+angle. Instead, we visually denote a binary success/failure for each
+goal based on whether the last state in the trajectory achieves the
+target angle. As Figure [8] shows, standard RIG only starts to open
+the door after five hours of training. In contrast, Skew-Fit learns to
+occasionally open the door after three hours of training and achieves a
+near-perfect success rate after five and a half hours of interaction.
+[8] also shows examples of successful
+trajectories from the Skew-Fit policy, where we see that the policy can
+reach a variety of user-specified goals. These results demonstrate that
+Skew-Fit is a promising technique for solving real world tasks without
+any human-provided reward function. Videos of Skew-Fit solving this task
+and the simulated tasks can be viewed on our website. 
+
+
+FIGURE 
+
+
+Additional Experiments
+
+
+To study the sensitivity of Skew-Fit to the hyperparameter *MATH*, we
+sweep *MATH* across the values *MATH* on the
+simulated image-based tasks. The results are in
+[10] and demonstrate that Skew-Fit works across a large range of values for
+*MATH*, and *MATH* consistently outperform *MATH* (i.e.
+outperforms no Skew-Fit). Additionally, [11] provides a complete description
+our method hyperparameters, including network architecture and RL algorithm hyperparameters.
+
+
+Conclusion 
+
+
+We presented a formal objective for self-supervised goal-directed
+exploration, allowing researchers to quantify and compare progress when
+designing algorithms that enable agents to autonomously learn. We also
+presented Skew-Fit, an algorithm for training a generative model to
+approximate a uniform distribution over an initially unknown set of
+valid states, using data obtained via goal-conditioned reinforcement
+learning, and our theoretical analysis gives conditions under which
+Skew-Fit converges to the uniform distribution. When such a model is
+used to choose goals for exploration and to relabeling goals for
+training, the resulting method results in much better coverage of the
+state space, enabling our method to explore effectively. Our experiments
+show that when we concurrently train a goal-reaching policy using
+self-generated goals, Skew-Fit produces quantifiable improvements on
+simulated robotic manipulation tasks, and can be used to learn a door
+opening skill to reach a *MATH* success rate directly on a real-world
+robot, without any human-provided reward supervision.

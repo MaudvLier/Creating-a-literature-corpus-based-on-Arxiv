@@ -1,0 +1,571 @@
+Adaptive Genomic Evolution of Neural Network Topologies (AGENT) for State-to-Action Mapping in Autonomous Agents
+
+
+Introduction 
+
+
+Artificial Neural networks or ANNs are playing an emerging role as
+decision-support models in various intelligent autonomous systems
+[*REF*]. This emergence is partly attributed to the
+capability of ANNs to serve as universal function approximators,
+allowing them to be used for mapping states to (discrete or continuous)
+actions in autonomous systems. A significant fraction of such
+applications fall in the category where optimum actions corresponding to
+various states (i.e., labeled data) are not known apriori. Outside of
+classical control and planning methods, reinforcement learning (RL)
+methods [*REF*; *REF*] and its recent deep variants [*REF*] constitute a
+dominant player in training state-to-action models in such scenarios.
+However, RL methods use gradient information for back propagation which
+is not easy to ascertain for some problems
+[*REF*], and generally do not scale well with
+the dimension of the problem for many cases [*REF*]. Most RL
+variants (with recent exceptions [*REF*; *REF*]) are also not
+conducive to application in the continuous-space domain. An alternative
+class of frameworks, based on evolutionary algorithms
+[*REF*], namely neuroevolution [*REF*] and
+evolution strategies [*REF*], seek to mitigate these limitations.
+
+
+While neuroevolution allows highly parallelized implementations and can
+be applied to problems with continuous/mixed state spaces, they are
+often plagued with poor convergence, premature stagnation, and
+topological inflexibility issues. In this paper, we present a novel
+neuroevolution approach, with the aim to address these key issues.
+
+
+Neuroevolution is the process of designing ANNs through evolutionary
+optimization algorithms. Early approaches merely evolved the weights of
+the ANN without altering its topology [*REF*], a typical continuous
+optimization problem -- genetic algorithms (GA) were used for this
+purpose. In these approaches, the architecture or topology of the ANN
+was user-prescribed (as is common across most domains of ANN training
+and usage), which however leads to sub-optimal of overfitting prediction
+models [*REF*] for state-to-action mapping. Later
+endeavors introduced the concept of topology and weight evolving
+ANNs (TWEANNs). Neuroevolution of augmenting topologies or NEAT
+[*REF*] is perhaps the most well-known implementation of the TWEANN
+concept. NEAT evolves ANNs via a GA that directly encodes the nodes,
+edges, and edge weights (the phenotype) in a specialized genotype. NEAT
+commences with a population of minimalist genomes, represented by
+feedforward ANNs (with no hidden nodes), whose input and output layers
+are sized according to the problem at hand. At every generation of NEAT,
+along with standard genetic operations (i.e., selection, crossover, and
+mutation) a specialized operation called &quot;speciation\&quot; is performed on
+the population in order to preserve newly created complex topologies
+(with likely premature weights). Variations of NEAT, including HyperNEAT
+[*REF*] (which provides an indirect genotype *MATH* phenotype
+encoding) and SUNA [*REF*] have been used to control virtual agents in
+Atari games [*REF*], evolve robot gaits [*REF*], geological prediction
+[*REF*], and financial market analysis
+[*REF*]. More recently, neuroevolution has also been
+employed to evolve deep neural networks [*REF*].
+
+
+A persistent concern in evolving neural network topologies (for highly
+non-linear state *MATH* action mapping) is that of premature
+stagnation. Neuroevolution methods are often unable to preserve genomic
+diversity as (nascent) complex structures cannot stabilize their weights
+as fast as simple networks leading to local stagnation (fitness
+functions typically tend to be highly non-convex over the NN topological
+space). While problem-specific tedious heuristics can strive to address
+this concern, we hypothesize that situation-adaptive automated
+variation of selection pressure and reproduction operators are needed to
+offer generalized solutions. In addition, while the concept in NEAT of
+initializing the population with minimalist NN topologies [*REF*]
+mitigates the possibility of overfitting (to sample scenarios used for
+fitness evaluation) and aids fast convergence for problems with
+low-dimensional input spaces, a converse effect is encountered in
+problems with larger state spaces or when modeling highly non-linear
+state *MATH* action mapping. In these cases, starting with a
+minimalist baseline could lead to wasted computational effort to reach
+network topologies of reasonable complexity. Problem size-adaptive
+initialization of the NN topologies and allowing topological complexity
+to both increase and decrease [*REF*] during
+neuroevolution is hypothesized to address this issue.
+
+
+To investigate the above-stated hypotheses, this paper develops an
+adaptive neuroevolution approach that incorporates novel mechanisms
+for insitu control of the genomic diversity and average fitness
+improvement. Further performance and computational efficiency gains are
+accomplished by allowing flexible topology initialization and
+provisioning nodes with variable activation function and memory
+properties. The new algorithm is evaluated both over benchmark RL and
+control problems and a practical robotics problem -- collision avoidance
+in unmanned aerial vehicles (UAV). The next section describes the basic
+components of the algorithm. Section [3] presents the salient features of the
+algorithm. Section [4] and Section [5]
+respectively demonstrate the capabilities of the algorithm on benchmark
+problems and the UAV problem; and Section [6] provides concluding remarks.
+
+
+AGENT (Neuroevolution) Algorithm 
+
+
+The new neuroevolution algorithm is called Adaptive Genomic Evolution of
+Neural Network Topologies or AGENT. In this section, we describe the
+key components of this algorithm, namely the intra-generational stages,
+the encoding approach, and the selection and reproduction operators.
+
+
+AGENT: Stages
+
+
+Figure [1] illustrates the overall flowchart of the AGENT algorithm. AGENT uses a
+two-stage evolutionary approach. All species participate in the first
+stage of evolution in each generation, while only the best genomes from
+each species participate in the second stage of evolution.
+
+
+FIGURE
+
+
+Encoding
+
+
+Information-processing capacity in an ANN is encapsulated both in its
+nodes and edges. Therefore, similar to the original NEAT, AGENT uses a
+direct bi-structural encoding, where each genome comprises of a node
+encoding and an edge encoding. Where AGENT differs from NEAT is in how
+nodes are encoded -- in AGENT, the node encoding also defines the type
+of activation function and memory capacity of the node. To allow greater
+flexibility, one of three activation functions can be selected: modified
+sigmoid, (only option in original NEAT), saturated linear, and sigmoid
+functions. The memory is allowed to take one of three values:
+*MATH*; a memory size of *MATH* designates using the current
+weighted input incoming into the node; memory sizes of *MATH* and *MATH* 
+respectively allow using the first and second temporal derivatives of
+the weighted input incoming into the node. The latter enables exibiting
+temporal dynamic behavior, useful for neurocontroller type applications.
+Equation explains how the derivatives of each node are
+used. In this equation, for a node connected to *MATH* upstream nodes,
+*MATH* is the net synaptic input of node- *MATH* in time step *MATH*,
+*MATH* is the output of the (upstream) node- *MATH*, *MATH* is the
+time step used when implementing this NN as a controller, and *MATH*.
+
+
+Initialization
+
+
+Unlike NEAT, the initial population in AGENT is allowed to comprise a
+small number of hidden neurons, instead of a minimalist topology with no
+hidden neurons. To introduce diversity in the initial population, the
+number of hidden nodes in each genome is chosen from a distribution such
+that the expected value (over the population) of the number of hidden
+nodes is given by *MATH*; here *MATH* and *MATH* are
+respectively the number of input and output nodes.
+
+
+Speciation
+
+
+Speciation is a crucial aspect of AGENT -- it refers to the process in
+which the population is divided into several subgroups. Speciation is
+carried out for two reasons. First, it shelters newly generated genomes
+(containing yet-to-be-stabilized weights) from getting eliminated due to
+selection pressure. Second, it facilitates greater local search within
+each species. The speciation process adopted here is similar to that in
+SUNA [*REF*]. The most unique genomes are chosen to represent the
+different species. The remaining genomes are then classified into these
+species/groups based on their similarity to the aforementioned unique
+genomes.
+
+
+Selection
+
+
+Tournament selection is used in AGENT due to its property of being
+invariant in order-preserving transformations. Moreover, compared to
+proportional selection, tournament selection has the added benefit of
+being able to modify selection pressure by varying the ratio between the
+number of genomes that participate in the tournament and the number of
+genomes that are allowed to win the tournament. This will be used later
+on for controlling the selection pressure.
+
+
+Crossover
+
+
+AGENT expands on the crossover process used in NEAT, by also
+transferring the special nodal properties (activation function and
+memory type). Figure [2] illustrates this procedure. Weights of common
+edges are inherited randomly (with equal probability) from one of the
+two parents, while all nodal properties and weights associated with
+unique edges are inherited from the parent with superior fitness value.
+
+
+FIGURE
+
+
+Mutation
+
+
+As illustrated in Fig. [3] and described below, there are two types of
+mutation in AGENT, mutation of edges/nodes and mutation of nodal
+properties, each with their own rate.
+
+
+Mutation of edge weights: For existing edges between any two nodes *MATH* 
+and *MATH*, real-valued Gaussian mutation [*REF*] of weights is
+undertaken, as given by: *MATH*.
+
+
+Addition of an edge: An edge can be added between any existing pair of
+nodes as long as duplicate edges and cycles are not produced. It must be
+noted that the addition of an edge/node increases the complexity of the
+network. The weight of the new edge is assigned randomly from a uniform
+distribution in the range *MATH*.
+
+
+Removal of an edge: Removing edges and nodes assists in reducing
+network complexity, e.g., to mitigate overfitting. An edge between any
+existing pair of nodes can be removed as long it does not result in a
+floating node. In this research, the mutation rate for removing an edge
+is kept at 80 *MATH* of the mutation rate for adding an edge, thereby
+allowing slightly greater probability of network complexification.
+
+
+Addition of a node: A node can be added between any edge resulting in
+the splitting of the edge into two edges.
+
+
+Removal of a node: Any hidden node can be removed. Upon removal of a
+node, new connections are made such that all incident downstream nodes
+(w.r.t. to the removed node) are connected to all upstream nodes (to
+which the removed node was connected). The probability of removing a
+node is kept at *MATH* of the probability of adding a node.
+
+
+Mutation of nodal properties: This is done by probabilistic switching
+between the categorical values of these properties (i.e., different
+memory value or activation function).
+
+
+FIGURE
+
+
+Adaptation Mechanisms in AGENT 
+
+
+In this section, we outline the novel formulations proposed to
+adaptively control the diversity and (fitness) improvement rate of AGENT
+along with the requisite metrics and limits.
+
+
+Diversity Preservation: Measure of Diversity 
+
+
+Population diversity is paramount to effective neuroevolution. This
+calls for prudently controlling the population diversity -- an abrupt
+decrease in diversity can lead to premature stagnation, but at the same
+time, a steady (low) rate of diversity reduction is needed for
+exploitation and eventual convergence. The first step in diversity
+preservation is robust measurement of diversity. To develop a diversity
+measure, an approach is needed to quantify the differences between any
+two neural networks in the design space. In neuroevolution, since
+genomes encode different topologies, their basic dimensionality varies
+across the population. Hence, a distance metric similar to the novelty
+metric described in [*REF*] is used here. The distance between two
+candidate ANNs, *MATH* and *MATH*, is thus given by the weighted sum of the
+difference between their node types, as well as the difference between
+edges connecting different types of nodes. *MATH*.
+In this equation, *MATH* is the number of nodes of type *MATH* in neural
+network A. *MATH* is the number of edges from node type
+*MATH* to node type *MATH* in neural network A, and *MATH* is the number of
+types of activation functions allowed in the NNs. The weights
+*MATH* and *MATH* are prescribed to be *MATH* in this paper.
+
+
+Now, to quantify the overall diversity in the population at any given
+generation *MATH*, we construct a complete undirected graph *MATH* out of
+the population of *MATH* candidate NNs. The length of the edges connecting
+candidate NNs in this graph is given by the above defined distance
+metric (Eq.). Then, employing the concept of minimum
+spanning tree (MST), the total length of the MST is used as the
+diversity metric (*MATH*) at the *MATH* generation, as given by:
+*MATH* where *MATH* represents an edge connecting ANNs A and B in the (population) graph.
+Kruskal&apos;s Algorithm [*REF*] is used to determine the MST, which is
+computationally inexpensive (*MATH*, where *MATH* is the number of edges in the graph), and thus can be called in
+every generation.
+
+
+With this measure of diversity, we can define a desired value for
+diversity and also delineate an approach to maintain this desired value.
+The below proposed limit defines the desired diversity at any
+*MATH* generation. Here *MATH* is the diversity in the initial population. The
+coefficient *MATH* is used to increase the diversity.
+Here, *MATH* is the maximum allowed generations. This formulation
+suggests a low steady linear decrease of diversity.
+
+
+Diversity Preservation: Controlling Diversity 
+
+
+The tournament size in the selection operator is used as the control
+input to regulate the diversity. The probability of selecting a specific
+genome, to be copied into the mating pool, decreases with the number of
+genomes participating in the tournament and increases with the number of
+the genomes chosen from the tournament.
+
+
+The probability of the *MATH* ranked genome to be selected into
+the mating pool (*MATH*) by resampling is given by:
+*MATH* where *MATH* is the population size, and *MATH* and *MATH* are
+respectively the numbers of genomes that enter the tournament and win
+the tournament. Since crossover in AGENT produces a single child NN from
+two parent NNs, the numerator is multiplied by *MATH*. Based on this
+formulation, it can be seen that the probability of choosing lower
+ranked genomes increases by increasing the ratio
+*MATH*. Therefore this ratio can be used to
+decrease the selection pressure, thereby increasing the diversity, and
+thus serves as a suitable choice for a control input. For regulating
+diversity at any *MATH* generation, this control input can be
+computed as: *MATH*. Here *MATH* represents the difference between the
+observed diversity and the desired diversity; *MATH* is the diversity
+gain coefficient, which modifies the amount of change that must be
+applied to the tournament ratio. For the current study, we used *MATH*.
+
+
+Improvement Adaptation: Metric of Improvement
+
+
+The premise behind tracking and controlling fitness is its ability to
+reflect whether adequate search dynamics is present in the population.
+Since, diversity is simultaneously being preserved (Section [3]), 
+steady improvement in average fitness over
+generations (in comparison to the improvement in the best fitness in the
+population) would be reflective of a robust search process. With this
+premise, we first define an improvement metric that encapsulates the
+history of improvement, as given by. *MATH* 
+where *MATH* is the current generation, *MATH* and *MATH* respectively
+represent fitness function values at the *MATH* and
+*MATH* generations, and *MATH* is an scaling coefficient.
+This metric is such designed that more recent improvements have a greater influence.
+
+
+Improvement Adaptation: Mutation Controller
+
+
+If the improvement (over generations) in the average fitness of the
+population lags far behind the improvement in the best fitness value, it
+demonstrates a weakening search dynamics across the population. Now, in
+TWEANNs, mutation is the main driver of network innovation. So, too high
+a rate of mutation continues generating new niches of NNs that do not
+get time to stabilize their weights, and the algorithm starts acting as
+random search leading to the lagging average fitness improvement
+scenario mentioned above. This is where an adaptive reduction in
+mutation rate is needed. Conversely, when the improvement in the fitness
+of the population best starts lagging behind improvement in average
+fitness of the population, it is indicative of potential stagnation at
+local optima, and calls for increasing the mutation rate to facilitate
+discovery of new networks. With this perspective, we propose the
+following mutation rate (*MATH*) control strategy:
+*MATH*. Here *MATH* is the mutation rate in generation *MATH*, and *MATH* is
+the mutation controller gain coefficient. Similiar to *MATH*, the
+mutation controller gain can be prescribed to enable more or less
+aggressive search dynamics. For the current paper, *MATH* is set at 0.
+In Eq., *MATH* and *MATH* respectively represent the fitness improvement metrics for the
+population average and the population best; they are computed using Eq.
+
+
+Benchmark Testing of AGENT: OpenAI Gym 
+
+
+OpenAI Gym is an open-source platform [*REF*] that has been growing in
+popularity for benchmarking and comparing RL algorithms [*REF*], as well
+as other learning and optimization methods [*REF*] that can solve
+RL-type control problems. In this paper, we showcase the performance of
+AGENT on three problems curated from the OpenAI gym and compare with
+published results on state-of-the-art RL methods (summarized in Table
+[1]. These problems are very briefly
+described below; further information on these implementations, e.g.,
+details of the state and action vectors, can be found at WEBSITE.
+
+
+Mountain Car
+
+
+In the Mountain Car problem, a candidate NN agent must control an
+underpowered car so that it can successfully climb up a mountain. In
+this paper, the MountainCarContinuous-v0 environment taken directly
+from OpenAI Gym is used; for the sake of fair comparison, the same
+reward function as described in the source code is used. The initial
+position of the car is randomly generated at the commencement of each
+episode -- this could lead to misleading results, as some solutions
+might accumulate a good reward due to a conducive starting position. To
+account for this factor, the number of episodes each genome encounters
+is controlled in a progressive manner. Each genome must accumulate
+reward thresholds before progressing on to the next episode.
+Mathematically, we express this as:
+*MATH* where *MATH* is the reward/penalty
+the agent receives for each action taken; *MATH* is the total
+number of actions taken in the *MATH* -th scenario, and *MATH* represents
+the genome&apos;s accumulated reward in that scenario; *MATH* represents
+the net fitness function evaluate for a candidate genome; *MATH* refers
+to the maximum number of scenarios available at training; and *MATH* 
+refers to the number of scenarios that the genome successfully passed.
+
+
+For this test problem, performance of AGENT is compared to that reported
+for the deep deterministic policy gradient method [*REF*]. From the
+results in Table [1], it can be seen that, AGENT was able to
+find significantly better reward values, albeit at the expense of a
+greater total number of steps (where a step is defined as an executed
+state *MATH* action instance).
+
+
+TABLE
+
+
+Published best values (under maximization) are taken from [*REF*; *REF*; *REF*].
+
+
+Acrobot
+
+
+The Acrobot-v1 environment in OpenAI Gym describes a two joint and two
+link robotic arm that initially hangs downwards. The goal in this
+problem is to produce a joint torque so as to swing the lower link up to
+a specified height. The same approach as outlined in Eq. is taken to mitigate the effects of
+randomness in the environment. As can be seen from Table
+[1], AGENT is able to achieve better reward
+values compared to that of the reference method, RL with adaptive memory
+replay [*REF*], again at the expense of additional computational cost.
+
+
+Lunar Lander
+
+
+The LunarLander-v2 environment in OpenAI Gym presents a problem with a
+mixture of discrete and continuous variables. Here, the agent must
+safely land a spacecraft on a launching pad via control of its three
+engines. The reward function described in OpenAI Gym is used. The
+effects of uncertainties in this problem (attributed to noisy engine
+thrust) are mitigated using the approach outlined in Eq.
+
+
+The optimum results obtained by AGENT is compared to that of a recently
+reported experience replay based RL method [*REF*]. As seen from Table
+[1], AGENT did not perform as well as the RL
+method. This can be attributed to the reward function for this problem,
+which presents many local minima, demanding different behaviors. Note
+that the handcrafted design of the reward functions in such problems do
+not necessarily represent generic performance in physical terms, and are
+often more amenable to RL based learning.
+
+
+Given this problem&apos;s complexity, it is used to analyze the performance
+of the special controllers in AGENT. Figure
+[4] shows the fitness improvement (not fitness value) of the population best
+and population average over generations, which are observed to follow
+similar trajectories *MATH* thus providing evidence towards the
+effectiveness of the fitness improvement adaptation. A baseline case
+with the diversity/mutation controllers deactivated was also run, which
+provided an inferior optimum reward function of 47, further supporting
+the usefulness of AGENT&apos;s adaptation mechanisms.
+
+
+FIGURE
+
+
+Optimal UAV Collision Avoidance 
+
+
+In this section, we present the performance of AGENT on a UAV collision
+avoidance application. UAV collision avoidance is a well studied problem
+with solutions existing for avoiding both static [*REF*] and
+dynamic [*REF*] obstacles.
+
+
+The thesis [*REF*] described an online cooperative collision avoidance
+approach for uniform quadcopter UAVs, where the UAVs undertake either a
+heading change or speed change maneuver, both in a reciprocal manner,
+e.g., if one UAV decides to veer to its left, the other UAV will also
+veer to its own left (both must get back to their original path). The
+prior approach used supervised learning, with optimization derived
+labels over sample collision scenarios, to train the maneuver models.
+Here, we use AGENT/neuroevolution to train the heading-change maneuver
+model. The outputs of the maneuver model are the time, *MATH*, between
+the point of detection and maneuver initiation, and the effective change
+in angle *MATH*. These are used to generate waypoints, then translated
+into a minimum snap trajectory, to be executed by a PID controller
+[*REF*]. The inputs to the model include five UAV pose variables that
+completely define a collision scenario. Figure [5](a)
+illustrates the inputs (state vector) and outputs (action vector) for
+this problem, and Fig. [5](b) illustrates the online maneuver (given by
+the AGENT-trained model) for a representative collision scenario.
+
+
+FIGURE
+
+
+In AGENT, each candidate genome is subjected to a set of *MATH* 
+collision scenarios, with the fitness function (to be maximized) given
+by the following aggregate performance: *MATH*. Here *MATH* is the net energy consumed
+by both UAVs to execute the maneuver, and *MATH* is the total battery
+capacity. In general, *MATH*, and is used as a scaling factor to give
+more prominence to safety (i.e., maintaining adequate inter-UAV
+separation), compared to energy efficiency. In exceptional cases, where
+*MATH* (typically indicates a diverging maneuver), the term *MATH*,
+otherwise *MATH* is equal to the minimum separation distance experienced
+during the maneuver. The parameter *MATH* represents the separation
+threshold, coming closer than which is considered as collision; *MATH* is
+set at *MATH*.
+
+
+AGENT is run with a population size of 400 and allowed 60 generations.
+Figure [6] shows the structure of the optimum NN obtained, compared to an initial
+NN. This optimum NN avoids collisions in all *MATH* training
+scenarios. It is also tested on an additional 200 unseen scenarios,
+chosen from the same distribution as the training scenarios. It
+successfully avoids collisions in 192/200 unseen scenarios.
+
+
+FIGURE
+
+
+For further validation, the performance of the AGENT-derived NN model is
+compared with that given by optimizing the maneuver individually for
+each test scenario. The PSO-based global optimization approach [*REF*],
+used in the prior work for generating labels [*REF*], is employed for
+the latter (whose computing cost makes it unsuitable for online
+application). Figure [7] shows the distribution of energy
+consumption and minimum separation distance (during maneuver) over the
+test scenarios, for both the AGENT-derived model and the PSO results. It
+can be observed from Fig. [7] that while the energy efficiency
+performance of AGENT&apos;s NN model is slightly worse than the PSO results,
+the avoidance performance is quite comparable -- 192/200 successes by
+AGENT&apos;s NN model vs. 196/200 successes by PSO.
+
+
+FIGURE
+
+
+Conclusion 
+
+
+In this paper, we developed a new neuroevolution method, called AGENT,
+by making important advancements to the NEAT formalism, The goal was to
+mitigate premature stagnation issues and improve the rate of convergence
+on complex RL/control problems. The key contributions included: 1)
+incorporating memory and activation function choice as nodal properties,
+2) quantifying diversity using minimum spanning tree and controlling
+diversity via adaptive tournament selection, 3) controlling average
+fitness improvement via mutation rate adaptation, and 4) allowing both
+growth and shrinkage of NN topologies during evolution.
+
+
+The AGENT algorithm was tested on benchmark control problems adopted
+from the Open AI Gym, illustrating competitive results in terms of final
+outcomes (except in one problem), while incurring greater time steps
+cost, both compared to state-of-the-art RL methods. However, it is
+important to point out that AGENT is significantly more amenable to
+parallel implementation than RL methods, and thus computational time
+comparisons in future might elicit a different (likely more promising)
+picture. AGENT was also tested on an original UAV collision avoidance
+problem, resulting in an online model that provided competitive
+performance w.r.t offline optimization over test scenarios. Immediate
+future efforts will explore mechanisms to accelerate the evolutionary
+process via indirect genomic encoding and distributed implementations,
+in order to allow application to higher-dimensional learning problems in
+robotics.

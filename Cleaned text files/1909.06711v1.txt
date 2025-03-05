@@ -1,0 +1,670 @@
+Cognitive swarming in complex environments with attractor dynamics and oscillatory computing
+
+
+Introduction 
+
+
+Spatial cognition in rodents has been extensively studied in
+non-naturalistic environments such as linear or circular tracks, radial
+arm mazes, and T-mazes, or small open-field arenas such as squares or
+cylinders of approximately 1--2 m *MATH* area. Such experimental conditions
+have allowed individual place fields of hippocampal pyramidal
+neurons [*REF*] and the activity of other spatial
+cells [*REF*; *REF*; *REF*; *REF*; *REF*] to
+be exquisitely controlled and analyzed, leading to a detailed neural
+coding account of distributed representations that subserve spatial learning, memory, and planning in
+mammals [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*],
+potentially extending to general cognitive computations in
+humans [*REF*; *REF*]. However, the multiplicity of
+Poisson-distributed hippocampal place fields exposed in larger
+environments [*REF*; *REF*] and species differences in
+mapping 3-dimensional contexts [*REF*; *REF*] suggest large
+and/or complex environments as the next frontier in understanding spatial navigation.
+
+
+Computational models of rodent spatial networks have typically emulated
+the restricted environments of experimental studies (for computational
+efficiency, ease of analysis, and compatibility with published data).
+Despite these limitations, recent theoretical results have demonstrated
+the importance of sensory and cortical feedback in stabilizing and
+shaping hippocampal and entorhinal cortical spatial
+representations [*REF*; *REF*; *REF*; *REF*];
+this relationship has been supported by experimental approaches to the
+animals&apos; own active sensing behaviors such as lateral head
+scanning [*REF*; *REF*] and closed-loop control of orienting
+distal cues [*REF*]. Additionally, extending prior theoretical
+frameworks such as the attractor map
+formalism [*REF*; *REF*; *REF*; *REF*] to large spatial
+contexts has revealed substantial increases in the computational and
+mnemonic capacities of these network models [*REF*]. Thus, a
+theoretical approach to naturalistic and dynamical spatial coding in
+large or complex environments may require closed-loop systems that
+integrate sensory information with internal spatial maps in continuously
+adapting loops. Complementary to the animal studies, investigating the
+behaviors and performance of completely specified but artificial spatial
+systems including virtual agents and/or mobile robotics platforms may
+help to elucidate the computational principles of spatial cognition in
+naturalistic contexts [*REF*; *REF*; *REF*; *REF*].
+
+
+Hippocampal phenomena that have been theorized to support biological
+spatial cognition include (1) self-stabilizing activity patterns in
+attractor map networks and (2) temporal-phase organization relative to
+global oscillations. On the basis of these phenomena, we introduce a
+brain-inspired dynamical controller for self-organized swarms of
+autonomous agents. Our key realization was that each virtual or robotic
+agent can be represented as a spatial neuron (e.g., a place cell) whose
+place preference follows the location of the agent in its local
+environment. The analogy of a multi-agent group (or swarm) to a
+space-coding neural network follows immediately. If we further suppose
+that inter-agent distances map to &apos;synaptic weights&apos; and, consequently,
+that relative agent movements map to changes in those weights, then
+spatial configurations of the swarm constitute an attractor map
+network [*REF*; *REF*; *REF*] and the swarm&apos;s internal motion
+dynamics constitute learning based on synaptic modification [*REF*; *REF*].
+
+
+Additionally, spatial activity in the rodent hippocampus is strongly
+modulated by continuous theta oscillations (5--12 Hz) during
+locomotion [*REF*; *REF*]. The resulting &apos;phase precession,&apos; a
+monotonic advance in timing from late to early within each theta cycle,
+may enhance the precision and temporal organization of spatial
+codes [*REF*; *REF*; *REF*; *REF*] in ways that
+support decision-making and/or deliberative planning during subsequent
+sleep or quiescentstates [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Recently, in contrast to phase precession, we discovered a novel class
+of spatial phase-coding neurons in open field environments termed
+&apos;phaser cells&apos; that were located predominantly in the rat lateral septum
+and characterized by a strong coupling of theta-phase timing to firing
+rates [*REF*]. This coupling supports an intrinsic neuronal
+mechanism of phase-coding that may theoretically transform spatial
+information to synchronize downstream targets using the global theta
+oscillation [*REF*]. Accordingly, to examine the effects of
+temporal phase organization, our dynamical swarm controller considers
+each agent to have an internal phase variable (analogous to the
+theta-phase of a place cell or phaser cell) that may interact via
+oscillatory coupling with its neighbors&apos; phases. Such oscillator-based
+swarming has been previously generalized as the &apos;swarmalators&apos;
+framework [*REF*]. Thus, together with attractor dynamics, these
+phenomena may provide brain-like solutions to problems of decentralized
+self-organization and distributed communication in autonomous swarming.
+
+
+We refer to our conception of this swarm controller as
+&apos;NeuroSwarms&apos; ([*REF*]; Fig. A). In this paper, we derive an operational
+NeuroSwarms implementation (Section [2]), present emergent swarming behaviors in
+simulations of a fragmented and heterogeneous
+environment (Section [3.1]), demonstrate NeuroSwarms as a dual system
+which can be expressed through single-entity simulations that help
+inform biological theory (Section [3.2]), evaluate adaptations of reward-approach
+behaviors in a large hairpin maze (Section [3.3]), and discuss implications for autonomous systems
+design and biological spatial cognition in large, complex
+environments (Section [4]).
+
+
+FIGURE
+
+
+Methods 
+
+
+Hippocampal model mechanisms
+
+
+Self-stabilizing attractor maps.
+
+
+Hippocampal place cells fire within a contiguous region of the animal&apos;s
+local environment, or &apos;place field&apos; [*REF*]. Place fields are
+thought to collectively form cognitive maps [*REF*] that are
+stabilized (at least in part) via attractor dynamics, such as fixed
+points or continuous manifolds of the network energy surface, that drive
+activity toward low-dimensional spatial or task
+representations (Fig. B; [*REF*]). Attractor map models
+have shown that recurrent connectivity between place cells with
+nonlinear integration of inputs is nearly sufficient to achieve stable
+spatial attractors [*REF*; *REF*; *REF*]. For instance, a
+rate-based network following *MATH* 
+where *MATH* is the rate of unit *MATH*, *MATH* is the unit&apos;s total input,
+and *MATH* is a sigmoidal nonlinearity, only further requires that the
+recurrent weights *MATH* encode the degree of place-field overlap
+between units (i.e., the strength of learned spatial associations). Such
+an encoding follows from a kernel function of field-center distances,
+e.g., *MATH* where *MATH* is the field-center position of unit *MATH*, *MATH* is
+the Gaussian scale constant, and *MATH* and *MATH* determine the strength of
+local excitation vs. long-range inhibition, respectively. While this
+formulation violates Dale&apos;s law, it illustrates the typical parsimony of
+attractor map models [*REF*]. A network constructed from
+equations and equation supports self-organization of its activity into a
+singular, contiguous &apos;bump&apos; that emerges as the network relaxes
+(Fig. B; [*REF*]). The activity bump can then
+respond to input changes due to, e.g., movement through the environment
+or internal processing. These conditions are encapsulated within
+NeuroSwarms by analogizing (1) inter-agent visibility (e.g., for a
+line-of-sight communication channel) to sparse, recurrent network
+connectivity, and (2) a local kernel of inter-agent distances to
+spatially-weighted synapses.
+
+
+Oscillatory organization.
+
+
+Hippocampal phase precession relative to the theta rhythm is clearest on
+linear tracks [*REF*], on which place fields typically arrange in
+an unambiguous sequential order that may enable learning of temporally
+compressed &apos;theta sequences&apos; [*REF*]. While the phenomenon is less
+clear in open, 2-dimensional environments, phase precession has been
+observed in particular traversals of the firing fields of place cells as
+well as grid cells in entorhinal cortex [*REF*; *REF*].
+However, our analysis of phaser cells in the lateral septum
+[*REF*] revealed a more direct phase code for 2-dimensional
+position that was consistent with a minimal model of temporal
+phase-coding (Fig. C). To study how the phaser cell code may
+contribute to sequence formation in open environments, the NeuroSwarms
+controller adds an internal phase variable to each agent and couples the
+modulation frequency of that phase to each agent&apos;s total input (see
+equation below).
+
+
+Internalized place fields for neural control.
+
+
+There are two reasons why neural swarming control must decouple each
+agent&apos;s physical location from its internal self-localization. First,
+the multiplicity of agents is a qualitative difference with brain
+circuits; every hippocampal neuron in a biological network corresponds
+to the same single agent (e.g., a rat) and has particular inputs from
+internal processing or sensory inputs [*REF*] that contribute to
+the appearance and location of the cell&apos;s place field. Given the analogy
+of agents to neurons (Fig. A), an individual rat has many place fields
+but an individual swarm agent should have only one. Further, the
+location of an agent&apos;s place field cannot be identical to the agent&apos;s
+physical location, which depends on the momentary vicissitudes of a
+entity operating in the external world (or a simulation thereof).
+Second, experimental studies have compellingly demonstrated that spatial
+path planning in hippocampal networks may rely on activating sequences
+of place cells representing remote locations [*REF*; *REF*; *REF*; *REF*],
+indicating that internal representations should be separable from an
+animal&apos;s (or agent&apos;s) current physical location. Thus, NeuroSwarms
+assigns a distinct cue-based place preference to each agent.
+
+
+Mobile Hebbian learning with a global oscillation 
+
+
+Hebbian learning in neural network models typically increments or
+decrements a synaptic weight according to a learning rate and a measure
+of the activity correlation between the pre-synaptic (input) and the
+post-synaptic (output) neurons [*REF*; *REF*; *REF*; *REF*].
+For the NeuroSwarms controller, the conceptual similarity of the
+synaptic strength relation in a neural network and the physical distance
+relation in a multi-agent group allows us to construct a neural
+activation and learning model for the motion of artificial mobile
+agents.
+
+
+Following the Gaussian attractor-map kernel from
+equation, we explicitly relate a recurrent synaptic weight
+matrix *MATH*, prior to learning-based
+updates, to swarm state via *MATH* for inter-agent visibility
+*MATH*, inter-agent distances *MATH*, and
+spatial constant *MATH*. To provide for environmental interactions, we
+consider a minimal reward-approach mechanism for a set of reward
+coordinates that serve as attractive locations. Thus, we likewise
+incorporate a feedforward matrix *MATH* 
+for reward learning, *MATH* for agent-reward
+visibility *MATH*, agent-reward distances
+*MATH*, and spatial constant *MATH*. The reward weights are based
+on an exponential kernel to allow for long-range approach behaviors. (We
+emphasize that the NeuroSwarms framework encompasses the general
+equivalence between synaptic weights and agent distances, but the
+particular implementation that we present here is one of many possible
+designs.)
+
+
+To define neuron-like inputs, we consider that each agent&apos;s internal
+place-field location derives from the conjunction of sensory cue inputs
+related to a preferred location. We define time-continuous sensory cue
+inputs *MATH* following *MATH* for cue *MATH*, agent-cue visibility *MATH*, fixed
+agent-cue preferences *MATH*, and integration time-constant *MATH*. Thus, the product in
+equation yields the integer number of preferred cues visible
+from each agent&apos;s position. This means that place-field size is not
+independently controlled but determined by the relative cue richness of
+the environment: more cues will generally increase agent heterogeneity
+and spatial selectivity. Similarly, we compute reward inputs
+*MATH* following *MATH* for reward *MATH*, and
+integration time-constant *MATH*. Unlike sensory cues, all agents
+respond equally to all (visible) rewards. Lastly, we define recurrent
+swarming inputs *MATH* following
+*MATH* for &apos;post-synaptic&apos; agent *MATH*, &apos;pre-synaptic&apos; agent *MATH*, integration
+time-constant *MATH*, and internal oscillatory phase state
+*MATH*. The cosine term in equation confers phase-modulation of the input in which
+excitation/inhibition depends on whether units *MATH* and *MATH* are in/out of sync.
+
+
+Having defined the input signals, we consider &apos;net currents&apos; as
+gain-modulated, visibility-normalized quantities for sensory cue inputs,
+*MATH* reward inputs, *MATH* and recurrent swarming inputs, *MATH* 
+where the parameter gains *MATH*, *MATH*, and *MATH* sum to 1. Because the
+net inputs are bounded in equations, we simply apply linear rectification rather than
+a saturating nonlinearity (cf. equation) to their sum to calculate post-synaptic
+activation *MATH* which is the remaining
+component needed to compute Hebbian (or any two-factor) learning. In
+terms of swarming, however, the agents are phase-coupled via
+equation. Thus, in the same way that a spiking neuron can
+be reduced to a phase description of its orbit on the phase plane, we
+consider that *MATH* drives the agents&apos; internal phase state, e.g.,
+*MATH* where *MATH* sets the maximum increase in input-modulated angular frequency above the
+baseline frequency *MATH*. The net effect of this mechanism is
+that agents have place-cell-like spatial tuning with phaser-cell-like
+phase coding and synchronization.
+
+
+The core of the NeuroSwarms controller comprises the learning-based
+updates to *MATH* and *MATH*. A naïve Hebbian rule, such as
+FORMULA, would cause weights to grow unbounded, leading to ictogenesis in
+recurrent networks or spatial singularities in swarms. Instead, after
+updating agent activations via
+equation, we compute updated weights *MATH* 
+as *MATH* with simulation time-step *MATH* and learning rate *MATH*,
+which effectuates a pre-synaptic normalization according to Oja&apos;s
+rule [*REF*]. Similarly, the updated feedforward weights
+*MATH* are computed for reward *MATH* as *MATH*. The normalization effected by
+equations is due to a subtractive term, quadratic in the
+post-synaptic activation *MATH*, that depresses the growth of overly
+active synapses. In place-cell network models, feedback inhibition
+typically serves to spread out place fields to more efficiently map an
+environment [*REF*; *REF*], but the lack of explicit
+inhibition in NeuroSwarms allows synaptic depression to provide a
+similar repulsive role due to the distance--weight equivalence of
+equation. 
+
+
+Neural swarm control: closing the loop
+
+
+To integrate with swarming, the controller attempts to drive the agents&apos;
+kinematic states to the equivalent desired inter-agent distances, in
+effect replacing the typical attraction and repulsion fields of
+conventional swarming models [e.g., *REF*]. The updated weights
+*MATH* and *MATH* can be converted directly to
+desired distances by inverting the Gaussian swarming kernel in
+equation, *MATH* and the exponential reward kernel in
+equation, *MATH*. To compute
+the resultant swarm motion, the desired positional shift of agent *MATH* is
+averaged across its visible neighbors, i.e.,
+*MATH* and the resultant reward-related motion is similarly computed as the
+average *MATH*. The net positional shift is calculated as a linear combination of the
+swarm- and reward-related shifts,
+*MATH* where *MATH* for all simulations presented. The remaining processing of
+*MATH* in our NeuroSwarms implementation serves to
+embed the foregoing dynamics within &apos;physical&apos; simulations of irregular
+or complex 2-dimensional environments. First, our example
+evironments (Fig.) of *MATH* 500-point height (for
+arbitrary points units) were processed for wall proximity and normal
+vectors for all interior locations. Thus, a &apos;barrier aware&apos; positional
+shift *MATH* is calculated as *MATH* for an
+exponential kernel *MATH* of distance  *MATH* to the nearest wall with a constant of
+*MATH*  points, and the normal vectors *MATH* of the nearest
+wall. These shifts update the internal place-field locations
+*MATH* of each swarm agent. Second, &apos;physical&apos; agent locations are updated based on the
+instantaneous velocity needed for each agent to approach their internal
+field locations, *MATH*, which is processed through a momentum filter, *MATH* with the actual velocity
+(prior to updating) *MATH* and coefficient *MATH*; a speed-limiting
+nonlinearity based on a kinetic-energy maximum *MATH*,
+*MATH* where *MATH* is agent mass; and barrier avoidance as
+in equation, *MATH* for proximity *MATH* and normal vectors *MATH*. Finally, agent
+locations are updated by *MATH*.
+
+
+FIGURE
+
+
+Single-entity simulations 
+
+
+In keeping with the neuroscientific motivation for
+NeuroSwarms (Fig.), our implementation allows for singleton
+simulations analogous to conventional models of neural networks in an
+animal such as a rat navigating a maze. With only minor adjustments,
+NeuroSwarms can operate with a single agent (i.e., *MATH*) that owns a
+collection of &apos;virtual&apos; or &apos;mental&apos; swarming particles (e.g., *MATH*)
+that guide the agent&apos;s spatial behavior. In this sense, the virtual
+swarm represents a highly dynamic spatial field that provides the agent
+with various options for constructing a path through the environment.
+The dynamics of the virtual swarm are as described above up to
+equation. An array *MATH* 
+indicates which particles&apos; positions are visible to the agent and serves
+to additionally mask the learning updates in
+equations. To produce motion, single-agent velocity is
+instead calculated using a cubic-activation-weighted average of the
+swarm, *MATH* prior to processing the
+&apos;physical&apos; embedding of the agent&apos;s motion in
+equations. Thus, the agent constructs a path toward the
+most highly activated and visible swarm particles.
+
+
+NeuroSwarms simulations
+
+
+Simulated environments
+(Fig.) contain fixed-position rewards and cues depicted
+as gold stars and purple shapes, respectively. Environments are
+otherwise defined by a set of linear barrier segments (e.g., walls) that
+form a closed shape defining an interior space that becomes the set of
+allowable agent locations. Simulations are initialized by setting all
+velocities, input signals, and activations to zero, randomly choosing
+internal phase states, and randomly assigning agent positions to
+allowable locations within a set of &apos;spawn discs&apos; defined in the
+environment. Random number generator seeds are reused for simulations
+meant to compare parameter values, unless otherwise specified.
+Environments are specified as vector image files in Tiny SVG format with
+XML text nodes defining reward, cue, and spawn disc locations. Unless
+noted, parameters were set to the default values displayed in
+Table [1]. The python source code will be made available upon reasonable request.
+
+
+TABLE 
+
+
+These parameter values are multiplicatively scaled to the notional
+environment size, defined in points as the radius of a disc with the
+same area as the set of allowable locations in the environment&apos;s
+interior.
+
+
+Results 
+
+
+Emergent swarming behaviors 
+
+
+We designed the multireward arena (Fig., left) to characterize emergent swarming and
+reward approach behaviors, and the hairpin
+maze (Fig., right) to assess behavioral adaptation in large,
+fragmented environments. We observed several emergent dynamical
+behaviors in simulations of both multi-agent swarming and single-entity
+locomotion (Section [2], Methods). The most notable and persistent
+behaviors included the emergence of phase-sorted spatial formations such
+as line segments, rings, or concentric
+loops (Fig.). These behaviors were analogous in form to
+(1) the &apos;phase wave&apos; states observed in certain swarmalator
+regimes [*REF*], and (2) the hippocampal phenomena of theta
+sequences and theta-rhythmic phase
+assemblies [*REF*; *REF*]. Further, by inspection of
+simulation movies, we observed two dynamical features. First, agent
+subgroups forming line segments and rings continuously
+phase-synchronized in a shared oscillation that was independent from the
+absolute movement or rotation of the formation in space. Second, line or
+ring formations would often break apart and re-form new configurations
+that typically involved other agents or formations that were able to
+phase-synchronize with elements of the subgroup. These alternating
+disintegrative and aggregative dynamics may be consistent with analyses
+of persistent homologies in place-cell networks with transient
+connectivity [*REF*].
+
+
+These spatiotemporal dynamics are evident across frame captures of
+multi-agent (Fig.) and single-entity (Fig. B) simulations. While phase-ordered groups
+could appear far from rewards (Fig. A, last two frames, smaller red circles),
+swarm agents typically approached a reward location and formed a
+rotating ring centered on the reward position (Fig. A, southeast corner, last three frames). Such
+reward rings appeared in single-entity simulations, but the virtual swarm
+particles (Section [2.3.1]) additionally exhibited particularly
+extended line segments that often traced out phase-ordered trajectory
+sequences; e.g., the agent followed an extended sequence to the reward
+located in the southeast corner (Fig. B, last two frames). Further, we observed that
+the size of reward rings decreased over time, reflecting a relaxation of
+phase and momentum given the centrally organizing reward location.
+
+
+FIGURE
+
+
+When the reward kernel&apos;s spatial scale *MATH*; Table [1] was
+increased, streams of virtual swarm particles formed around distal
+rewards as the particles&apos; motion was modulated by agent visibility
+interacting with the geometry of the environment. As shown in the first
+frame of Fig. C, a step-like pattern formed near the
+northwest reward location while a wavy pattern formed near the southeast
+reward location. Both virtual swarm formations presented path choices to
+the single agent located in the large central compartment of the arena.
+As expected (Section [2.3.1]), virtual swarm particles that were not
+visible to the agent remained fixed in place due to masking of the
+weight updates in equations. In addition to single rings, double and even
+triple concentric loops of nested, non-overlapping, phase-sorted rings
+were observed in some simulations. An example of a double loop forming
+is shown in the southeast corner at *MATH*. Strikingly, we did not predict, expect, or
+adapt the NeuroSwarms controller design to observe these emergent
+behaviors; we simply implemented abstractions for place-cell spatial
+tuning, phaser-cell oscillatory synchronization, and a distance--weight
+equivalence for Hebbian learning with notions of visibility and
+environmental geometry that provided spatial barriers to
+communication (Section [2]). These behaviors would be unexpected as well
+from conventional swarming algorithms [*REF*].
+
+
+Reward-based behavior in a compartmented arena 
+
+
+To assess the spatial performance of NeuroSwarms, we examined the
+ability of single-entity behavior to find all three rewards in the
+multireward arena. We focused on the parameter constants governing the
+spatial scale of swarm (*MATH*) and reward (*MATH*) interactions
+(equations; Table [1]) and found (*MATH*, *MATH*) values for which the
+agent approached multiple rewards regardless of its initial spawn
+location. Due to the random initialization of location, we selected 40
+simulations for analysis in which the agent was spawned in the southwest
+corner (as in Fig., left). The agent successfully captured one, two,
+or all three rewards in 11, 28, and 1 simulation(s) at elapsed times
+ranging from 4--108, 20--179, and *MATH*,
+respectively. Frame captures of reward approaches are shown in
+Fig. A for the simulation in which all three
+rewards were found. The ability of the agent to approach multiple fixed
+rewards over time was an unexpected and emergent behavior: based on our
+NeuroSwarms implementation, we had predicted that the rewards would
+serve as stable attractors in the absence of additional mechanisms such
+as adaptation or reward learning. However, in accordance with those
+expectations, we observed simulations which failed to explore much of
+the environment after approaching a single reward location. For the same
+parameters but a different random seed than shown in
+Fig. A, a failed exploration occurred (Fig. B) when the virtual particles split into
+two fixed-point, out-of-phase attractors that essentially &apos;trapped&apos; the agent.
+
+
+To counteract these unsuccessful equilibria, we implemented a &apos;reward
+capture&apos; mechanism in the NeuroSwarms controller based on a minimum
+contact radius, *MATH*. This feature causes rewards to cease
+being attractive locations to the virtual swarm particles upon contact
+by the agent, thus releasing the agent from reward-related attractors
+before further exploration is prevented. Indeed, having capturable
+rewards with *MATH*  points enabled a simulation that was
+otherwise identical to the failed case (Fig. B) to successfully navigate the arena to
+capture all three rewards (Fig. C). Thus, a notion of reward adaptation or
+reward consumption may be crucial to achieving continuous exploration.
+
+
+FIGURE
+
+
+For the 40 single-entity simulations with fixed rewards, the bottom
+panel of Fig. A reveals strong attractors at the
+southeast and northwest corners of the arena associated with reward
+locations. To demonstrate the effect of the contact radius on
+exploration when rewards were capturable, the trajectories resulting
+from contact radii of 1, 4, 10, and 15 points are shown in the top row
+of Fig. A; these values produced 1, 3, 8, and 30
+(out of 40) simulated trajectories, respectively, that successfully
+contacted all three rewards (Fig. A, red traces). In a few simulations, the
+single-entity agent spawned in the southwest corner, found the southeast
+reward first, and then later returned to the southwest corner in order
+to collect all three rewards; such a wandering trajectory suggests that
+the model might qualify as an ergodic system under these conditions, but
+that hypothesis would be appropriately addressed by future analytical
+studies. These results demonstrate that the sensitivity of reward
+capture modulates exploratory variability by mitigating the effect of
+reward-related attractors. Histograms of the time-to-capture profile
+across agent spawn sites and reward locations reflect the structure of
+the environment as well as the different possible sequences of reward
+contact (Fig. B). Thus, the contact radius for
+capturable rewards exerted substantial control over the likelihood of
+the single-entity agent finding all rewards in the environment.
+
+
+FIGURE
+
+
+Behavioral adaptation in large hairpin mazes 
+
+
+A key challenge facing current state-of-the-art swarm controllers is the
+inability to rapidly adapt to dynamic changes in complex environments.
+The hairpin maze is well suited to study such adapation because swarm
+agents spawned from certain hallways do not have line-of-sight
+visibility to rewards that may be located in adjacent hallways. A form
+of behavioral adapation can be assessed based on whether agents spawned
+into reward-free hallways can nonetheless navigate to rewards in other
+parts of the maze.
+
+
+We examined multi-agent swarming dynamics in the hairpin maze under
+several conditions: pure swarming
+(equation; Fig. A); swarming with sensory cue inputs
+(equation; Fig. B); and swarming with sensory cue inputs and
+reward approach (equation; Fig. C). The sample frames shown in
+Fig. demonstrate the emergence of phase-ordered
+structures in each of these conditions with the clear distinction that
+tightly configured reward rings became prevalent when reward learning
+was activated (Fig. C). In that condition, with the same
+NeuroSwarms features as studied above in the multireward arena, it was
+also clear that agents in the second and third hallways had difficulty
+leaving to find another hallway with a reward. We expected this was due
+to (1) the parity of swarming and reward spatial constants (*MATH*,
+*MATH*), which perhaps overemphasized swarming at the cost of
+reward-following in highly-partitioned environments, and (2) the need
+for more sensitive reward-capture. Thus, we simulated a condition with
+fixed and capturable rewards using *MATH*  points but also
+increased the spatial constants with 3.3-fold bias for the reward value
+*MATH*; Table [1]. Multi-agent trajectories for this enhanced
+reward-exploration regime are shown in Fig.D: with fixed rewards (top panel), the reward
+attractors dominate the dynamics and agents generally stayed within
+their initial hallways; with capturable rewards (bottom panel), there
+was substantially more path variability between agents, spatial coverage
+increased (cf. the spiral patterns characteristic of agents&apos; exits from
+reward locations after contact), and many more agents were able to
+traverse from one hallway to the next.
+
+
+FIGURE
+
+
+To assess the converged state of multi-agent dynamics in the hairpin
+maze, we simulated *MATH* agents for 300 s using the same parameters
+and fixed rewards as the top panel of
+Fig. D. The temporal progression of swarm state
+across the simulation frames presented in
+Fig. shows distinct stages exhibited by the four
+initial clusters of the swarm. The two clusters that spawned in
+reward-free hallways eventually found their way around the barriers to
+adjacent hallways after milling in various line segment or ring
+formations for nearly a minute (Fig.). All of the clusters successfully converged
+onto the three reward locations in the maze, but the two that traversed
+hallways left some agents behind. The progression of those swarm
+clusters from initial positions to ring/arc formations to linear
+trajectory sequences to fixed-point reward attractors illustrates a high
+degree of spontaneous adaptation to the circumstances in the hairpin
+maze. These dynamics were self-organized and emergent, providing
+behaviors that resulted in nearly complete convergence to reward
+locations. Thus, NeuroSwarms demonstrated autonomous spatial navigation
+to unknown, occluded, and remote rewards in a large and complex
+environment.
+
+
+FIGURE
+
+
+Discussion 
+
+
+We introduced the NeuroSwarms controller as a model for studying neural
+control paradigms of artificial swarming agents. We demonstrated that
+NeuroSwarms also acts as a two-way bridge between artificial systems and
+theoretical models of animal cognition. This reciprocity arises due to a
+single-entity paradigm in which NeuroSwarms controls a single agent in
+which an internal, virtual &apos;cognitive swarm&apos; guides the agent&apos;s spatial
+behavior. Both modes of operation, multi-agent and single-entity, share
+the same underlying neural mechanisms (with differences described in
+Section [2.3.1]). This duality enables developments in
+artificial systems to also inform advances in neurobiological theories
+of spatial cognition. Additionally, this duality will aid discovery of
+neural dynamics in large, uncertain, and/or complex environments based
+on closed-system approaches to distributed spatial coding. We presented
+behaviors responding to environmental complexities such as multiple
+reward sites (that optionally interact with the system by being
+&apos;consumed&apos; by agents), heterogeneous agent-based preferences for
+neutral-valued spatial cues, and geometric constraints that occlude
+agents&apos; visibility of cues, rewards, and other agents.
+
+
+Swarms governed by NeuroSwarms self-organize into emergent, transitory
+configurations in position and phase that directly recall spatial
+attractor dynamics [*REF*; *REF*; *REF*; *REF*; *REF*] and
+sequential oscillatory phenomena [*REF*; *REF*; *REF*; *REF*] that have
+been theorized to operate within hippocampal circuits. We explicitly
+designed NeuroSwarms to combine features of attractor maps and
+oscillatory computing using robust transformations (such as the spatial
+kernels of distance converted to synaptic strengths in
+equations). However, we did not anticipate how readily such a
+system would self-organize into a variety of dynamic spatiotemporal
+structures that recombined in complex patterns while supporting
+navigation through our environments. A weakness of the presented
+implementation was the use of a global, shared oscillation without
+allowing for noise, drift, or independent perturbations [cf.
+*REF*; *REF*; *REF*]. A more decentralized approach
+might utilize resonant agent-oscillators that self-organize local
+oscillations depending on available information, task requirements, or
+context. Such bottom-up oscillations might aggregate into a global,
+swarm-wide oscillation under certain conditions, which should be studied
+in future models.
+
+
+To leverage inertial, energetic, and cost benefits of small-scale
+robots, critical future applications of autonomous technologies may
+depend on coordinating large numbers of agents with minimal onboard
+sensing and communication resources. However, a critical problem for
+autonomous multi-robot groups is that state-of-the-art control schemes
+break down as robotic agents are scaled down (decreasing agent
+resources) and the numerical size of swarms is scaled up (increasing
+communication and coordination requirements)
+[*REF*; *REF*; *REF*; *REF*]. NeuroSwarms addresses
+the hypothesis that a similar distributed scaling problem may have been
+solved by the evolved neural architecture of mammalian brains. Compared
+to signal comprehension, signal production errors may be particularly
+deleterious to large-scale, distributed and decentralized
+computations [*REF*]. Thus, onboard suites for future &apos;cognitive
+swarming&apos; platforms based on NeuroSwarms principles should emphasize
+reliable transmission of low-bandwidth data packets (e.g., spikes or
+continuous phase signals). Low fidelity inputs are more easily
+compensated by distributed processing; i.e., sensor designs should
+emphasize energy and cost to maximize deployment duration and swarm
+size.
+
+
+In summary, we made the explicit analogy from agents and swarms to
+neurons and neural circuits. This analogy permitted the tools of
+theoretical neuroscience to be leveraged in developing a model
+artificial spatial system. The NeuroSwarms controller required two
+features to support cognitive swarming: (1) an internal phase state, and
+(2) decoupling of physical location from internal self-localization. The
+phase state naturally encapsulated neural activation (cf.
+equation) and could be used to drive spike generation, if
+desired, in future models. Phase-based organization additionally
+leveraged the expressive complexity of mobile oscillators revealed by
+the swarmalator formalism [*REF*; *REF*]. The
+separation of position vs. self-localization allowed swarm motion
+dynamics to be interpreted as Hebbian learning in an oscillatory
+place-coding neural network (Section [2.2]). Thus, theorized hippocampal phenomena such
+as attractor map formation and oscillatory sequence generation provide a
+framework for advances in decentralized swarm control and, reciprocally,
+the theoretical neuroscience of spatial navigation in complex, changing
+environments.

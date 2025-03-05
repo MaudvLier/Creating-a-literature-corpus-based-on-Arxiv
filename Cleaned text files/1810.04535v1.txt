@@ -1,0 +1,174 @@
+Investigating Enactive Learning for Autonomous Intelligent Agents 
+
+
+Introduction  
+
+
+The enactive paradigm has originally emerged from embodied cognitive science and particularly from the early work of Maturana and Varela [*REF*; *REF*]. According to this paradigm, a living organism depends constitutively on its living body and places sensorimotor interactions at the centre of cognition [*REF*]. Cognition becomes therefore aligned with the organisational principles of living organisms while giving a major role to the phenomenology of experience. The paradigm challenges the separation between the internal constituents of a system and its external conditions, and emphasises the interaction between the two. It also perceives an organism as an autonomous and active entity that is able to adaptively maintain itself in its environment [*REF*]. For this type of interactions to happen enactivism posits that the agent must be a part of reality [*REF*; *REF*]. 
+
+
+The paradigm has influenced a large number of embodied cognition theorists [*REF*; *REF*] and has contributed to the emergence of a variety of research programs such as evolutionary [*REF*] and epigenetic [*REF*] robotics. In the area of Artificial Intelligence (AI), it is becoming more and more accepted as a viable alternative to the computationalist approaches in building artificial agents that can behave in a flexible and robust manner under dynamic conditions [*REF*].
+Nevertheless, some concerns have been raised with regard to the sufficiency of the current enactive AI for advancing our understanding of artificial agency and providing accurate models of cognition [*REF*; *REF*]. The aim of this paper is to provide some initial steps towards the development of such an understanding. We think that enactive cognitive science can provide the conceptual tools that are needed to diagnose more clearly the limitations of current enactive AI, particularly at a time where Reinforcement Learning (RL) is by far the dominant paradigm [*REF*; *REF*; *REF*]. The development of an enactive AI would provide fuller models of Enactive Learning (EL) and would challenge the RL methodologies that fail at many real-world problems. 
+
+
+There were few attempts to operationalise enactive cognition in the context of autonomous agents and agent learning. For instance, the authors in [*REF*] use the enactive principles to model biological agents. Such agents try to perform rewarding interactions with their environment instead of trying to reach rewarding states as it is the case with RL. In another work, [*REF*] formalise the enactive types of interactions between the agent and its environment using an enactive redefinition of Markov Decision Processes. The framework describes a viable architecture that could be used in designing enactive agents but does not evaluate the paradigm in the face of environmental complexity nor it compares it to RL. Departing from the same theoretical framework, we propose to scrutinise enactive learning by building an artificial agent that could act based on enactive principles. We compare such agent to a classical RL agent within complex and volatile maze environments. We then analyse and discuss the different behavioural characteristics of both agents in light of limited access to the environmental states, goals, and exploration/exploitation tradeoffs. We show that enactive the agent can successfully learn to interact with its environment and exploit regularities of sensorimotor interactions. Particularly, it learns to avoid unfavourable actions using intrinsically defined goals. 
+
+
+The paper is structured as following. In section 2, we provide the theoretic foundation of enactive cognition. In section 3, we give the formal agent models as well as the process of enactive learning. In section 4, we provide the methodology and the experimental setting. In section 5, we provide the results and discussion. Finally, we conclude and highlight the future work. 
+
+
+Enactive Cognition 
+
+
+Enactive cognition is fundamentally compliant with the constructivist school of thought, which perceives learning as creating meaning from experience [*REF*]. On the contrary of cognitive psychologists who think of the mind as a reference tool to the real world, constructivists view the mind as filtering input from the world to produce its own unique reality [*REF*]. The key concepts behind the enactive paradigm is that the agent must discover and learn to exploit the regularities in its interactions with the environment [*REF*]. Regularities are patterns of sensorimotor interactions that occur consistently and depend on the active interactions between the agent and its environment. 
+
+
+To better understand how an enactive agent operates, let us contrast it with the type of agent that are often used in RL and rely heavily on internal representations of their environment. Such agent (namely RL agent), passively interprets input data as if it represented the environment. For instance, we could take the situation of a robot exploring a real-world environment. The position of the robot reflects its (spatial) state as seen by an external observer, and its internal state as if the robot is keeping track of its own position. The state of the environment is also available to the robot and would for instance account for the percepts that are available within its visual field.
+Moving around implies a change in the perceptual field and therefore the state of the environment. Such assumptions do not hold for the enactive agent which is not a passive observer of reality but constructs its perception of the environment through the active experience of interaction [*REF*; *REF*]. In this case, the states of the environment are not directly available and the agent is actively involved in shaping its perceptions of those states.
+We illustrate the distinctions between the two types of agents in figure [1]. We particularly look at how interactions are initiated between the agent and the environment as a succession of decision cycles. 
+
+
+FIGURE  
+
+
+In figure, the interaction cycle starts with an observation *MATH* and ends with an action *MATH* on the environment. In figure, the cycle starts with the agent performing an experiment *MATH* and ends by the agent receiving the result *MATH* of the experiment. 
+
+
+Let us now look at the cycles of figure. At the beginning of each decision cycle *MATH* of the enactive interactions, the agent decides on an intended sensorimotor interaction to try to enact with reference to the reactive part played by the environment. That is, the agent enacts an interaction *MATH* at time *MATH*, with *MATH* being an element of the set of primitive interactions *MATH*. Enacting *MATH* means experimenting *MATH* and receiving a result *MATH*. Then, the agent records the two-step sequence *MATH* made by the previously enacted interaction *MATH* of *MATH*. The sequence of interactions *MATH* is called a composite interaction.
+The interaction *MATH* is called *MATH* &apos;s pre-interaction, noted as *MATH*, and *MATH* is called *MATH* &apos;s post-interaction and is noted as *MATH*. The set of composite interactions known by the agent at time *MATH* is defined as *MATH* and the set *MATH* is the set of all interactions known to the agent at time *MATH*. When enacted, the primitive interaction *MATH* activates previously learned composite interactions as it matches their pre-interaction. For example, if *MATH* and if the composite interaction *MATH* has been learned before time *MATH*, then the composite interaction *MATH* is activated, which means that it is recalled from memory. Activated composite interactions propose their post-interaction&apos;s experiment, in this case: *MATH* &apos;s experiment. If the sequence *MATH* corresponds to a regularity of interaction, then it is probable that the sequence *MATH* can be enacted again. Therefore, the agent can anticipate that performing *MATH* &apos;s experiment will likely produce *MATH* &apos;s result. The agent can thus base its choice of the next experiment on this anticipation. 
+
+
+Agent Learning Models 
+
+
+In the following, we provide the details of the enactive and reinforcement learning models. 
+
+
+Reinforcement Learning 
+
+
+Reinforcement Learning was inspired by behaviourist psychology as it uses feedback (reinforcement) to modify behaviours in the desired direction [*REF*]. In practice, an agent is built as to take actions in an environment while maximising some cumulative reward.
+This is usually formalised using a Markov Decision Process (MDP) within a fully described environment. The MDP is generally represented as a tuple *MATH* where *MATH* and *MATH* are the state and action spaces defined on the environment. The function *MATH* is a reward function that determines how much an agent will be rewarded by taking a given action in a given state. The agent has partial control on the outcomes in its model, which is described by the transition probability function ), *MATH* with *MATH* and *MATH*. The goal of the agent is to find a policy *MATH* that maximises the discounted summation of rewards. When the utility of each state converges, we get the optimal policy *MATH*. The optimal policy is found by iterating using the value function *MATH* described in ), *MATH* with *MATH* being a discounting factor in *MATH*. The optimal behaviour of the agent is to select an action at each state according to *MATH*. An optimal behaviour would be a sequence of actions yielding a sequence of occupied states. 
+
+
+In the following, we choose to restrict certain features of RL in order to allow for fair comparison with the enactive learning. For *MATH*, we limit the number of states that are available to the agent by defining its scope as distance *MATH*. The new state space becomes *MATH* with state *MATH* being the location of the agent. We also parametrise the exploratory and exploitative behaviours of the agent by a parameter *MATH*. *MATH* is the probability of using a purely exploratory strategy (random walk) while *MATH* is the probability of following the optimal policy *MATH*. 
+
+
+Enactive Learning 
+
+
+Enactive MDP 
+
+
+The main distinction between RL and the EL resides in the nature of the interactions between the agent and its environment. Such interactions are based on the unique element of actions and results. We can model such interactions using an Enactive Markov Decision Process (EMDP) as shown in figure [2]. An EMDP [*REF*] is defined as a tuple *MATH*  with *MATH* being the set of environment states; *MATH* the set of primitive interactions offered by the coupling between the agent and the environment; *MATH* a probability distribution such that *MATH* gives the probability that the environment transitions to state *MATH* when the agent chooses interaction *MATH* in state *MATH*; and *MATH* is a probability distribution such that *MATH* gives the probability that the agent receives input *MATH* after choosing *MATH* in state *MATH*. 
+
+
+FIGURE  
+
+
+In the EMDP, *MATH* is called the intended interaction as it represents the sensorimotor scheme that the agent intends to enact at the beginning of step *MATH*; and constitutes the agent&apos;s output that is sent to the environment. We call *MATH* the enacted interaction because it represents the sensorimotor scheme that the agent records as actually enacted at the end of step *MATH*; *MATH* constitutes the agent&apos;s input received from the environment. If the enacted interaction equals the intended interaction (*MATH*) then the attempted enaction of *MATH* is considered a success, otherwise, it is considered a failure. 
+
+
+The Learning Process 
+
+
+The mechanism underlying the EMDP could be implemented as a sequential learning process that relies on the interactions between the agent and its environment [*REF*]. The enactive learning process operates at every decision step *MATH* according to the following 7 phases.
+1. Preparation: The agent is initially presented with a set of interactions *MATH* referred to as the context, with *MATH* and *MATH*.
+2. Activation: The agent takes the previously learned composite interactions whose pre-interaction belongs to the current context and activates them, forming the set *MATH* of activated interactions defined as *MATH*.
+3. Proposition: The activated interactions in *MATH* propose their post-interaction for enaction, forming the set *MATH* of proposed interactions defined as *MATH*.
+4. Selection: The intended interaction *MATH* is selected from the proposed interactions in *MATH* based on the proclivity of the interactions. The proclivity of an interaction *MATH* is defined as *MATH* and reflects the regularity of the interaction based on its probability of occurrence and the motivations of the agent. 
+
+
+The selection of the intended interaction is also subject to parameters *MATH* and *MATH*. *MATH* is the probability that *MATH* is selected randomly for exploratory purposes, and *MATH* is the probability that *MATH* is selected based on proclivity. The parameter *MATH* encodes the limited foresight of the agent and specifies how deep it can go in the hierarchy of interactions. In other words, *MATH* is the length of the allowable sequences of interactions.
+5. Enaction: The agent tries to enact the intended interaction *MATH*, which could (or not) result in an enacted interaction *MATH*.
+6. Learning: New composite interactions are constructed or reinforced with their pre-interaction belonging to the context *MATH*  and their post interaction being *MATH*, forming the set of learned or reinforced interactions *MATH* to be included in *MATH*. The set *MATH* is defined as *MATH*.
+7. Construction: A new context *MATH* is constructed to include the stabilized interactions in *MATH* and *MATH*: *MATH*. 
+
+
+In the following section, we propose to test the enactive and reinforced mechanisms within artificial agents. 
+
+
+Methodology and experimental scenario 
+
+
+To evaluate the two paradigms we set up an experimental scenario in which two agents are expected to perform a foraging task in a 2D maze environment as illustrated in figure [3]. Each agent is tested on its own and both agents start from the same position. 
+
+
+FIGURE  
+
+
+The environment 
+
+
+The environment is a *MATH* maze and is defined in terms of its structure and behaviour. The structure of the maze reflects the difficulty of the problem based on the existence of obstacles and how they limit the access to the food units. The obstacles and their distribution are important when we evaluate the exploratory behaviours of the agents. The dynamic aspects of the environment reside in uniformly adding 20 food units every 200 ticks for an overall period of 1000 ticks per trial. 
+
+
+The agents 
+
+
+An agent is an entity that moves in a 2D space according to a predefined list of actions: moving forward by one step, turning right by *MATH*, turning left by *MATH*. The enactive agents possess few additional actions that correspond to failures of interactions. For instance, the action &quot;step&quot; has another action &quot;step fail&quot; that corresponds to a failed &quot;step&quot; action and happens when the agent is attempting to move forward despite the existence of an obstacle. In the following simulations, we consider two types of agents.
+1. An enactive agent that uses EL and interacts with the environment according to an EMDP.
+2. A RL agent that interacts with the observable environment according to an MDP. The agent uses a Q-Learning mechanism by updating the reward states based on any dynamically added food unit. 
+
+
+The rewards of the RL agent are defined as in *MATH*. 
+
+
+Since the enactive agent does not possess an extrinsically defined utility function that maps states to rewards [*REF*; *REF*], we need to define an intrinsic valuation of its actions. Intrinsic motivational values are the main driver of the agent&apos;s spontaneous exploratory behaviour [*REF*; *REF*; *REF*]. In particular, we want the rewarding mechanism to account for the adaptive behavioural strategies of the agent in the face of constantly changing environments. We define the agent&apos;s intrinsic motivations using a reward function *MATH* that maps primitive interactions to motivational states *MATH*. 
+
+
+The feedback values should in principle be chosen as to encode the expected behaviour that would lead to the desired goals. In RL, the goal is extrinsically specified as scalar reward values. In EL, goal-oriented behaviours are specified as intrinsic motivational values [*REF*]. For instance, the ÒstepÓ action has a fixed positive valence that does not change over time, which means that the agent has the same level of motivation to walk forward. Similarly, turning right and left have low negative valences, which means that the agent would often avoid turning. 
+
+
+Experimental Results 
+
+
+The Enactive Learning 
+
+
+Quantifying the enactive learning requires at first an evaluation of the agentÕs ability to avoid negative-valence enactions. The valence *MATH*  is the value that the agent assigns to an interaction *MATH*, based on its intrinsic motivational value and its probability of occurrence. The enactive learning translates to learning to choose interactions that have positive valence and avoid the interactions that have negative valence. 
+
+
+Figure [4] shows the reduction in negative valence counts for 15 runs of the EL agent with *MATH* and *MATH*. We started by dividing the 1000-tick period into 10 time windows of length *MATH* each. Then, we calculated the means of all the standard deviations across the 15 trials of each time window. 
+
+
+FIGURE  
+
+
+The reduction of variance reflects a stabilisation in the negative counts, and that actions with negative valence are becoming less and less frequent as time goes on. This also means that the agent has mastered the enactions and their consequences, and in our case, learnt to avoid bumping into the wall while maintaining the combinations of actions (turning left/right) that do have negative valence but are required to explore the environment. Such balance reflects the trade off between exploitation and exploration in the sense that the agent learns to maximise valences. 
+
+
+Comparing the learning paradigms 
+
+
+In the following, we compare the foraging performances of the agents for exploratory behaviours *MATH* across foresights *MATH* and *MATH*. 
+
+
+Since the notion of space is not explicitly defined for EL, we need to interpret how *MATH* and *MATH* map to each other. For RL, an increment in *MATH* corresponds to an increment in space coverage, for instance, moving from position *MATH* to position *MATH* happens with *MATH*. Limiting the choice of interactions with motivational values, makes the EL agent more likely to pick the &quot;step&quot; interaction instead of the others. The interaction &quot;step&quot; corresponds in reality to a change in space. Therefore, an increment in *MATH* corresponds to an increment in the space coverage. For instance, let us take the composite interaction *MATH* composed of successful &quot;step&quot; actions: *MATH* and *MATH*. This sequence causes the agent to change position from *MATH* to *MATH* with *MATH*. This type of mapping illustrates how internal motivational models map to behaviours. Programming the enactive agent corresponds to finding the right motivational model that would reproduce the desired behaviours. 
+
+
+FIGURE  
+
+
+The performances of the agents are shown in figure [5]. In figure, the RL agent exhibits a systematic, deterministic behaviour for *MATH*  since it is solely governed by its policy. Adding and explorative behaviour (*MATH*) improves the gain when the foresight is limited (scope) but goes up for *MATH*, which means that the scope covers most of the *MATH* maze. When the scope covers all the space (*MATH*), the agent&apos;s gain is mainly driven by exploitation. 
+
+
+Despite the poor overall performance shown in figure, the EL agent did actually start well for *MATH* with a performance within compared to that of the RL agent (20), but then its performance went down with the increase of *MATH*. The drop of performance of *MATH* for high *MATH* values is mainly due to the usage of long sequences of sensorimotor interactions, which take long to enact, evaluate and learn. Complex enactions impair the agentÕs ability to exploit the space and traps him in suboptimal areas. This is true in our case even with 4 primitive interactions and should grow intractably if we add more interactions. A possible solution to reduce this complexity is to interrupt the activation cycle of long sequences of interactions by randomly picking one primitive interaction instead. The use of such an exploratory behaviour is visible for *MATH* and yields more gain. 
+
+
+Being trapped in complex interactions does not necessarily translate to a goal-oriented behaviour for an external observer but accounts for the spontaneity and the self-motivation that drives the EL agent [*REF*]. The goal-driven behaviour becomes an emergent property of the constructs. The challenge is therefore to find the appropriate mapping from rewards to motivational values) while balancing the exploration/exploitation tradeoff with an optimal *MATH*. 
+
+
+Enactive learning could fail at problems that cannot be defined in terms of states either for the lack of any formal description of the state space or when the state space is too large to be encoded in a reward function. While reinforcement learning is more performant when the state space is well defined, it still lacks the ability to maintain its scalability for large spaces. Enactive learning on the other hand has the ability to construct its own map of the state-space and exploit it based on its intrinsic model of behaviour. We summarise the main difference between the two learning paradigms in table. 
+
+
+TABLE  
+
+
+Conclusion and future work 
+
+
+Enactive Learning is an interesting alternative to RL given its capability to operate without prior knowledge of the states of the environment. We developed an artificial agent that learns based on the enactive principles, and compared its behaviours and performances to an agent that runs on RL. The agents are tested in foraging tasks within complex and volatile environments. We show that the enactive agent can successfully interact with its environment, and learn to avoid unfavourable interactions using intrinsically defined goals. The enactive agent is shown to be limited by the number of affordable actions that it could enact at a time. Limiting the size of its memory of interactions or relying on exploratory strategies increases its performance. 
+
+
+As future directions, we would like to change the way we defined the intrinsic motivational values as scalar values, and instead use expectations of rewards as it is done in the predictive coding framework of [*REF*]. Moreover, we think of investigating the structures of hierarchies of interactions and whether they could be used to build spatial representations of the environment and of the agent itself.
