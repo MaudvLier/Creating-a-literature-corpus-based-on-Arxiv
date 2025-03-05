@@ -1,0 +1,460 @@
+LEGENT: Open Platform for Embodied Agents
+
+
+Introduction
+
+
+Large Language Models (LLMs) (*REF*) and Large Multimodal Models (LMMs) (*REF*, *REF*) present inspiring
+capabilities in understanding and generating human-like text and
+realistic images. However, their direct application in embodied AI, where agents interact in
+physical or simulated environments, is still primitive. LLMs and
+LMMs lack the necessary grounding (*REF*,
+*REF*) in physical interactions to operate in these settings effectively.
+
+
+Research in embodied intelligence has evolved significantly, leading
+to more realistic and sophisticated environments (*REF*) and increasingly challenging tasks (*REF*). 
+However, these traditional environments and approaches are typically incompatible
+with current LLMs and LMMs, which hinders the seamless integration of
+task execution via language interaction. Consequently, these
+approaches do not leverage the extensive generalizable knowledge
+present in LLMs and LMMs.
+
+
+To achieve generalizable embodied intelligence, two key factors are
+crucial: language grounding to utilize the extensive knowledge in
+LMMs, and the expansion of training data for embodied AI. There have
+been noteworthy efforts in combining embodied AI with LMMs (*REF*). 
+They collect large-scale training data from embodied scenes and train end-to-end models that
+interpret both language and visual inputs and perform corresponding
+actions. However, the lack of open-source access to these environments
+and datasets restricts open-source community-wide progress in this
+field. Therefore, the academic community urgently requires an
+open-source platform that facilitates the integration of language
+grounding in embodied environments and schemes to generate
+large-scale training data for embodied agents based on LLMs and LMMs.
+
+
+Towards this aspiration, we introduce LEGENT, an open-source and
+user-friendly platform that enables scalable training of embodied
+agents based on LLMs and LMMs. LEGENT contains two parts. First, it
+provides a 3D embodied environment with the following features: (1)
+Diverse, realistic, and interactive scenes; (2) Human-like agents with
+egocentric vision capable of executing actions and engaging in
+direct language interaction with users;
+User-friendly interface offering comprehensive support for
+researchers unfamiliar with 3D environments. Second, LEGENT builds a
+systematic data generation pipeline for both scene generation and
+agent behavior, incorporating state-of-the-art algorithms for scene
+creation (*REF*, *REF*; *REF* *REF*, *REF*)
+and optimal trajectory generation. In this way, extensive and diverse
+trajectories of agent behavior with egocentric visual observations and
+corresponding actions can be generated at scale for embodied agent
+training.
+
+
+To demonstrate the potential of LEGENT, we train a basic
+vision-language-action model based on LMMs with generated data on two
+tasks: navigation and embodied question answering. The model
+processes textual and egocentric visual input and produces controls
+and textual responses directly. The prototype model outperforms GPT4V (*REF*, *REF*), which lacks
+training in an embodied setting. The generalization experiment reveals
+the LEGENT-trained model&apos;s ability to generalize to unseen settings.
+LEGENT platform and its documentation are publicly available at WEBSITE.
+
+
+Related Work
+
+
+Embodied Environment. Embodied environments are extensively
+utilized in games (*REF*), with a primary
+focus on visual AI and reinforcement learning. Some platform focuses
+on specific embodied tasks, such as manipulation (*REF*), navigation (*REF*), or
+planning-oriented agents (*REF*). However, the environment setups and data
+frameworks of existing platforms fall short in accommodating the
+training of LMMs, which excel in the supervised learning paradigm and
+necessitate diverse and large-scale data to integrate embodied capability.
+
+
+LMMs-based Embodied Agent. Noteworthy studies have concentrated on
+developing embodied models capable of end-to-end operation, as demonstrated in the works of *REF*. 
+Despite being generalizable, the datasets
+and models in these studies are not publicly available.
+
+
+Scene Generation. Scene generation has demonstrated significant
+effectiveness in training embodied agents by ProcTHOR (*REF*, *REF*). Compared to employing
+manually crafted rules used in ProcTHOR, recent studies (*REF*) leverage prior knowledge of LLMs and propose
+algorithms to generate diverse, high-quality scenes.
+
+
+Agent Trajectory Generation. Some research focuses on crafting
+reward functions to guide small policy models (*REF*). However, there will be huge costs and
+instability when applying reward-based training to large foundation
+models. Meanwhile, pioneering efforts have been made in code
+generation for robotics (*REF*) and trajectory generation for imitation
+learning (*REF*, *REF*). We follow this paradigm and further scale agent trajectory generation
+to cover a wide range of tasks.
+
+
+LEGENT
+
+
+In this section, we introduce our platform LEGENT. The design of
+LEGENT involves scene, agent, and interface. All three components are
+specially tailored for the integration of LLMs and LMMs, and ensure
+scalability.
+
+
+Scene
+
+
+The design of the scenes in LEGENT emphasizes interactivity and
+diversity, striving for a versatile and scalable environment that
+enriches the training of embodied agents for wide application.
+
+
+Realistic Physics. LEGENT provides a realtime simulation that
+closely mirrors real-world physics based on game engines. It supports realistic effects like
+gravity, friction, and collision dynamics, improving agents&apos; embodied
+comprehension or aiding the development of generative world simulators (*REF*, *REF*).
+
+
+FIGURE
+
+
+Diverse Rendering. LEGENT introduces another facet of
+generalization via diverse rendering. Unlike the fixed stylized
+renderings in games and the emphasis on photorealism in robotics, 
+LEGENT integrates these styles by customizing the rendering functions,
+which allows easy transitions between rendering styles to accommodate
+different requirements for flexible usage.
+
+
+Interactable Objects. In LEGENT, both agents and users can
+manipulate various fully interactable 3D objects, which enables
+actions such as picking up, transporting, positioning, and handing
+over these objects. Additionally, the environment supports interaction
+with dynamic structures, such as doors and drawers. We anticipate that
+the scope of these dynamic structures will be significantly broadened
+through the application of generative methods (*REF*, *REF*).
+
+
+Scalable Assets. LEGENT supports importing customized objects,
+including the user-supplied 3D objects, objects from existing datasets
+(*REF*, *REF*) and those created by generative models (*REF*). 
+We choose glTF as the import format for its
+openness and broad compatibility. This feature grants users the
+flexibility to customize the scene by strategically placing these
+assets or integrating them seamlessly into scene generation
+algorithms.
+
+
+TABLE
+
+
+Agent
+
+
+The agent is designed with two criteria: emulating human interactions
+and compatibility with LMMs. Egocentric Observations. Following
+the previous study for interactive embodied agents
+(*REF* *REF*, *REF*), the agent is equipped with egocentric vision. The egocentric vision
+is captured by mounting a camera on the agent&apos;s head.
+
+
+Language Interaction. Users and agents can communicate with each
+other in natural language in LEGENT. Grounding language within the
+environment has the potential to connect the extensive knowledge in
+LLMs and LMMs with embodied experience.
+
+
+Generalizable Actions. Agents in LEGENT are capable of performing
+a range of actions, including navigation, object manipulation, and
+communication. Regarding the instantiation of actions, existing
+literature can be broadly categorized into two types: executable
+plans (*REF*). In executable plans, actions are expressed
+through sub-steps to complete a task, such as &quot;walk towards apple
+1&quot;, which depends on internal states and annotations for execution,
+or requires an additional neural executor module compatible with a
+planning module (*REF*, *REF*). Control, on the other hand, refers 
+to the action expression like &quot;move forward 1 meter, rotate to the right 30 degrees&quot;, 
+which is considered more generalizable. In LEGENT, we use control, targeting
+generalizing to new environments including real-world settings. The
+learned actions can be integrated with diverse actuators with the
+least additional effort.
+
+
+Another important action design is allowing the agent to execute
+continuous actions such as moving forward across a continuous
+distance, as opposed to moving in a grid-by-grid manner. This design
+offers two advantages for LMMs: (1) It minimizes the inference cost of
+LMMs by eliminating the need for constant frame-by-frame inference.
+(2) It addresses the issue of minimal information gain observed when an 
+agent moves incrementally in a stepwise manner, a
+process that creates less effective data for training large models.
+This design draws parallels to the use of keyframes in video
+processing and making direct training of autoregressive LMMs
+(*REF*) feasible. Specifically, the actions currently supported in LEGENT are shown in
+Table *REF*. Considering the current capability of LMMs,
+LEGENT temporarily omits the complex control of agents&apos; body joints.
+Adding these degrees of freedom to allow more flexible action will be
+explored in the future.
+
+
+Realistic Animation. LEGENT features precise humanoid animations
+using inverse kinematics and spatial algorithms, enabling lifelike
+movements, which is important to enhance nonverbal interactions in
+AI systems and contribute to robotic control and text-to-motion
+research. Also, when combined with egocentric vision, it offers a
+costeffective alternative for immersive experiences similar to the
+Ego4D (*REF*, *REF*), which requires a huge cost to collect at scale.
+
+
+Interface
+
+
+Our platform offers a user-friendly interface for researchers to
+integrate LLMs and LMMs with the embodied environment easily, with
+little need for expertise in 3D environments. Detailed guidance is
+available in our documentation.
+
+
+Playable Interaction. The user interface of LEGENT is designed to
+be as intuitive as playing a video game with the agent within the
+environment, utilizing just a keyboard and mouse for navigation and
+interaction. This interface facilitates straightforward visual
+debugging and qualitative analysis and simplifies the process of
+conducting hands-on demonstrations.
+
+
+Simple Code. LEGENT is equipped with a Python toolkit to enable
+the interaction between the agent and the environment. The coding
+interface of our Python toolkit is simple, with concise code examples
+available in our documentation.
+
+
+Scene Generation Interface. Our platform incorporates various
+scene-generation techniques. Currently, we support methods including
+procedural generation and LLM-based generation. We provide a
+straightforward JSON format for specifying a scene, enabling users
+to easily develop their own scene generation methods.
+
+
+Agent Trajectory Generation Interface. We offer an agent trajectory 
+generation interface specifically designed
+for training LMMs. Using this interface, users can create training
+datasets that consist of egocentric visual records and corresponding
+ground truth actions paired with task instructions or queries, as
+elaborated in Section [4.3].
+
+
+Hardware Requirements. LEGENT is crossplatform. It can run
+effortlessly on personal computers without demanding particular
+prerequisites or complex setups, and it facilitates connections to
+remote servers for training and deployment, thus enhancing its
+accessibility.
+
+
+Data Generation
+
+
+The second part of LEGENT is a scalable data generation pipeline. It
+aims at exhaustively exploiting the inherent supervision from
+simulated worlds and supporting large-scale training of
+general-purpose embodied agents. Here we elaborate on the 
+implementation of our data generation framework.
+
+
+Scene Generation
+
+
+Scene generation offers agents with diverse embodied experiences.
+LEGENT has currently integrated two scene generation methods: (1)
+Procedure generation efficiently creates large-scale scenes. (2)
+Language-guided generation captures the semantics of textual queries
+and leverages common sense knowledge to optimize spatial layouts.
+
+
+Procedural Generation. We utilize the procedural generation
+algorithm created by ProcTHOR (*REF*, *REF*), designed to create realistic indoor scenes at
+scale by integrating prior knowledge of object placement and spatial
+relationships. The implementation process starts with drafting a
+house layout, followed by the placement of large furniture, and ends
+with the arrangement of small objects. During the process, spatial
+algorithms are used to prevent object overlap and ensure precise
+placement. We provide an interface that allows users to input
+specific conditions for object occurrence and placement, enabling the
+generation of scenes tailored to specific tasks. In addition, instead of 
+employing human annotators as previous work does, we utilize
+LLMs for asset annotation, establishing an efficient automatic asset
+annotation pipeline that facilitates future asset expansion.
+
+
+Language Guided Generation. We implement methods in Holodeck
+(*REF*, *REF*) into LEGENT and offer an LLM-powered interface 
+to generate single or multi-room indoor scenes given
+any natural language query. This process resembles procedural
+generation but is driven by LLMs instead of human-written programs.
+Instead of using the depth-first-search solver in Holodeck, we ask
+LLMs to determine the exact locations of doors and floor objects,
+granting LLMs more control over the room layout. Collision detection
+is used to prevent interference between objects during generation.
+
+
+FIGURE
+
+
+Task Generation
+
+
+We create diverse tasks expressed in language paired with specific
+scenes, thereby contextualizing each task within the environment. We
+employ the following two strategies for task generation.
+
+
+Task Generation for Given Scenes. In this strategy, we serialize
+the generated scenes into a detailed textual description and present
+it to LLMs with crafted instructions. LLMs assume the role of human
+users, generating a variety of tasks. This approach is especially
+effective for generating diverse tasks automatically.
+
+
+Scene Generation for Given Tasks. This approach efficiently
+generates large-scale samples for specific tasks, provided that the
+scene generation algorithm fulfills the required criteria. For
+instance, when the task involves querying an object&apos;s location, the
+algorithm generates a scene that includes the object and its
+receptacle, inherently creating question-answering annotations. As
+shown in Table *REF*, we provide some basic task
+templates that are ideal for creating large-scale scenes, which are
+particularly useful for pretraining fundamental capabilities of
+embodied control, spatial comprehension, and basic language
+grounding across diverse scenes.
+
+
+Trajectory Generation
+
+
+Trajectories for training embodied agents comprise continuous
+sequences of egocentric observations and actions. The main challenge
+lies in accurately determining ground-truth actions for each step.
+
+
+We use LLMs and controllers to label the ground
+truth actions. Inspired by pioneering works in code generation for
+robotics, we utilize LLMs to write intermediate codes from provided
+state descriptions and instructions. These codes are instantiated as
+multi-step controllers, designed to calculate the optimal actions at
+each step given the internal states of the environment. Each
+controller operates in a step-by-step manner in the environment, with
+visual observations collected during the process.
+
+
+TABLE
+
+
+We demonstrate this process using an example task &quot;Where is the
+orange?&quot;. As shown in Figure *REF*, to finish the task,
+the agent needs to search the room and answer the question. LLMs map
+the task to the appropriate code usage, determine the object
+identifier of the orange in the scene, and recognize its placement
+from the state description, thereby generating the following
+intermediate code: 1 find (36) \ object identifier of orange
+2 speak (\&quot; It \&apos;s on the sofa.\&quot;)
+
+
+Note that the code-writing is annotation-oriented. Even though LLMs
+can directly answer the question from the state description, it
+still invokes &quot;find&quot;. Then the code &quot;find&quot; is instantiated as a
+multi-step controller that utilizes pathfinding algorithms
+(*REF* *REF*, *REF*) incorporating visibility checks. The pathfinding algorithm calculates
+the waypoints of the shortest path from the agent to the target object
+using a navigation mesh. The controller then calculates the controls
+of the agent to navigate along these waypoints. For instance, in the
+first observation shown in Figure *REF*, the agent needs
+to rotate 59 degrees to the left to orient to the next waypoint,
+resulting in the action &quot;rotate_right(-59)&quot;. Similarly, in the
+second observation, the agent needs to perform certain actions to move
+to the subsequent waypoint. This multi-step controller concludes
+when the target object enters the agent&apos;s field of view. LEGENT
+records the visual observations and actions during this process as a trajectory, which can be
+exported as a video or an image-text interleaved sequence. The actions
+use a unified code representation, compatible with the outputs of LMMs.
+
+
+FIGURE
+
+
+Similar to &quot;find&quot;, each intermediate code is designed with the
+ability to generate optimal controls using the internal world states.
+In addition, each task template mentioned in Section
+[4.2] is equipped with intermediate code templates,
+as shown in Table *REF*, eliminating the need for LLMs in
+large-scale data generation for specific tasks.
+
+
+Prototype Experiments
+
+
+We conduct a prototype experiment to assess the utility of generated
+data on two embodied tasks: &quot;Come Here&quot; for social navigation (*REF*, *REF*) 
+and &quot;Where Is&quot; for embodied question answering (*REF*,
+*REF*). Task complexity varied from navigating in one
+room to the more intricate two rooms. We generate 1k and 10k
+trajectories for the initial three tasks (&quot;Come Here&quot; in one or two
+rooms and &quot;Where Is&quot; in one room) and assess the models on 100
+trajectories across all four tasks. The &quot;Where Is&quot; task in the
+two-room setting serves as a generalization test, which is not
+included in the training data.
+
+
+Due to the lack of powerful video understanding models, we temporarily
+only focus on the observation at the end of each continuous action,
+formulating one trajectory as an image-text interleaved sequence. We
+utilize VILA-7B (*REF*, *REF*) as
+our backbone due to its capability in interleaved inputs. We train the
+model to output current action based on task descriptions and
+interleaved context of previous observations and actions.
+
+
+The results presented in Table *REF* lead to several
+observations: (i) GPT-4V struggles in these tasks, reflecting a lack
+of embodied experience in igational skills developed from the &quot;Come Here&quot; task in a two-room
+environment generalize well to the untrained task scenario, enhancing
+the model&apos;s ability to navigate in two rooms for the embodied question
+answering task. We leave the exploration of more large-scale training
+in the future work.
+
+
+TABLE
+
+
+Demo of LEGENT
+
+
+The demo video of LEGENT is available at the link *REF*,
+which is partially shown in Figure *REF*. The demonstration
+exemplifies the engagement with embodied agents in LEGENT, primarily
+leveraging LLMs and controllers described in Section
+[4.3]. With advancements in LMMs&apos; capability
+of egocentric perception and control, we foresee the evolution of
+this demonstration into a fully embodied experience, independent of
+any extra internal information. We will also pursue this goal by
+further scaling the data generation for model training.
+
+
+Conclusion and Future Work
+
+
+In this work, we present LEGENT, an open platform for developing
+embodied agents, focusing on integrating LMMs with scalable embodied
+training. By bridging the gap between embodied AI and LMM&apos;s
+development, we hope LEGENT inspires research in this field. We are
+committed to the ongoing development of LEGENT, making it more
+scalable and user-friendly. In our future releases, we prioritize: (1)
+Building a more diverse data generation pipeline. (2) Scaling model
+training. (3) Unifying humanoid animation with robotic control and
+refining the physics to make actions more applicable to the real
+world. (4) Improving scene generation and integrating text-to-3D and
+image-to-3D methods to support more diverse and realistic scenes.

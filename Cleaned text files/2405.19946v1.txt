@@ -1,0 +1,689 @@
+
+Learning to Discuss Strategically: A Case Study on One Night Ultimate Werewolf
+
+
+Introduction
+
+
+Many games such as StarCraft
+[*REF*; *REF*], Diplomacy
+[*REF*; *REF*] can approximate various
+fundamental issues in real life, and studying these games contributes to
+a better understanding of the functioning of our society
+[*REF*]. Designing artificial intelligence (AI) agents that
+can play these games well has attracted a lot of attention
+[*REF*; *REF*; *REF*].
+Fortunately, recent large language models (LLMs) have demonstrated
+significant potential in constructing intelligent agents in numerous
+tasks [*REF*; *REF*; *REF*; *REF*]
+due to their impressive reasoning and emergent generalization abilities
+[*REF*; *REF*; *REF*]. Moreover,
+LLM-based agents have achieved approaching or even surpassing human
+performance in games like Chess[*REF*], Minecraft
+[*REF*; *REF*; *REF*], Avalon
+[*REF*; *REF*; *REF*] and Werewolf
+[*REF*; *REF*], etc.
+
+
+In the game Werewolf [*REF*], the hidden roles and uncertain
+discussions greatly influence the gameplay, making it challenging for
+players. Compared to it, the One Night Ultimate Werewolf (ONUW) game
+adds roles that can change the roles of players, and all players only
+have one nighttime to take action and one daytime to discuss and vote.
+Therefore, the key challenge of the ONUW game is to deduce and
+distinguish the final roles of all players from their statements.
+Meanwhile, due to the sequential execution of actions at night, the
+information obtained by the former player might be not reliable, leading
+to the rise of reasoning difficulty and uncertainty. For example, Seer
+and Robber are two roles in the ONUW game with special abilities, and
+the Seer saw a player was a Werewolf at night. However, if the Robber
+switched that player&apos;s role later on, the information obtained by Seer
+becomes invalid. So players need to discuss strategically, leveraging
+others&apos; statements and their own prior knowledge to guide other players
+to reveal their information, or conceal their identities by misleading
+or deceiving, particularly for Werewolves. Recent works
+[*REF*; *REF*; *REF*] have attempted to
+construct LLM-based agents that can play communication games, but they
+mainly focus on how to fully utilize reasoning and generalization
+abilities of LLMs, while neglecting the control over strategies.
+
+
+In this work, we focus on enhancing the discussion ability of LLM-based
+agents by leveraging the ONUW game. We formulate the ONUW game as a
+Multi-Phase Extensive-Form Bayesian Game and explore various discussion
+tactics in the game. Through analyzing a three-player ONUW game with two
+Werewolves and one Robber, we present the existence of the Perfect
+Bayesian Equilibria (PBEs) [*REF*] in two distinct
+scenarios: one with discussion and one without. Players&apos; utilities at
+equilibria when in the scenario with discussion highlight the
+significance of discussion, as they are only determined by players&apos;
+beliefs, which are influenced by discussion. Based on the insights
+obtained from the analyses, we thus propose an RL-instructed LLM-based
+agent framework. This framework leverages a policy optimized by
+reinforcement learning (RL) to determine an appropriate discussion
+tactic (e.g., \&quot;Honest Evidence\&quot;, \&quot;Deceptive Accusation\&quot;, etc.)
+based on current observation. To evaluate the effectiveness and
+generalizability of our framework, we conduct experiments in a
+three-player and a five-player ONUW game. The results indicate that the
+integration of our discussion policy can help LLM-based agents
+approximate PBEs more closely and improve the performance of LLM-based
+agents. Moreover, we observe the discussion policy trained by RL
+performs better than that by directly prompting LLM.
+
+
+Our contributions can be summarized as follows: Firstly, we formulate
+the ONUW game as a Multi-Phase Extensive-Form Bayesian Game and provide
+theoretical analyses of a three-player ONUW game, demonstrating that
+players&apos; utilities are only determined by their beliefs, which reveals
+the pivotal role that discussion plays in the ONUW game. Secondly, we
+develop an environment of the ONUW game, which is complicated due to the
+uncertainty caused by role changes. And we additionally contribute a
+dataset featuring players employing various discussion tactics in the
+ONUW game. Finally, inspired by the importance of discussion shown in
+our analyses, we propose an RL-instructed language agent framework,
+where an instructive discussion policy trained by RL is integrated, and
+a belief modeling method is employed to deduce the roles of players and
+generate actions based on its beliefs and discussion tactics.
+
+
+IMAGE
+
+
+This section reviews literature in the following areas: the analyses of
+Mafia/Werewolf games and the design of AI agents for communication
+games. Additional related work is covered in
+*REF*.
+
+
+Mafia is a multi-player communication game, modeling a conflict between
+the mafias and civilians. Early research
+[*REF*; *REF*; *REF*] has
+attempted to identify the optimal strategies for both citizens and
+mafias theoretically and thereby determine what setups lead to fair
+games. However, these works are based on strong assumptions such as
+random lynchings or meaningless debate, and restricted to simple
+scenarios like without detectives or removing most discussion. Werewolf
+is a reinvention of the Mafia game by introducing additional roles with
+special abilities. An *MATH* -Nash equilibrium is found under the
+limitation of both human-side and werewolf-side strategies
+[*REF*]. In contrast, our analyses make few assumptions and
+strictly adhere to game rules, despite being on specific cases. Some
+researchers have attempted to develop Werewolf agents that rely on
+rule-based systems or talking templates
+[*REF*; *REF*], while some rely on language
+models directly trained with Werewolf logs [*REF*].
+*REF* builds AI agents that can choose statements from a fixed
+set for One Night Ultimate Werewolf and designs a system that allows
+human players to play games with their AI agents. Most closely to our
+work is research on utilizing a policy to select candidate actions
+generated by LLMs to play the Werewolf game [*REF*], while our
+work directly integrates an optimized RL policy into the thinking and
+decision-making process of LLM-based agent, aiming to improve the
+discussion ability of agent.
+
+
+Besides the Werewolf games mentioned above, there are also AI researches
+conducted on other communication games, such as Diplomacy
+[*REF*; *REF*], Avalon
+[*REF*; *REF*; *REF*] and SpyFall
+[*REF*; *REF*]. There has been a long history
+of studying Diplomacy in the realm of AI
+[*REF*; *REF*], but most of them are rule-based
+algorithms until recently. Cicero [*REF*] integrates a dialogue
+module with a planning module trained by RL to infer players&apos; intentions
+and generate dialogue in pursuit of its plans, finally achieving
+human-level performance in Diplomacy. DeepRole [*REF*]
+combines counterfactual regret minimization (CFR) with value networks
+trained through self-play, while introducing deductive reasoning
+techniques aimed at deducing actions within partially observable
+scenarios. *REF* demonstrates the LLMs&apos; potential in
+playing a famous mafia-style game, SpyFall, by using prompt engineering
+techniques. Compared to our work, most designs of these agents are
+inadequate for handling the complex languages in the ONUW game and lack
+control over discussion tactics.
+
+
+One Night Ultimate Werewolf Benchmark
+
+
+One Night Ultimate Werewolf (ONUW) is a variant of the social game
+Werewolf [*REF*]. In this game, players only have one night to
+use their abilities, followed by one day to discuss and win for their
+respective teams. The main challenges of this game are the role switches
+and potential deceptions that create uncertainty and confusion for all
+players. Initially, one role is dealt randomly to each player. There are
+three phases in the ONUW game: Night (abilities performed in order), Day
+(open discussion), and Voting (suspicious player voted out). Game rules
+are detailed in *REF*.
+
+
+Problem Formulation
+
+
+Extensive-Form Game (EFG)
+[*REF*; *REF*] is a type of game where
+players take turns to make decisions in a specific order. However,
+compared with classic EFG, there are three phases in the ONUW game, and
+each player possesses diverse action spaces that differ across these
+phases. Also, the private actions and hidden roles indicate players have
+incomplete information, which is usually modeled as a Bayesian Game (BG)
+[*REF*; *REF*] or Hidden-Role Game (HRG)
+[*REF*].
+
+
+In order to formulate this game accurately, we consider a Multi-Phase
+Extensive-Form Bayesian Game (MP-EFBG), whose representation is based
+on a game tree. An *MATH* -phase *MATH* -player MP-EFBG can be formalized as a
+tuple *MATH*,
+where *MATH* is the set of players, and
+*MATH* is the set of phases. *MATH* denotes
+the set of states corresponding to nodes in the game tree. For each
+player *MATH*, *MATH* is the set of types and
+*MATH* denotes the set of joint types of all
+players. To capture the private information, we define *MATH* 
+as the set of information states and
+*MATH* as the information function that
+determines which states are indistinguishable for player *MATH* by mapping
+them on the same information state. *MATH* denotes
+the set of actions available to player *MATH* at information state
+*MATH* in phase *MATH*. So if two states
+*MATH* are mapped to the same information state by
+player *MATH* (*MATH*), player *MATH* will have the same action
+sets at these states. In this paper, we assume that all players have
+perfect recall, i.e., each player&apos;s current information state *MATH* 
+implies knowledge of the sequence of its previous information states and
+actions, *MATH*, that led to
+current information state. *MATH* is the
+player function, determining whom to act at the given state, and
+*MATH* is the phase function that decides what
+phase it is at the given state. Finally,
+*MATH* is the utility function
+for all players according to their types and the terminal states
+(i.e., leaf nodes in the game tree).
+
+
+Beliefs.
+
+
+Since each player has incomplete information about other players&apos; types
+and even its own type (player&apos;s role may be changed in the game), player
+*MATH* will form a belief *MATH* on all
+players&apos; types based on its observation. We define player *MATH* &apos;s belief
+on information state *MATH* 
+where *MATH* is the prior probability of all players&apos; types fro
+player *MATH* &apos;s view, and *MATH* is the probability that player
+*MATH* observes *MATH* given joint types *MATH*. Let
+*MATH* denote the new information
+contained in *MATH* at step *MATH* compared to *MATH*, then player
+*MATH* &apos;s belief can be updated via Bayes&apos; rule: *MATH*.
+And *MATH* is set as a uniform
+distribution, which is an unbiased estimate if there is no prior
+information.
+
+
+Behavioral Strategies.
+
+
+Player *MATH* &apos;s behavioral strategy in phase *MATH* is defined as
+*MATH*, which is a probability distribution over available actions given a phase
+and an information state. And *MATH* denotes the
+probability that player *MATH* takes action *MATH* in phase *MATH* given
+information state *MATH*. Player *MATH* &apos;s strategy consists of belief modeling
+and action selection, and is expressed as *MATH* 
+where *MATH* is a belief-conditioned behavioral strategy
+for player *MATH* in phase *MATH*. Denote
+*MATH* as a collection of strategies of all
+players, and the expected utility for player *MATH* induced by strategy
+profile *MATH* as *MATH*.
+
+
+FIGURE
+
+
+In this section, we consider a simple but interesting version of the
+ONUW game: with two Werewolves and one Robber. We present certain
+Perfect Bayesian Equilibria [*REF*] in this version of
+the game under two different assumptions, which demonstrate the crucial
+role that discussion during the Day phase plays in the ONUW game.
+
+
+Notation
+
+
+Since the ONUW game is an extensive-form game with incomplete
+information, an appropriate solution concept is Perfect Bayesian
+Equilibrium (PBE). A PBE consists of a pair *MATH*: a
+strategy profile *MATH* and a belief system *MATH* where satisfies
+Belief Consistency and Sequential Rationality. Belief Consistency
+includes both on and off-equilibrium paths. Specifically, beliefs on
+every path reached in equilibrium with a positive probability
+(on-equilibrium path) should be updated according to *REF*; on paths of zero probability
+(off-equilibrium path), the beliefs can be updated arbitrarily. For any
+player *MATH* at given information state *MATH*, Sequential Rationality
+imposes the condition for strategy *MATH*: *MATH*,
+which means given belief system and other players&apos; subsequent
+strategies, player *MATH*&apos;s strategy must be optimal.
+
+
+Without loss of generality, we assign roles to players at the beginning
+of the game as follows: Player 1 and Player 2 are the Werewolves, and
+Player 3 is the Robber. There is only one Robber in the game which is
+known to all players. Let *MATH* denote the set of actions that
+Player 3 could take during the Night phase as a Robber, we have
+*MATH*. As for the Voting phase, players&apos; action sets vary according to their
+index: *MATH*. For Player 3, we denote its behavioral strategy as a Robber in the Night
+phase as *MATH*. And Player 3 has
+three different information sets during the Voting phase depending on
+its action at night, thus there are three behavioral strategies: *MATH*,
+corresponding to cases where Player 3 did not switch, switched with
+Player 1 and with Player 2. And for Player 1 and Player 2, they only
+have behavioral strategies during the Voting phase, which are defined as
+*MATH*.
+
+
+Regarding beliefs, we denote the beliefs that Player 1 and Player 2 hold
+when they are in the Voting phase as *MATH*. Meanwhile, let
+*MATH* denote the beliefs that
+Player 3 holds when it is at different information sets in the Voting
+phase. In subsequent analysis, the order of probabilities in all beliefs
+is consistent with the order of decision nodes in their corresponding
+information sets in the game trees (e.g.,
+*REF*) from left to right. After the game, player
+*MATH* &apos;s utility is *MATH* for winning, *MATH* for losing, *MATH* 
+for drawing based on its final role.
+
+
+Game without Discussion 
+
+
+First, we consider a scenario that discussion is not allowed in the Day
+phase, and players vote directly based on the private information they
+captured during the Night phase.
+*REF* shows the game tree in this case.
+
+
+Assumption 1. Assume that the two original Werewolves are
+homogeneous, which means there is no difference between them and so are
+their belief models.
+At the beginning of the Night phase, the Werewolves would recognize each
+other and thereby know the player left must be the Robber. However,
+based on the game rules, Robber always takes action after the
+Werewolves, which forms a threat to prevent them from directly voting
+for the Robber. Also, the Robber has no prior knowledge of two
+Werewolves, thus tends to switch with any of them with equal
+probability. The game&apos;s solution is PBEs expressed in the theorem below.
+
+
+Theorem 2. For the ONUW game with two Werewolves and one Robber, in
+the case where discussion is not allowed, there exist PBEs
+*MATH*: TABLE where *MATH*, hence there are infinite equilibria in this case.
+And the expected utilities of all players in these equilibria are: *MATH*.
+The proof of *REF* can be seen in
+*REF*. This theorem demonstrates that in PBEs of
+this case, the original Robber (i.e., Player 3) will always randomly
+switch roles with the two other players to ensure its own safety and sow
+threats. Meanwhile, the two original Werewolves would definitely vote
+for each other since they believe the original Robber would switch
+roles with two original Werewolves with equal probability. As a
+result, Player 3 always wins, and the probability of Player 1 and Player
+2 winning is *MATH* each, depending on whether they are switched by
+Player 3. This is because Player 3 knows all players&apos; final roles due to
+its unique ability to switch.
+
+
+Game with Discussion
+
+
+Now we consider a scenario where discussion is allowed in the Day phase.
+If all players ignore the discussion, the PBEs in
+*REF* will still hold. But a more common
+situation is that the beliefs held by two original Werewolves about
+original Robber&apos;s night action would be influenced by Robber&apos;s speech,
+which would affect their voting strategies and result in different
+equilibria.
+
+
+Based on *REF*, we assume both original Werewolves would
+form beliefs about original Robber&apos;s night action (No switch, Switch
+P1, Switch P2) with probabilities of *MATH* after
+discussion, where *MATH*.
+*REF* shows the game tree in this case. Then PBEs
+during the Voting phase can be derived based on the beliefs above.
+
+
+Theorem 3. For the ONUW game with two Werewolves and one Robber, in
+the case that both Werewolves form beliefs about the Robber&apos;s night
+action with probabilities of *MATH* 
+(*MATH*), there exist PBEs *MATH* during the
+Voting phase: *MATH* where *MATH*.
+To ensure *MATH* and *MATH* are probabilities and the existence of the
+equilibria, there are constraints on the belief distribution: *MATH*. Under the constraints above, the expected
+utilities of all players in these equilibria are: *MATH*.
+
+
+The proof of *REF* can be seen in
+*REF*. According to this theorem, we can further
+get that the original Robber&apos;s expected utilities are the same varying
+from different actions it took at night. And interestingly, its utility
+is only determined by the probability that the Werewolves believe it did
+not switch with anyone. Therefore, if Player 3 wants to maximize its
+utility through discussion while maintaining the equilibria, it is
+supposed to convince both Player 1 and Player 2 to believe that it did
+not switch with a probability of *MATH*, no matter what action it took.
+In this way, Player 3&apos;s expected utility achieves the maximum 1.
+
+
+Learning to Discuss Strategically 
+
+
+In *REF*, we demonstrate that it is essential for
+players to affect other players&apos; beliefs through discussion. As a
+result, we capture knowledge about how to discuss in a latent variable
+*MATH* (called discussion tactic), on which we condition the behavioral
+strategy with belief as *MATH*, to
+explicitly adjust player&apos;s discussion preference in their strategy.
+Players decide their discussion tactic after being given their own
+information and derived beliefs. Hence, when introducing the discussion
+tactic *MATH*, the behavioral strategy of player *MATH* (i.e.,
+*REF*) can be rewritten as: *MATH* 
+where *MATH* is denoted as the discussion policy of player *MATH*, deciding
+what specific discussion tactic *MATH* to choose given information and
+belief. In the following, we describe our method for learning the
+discussion policy and how it is applied to construct an LLM-based agent
+to play the ONUW game.
+
+
+Learning Discussion Policy by RL
+
+
+Considering the remarkable reasoning and human-like text generation
+abilities of LLMs, we adopt LLMs as the belief function *MATH* and the
+belief-conditioned behavioral strategy *MATH* of player
+*MATH*. As a consequence, we only need to learn the discussion policy *MATH* 
+to obtain a better behavioral strategy for player *MATH* according to
+*REF*. Since the objective of learning policy
+*MATH* is to maximize the expected payoffs of player *MATH*, we can optimize
+it in an RL manner if we treat other players&apos; public actions (which are
+contained in player *MATH* &apos;s information state *MATH*) and player *MATH*&apos;s
+derived belief *MATH* as its observation and the chosen discussion
+tactic *MATH* as its action. Meanwhile, since players in the ONUW game
+only receive their rewards (or utilities) at the end of the game, the
+reward function at each step can be defined as follows: if the game is
+over at the next step, then *MATH*;
+otherwise, *MATH*.
+
+
+Discretization of Discussion Tactic.
+
+
+Due to the complexity of languages and semantics, there are almost
+unlimited types of discussion tactics. This makes it difficult to learn
+the policy *MATH* and understand the chosen discussion tactic *MATH*.
+Inspired by prior research on argumentation
+[*REF*; *REF*] and the discussion characteristics
+of the ONUW game, we classify the discussion tactics frequently adopted
+during the game into three major categories:
+- Evidence: Provide some game-related evidence or information.
+It is a widely used and main tactic in communication games for
+players.
+- Accusation: Accuse someone has a specific role or action.
+Accusation is a generic tactic in games with hidden roles, which can
+force the accused player to reveal information to defend itself.
+- Defense: Defend yourself or someone else against an
+accusation. Accompanied by accusation, there is defense. Player&apos;s
+defense can also be seen as a \&quot;reverse accusation\&quot; back to the
+accuser.
+
+
+For each category, we further divide it into honest and deceptive
+ones (e.g., \&quot;Honest Evidence\&quot; and \&quot;Deceptive Evidence\&quot;). Here,
+\&quot;honest\&quot; refers to being consistent with the information or beliefs
+that the speaker knows, while \&quot;deceptive\&quot; means the opposite. Hence,
+we get a total of six discussion tactics, which can be considered as an
+intuitive discretization of the discussion tactic space *MATH*, enabling us
+to analyze the discussion preference of players explicitly.
+
+
+Optimizing Discussion Policy with RL.
+
+
+Although LLMs can serve as the discussion policy *MATH* for each player,
+the decision-making ability of LLMs on specific tasks tends to be
+affected by their prior knowledge of other tasks. In order to enhance
+their performance, we implement reinforcement learning to optimize a
+task-specific discussion policy for the ONUW game. Since there is no
+extraneous game information, such as players&apos; personalities or body
+language, that could interfere with gameplay, it is believed that there
+exists an optimal policy *MATH* that is invariant across different players.
+Therefore, we decide to train a general discussion policy *MATH* that can
+adapt to various situations.
+
+
+In contrast to traditional RL tasks, the state for policy *MATH* is the
+discussion history *MATH* and derived belief on all players&apos; roles
+*MATH*, which are both presented in natural language. To combine these
+into a single, fixed-length input, we concatenate the history and belief
+and convert them into state embeddings using LLMs: *MATH*, where we consider all necessary
+information is extracted. The state embedding *MATH* is then passed through
+the discussion policy *MATH*, and the output is the chosen discussion
+tactic *MATH*. However, because of the slow interaction with LLMs, it is
+almost impossible to optimize the discussion policy *MATH* using online RL
+methods. So we turn to offline RL methods that support optimizations on
+discrete action spaces.
+
+
+Given the scarcity of datasets containing human players engaged in the
+ONUW game, we opt to leverage game logs generated by LLMs, which is the
+most effective way to collect trajectories for offline RL training. We
+first extract the trajectories separately from each player&apos;s perspective
+from the game logs. Then transitions from these trajectories are
+gathered to create a dataset
+*MATH* for the following training. We adopt Conservative Q-Learning (CQL)
+[*REF*] to train the discussion policy *MATH*. Let
+*MATH* denote the Q-function of policy *MATH*, parameterized by
+*MATH*, the loss function can be written as *MATH* 
+where *MATH* is a trade-off factor, and *MATH* is the Bellman
+operator.
+
+
+RL-instructed LLM-based Agent Framework
+
+
+Here we demonstrate how to utilize the trained discussion policy to
+construct an LLM-based agent to play the ONUW game. An overview of the
+framework is shown in
+*REF*. There are three key components: (1) Belief
+Modeling; (2) Discussion Tactic Selection; and (3) Decision Making.
+Different combinations of the components are used to generate actions in
+different phases. For the Night phase (Component 3), since there is no
+additional information to refer to, players would take actions based
+solely on their observations and prior information. For the Day phase
+(Component 1, 2, 3), all components combine to generate a public speech
+that adheres to the discussion tactic chosen by the trained policy. And
+for the Voting phase (Component 1, 3), players would first form beliefs
+and then vote for one player based on their observations and beliefs
+(mostly).
+
+
+In Component 1 and 3, where LLM is used to form beliefs and generate
+actions, we design the full prompts as follows: for Belief Modeling
+(Component 1), the system prompt consists of an explanation that LLM is
+playing the ONUW game, the rules of the game, all possible roles and
+their abilities, detailed description of its role, and the desired
+response format; the user prompt includes observation of the player that
+LLM is, and instructions about how to form beliefs. For Decision
+Making (Component 3), the system prompt adds additional prompts of the
+chosen discussion tactic; the user prompt includes observation, beliefs
+derived from the Belief Modeling component, and instructions about how
+to act in the current phase. Our prompts are detailed in *REF*.
+
+
+FIGURE
+
+
+In this section, we conduct three experiments from different aspects to
+evaluate the performance of our proposed RL-instructed LLM-based agent
+framework. We first perform experiments on the three-player ONUW game
+discussed in *REF*, to test whether LLM-based agents can
+recognize and approximate the equilibria. Then to showcase the
+scalability of our method, we consider a five-player ONUW game for
+experiments. We evaluate the effectiveness of our discussion policy
+trained by RL in settings where the initial role assignment and players&apos;
+actions at night are predefined. Furthermore, we demonstrate the
+generalizability of our discussion policy in the standard setting to see
+whether it could adapt to any role in the game.
+
+
+Setup 
+
+
+To develop the game environment, we employ a multi-agent language game
+framework called ChatArena [*REF*] and modify it to fit the ONUW
+game. We conduct our experiments on &apos;gpt-4-1106-preview&apos; (GPT-4)
+and &apos;gemini-pro&apos; (Gemini), where the temperature is all set to 1.0.
+Considering the state-of-the-art performance of GPT-4
+[*REF*], we leverage the game logs generated by it as the
+dataset for training the discussion policy. Detailed collection process
+and data statistics are in
+*REF*. &apos;text-embedding-ada-002&apos;.
+
+
+As for comparison, we implement the ReAct [*REF*] agent as the
+baseline by directly prompting the LLM with raw observations to generate
+its reasoning and action. Besides, we design two other ablated versions
+of our LLM-based agents (RL-instructed) to conduct evaluations. The
+first ablated version (Belief) removes the discussion policy, which
+means the agent generates speech directly based on its observations and
+beliefs. The second version (LLM-instructed) replaces the discussion
+policy with LLM, allowing LLM to determine the discussion tactic
+autonomously.
+
+
+Experiment on Three-Player ONUW 
+
+
+The analyses in *REF* theoretically illustrate the PBEs in the
+three-player ONUW game. Therefore, in this section, we investigate the
+potential of LLM-based agents to recognize and approximate the
+equilibria by calculating the NashConv value of agents when playing in
+the same game setting. The NashConv value is defined as *MATH*,
+where [BR]{.smallcaps} means the best response. This value represents
+how much utilities players can gain by deviating to their best
+responses, which also can be interpreted as a distance to equilibria.
+
+
+FIGURE 
+
+
+We apply all four versions of agents to play in the three-player ONUW
+game while using Gemini and GPT-4 as the backend LLMs, respectively. And
+to demonstrate the impact of discussion on players approximating the
+equilibria, we also conduct experiments on ReAct agents playing the
+three-player ONUW game without discussion (denoted as ReAct (w.o.)).
+The results are shown in *REF*. 
+Firstly, the introduction of discussion in
+the game increases the difficulty for players to approximate the
+equilibria. However, the discussion policy (i.e., LLM-instructed and
+RL-instructed) can help LLM-based agents make better responses and
+thereby reduce their NashConv values. And in contrast, the discussion
+policy trained by RL performs better than directly prompting the LLM. It
+is interesting to notice that the NashConv values of GPT-4-based agents
+are higher than Gemini-based ones. Detailed analysis of evaluation logs
+reveals that it is because when employing Gemini, the two Werewolves are
+more likely to both vote for the Robber, making it unable to find a
+better response given their actions.
+
+
+Effectiveness of the Discussion Policy 
+
+
+As our agent can better approximate the equilibria in the three-player
+ONUW game by integrating a discussion policy, we extend the experiments
+to a five-player version of the game to show its scalability. Since the
+discussion policy is the key component of our agent, we evaluate its
+effectiveness by letting our agent play as Team Village or Team
+Werewolf against other agents. We adopt two environments with different
+difficulty levels (easy and hard), where the initial role assignment
+and players&apos; night actions are predefined. Compared to the easy
+setting, the Werewolf is switched by the Robber in the hard one,
+resulting in the rise of reasoning difficulty during the game. More
+detailed environment settings can be found in *REF*.
+
+
+Considering that the discussion policy is trained on the dataset
+generated by GPT-4, we employ Gemini as the backend LLM for all four
+versions of agents to better illustrate the result. The matrices of
+Team Village&apos;s win rates under two different game settings are shown
+in *REF*. Each column in the matrices corresponds to
+the win rates that all players on Team Village utilize the same
+version of agent against Team Werewolf, where all members also utilize
+the same version. As shown in each row of two matrices, our agent
+(playing as Team Village) always achieves the highest win rates when
+competing against the same versions of agents under both game settings.
+And it is similar for each column. However, it is notable that the
+performance improvement of our agent is greater when playing as Team
+Village than Team Werewolf since the gap in win rates between agents
+is wider in Team Village. We argue it is possibly caused by the game
+mechanics where the Werewolves tend to have high win rates. Hence, our
+discussion policy showcases less significant improvement for Team
+Werewolf compared to Team Village.
+
+
+Generalizability of the Discussion Policy 
+
+
+FIGURE
+
+
+Since the discussion policy is trained to deal with various situations,
+we further carry out experiments in a standard five-player ONUW
+environment. However, due to the complexity of the role changes during
+the Night phase, players find it challenging to deduce their own final
+roles (except Insomniac) and some might even never figure it out.
+Therefore, we evaluate our RL-instructed LLM-based agent by setting it
+as one specific player while others as the other versions of agents. In
+this way, we demonstrate the generalizability of our discussion policy
+trained by RL, as it can assist the LLM-based agent in gaining better
+performance no matter what situation occurs to it.
+
+
+Similarly, we conduct experiments with all four versions of agents and
+leverage Gemini as the backend LLM. Meanwhile, to reduce the possible
+impact from the player&apos;s index, we designate our agent to play the
+five-player ONUW game as Player 3. As for other players, we adopt two
+versions of agents: (1) Gemini-based Belief agent and (2) GPT-4-based
+Belief agent. We report the performance of our agents playing as
+Player 3 against other agents in *REF*. 
+Considering the objective of
+discussion policy, which is to improve performance and meanwhile clarify
+or conceal themselves (i.e., get fewer votes), we propose two metrics: 
+win rates and average votes, to measure the generalizability of
+discussion policy when playing different roles. The results demonstrate
+that our agent outperforms other versions when playing against both
+Gemini-based and GPT-4-based agents. And it can even achieve a tie with
+GPT-4 in multiple rounds of evaluation.
+
+
+Conclusion and Future Work 
+
+
+In this work, we propose a novel RL-instructed LLM-based agent framework
+that achieves outstanding performance in the One Night Ultimate
+Werewolf game. Addressing the ONUW game as a Multi-Phase Extensive-Form
+Bayesian Game, we highlight the pivotal role of discussion in players&apos;
+strategies through certain Perfect Bayesian Equilibria in the game. Our
+experimental results in several settings demonstrate the effectiveness
+and generalizability of the discussion policy and our proposed agent
+framework. In general, this work provides new research insights for
+communication games with inherent uncertainty and the integration of
+reinforcement learning into LLM-based agents.
+
+
+One major limitation of our approach is the manual discretization of
+discussion tactics, which heavily relies on the inherent characteristics
+within specific communication games. Therefore, as for future work, it
+is worth investigating how to extract discussion tactics of any
+communication games automatically based on game logs in an unsupervised
+fashion. Additionally, it would be interesting to explore the
+sensitivity of our agents when selecting different combinations of
+discussion tactics.

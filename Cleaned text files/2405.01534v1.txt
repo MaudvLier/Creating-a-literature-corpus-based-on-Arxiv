@@ -1,0 +1,654 @@
+Plan-Seq-Learn: Language Model Guided RL for Solving Long Horizon Robotics Tasks
+
+
+[Introduction]
+
+
+In recent years, the field of robot learning has witnessed a
+significant transformation with the emergence of Large Language Models
+(LLMs) as a mechanism for injecting internet-scale knowledge into
+robotics. One paradigm that has been particularly effective is LLM
+planning over a predefined set of skills (*MATH*), producing strong results across a wide range of
+robotics tasks. These works assume the availability of a pre-defined
+skill library that abstracts away the robotic control problem. They
+instead focus on designing methods to select the right sequence skills
+to solve a given task. However, for robotics tasks involving contactrich robotic manipulation 
+(Fig. *MATH*), such skills are often not available, require significant engineering effort to design
+or train a-priori or are simply not expressive enough to address the
+task. How can we move beyond pre-built skill libraries and enable the
+application of language models to general purpose robotics tasks with
+as few assumptions as possible? Robotic systems need to be capable of
+online improvement over low-level control policies while being
+able to plan over long horizons.
+
+
+End-to-end reinforcement learning (RL) is one paradigm that can
+produce complex low-level control strategies on robots with minimal
+assumptions (*MATH*). Unlike hierarchical approaches which impose a
+specific structure on the agent which may not be applicable to all
+tasks, end-to-end learning methods can, in principle, learn a better
+representation directly from data. However, RL methods are
+traditionally limited to the short horizon regime due to the
+significant challenge of exploration in RL, especially in
+high-dimensional continuous action spaces characteristic of robotics
+tasks. RL methods struggle with longer-horizon tasks in which
+high-level reasoning and low-level control must be learned
+simultaneously; effectively decomposing tasks into sub-sequences and
+accurately achieving them is challenging in general (*REF*, *MATH*; *REF*, *MATH*).
+
+
+Our key insight is that LLMs and RL have complementary strengths and
+weaknesses. Prior work (*MATH*) has shown that when appropriately prompted,
+language models are capable of leveraging internet scale knowledge to
+break down long-horizon tasks into achievable sub-goals, but lack a
+mechanism to produce low-level robot control strategies *REF* (*MATH*), while RL can discover
+complex control behaviors on robots but struggles to simultaneously perform long-term reasoning
+(*MATH*, *MATH*). However, directly combining the two paradigms, for example, via training a
+language conditioned policy to solve a new task, does not address the
+exploration problem. The RL agent must now simultaneously learn
+language semantics and low-level control. Ideally, the RL agent should
+be able to follow the guidance of the LLM, enabling it to learn to
+efficiently solve each predicted sub-task online. How can we connect
+the abstract language space of an LLM with the low-level control space
+of the RL agent in order to address the long-horizon robot control
+problem? In this work, we propose a learning method to solve
+long-horizon robotics tasks by tracking language model plans using
+motion planning and learned low-level control. Our approach, called
+Plan-Seq-Learn (PSL), is a modular framework in which a
+high-level language plan given by an LLM (Plan) is interpreted and
+executed using motion planning (Seq), enabling the RL policy
+(Learn) to rapidly learn short-horizon control strategies to solve
+the overall task. This decomposition enables us to effectively
+leverage the complementary strengths of each module: language models
+for abstract planning, vision-based motion planning for task plan
+tracking as well as achieving robot states and RL policies for
+learning low-level control. Furthermore, we improve learning speed and
+training stability by sharing the learned RL policy across all stages
+of the task, using local observations for efficient generalization,
+and introducing a simple, yet scalable curriculum learning strategy
+for tracking the language model plan. To our knowledge, ours is the
+first work enabling language guided RL agents to efficiently learn
+low-level control strategies for long-horizon robotics tasks.
+
+
+FIGURE
+
+
+Our contributions are: 1) A novel method for long-horizon robot
+learning that tightly integrates large language models for high-level
+planning, motion planning for skill sequencing and RL for learning
+low-level robot control strategies; 2) Strategies for efficient policy
+learning from highlevel plans, which include policy observation
+space design for locality, shared policy network and reward function
+structures, and curricula for stage-wise policy training; 3) An
+extensive experimental evaluation demonstrating that PSL can solve
+over 25 long-horizon robotics tasks with up to 10 stages,
+outperforming SOTA baselines across four benchmark suites at success
+rates of over 85% purely from visual input. PSL produces agents
+that solve challenging long-horizon tasks such as NutAssembly at
+96% success rate.
+
+
+[Related Work]
+
+
+Classical Approaches to Long Horizon Robotics: Historically,
+robotics tasks have been approached via the Sense-Plan-Act (SPA)
+pipeline (*MATH*, *MATH*; *MATH*, *MATH*; *REF*, *MATH*; *REF*, *MATH*; *MATH*,
+*MATH*), which requires comprehensive understanding of
+the environment (sense), a model of the world (plan), and a low-level
+controller (act). Traditional approaches range from manipulation
+planning (*MATH*, *MATH*; *MATH*, *MATH*), grasp analysis
+*MATH* *MATH* (*MATH*),and Task and Motion Planning (TAMP) *MATH* 
+(*MATH*), to modern variants incorporating learned
+vision (*MATH*, *MATH*; *MATH*, *MATH*; *REF*, *MATH*). Planning algorithms
+enable long horizon decision making over complex and high-dimensional
+action spaces. However, these approaches can struggle with
+contact-rich interactions (*MATH*,
+*MATH*; *MATH*, *MATH*), experience cascading errors due to imperfect state estimation 
+(*MATH*, *MATH*), and require significant manual engineering and
+systems effort to setup (*MATH*, *MATH*). Our method leverages learning at each
+component of the pipeline to sidestep these issues: it handles
+contact-rich interactions using RL, avoids cascading failures by
+learning online, and sidesteps manual engineering effort by leveraging
+pre-trained models for vision and language.
+
+
+FIGURE
+
+
+Planning and Reinforcement Learning: Recent work has explored the
+integration of motion planning and RL to combine the advantages of
+both paradigms (*MATH*). GUAPO *MATH* (*MATH*) is similar to the Seq-Learn components of our
+method, yet their system considers the single-stage regime and is
+focused on keeping the RL agent in areas of low poseestimator
+uncertainty. Our method instead considers long-horizon tasks by
+encouraging the RL agent to follow a high-level plan given by an LLM
+using vision-based motion planning. MoPA-RL *MATH* *REF* (*MATH*) also bears resemblance to
+our method, yet it opts to learn when to use the motion planner via
+RL, requiring the RL agent to discover the right decomposition of
+planner vs. control actions on its own. Furthermore, roll-outs of
+trajectories using MoPA can result in the RL agent choosing to motion
+plan multiple times in sequence, which is inefficient - one motion
+planner action is sufficient to reach any position in space. In our
+method, we instead explicitly decompose tasks into sequences of
+contact-free reaching (motion planner) and contact-rich environment
+interaction (RL).
+
+
+Language Models for RL and Robotics LLMs have been applied to RL
+and robotics in a wide variety of ways, from planning *REF* (*MATH*); 
+*REF*, reward definition *MATH* (*MATH*); *MATH* (*MATH*), 
+generating quadrupedal contact-points *REF* (*MATH*), producing tasks for policy
+learning *MATH* (*MATH*); *REF* (*MATH*) and controlling
+simulation-based trajectory generators to produce diverse tasks *REF* (*MATH*). 
+Our work instead focuses on
+the online learning setting and aims to leverage language model driven
+planning to guide RL agents to solve new robotics tasks in a sample
+efficient manner. BOSS *MATH* (*MATH*) is closest to our overall method; this
+concurrent work also leverages LLM guidance to learn new skills via
+RL. Crucially, their method depends on the existence of a skill
+library and learns skills that are combination of high-level actions.
+Our method instead efficiently learns low-level robot control skills
+without depending on a pre-defined skill library, by taking advantage
+of motion planning to track an LLM plan.
+
+
+[Plan-Seq-Learn]
+
+
+In this section, we describe our method for solving long-horizon
+robotics tasks, PSL, outlined in Fig. *MATH*. Given a text
+description of the task, our method breaks up the task into meaningful
+sub-sequences (Plan), uses vision and motion planning to translate
+sub-sequences into initialization regions (Seq) from which we can
+efficiently train local control policies using RL (Learn).
+
+
+1. [Problem Setup]
+
+
+We consider Partially Observed Markov Decision Processes (POMDP) of
+the form (S, A, T, R, p0, O, pO, γ). S is the set of
+environment states, A is the set of actions, T (s^&apos;^ \| s, a) is
+the transition probability distribution, R(s, a, s^&apos;^) is the
+reward function, p0 is the distribution over the initial state
+s0 ∼ p0, O is the set of observations, pO is the
+distribution over observations conditioned on the state O ∼
+pO(O\|s) and γ is the discount factor. In our case, the
+observation space is the set of all RGB-D (RGB and depth) images. 
+The reward function is defined by the environment. The agent&apos;s
+goal is to maximize the expected sum of rewards over the trajectory, E
+\[ t γ^t^R(st, at, st+1)\]. In our work, we consider POMDPs that describe an embodied robot agent
+interacting with a scene. We assume that a text description of the
+task, gl, is provided to the agent in natural language.
+
+
+2. [Overview]
+
+
+To solve long-horizon robotics tasks, we need a module capable of
+bridging the gap between zero-shot language model planning and learned
+low-level control. Observe that many tasks of interest can be
+decomposed into alternating phases of contact-free motion and
+contact-rich interaction. One first approaches a target region and
+then performs interaction behavior, prior to moving to the next
+sub-task. Contact-free motion generation is exactly the motion
+planning problem. For estimating the position of the target
+propose a Sequencing Module which uses offthe-shelf vision models to
+estimate target robot states from the language plan and then achieves
+these states using a motion planner. From such states, we train
+interaction policies that optimize the task reward using RL. See Alg.
+*MATH* and Fig. *MATH*. 
+
+
+FIGURE
+
+
+3. [Planning Module: Zero-Shot High-level Planning]
+
+
+Long-horizon tasks can be broken into a series of stages to execute.
+Rather than discovering these stages using interaction or using a task
+planner *MATH* (*MATH*) that
+may require privileged information about the environment, we use
+language models to produce natural language plans zero shot without
+access to the environment. Specifically, given a task description
+gl by a human, we prompt an LLM to produce a plan. Designing the
+plan granularity and scope are crucial; we need plans that can be
+interpreted by the Sequencing Module, a vision-based system that
+produces and achieves robot poses using motion planning. As a result,
+the LLM predicts a target region (a natural language label of an
+object/receptacle in the scene, e.g. &quot;silver peg&quot;) which can be
+translated into a target pose to achieve at the beginning of each
+stage of the plan.
+
+
+When the RL policy is executing a step of the plan, we propose to add
+a stage termination condition (e.g. grasp, place, turn, open,
+push) to know the stage is complete and to move onto the next stage.
+This condition is defined as a function fstage(O^global^) that
+takes in the current observation of the environment and evaluates a
+binary success criteria as well as a natural language descriptor of
+the condition for prompting the LLM (e.g. &apos;grasp&apos; or &apos;place&apos;). These
+stage termination conditions are estimated using visual pose
+estimates. We describe the stage termination conditions in greater
+detail in Sec. [3.5] and Appendix [D]. The LLM prompt consists of
+the task description gl, the list of supported stage termination
+conditions (which we hold constant across all environments) and
+additional prompting strings for output formatting. We format the
+language plans as follows: (&quot;Region 1&quot;, &quot;Termination Condition 1&quot;),
+\... (&quot;Region N&quot;, &quot;Termination Condition N&quot;), assuming the LLM
+predicts N stages. Given the prompt, the LLM outputs a natural
+language plan in the format listed above. Below, we include an example
+prompt and plan for the Nut Assembly task.
+
+
+Prompt: Stage termination conditions: (grasp, place). Task
+description: The gold nut goes on the gold peg and the silver nut goes
+on the silver peg. Give me a simple plan to solve the task using only
+the stage termination conditions. Make sure the plan follows the
+formatting specified below and make sure to take into account object
+geometry. Formatting of output: a list in which each element looks
+like: (\&lt;object/region\&gt;, \&lt;stage termination condition\&gt;).
+Don&apos;t output anything else.
+
+
+While any language model can be used to perform this planning process,
+we found that of a variety of publicly available LLMs (via weights or
+API), only GPT-4 *MATH* (*MATH*) was
+capable of producing correct plans across all the tasks we consider.
+We sample from the model with temperature 0 for determinism. We also
+delete components of the plan that contain LLM hallucinations (if
+present). We provide additional details in Appendix
+[D] and example prompts in Appendix [G].
+
+
+4. [Sequencing Module: Vision-based Plan Tracking]
+
+
+Given a high-level language plan, we now wish to step through the plan
+and enable a learned RL policy to solve the task, using off-the-shelf
+vision to produce target poses for a motion planning system to
+achieve. At stage X of the high-level plan, the Sequencing Module
+takes in the corresponding step high-level plan (&quot;Region Y&quot;,
+&quot;Termination Condition Z&quot;) as well as the current global observation
+of the scene O^global^ (RGB-D view(s) that cover the whole scene),
+predicts a target robot pose qtarget and then reaches the robot
+pose using motion planning.
+
+
+Vision and Estimation: Using a text label of the target region of
+interest from the high-level plan and observation O^global^, we need
+to compute a target robot state qtarget for the motion planner to
+achieve. In principle, we can train an RL policy to solve this task
+(learn a policy πv to map O^global^ to qtarget) given the
+environment reward function. However, observe that the 3D position of
+the target region is a reasonable estimate of the optimal policy π^∗^ for this
+task: intuitively, we wish to initialize the robot nearby to the region of 
+interest so it can efficiently learn
+interaction. Thus, we can bypass learning a policy for this step by leveraging a vision model to
+estimate the 3D coordinates of the target region. We opt to use
+Segment Anything *MATH* (*MATH*) to perform segmentation, as it is capable of
+recognizing a wide array of objects, and use calibrated depth images
+to estimate the coordinates of the target region. We convert the
+estimated region pose into a target robot pose qtarget for motion
+planning using inverse kinematics.
+
+
+Motion Planning: Given a robot start configuration q0 and a
+robot goal configuration qtarget of a robot, the motion planning
+module aims to find a trajectory of way-points τ that form a
+collision-free path between q0 and qtarget. For manipulation
+tasks, for example, q represents the joint angles of a robot arm. We
+can use motion planning to solve this problem directly, such as
+search-based planning *MATH* (*MATH*), sampling-based planning *REF* (*MATH*) or trajectory
+optimization *MATH* (*MATH*). In our implementation, we use AIT\ *MATH* 
+(*MATH*), a sampling-based planner, due to its minimal
+setup requirements (only collision-checking) and favorable performance
+on planning. For implementation details, please see Appendix [D].
+
+
+Overall, the Sequencing Module functions as the connective tissue
+between language and control by moving the robot to regions of
+interest in the plan, enabling the RL agent to quickly learn
+short-horizon interaction behaviors to solve the task.
+
+
+5. [Learning Module: Efficiently Learning Local Control]
+
+
+Once the agent steps through the plan and achieves states near target
+regions of interest, it needs to train an RL policy πθ to learn
+low-level control for solving the task. We train πθ using DRQ-v2
+*MATH* *MATH* (*MATH*), a SOTA visual model-free RL algorithm, to produce low-level control
+actions (joint control or end-effector control) from images.
+Furthermore, we propose three modifications to the learning pipeline
+in order to further improve learning speed and stability.
+
+
+First, we train a single RL policy across all stages, stepping
+through the language plan via the Sequencing Module, to optimize the
+task reward function. The alternative, training a separate policy per
+stage, would require designing stage specific reward functions per
+task. Instead, our design enables the agent to solve the task using a
+single reward function by sharing the policy and value functions
+across stages. This simplifies the training setup and allowing the
+agent to account for future decisions as well as inaccuracies in the
+Sequencing Module. For example, if πθ is initialized at a
+sub-optimal position relative to the target region, πθ canLadapt
+its behavior according to its value function, which is trained to 
+model the full task return *MATH*.
+
+
+Second, instead of executing πθ for a fixed number of steps per
+stage Hl, we predict a stage termination condition
+fstage(O^global^) using the language model and evaluate the
+condition at every time-step to test if a stage is complete, otherwise
+it times out after Hl steps. For most conditions, fstage is
+evaluated by computing the pose estimate of the relevant object and
+thresholding. This process functions as a form of curriculum learning: 
+only once a stage is completed is the agent allowed to progress to the
+next stage of the plan. As we ablate in Sec. [5], stage
+termination conditions enable the agent to learn more performant
+policies by preventing dithering behavior at each stage. As an
+example, in the nut assembly task shown in Fig. *MATH*, once
+πθ places the silver nut on the silver peg, the placement
+condition triggers (by compare the pose of the nut to the peg pose)
+and the Sequencing Module moves the arm to near the gold peg.
+
+
+Finally, as opposed to training the policy using the global view of
+the scene (O^global^), we train using local observations
+O^local^, which can only observe the scene in a small region around
+the robot (e.g. wrist camera views for robotic manipulation). This
+design choice affords several unique properties that we validate in
+Appendix [C](additional-experiments), namely: 1) improved learning
+efficiency and speed, 2) ease of chaining pre-trained policies. Our
+policies are capable of leveraging local views because of the
+decomposition in PSL: the RL policy simply has to learn interaction
+behaviors in a small region, it has no need for a global view of the
+scene, in contrast to an end-to-end RL agent that would need to see a
+global view of the scene to know where to go to solve a task. For
+additional details in regarding the structure and training process of
+the Learning Module, see Appendix [D].
+
+
+[Experimental Setup]
+
+
+1. TASKS
+
+
+We conduct experiments on single and multi-stage robotics tasks across
+four simulated environment suites (Meta-World, Obstructed
+Suite, Kitchen and Robosuite) which contain obstructed
+settings, contact-rich setups, and sparse rewards (Fig.
+*MATH*). See Appendix [F] for additional
+details.
+
+
+Meta-World: *MATH* (*MATH*) is an
+RL benchmark with a rich source of tasks. From Meta-World, we select
+four tasks: MW-Disassemble (removing a nut from a peg), MW-BinPick
+(picking and placing a cube), MW-Assembly (putting a nut on a peg),
+MW-Hammer (hammering a nail).
+
+
+ObstructedSuite: *MATH* 
+(*MATH*) contains tasks that evaluate our agent&apos;s
+ability to plan, move and interact with the environment in the
+presence of obstacles. It consists of three tasks: OS-Lift (cube
+lifting in a tall box), OS-Push (push a block surrounded by walls),
+and OS-Assembly (avoiding obstacles to place table leg at target).
+
+
+Kitchen: *MATH* (*MATH*); *REF* (*MATH*) tests two aspects of our
+agent: its ability to handle sparse terminal rewards and its
+long-horizon manipulation capabilities. The single-stage kitchen tasks
+include K-Slide (open slide cabinet), K-Kettle (push kettle forward),
+K-Burner (turn burner), K-Light (flick light switch), and K-Microwave
+(open microwave). The multi-stage Kitchen tasks denote the number of
+stages in the name and include combinations of the aforementioned
+single tasks.
+
+
+Robosuite: *MATH* (*MATH*)
+contains a wide array of robotic manipulation tasks ranging from
+single stage (RS-Lift: cube lifting, RS-Door: door opening) to
+multi-stage (RS-NutRound,RS-NutSquare, RS-NutAssembly: pick-place
+nut(s) onto target peg(s) and RS-Bread, RS-Cereal, RS-Milk, RS-Can,
+RS-CerealMilk, RS-CanBread: pick-place object(s) into appropriate
+bin(s)). Robosuite emphasizes realism and fidelity to real-world
+control, enabling us to highlight the potential of our method to be
+applied to real systems.
+
+
+2. [Baselines]
+
+
+We compare against two types of baselines, methods that learn from
+data and methods that perform offline planning. We include additional
+details in Appendix [D].
+
+
+FIGURE
+
+
+Learning Methods:
+- E2E: *MATH* (*MATH*) DRQ-v2 is a SOTA model-free visual RL algorithm.
+- RAPS: *MATH* (*MATH*) is a hierarchical RL method that modifies the action space of the agent
+with engineered subroutines (primitives). RAPS greatly accelerates
+learning speed, but is limited in expressivity due to its action
+space, unlike PSL.
+- MoPA-RL: *MATH* (*MATH*) is similar to PSL in its integration of motion planning and RL but
+differs in that it does not leverage an LLM planner; it uses the RL
+agent to decide when and where to call the motion planner.
+
+
+Planning Methods:
+- TAMP: *MATH* (*MATH*) is a classical baseline that uses a privileged view of the world to
+perform joint high-level (task planning) and low-level planning
+(motion planning with primitives) for solving long-horizon robotics tasks.
+- SayCan: a re-implementation of SayCan *MATH* 
+(*MATH*) using publicly available LLMs that performs
+LLM planning with a fixed set of pre-defined skills. Following the
+SayCan paper, we specify a skill library consisting of object
+picking and placing behaviors using pose-estimation, motion-planning
+and heuristic action primitives. We do not learn the pick skill as
+done in SayCan because our setup does not contain a separate set of
+train and evaluation environments. In this work, we evaluate the
+single-task RL regime in which the agent is tested with held out
+poses, not held out environments.
+
+
+3. [Experiment details]
+
+
+We evaluate all methods aside from TAMP and MoPA-RL (which use
+privileged simulator information) using visual input. SayCan and PSL
+use O^global^ and O^local^. For E2E and RAPS, we provide the
+learner access to a single global fixed view observation from
+O^global^ for simplicity and speed of execution; we did not find
+including O^local^ improves performance (Fig. *MATH*)
+We measure performance in terms of task success rate with respect to
+the number of trials. We do so to provide a fair metric for evaluating
+a variety of different control implementations across PSL, RAPS, and
+E2E. Each method is trained for 10K episodes total. We train on each
+task using the default environment reward function. For each method,
+we run 7 seeds on every task and average across 10 evaluations.
+
+
+[Results]
+
+
+We begin by evaluating PSL on a variety of single stage tasks across
+Robosuite, Meta-World, Kitchen and ObstructedSuite. Next, we scale our
+evaluation to the long-horizon regime in which we show that PSL can
+leverage LLM task planning to efficiently solve multi-stage tasks.
+Finally, we perform an analysis of PSL, evaluating its sensitivity to
+pose estimation error and stage termination conditions.
+
+
+1. [Learning Results]
+
+
+PSL accelerates learning efficiency on a wide array of single-stage
+benchmark tasks. For single-stage manipulation, (in which the LLM
+predicts only a single step in the plan), the Sequencing
+Module motion plans to the specified region, then hands off control to
+the RL agent to complete the task. In this setting, we solely evaluate
+the learning methods since the planning problem is trivial (only one
+step). We observe improvements in learning efficiency (with respect to
+number of trials) as well as final performance in comparison to the
+learning baselines E2E, RAPS and MoPA-RL, across 11 tasks in
+Robosuite, Meta-World, Kitchen and ObstructedSuite (Fig.
+*MATH*, left). For all learning curves, please see the
+Appendix [C]. PSL especially performs well on
+sparse reward tasks, such as in Kitchen, for which a key challenge is
+figuring out which object to manipulate and where it is. Additionally,
+we observe qualitatively meaningful behavior using PSL: PSL learns to
+use the gripper to grasp and turn the burner knob, unlike E2E or RAPS
+which end up using other joints to flick the burner.
+
+
+TABLE
+
+
+PSL efficiently solves tasks with obstructions by leveraging motion
+planning. We now consider three tasks from the Obstructed Suite in
+order to highlight PSL&apos;s effectiveness at learning control in the
+presence of obstacles. As we observe in Fig. *MATH* and Fig.
+*MATH*, PSL is able to do so efficiently, solving each
+task within 5K episodes, while E2E fails to make progress. PSL is able
+to do so because the Sequencing Module handles the obstacle avoidance
+implicitly via motion planning and initializes the RL policy in
+advantageous regions near the target object. In contrast, E2E spends a
+significant amount of time attempting to reach the object in spite of
+the obstacles, failing to learn the task. While MoPA-RL is also able
+to solve many of the tasks, it requires more trials than PSL even
+though it operates over privileged state input, as the agent must
+simultaneously learn when and where to motion plan as well as
+how to manipulate the object.
+
+
+PSL enables visuomotor policies to learn long-horizon behaviors with
+up to 10 stages. Two-stage results across Robosuite and Meta-World
+are shown in Table *MATH* and Table *MATH*,
+with learning curves in Fig. *MATH* (right) and Fig.
+*MATH*. On the Robosuite tasks, E2E and RAPS fail to make
+progress: while they learn to reach the object, they fail to
+consistently grasp it, let alone learn to place it in the target
+location. On the Meta-World tasks, the learning baselines perform well
+on most tasks, achieving similar performance to PSL due to shaped
+rewards, simplified low-level control (no orientation changes) and
+small pose variations. However, PSL is significantly more
+sample-efficient than E2E and RAPS as shown in Fig.
+*MATH*. TAMP and SayCan are able to achieve high
+performance across each PickPlace variant of the Robosuite tasks
+(93.75%, 86.5% averaged across tasks), as the manipulation
+skills do not require significant contact-rich interaction, reducing
+failure skill failure rates. Cascading failures still occur due to the
+baselines&apos; open-loop nature of execution, imperfect state estimation
+(SayCan), planner stochasticity (TAMP). Only PSL is able to achieve
+perfect performance across each task, avoiding cascading failures by
+learning from online interaction.
+
+
+On multi-stage tasks (involving 3-10 stages), we find that TAMP and
+SayCan performance drops significantly in comparison to PSL (38% and
+37% vs. 95% averaged across tasks). For multiple stages, the cascading
+failure problem becomes all the more problematic, causing all three
+baselines to fail at intermediate stages, while PSL is able to learn
+to adapt to imperfect Sequencing Module behavior via RL. See Table
+*MATH* for a detailed breakdown of the results.
+
+
+PSL solves contact-rich, long-horizon control tasks such as
+NutAssembly. In these experiments, we show that PSL can learn to
+solve contact-rich tasks (RS-NutRound, RS-NutSquare, RS-NutAssembly)
+that pose significant challenges for classical methods and LLMs with
+pretrained skills due to the difficulty of designing manipulation
+behaviors under continuous contact. By learning an interaction policy
+whose purpose is to produce locally correct contact-rich behavior, we
+find that PSL is effective at performing contact-rich manipulation
+over long horizons (Table *MATH*, Table *MATH*),
+outperforming SayCan by a wide margin (97% vs. 35% averaged across
+tasks). Our decomposition into contact-free motion generation and
+contact-rich interaction decouples the what (target nut) and where (peg) from the how (precision grasp and
+contact-rich place), allowing the RL agent to simply focus on the
+aspect of the problem that is challenging to estimate a-priori: how to
+interact with the objects in the appropriate manner.
+
+
+TABLE
+
+
+2. [Analysis]
+
+
+We now turn to analyzing PSL, evaluating its robustness to pose
+estimates and the importance of our proposed stage termination
+conditions. We include additional analysis of PSL in Appendix [C].
+
+
+TABLE
+
+
+PSL leverages stage termination conditions to learn faster. While
+the target object sequence is necessary for PSL to plan to the right
+location at the right time, in this experiment we evaluate if
+knowledge of the stage termination conditions is necessary.
+Specifically, on the RS-Can task, we evaluate the use of stage
+termination condition checks in PSL to trigger the next step in the
+plan versus simply using a timeout of 25 steps. We find that it is in
+fact critical to use stage termination condition checks to enable the
+agent to effectively sequence the plan; use of a timeout results in
+dithering behavior which slows down learning. After 10K episodes we
+observe a performance improvement of 31% (100% vs. 69%) by including
+plan stage termination conditions in our pipeline.
+
+
+PSL produces policies that are robust to noisy pose estimates. In
+real world settings, there is often noise in pose estimation due to
+noisy depth values, imperfect camera calibration or even network
+prediction errors. Ideally, the agent should be adapt to such
+potential failure modes: open-loop planning methods such as TAMP and
+SayCan are not well-suited to do so because they do not improve
+online. In this experiment we evaluate the PSL&apos;s ability to handle
+noisy/inaccurate poses
+
+
+by leveraging online interaction via RL. On the RS-Can task, we add
+zero-mean Gaussian noise to the pose, with σ ∈ 0.01, 0.025,
+.1,.5 and report our results in Table *MATH*. While
+SayCan struggles to handle σ \&gt; 0.01, PSL is able to learn with
+noisy poses at σ =.1, at the cost of slower learning
+
+
+performance. Neither method performs well at σ = 0.5, however at
+that point the poses are not near the object and the effect is similar
+to resetting to a random robot pose in the workspace every episode.
+
+
+[Conclusions]
+
+
+In this work, we propose PSL, a method that integrates the
+long-horizon reasoning capabilities of language models with the
+dexterity of learned RL policies via a skill sequencing module. At the
+heart of our method lies the decomposition of robotics tasks into
+sequential phases of contact-free motion generation (using language
+model planning) and environment interaction. We solve these phases
+using motion planning (informed by visual pose-estimation) and
+model-free RL respectively, an approach which we validate via an
+extensive experimental evaluation. We outperform state-of-the-art
+methods for end-to-end RL, hierarchical RL, classical planning and LLM
+planning on over 20 challenging vision-based control tasks across four
+benchmark environment suites. In the future, this work could be
+extended to improving a pre-existing robot skill library over time
+using RL, enabling an agent to perform planning with an ever
+increasing repertoire of skills that can be refined at a low-level.
+PSL can also be applied to sim2real transfer, since the policies we
+train in this work use local observations, they are more amenable to
+sim2real transfer *MATH* (*MATH*).

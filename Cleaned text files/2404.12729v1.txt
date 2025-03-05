@@ -1,0 +1,373 @@
+Demonstration of quantum projective simulation on a single-photon-based quantum computer
+
+
+Introduction. Variational quantum algorithms (VQAs) have emerged as a
+promising class of algorithms for leveraging the computational
+capabilities of noisy intermediate-scale quantum devices. These
+algorithms utilize parameterized quantum circuits to perform tasks by
+optimizing parameters through classical feedback loops, making them
+adaptable to the error-prone nature of current quantum hardware
+[*REF*]. The flexibility and hybrid quantum-classical
+nature of VQAs have made them a focal point in the exploration of
+quantum computing applications, particularly in the domain of quantum
+machine learning (QML) [*REF*; *REF*; *REF*].
+
+
+One of the objectives of QML is to harness quantum effects to enhance
+performance in specific tasks compared to traditional methods. However,
+this must be very carefully done since simply incorporating quantum
+elements into a learning model does not necessarily make it hard to
+approximate using classical methods [*REF*] or
+better than a classical model [*REF*]. In addition, the
+introduction of quantum effects into machine learning algorithms often
+complicates even more the interpretation of their results. To address
+this last issue, a variational method [*REF*] was
+recently introduced to quantize the projective simulation model
+[*REF*], which is a reinforcement learning algorithm
+valued for its interpretability. While the classical version of PS has
+been applied and benchmarked in various scenarios
+[*REF*; *REF*], its quantum counterpart has remained within the realm of theoretical studies
+[*REF*], with only some proposals of experimental
+realizations [*REF*; *REF*].
+
+
+This work aims to bridge this gap by implementing a variational quantum
+PS algorithm on a photonic platform. Additionally, we evaluate our
+implementation of the quantum PS agent using a modified version of a
+learning scenario that was previously introduced
+[*REF*; *REF*]. This test bed task is designed
+to create an environment in which correct decision-making by the PS
+agent is conditional on the use of quantum effects. Our testing includes
+ideal and noisy simulations, as well as execution on Quandela&apos;s
+single-photon-based quantum computer [*REF*].
+
+
+Classical projective simulation. In reinforcement learning (RL), an
+agent interacts with the environment to learn an optimal decision-making
+strategy.
+
+
+FIGURE
+
+
+During each interaction, the environment provides the agent with its
+current state and a reward associated with the previous interaction. The
+agent must select an action from a set of options and send it back to
+the environment. The optimal strategy is the one that maximizes the
+reward accumulated over the long term. PS employs a random walk over a
+weighted directed graph called episodic compositional memory (ECM) to
+make decisions. Each vertex of the graph, referred to as a clip,
+represents a memory unit of the agent. The first layer of clips
+corresponds to states, while the last layer corresponds to actions,
+following the order of the graph. The deliberation is governed by a
+stochastic process that starts with the input state clip and ends with
+one of the action clips (Fig. [1]). After each interaction, the weights of the edges
+involved in the walk are updated based on the obtained reward: *MATH* where *MATH* 
+is the collection of weights of
+the edges involved in the walk at time *MATH*. The reward is the same for
+all the weights and can be either positive and then increase the
+weights, or negative and then decrease them. The weight of the edge
+between two clips *MATH* is connected to the jump probability from clip
+*MATH* to clip *MATH*: *MATH*. *MATH* More
+advanced update rules can be introduced, e.g. to account for forgetting
+and glowing mechanisms [*REF*].
+
+
+The main distinction between PS and other decision-making algorithms for
+RL is that PS employs the ECM to model the agent. This not only enables
+higher level of abstraction within deliberations compared to tabular
+approaches such as Q-Learning and SARSA [*REF*],
+but also enriches the agent by making its decisions interpretable, which
+is a significant concern in deep reinforcement learning models [*REF*].
+
+
+Quantum optical projective simulation. The natural quantization of PS
+involves replacing the random walk through the ECM with a quantum walk
+over a quantum model of the agent&apos;s memory [*REF*].
+The quantum model, in its optical version, consists of a single photon
+passing through a quantum optical setup (Fig. [2]). Each optical mode, denoted as *MATH*,
+corresponds to a vertex of the classical ECM. Let *MATH* and *MATH* be
+optical modes corresponding to a state clip and an action clip,
+respectively. The decision-making process for a photon injected at input
+port *MATH* and detected at output port *MATH* is modeled by: *MATH* 
+where *MATH* is the realization of such process by the
+interferometric scattering matrix connecting the *MATH* different optical modes.
+
+
+FIGURE
+
+
+While the classical ECM provides access to intermediate clip-to-clip
+transition probabilities as they constitute the graph&apos;s weights, this
+accessibility is not possible within the quantum PS framework. Given a
+photon in the state mode *MATH* as input, only the probability of
+getting the photon in the output action mode *MATH* can be measured. In
+this case, a variational approach can be used to update the quantum ECM
+after each interaction, with the goal of finding the minimum of a loss
+function that embeds an update rule similar to Eq. , but for
+input/output modes probabilities instead of intermediate weights: *MATH* 
+where *MATH* is the vector of parameters of the quantum ECM, *MATH* 
+is a suitable distance function and *MATH* is a cutoff function used to
+clamp its argument to a value in the *MATH* range. In Eq. , the
+probability at time step *MATH* is not dependent on the circuit parameters,
+as it is considered a fixed value that was previously computed. Instead,
+at time step *MATH* the objective is to tune the parameters in order to
+change the probability, thereby introducing a dependence.
+
+
+One motivation to formulate a quantum version of PS is based on the
+possibility of enhancing the agent&apos;s decision-making capabilities thanks
+to quantum effects. In classical PS, the stochastic process through the
+clips of the ECM that leads the agent from the received state to an
+action has a well-defined trajectory. In the quantum version, the
+trajectory of the single photon within the optical setup can be
+delocalized over multiple optical modes. The quantum agent&apos;s
+deliberation process involves the photon exploring multiple modes in a
+superposition state as it passes through the optical interferometer.
+Moreover, the quantum agent can learn to exploit superposition states
+using interference. This quantum approach introduces a set of
+deliberation patterns that the classical counterpart may not achieve,
+thereby enabling the agent to solve specific tasks differently, and
+potentially more efficiently.
+
+
+Learning scenario. The learning scenario presented here was first
+introduced by [*REF*]. Then, it was reformulated in a transfer
+learning setting to provide an example task that a quantum PS agent can
+solve efficiently, but its classical counterpart cannot
+[*REF*]. The same transfer learning setting is used here
+with some simplifications to enable hardware implementation.
+
+
+The task in question is to predict the result of an experiment
+*MATH* on a finite set of percepts *MATH*. The
+percept in this framework can be intended as the state provided by the
+environment. Here, each percept *MATH* is fully characterized
+by two observables (color and shape), and each observable has two
+possible values (red, blue and circle, square). This results in a
+total of four percepts covering all possible combinations of observable
+values. We assume that each percept is equally likely to be tested. The
+experiment is a &quot;yes\&quot;/&quot;no\&quot; question about the two observables. Of the
+four different possibilities, we pick is the percept both blue and a
+square?; in other words, we want the agent to learn to detect the
+target percept blue-square. The simplifications made to the task
+described in [*REF*] consist in reducing both the number
+of observables and the possible values that each observable can take
+from three to two, and in considering only one experiment rather than
+all possible ones.
+
+
+In the transfer learning setting, the task consists of two stages. In
+stage 1, the agent learns the correct observable values for each
+percept. This corresponds to training the ECM on the first two layers of
+the graph shown in Fig. (a). In stage 2, the agent uses the knowledge of
+the observables from the previous stage to predict the experiment&apos;s
+answer. This corresponds to training the ECM on the full graph shown in
+Fig. (a).
+
+
+FIGURE
+
+
+To solve the task with *MATH* accuracy, ones need simultaneous
+knowledge of the two observables. The trained classical PS agent can
+only use the knowledge of one of the observables at a time, i.e. it can
+only take one localized path at a time when choosing an action.
+Consequently, the optimal classical strategy for the agent is to always
+respond negatively for the percept that has no observable values in
+common with the target one, to respond negatively *MATH* of the times
+for the two percepts with one overlapping observable value, and to
+respond positively or negatively at random for the target percept. This
+leads to a maximum accuracy of *MATH* for the classical agent [*REF*].
+The quantum agent, on the other hand, is not limited in its maximum
+accuracy. Thanks to the non-local decision path, it is possible to
+access the knowledge of both observables within the same deliberation,
+and full accuracy can be achieved.
+
+
+Architecture. The standard approach proposed in Ref.
+[*REF*] to implement quantum PS agents consists in
+reproducing the scattering matrix *MATH* of Eq.  as a set of
+unitaries *MATH*, one for each vertex of the classical ECM graph.
+Each of the unitaries *MATH* can be realized by tuning a mesh of beam
+splitters and phase shifters arranged in a universal scheme
+[*REF*; *REF*].
+
+
+In stage 1 of the learning scenario we are considering, the goal is to
+map the input percept states to the correct observable-value states.
+Given the current encoding of the task information into the optical
+setup (each vertex in the graph is mapped to one optical mode), this
+corresponds to a non-unitary process that maps orthogonal states to
+non-orthogonal states. Therefore, some non-unitary elements like
+post-selection or adaptive measurements should be properly added to the
+proposed framework, increasing the overall complexity of the
+implementation. A simpler hardware-tailored solution is to split the
+realization of the ECMs for stage 1 into independent circuits for each
+different percept. The random walk starting from the percept vertex to
+one of the four possible observable values vertices is realized with a
+single photon passing through a four-mode network of tunable
+beamsplitters arranged in a binary tree-like scheme (Fig.(b)).
+The input mode is kept fixed, and each of the output modes corresponds
+to a different value of the two observables. Each percept is associated
+with a different set of parameters, which are trained independently.
+
+
+In stage 2, a universal square mesh of tunable beamsplitters
+[*REF*] is added to the previous circuit to reproduce
+the &quot;all-to-all\&quot; network among the four observable values and the last
+two possible answers. The set of parameters of this last part of the
+circuit is the set of trainable parameters, while the parameters of the
+first part are retrieved from the previous stage and swapped depending
+on the current percept. Again, the input mode is kept fixed, while at
+the output only the states with the photon in one of the first two modes
+(*MATH* and *MATH*), corresponding to the &quot;no\&quot;/&quot;yes\&quot;
+answers, are postselected on.
+
+
+Each circuit needed to realize the different stages of the quantum ECM
+can be implemented using Perceval [*REF*], an
+open-source framework for linear optical quantum computing. In this
+work, three different backends are used: one to simulate the ideal
+performances (ideal), one that accounts for the noise due to the
+imperfections of the single-photon source and due to photon loss
+(noisy), and one to directly interface with the hardware (hardware).
+The hardware used in this work is the Quandela 12 modes 6 photons
+photonic quantum processor Ascella [*REF*]. A detailed
+overview of ideal and noise can be found in the Supplemental
+Material [*REF*].
+
+
+Training procedure. We now focus on how the predefined architecture
+can be trained to solve the task of interest. As mentioned before, the
+optimal set of parameters of the quantum ECM can be found using a
+variational approach. We train the agent by sequentially interacting
+with the environment at each stage of the learning scenario. After each
+interaction, or a predetermined set of interactions, the parameters are
+updated following the descending direction of the loss function
+gradient. The training lasts for a given number of episodes, where one
+episode corresponds to one parameter update.
+
+
+In stage 1, we train four independent sets of parameters (the tunable
+elements of the circuit underlined in yellow in Fig.(b)),
+one for every percept. An action sampling for each of them involves
+detecting the output mode of a single photon after it is input into the
+linear optical circuits of the ECM. Then, the agent is rewarded with
+*MATH* if the chosen action does (not) correspond to one of the
+observable values of the current percept. The loss function to be
+optimized at this stage is the sum of three components: *MATH*. 
+-  The PS component corresponds to Eq. , where we take
+*MATH* as the clamping function and the KL divergence [*REF*] of the
+two distributions *MATH* and *MATH* as the distance function.
+-  The Shannon component relies on the Shannon entropy
+[*REF*] of the probability distribution
+*MATH*, where *MATH* is the probability of
+sampling an output mode corresponding to the observable *MATH* (i.e.
+*MATH* is the probability of getting the photon in mode
+0 or 1 at the end of the stage 1 ECM on Fig.(b)): *MATH*.
+Here we are denoting *MATH* as *MATH*. This
+component works as a curiosity mechanism that motivates the agent to
+learn about both observables. A hyperparameter is employed to
+regulate the magnitude of this component with respect to the others,
+we adjust it to a value of *MATH*.
+-  The Phase component consists of the L *MATH* norm of the complex
+phases of the output state (at the end of the stage 1 ECM, Fig.
+(b)). Minimizing this component allows control over the relative
+phases of the learned output states in stage 1. This feature becomes
+essential in stage 2, where the agent must exploit interference
+between optical modes to solve the task efficiently.
+
+
+The loss function of a set of agent-environment interactions is simply
+the sum of the respective *MATH* for each interaction. At this
+stage, the gradient is computed over batches of *MATH* interactions using
+the simultaneous perturbation stochastic approximation (SPSA) algorithm
+[*REF*], and training is run for 400 episodes.
+
+
+TABLE 
+
+
+In stage 2, we train only the last part of the circuit that was added on
+top of the stage 1 ECM. A different percept is sampled uniformly at each
+interaction, and the loss function considered corresponds to that in
+Eq.  with only the PS component. If the chosen action is correct, the
+agent receives a positive reward of *MATH*, otherwise a negative reward of
+*MATH*. The gradient is computed after each interaction using the Finite
+Difference Stochastic Approximation (FDSA) method, and a total of 1000
+training steps are considered. FDSA is a slower but more precise method
+for computing the approximate gradient compared to SPSA. We observed
+better training performance for the agent with FDSA at this stage. This
+may be due to the fact that we are optimizing over a larger set of
+parameters compared to stage 1, where SPSA was sufficient.
+
+
+Results. When running the experiments to train the agent, the
+following pipeline is used at each stage: first, the experiments are run
+on the ideal simulator, then the training is repeated on the noisy
+simulator, and finally on the real hardware. The tuning of the
+hyperparameters of the optimizers is done in the first two stages of the
+pipeline. The ideal simulator is used for a wide search in the
+hyperparameter space and then a narrower set of possibilities is
+explored on the noisy simulator. Once the optimal set of hyperparameters
+is chosen, the training is performed again with the ideal simulator to
+allow for better comparison between backends. This procedure is chosen
+to ensure successful training when running on the hardware.
+
+
+The final probability distribution after stage 1 training is shown in
+Tab., already encoded in the values of the
+observables. We report the results for the three backends; those
+relative to hardware experiments have an associated error bar, which
+is discussed in the Supplemental Material [*REF*]. As expected, at the
+end of training, given a percept, the agent can select the correct color
+in half of the cases and the correct shape in the other half of the
+cases. The final hardware output probabilities are slightly worse
+compared to the other backends, however, taking into account the
+uncertainty associated, they are still compatible with the expected
+ones.
+
+
+Next, we aim to apply the knowledge acquired in stage 1 to accurately
+respond to the query is the percept both blue and a square? At each
+step of the training for this stage, we compute the accuracy of the
+agent solving the task as follows: *MATH* 
+where *MATH* is the probability with which the agent
+answers &quot;yes\&quot;/&quot;no\&quot; given percept *MATH*. The value of
+*MATH* is 1 if *MATH* is in the set {0, 2, 3}, and 0
+otherwise. Similarly, the value of *MATH* is 1 if
+*MATH* is in the set {1}, and 0 otherwise. The accuracy of the different
+backends over the episodes is shown in Fig. [3].
+
+
+FIGURE
+
+
+This plot can be understood as a classical RL score function for the
+agent, in our case approaching *MATH* accuracy means successfully
+solving the task. The dotted line represents the maximum accuracy that a
+classical PS agent can achieve with the corresponding classical ECM. The
+different performances in terms of the evolution of the accuracy of the
+three backends are mainly related to the transfer learning nature of the
+task being tackled. The fact that the ideal accuracy converges to
+*MATH* slower than the other two backends is due to the different set
+of parameters found at the previous stage of the task. Even though the
+same optimization landscape is explored, different starting points lead
+to different trajectories toward the minima of the loss function.
+
+
+Discussion and conclusion. In this work, we presented the first
+physical realization of a quantum PS agent on a photonic quantum
+processor. The core of our contribution was to tune both the original
+learning task and the training procedure to the hardware at our
+disposal. We showed that the quantum agent can achieve full accuracy in
+solving the task on an actual noisy device, thus complementing the
+results of [*REF*] obtained on an ideal simulator.
+Extending our work to the multi-photon setting could be an interesting
+direction for future work, along with implementing a general-purpose
+quantum ECM which would allow us to test the quantum PS agent on a wider
+range of tasks. Overall, by systematically evaluating the quantum PS
+algorithm in a controlled setting, our study contributes to a broader
+understanding of the applicability of VQAs to machine learning tasks on
+photonic quantum devices.

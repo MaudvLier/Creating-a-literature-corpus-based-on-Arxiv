@@ -1,0 +1,435 @@
+Large Language Models for Orchestrating Bimanual Robots 
+
+
+Introduction
+
+
+While humans routinely operate with both hands in their daily lives,
+achieving effective bimanual coordination remains a formidable challenge
+in robotics as the dual-arm setting faces complexity in terms of
+temporal and spatial coordination. Bimanual manipulation offers a
+significant difficulty for the existing planning-based and
+learning-based methods. Previous planning-based methods
+[*REF*; *REF*] largely focus on motion planning for
+coordinating two arms through hand-designed primitives or predefined
+trajectories, limiting their application in dynamic or complex task
+spaces. On the other hand, learning-based methods, such as Reinforcement
+Learning (RL) and Imitation Learning (IL), enable a robot to learn
+control policies from human-designed rewards [*REF*; *REF*]
+or human-teleoperated demonstrations [*REF*; *REF*].
+However, it is notoriously known that RL algorithms are hard to train,
+especially in dual-arm settings that have high degrees of freedom
+(DoFs), and collecting human demonstrations for bimanual robots is
+non-trivial. At the same time, the high complexity associated with the
+variety of bimanual patterns suggests that low-level control policies
+and high-level planning must be considered for an integrated control
+system design [*REF*].
+
+
+Large Language Models (LLMs) have demonstrated remarkable knowledge and
+reasoning capabilities [*REF*; *REF*], leading to a
+revolutionary change in numerous fields [*REF*]. In
+robotics, an LLM is typically employed as a high-level planner to reason
+and invoke primitive skills for accomplishing complex tasks described in
+natural language [*REF*; *REF*; *REF*]. However, as
+far as we know, all previous methods focus on unimanual manipulations
+with complex chains of skills and lack explicit analysis of bimanual
+tasks. In this research, we attempt to further explore the feasibility
+of leveraging LLMs in robotic bimanual control, especially focusing on
+high-level temporal and spatial coordination between two hands. Our
+research question is: How can LLMs be employed to achieve versatile
+bimanual manipulation control in diverse robotic tasks?
+
+
+FIGURE
+
+
+To this aim, we introduce the LABOR (LAnguage-model-based
+Bimanual ORchestration) agent, which uses an LLM to effectively
+coordinate bimanual control to deal with complex manipulation tasks, as
+shown in Fig. [1]. Two types of control patterns, i.e.,
+sequential and simultaneous control, are explicitly predicted by the
+LLM, given a designed prompt with a set of possible skills. With a
+high-level control timeline, a bimanual robot is able to complete a
+long-horizon complex task by combining different control policies
+through the cooperation of both hands at different stages. We evaluate
+the LABOR agent on the semi-humanoid bimanual NICOL, the Neuro-Inspired
+COLlaborator [*REF*], on three typical everyday tasks. The
+experimental results show that the LABOR agent is effective in
+coordinating both hands in long-horizon tasks.
+
+
+Related Work
+
+
+In this section, we describe the related work on planning-based and
+learning-based methods for bimanual manipulations, and LLM&apos;s use in
+robotics.
+
+
+Bimanual Manipulation
+
+
+Planning-based methods
+
+
+Early work [*REF*; *REF*] mainly focuses on planning algorithms
+for dual-arm settings under the closed-chain constraint, which rely on
+static known dynamic models to generate kinematic configurations that
+are suitable for two arms. With engineered primitives or predefined
+trajectories [*REF*; *REF*; *REF*; *REF*],
+bimanual robots exhibit some flexibility when solving tasks like folding
+shirts or scooping food. However, such planning-based methods are not
+adaptive to dynamic environments and mainly rely on task-specific
+primitives, which are costly to design or collect in a more complex task
+setting.
+
+
+Learning-based methods
+
+
+Some works have employed RL [*REF*; *REF*; *REF*; *REF*] and IL
+[*REF*; *REF*; *REF*; *REF*] framework
+in dual-arm settings. These typically require massive samples and
+training time, due to the high dimensionality of the action space in a
+bimanual setting. Although some recent works proposed to design
+parameterized primitives to reduce the size of the action space for
+exploration, these movement primitives normally require costly
+hard-coded motion design or human-teleoperated demonstration collection,
+limiting their applications in complex environments.
+
+
+Instead of designing many task-specific primitives, we use easily
+designed general primitives for the robot and attempt to utilize LLMs to
+generate chains of skills to accomplish complex bimanual motions.
+Furthermore, the approaches listed above do little to analyze the
+properties of the task at a higher level, but rather adopt a single
+control policy for controlling the robot to accomplish the task. In this
+sense, the control policy in their tasks is normally fixed and
+monolithic which tackles only simple and short-duration tasks. In
+contrast, we explore the usage of LLMs to generate control policies from
+a higher perspective that considers the current stage of the task at
+hand, thus adapting to complex and variable long-horizon tasks.
+
+
+LLM in Robotics
+
+
+Learning robotic control policies to address various manipulation tasks
+often requires the collection of massive datasets
+[*REF*; *REF*; *REF*]. Recent works have leveraged common sense 
+and established knowledge from
+LLMs to control robots in tackling complex tasks. Some studies have
+delved into distilling LLM expertise into localized models. For
+instance, researchers have utilized LLMs&apos; programming capabilities to
+generate executable code for fulfilling open instructions
+[*REF*; *REF*; *REF*], or to provide direct guidance for RL policies
+[*REF*; *REF*]. Other approaches involve decomposing complex tasks into manageable sub-tasks
+using LLMs, thus enabling robots to address them individually with
+pre-defined skills [*REF*; *REF*], i.e.,
+language-conditioned policies. We adopt the latter paradigm to construct
+a versatile robot equipped with atomic skills that can be efficiently
+reused across multiple tasks or potentially enhanced for new abilities
+[*REF*]. Specifically, our robot is furnished with
+general skills for both arms, offering a vast number of potential
+combinations. However, this inherent complexity of combinatorial
+capabilities poses challenges to efficient reasoning and planning in
+bimanual manipulation, which will be explored in this study.
+
+
+Method
+
+
+This section introduces the LABOR agent regarding two main aspects,
+Bimanual Manipulation, which describes the control policies adopted, and
+LLM Orchestration, which describes how the control policies can be
+coordinated using an LLM.
+
+
+Bimanual Manipulation
+
+
+As described in earlier works [*REF*; *REF*; *REF*],
+basic bimanual manipulation control mainly involves the consideration of
+coordination and, when required, synchronization. For example, grasping
+or releasing small objects does not need bimanual coordination as one
+single hand can accomplish such a task. In contrast, to lift a large
+object like a bowl, two hands are needed to hold it, and they must
+coordinate symmetrically. In the task of opening a pair of scissors, two
+hands need to cooperate asymmetrically, for example, one hand needs to
+stabilize the scissors first, and another hand slides the handle away
+from the other handle.
+
+
+FIGURE
+
+
+Considering the spatial and temporal constraints, we adopt two types of
+control policies for two hands, simultaneous control for symmetric
+processes, and sequential control for uncoordinated and asymmetric
+processes, as shown in Fig. [2]. In a macroscopic view of long-horizon
+bimanual manipulation tasks, a combination of processes can be involved.
+For example, imagine that there is an apple and a bowl on the table, the
+task is placing the apple in the bowl and holding the bowl to a serving
+position. There will be uncoordinated processes such as grasping and
+releasing the apple, and then symmetrically coordinated processes such
+as joint holding and moving are required. During the task
+accomplishment, which control policy to adopt should be decided first,
+based on the current spatial and temporal situations, and then the
+specific control commands to coordinate two hands.
+
+
+LLM Orchestration
+
+
+FIGURE
+
+
+An LLM exhibits remarkable abilities in terms of step-by-step reasoning,
+in-context- and instruction-following responses in robotics, which makes
+it possible to generate policies under temporal and spatial constraints
+in bimanual manipulations. As shown in Fig [1], the
+presented LABOR agent involves human user inputs like the initial prompt
+and skill library, the LLM coordinator, and the bimanual robot executor.
+As depicted in Fig. [3], the designed prompt contains background
+information regarding the bimanual robot, like coordinates and
+workspaces of two hands, following some rules specifying the bimanual
+control principles when facing different situations. At the same time,
+the skill library is available to the LLM in the form of tool APIs.
+Given this, the prompts explicitly require the LLM to generate policies
+that are sequential or simultaneous, with specific control commands
+based on the provided skill library. The skill library is designed based
+on control policies and consists of two main types: single-handed skills
+and both-handed skills. After executing an action assigned by the
+command, the LLM obtains observations from the execution results, e.g.,
+an action was completed by the left or right hand, the skill execution
+failed because the assigned action was not in the valid workspace of the
+selected hand, etc. Iterating in this way, the LLM progressively
+generates a solution to the task while self-correcting mistaken
+commands, thus generating a chain of skills throughout the lifespan of
+the task, as shown in Fig. [4].
+
+
+FIGURE
+
+
+In summary, the LABOR agent uses the LLM to explicitly coordinate the
+operation of both hands while continuously generating skill-based
+commands, to accomplish complex long-horizon bimanual tasks effectively.
+
+
+Experiments
+
+
+To determine the extent to which an LLM can manage to control the
+bimanual robot in everyday tasks, we deploy the LABOR agent on the
+semi-humanoid NICOL, the Neuro-Inspired COLlaborator
+[*REF*], on three typical everyday tasks in the CoppeliaSim
+simulation. The implementation of the LABOR agent and experiment design
+details will be open-sourced upon the paper&apos;s publication.
+
+
+LABOR Setup
+
+
+For the NICOL robot, we design a skill library as listed in Table 1. 
+There are three categories of skills:
+Single, Both, and Info. Single or Both denotes that the skill is
+designed for a single hand or both hands, while Info refers to those
+functions that can obtain information about the robot and the
+environment.
+
+
+We use the OpenAI GPT models as the LLM for inference in the LABOR
+agent. Since the accomplishment of bimanual tasks requires the LLM to
+generate sequential or simultaneous control several times, we take the
+LangChain Python library framework to enable the LLM to generate a
+chain of skills step by step. Based on the LangChain tool design
+structure, several tools are provided to the LLM as follows:
+- sequential control: &apos;llm_seq_control&apos; required inputs: (left_hand_command, left_parameter,
+right_hand_command, right_parameter, if_left_first)
+- simultaneous control: &apos;llm_simul_control&apos;
+required inputs: (both_hand_command, parameter)
+- get information: (get_info_command, parameter) where left_hand_command and 
+right_hand_command are chosen from the &quot;Single\&quot; skill category with the parameters specified in
+left_parameter and right_parameter respectively, if_left_first is
+a bool value that specifies if the left_hand_command should be
+executed at first or not, and both_hand_command and get_info_command
+are chosen from Both and Info skill categories respectively. With tools
+for different control policies, the LABOR agent enables the LLM to
+choose sequential or simultaneous control in a high-level manner explicitly.
+
+
+center
+
+
+
+Robot Setup
+
+
+NICOL has a head that can express stylized facial expressions, and two
+Robotic Open-Manipulator-Pro arms with adult-sized five-fingered Seed
+Robotics RH8D hands (for details see [*REF*]). With such
+equipment, NICOL has a large bimanual workspace to handle everyday
+objects and tasks. NICOL&apos;s workspace with objects in the real and
+simulated world is shown in Fig [5].
+
+
+Based on the objects listed, there are three tasks designed in the
+experiments: ControlScissors, ServeWater, and HoldBowl, which all
+require the cooperation of two hands with a chain of skills to
+accomplish.
+
+
+FIGURE
+
+
+In the ControlScissors task, there is a pair of scissors placed
+horizontally on the work table, with its tip pointing in various
+directions: Front, Behind, Left, and Right. The goal of the task
+is to stabilize the handle on one side while sliding the handle on the
+other side in a certain direction to Open or Close the scissors. In
+this way, eight variants have been produced, depending on the
+combination of the direction in which the tips of the scissors are
+pointed and the task requirements of the switch. The difficulty of this
+task comes from the fact that the LLM needs to understand the spatial
+relationship between the two handles, and then reason the direction of
+the handle&apos;s movement after stabilizing the scissors.
+
+
+In the ServeWater task, there are two cups on the work table. The yellow
+cup is empty and the blue cup is water-filled (we use a small ball as
+simulated water). The goal of the task is to use the yellow cup to serve
+water at a specified serving position. This means, that the water has to
+be transferred from the blue cup to the yellow cup, the yellow cup is
+then brought to the serving position, and the blue cup is released back
+to its original position. The cups can be in various spatial relations
+including, including Both_Right, Both_Left, Left_Blue_Right_Yellow,
+and Left_Yellow_Right_Blue. Since the robot cannot reach with its
+right arm over the left side of the table, and vice versa, different
+spatial configurations afford different task solutions. However, this
+relationship information is not passed explicitly to the LLM, which
+instead receives raw information about the coordinates of the two cups,
+placed on the table at random positions. The task itself requires a long
+skill chain to accomplish and coupled with the changing positional
+relationship between cups and hands, choosing appropriate control
+policies effectively is even more challenging.
+
+
+In the HoldBowl task, there is one large bowl, one apple, and one banana
+on the work table. The goal of the task is to grasp the apple and the
+banana, put them into the bowl, and hold the bowl to a specified serving
+position. Similar to ServeWater, the positions of the apple and banana
+bring complexity and variety to this task, including Both_Right,
+Both_Left, Left_Apple_Right_Banana, and Left_Banana_Right_Apple, as
+well as the choices of control policies. For each case, the sequential
+skills should be adopted first to transfer the objects into the bowl,
+and then the simultaneous ones for holding the bowl to move to the
+specified position.
+
+
+Results
+
+
+In this section, we report the results of the LABOR agent in controlling
+the NICOL robot to solve the above tasks, including success rate and
+failure analysis. To evaluate the effectiveness, we repeat each task 100
+times and for each time a variant of the task is randomly chosen. The
+success rates and failure rates in three aspects of LABOR when using
+GPT-4 as the LLM on these tasks are listed in Table [1].
+
+
+TABLE
+
+
+It is observed that the LABOR agent with GPT-4 demonstrates
+extraordinary performance in orchestrating bimanual control in
+long-horizon manipulation tasks. Regarding the properties of bimanual
+manipulation and the LLM itself, we found that the failure cases mainly
+come from three aspects including Temporal Coordination, Spatial
+Coordination, and Skill Association. In this sense, Temporal
+failure refers to the fact that the LLM fails to generate skills in the
+correct order, Spatial failure refers that the LLM mishandles the
+spatial relationships in the operation, such as the relationship between
+two objects or between the robot&apos;s hand and an object, and Skill
+failure refers to the understanding deviance of the LLM in the
+correlation between the designed skills and the task requirements. To
+simplify the analysis process, failures are counted based on the error
+type that occurred the first time.
+
+
+It was observed that GPT-4 encountered some difficulties with spatial
+reasoning (i.e., moving in a certain direction to open or close the
+scissors) in the ControlScissors task. Whereas, the main errors in the
+ServeWater task came from temporal and spatial coordination, such as
+executing pouring before moving the blue cup over the yellow cup,
+executing grasping when the selected hand had already grasped another
+object, executing grasping when the object that was outside of the
+selected hand&apos;s workspace, etc. Moreover, some skill comprehension
+biases happened in the ControlScissors and HoldBowl tasks, such as
+moving the scissors handle with the hand currently pressing on it,
+executing grasping the bowl with a single hand, and so on.
+
+
+In contrast, when implementing LABOR with GPT-3.5, it only achieved a
+49% success rate in the ControlScisssor task, which might be due to the
+task requiring fewer planning steps. Apart from that, it demonstrates
+its inability to accomplish either ServeWater or HoldBowl tasks. The
+failures observed in these tasks couldn&apos;t be neatly categorized into
+three aspects, as in such long-horizon tasks, the GPT-3.5 model&apos;s
+understanding of the skills and its temporal and spatial coordination
+was incorrect at the first step. In addition, it is not sensitive enough
+to the information feedback by the environment, causing it to stay stuck
+in repeating wrong commands.
+
+
+In addition to the success rate, we also counted the lengths of the
+skill chains generated by GPT-4 in all cases where the task was
+successfully solved, and compared them with the optimal human-designed
+skill chain lengths, as shown in Figure. Since there are variants in the
+ServeWater and HoldBowl quests that single-hand sequential operation,
+the statistics in these two tasks are reported separately based on the
+position in which the two objects are located, i.e., Same Side and Two
+Sides. The number of timesteps indicated by the dashed lines is
+considered to be the optimal lower bound for the number of timesteps
+required. We can observe that there are many cases in ServeWater and
+ControlScissors tasks, where an optimal skill chain can be achieved that
+is comparable to the human level, while it is pretty close in the
+HoldBowl task. To ensure the safety of the two-handed operation, the
+GPT-4 generates some waits for single hands thus bringing about an
+increase in the length of the chain. At the same time, humans understand
+the task well enough, thus allowing for the most efficient utilization
+of both hands. Notably, due to GPT-4&apos;s strong in-context reasoning and
+understanding ability, sometimes long skill chains can still ensure task
+accomplishment in the ServeWater and HoldBowl tasks.
+
+
+In summary, the LABOR agent with GPT-4 shows remarkable performance in
+coordinating the NICOL robot in long-horizon tasks, not only in terms of
+the success rate but also in outputting skill chains comparable to the
+human level.
+
+
+Conclusions
+
+
+In this work, we introduce LABOR, an agent that utilizes an LLM to
+effectively orchestrate bimanual control when performing robotic
+manipulation tasks. Experimental results on the NICOL robot for three
+typical everyday tasks showcase the effectiveness of the LABOR agent.
+
+
+Limitations and Future Work. Similar to other LLM-based methods, the
+LABOR agent is dependent on the performance of LLM like the GPT-4 model,
+requiring its reasoning and understanding of the correlations of
+primitive skills and task solutions. Besides, since the agent is
+currently solely running in the simulated environment instead of the
+real world, some potential differences in environmental dynamics might
+not be sufficiently analyzed or considered, which brings some unknowns
+in transferring the agent. In future work, the learning-based skills
+combined with vision-based models will be developed to reinforce the
+abilities of LABOR agent in bimanual manipulation. As skills expand, the
+LABOR agent should be able to control bimanual robots to perform more
+complex tasks. Furthermore, it is a promising direction to include
+obstacle detection and collision-free motion planning models in dealing
+with rich-contact tasks.

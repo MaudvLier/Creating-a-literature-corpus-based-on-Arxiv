@@ -1,0 +1,583 @@
+Sketch-Plan-Generalize: Continual Few-Shot Learning of Inductively
+Generalizable Spatial Concepts
+
+
+Introduction
+
+
+The ability to learn novel concepts which generalize inductively is
+one of the hallmarks of human intelligence *REF*.
+Humans are highly data efficient -- observing at a few instances of
+towers of a certain heights, we can generalize to constructing
+towers of any height. Further, we interpret increasingly complex
+concepts as hierarchical composition over simpler ones, e.g., a
+tower as a sequence of blocks placed on top of each other, or a
+staircase composed of towers of increasing height.
+
+
+This paper considers the problem of learning a program representation,
+from few demonstration, that models the inductive realization of
+grounded spatial concepts. Learning of such concepts is challenging
+task due to an expansive space of programs and the need to reason
+about their physical plausibility. Further, the representation must
+support inductive generalization over learned concepts as well as
+express complex hierarchical concepts via modular re-use of concepts
+learnt previously.
+
+
+Prior efforts such as *REF* uses a LLM (Large Language
+Model) to generate control program for a given task specification but
+fail to generalize to complex spatial concepts which are difficult to
+tokenize. Extension of this to VLMs (Vision Language Models),
+ *REF*, also fail to generalize when presented with
+linguistically novel concepts, due to over reliance on prior knowledge
+and their inability to effectively learn novel concepts from given
+demonstrations. On the other hand, neural approaches such as
+ *REF*, learn from given demonstrations but generalize
+poorly due to their inability to (a) explicitly model symbolic concept
+of induction and (b) modularize as well as re-use previously acquired
+concepts. Approaches such as *REF* train RL-based
+policies to attain spatial assembly by encoding an inductive spatial
+prior using GNNs within the policy architecture. However,
+generalization is still limited and assumes an elicitation of the goal
+as per object positions, resulting in lack of ability to take in goal
+description such as &quot;construct a tower of size three&quot;. In summary, we
+attribute poor generalization of such approaches to an implicit
+entangling of the following objectives: (i) postulating a high-level
+program for new concepts, (ii) evaluating plausibility of grounded
+plans to align with human demonstration of concepts to be learned and
+(iii) abstracting out a grounded program to facilitate inductive
+generalization and modular re-use in a continual manner.
+
+
+FIGURE
+
+
+In response, this paper introduces an approach that factorizes the
+concept learning task as: (a) Sketch: Given a
+language-annotated demonstration of a novel concept, an LLM is used to
+postulate a function signature. (b) Plan: Refinement
+of program sketches via MCTS search, rapidly evaluating actions
+sequences guided by a reward associated with constructing a concept.
+The search is accelerated by training a neural action predictor that
+uses the given demonstrations. (c) Generalize: Leveraging the code 
+generation capability of an LLM to distill
+grounded plans into a program that is inductively generalize-able.
+This results in a continually evolving library of concepts which can
+be used to hierarchically learn complex concepts in future. The
+modular architecture enables continual learning by providing the
+ability to decide whether the new concept encountered either as a
+symbolic composition of existing concepts, or, a neural embedding
+trained via gradient update.
+
+
+Our experimental evaluation demonstrates accurate learning of simple
+and complex concepts from few demonstrations for a range of spatial
+structures. Further, our approach also shows inductive generalization
+in out-of-distribution settings, significantly over the baselines. We
+also present deeper insights related to efficiency gains obtained by
+combining symbolic MCTS with neural action predictor. Furthermore, we
+show how learned concepts can be grounded in the visual input,
+enabling a robot to follow natural language instructions referring to
+a-priori unseen spatial configurations.
+
+
+Related Works
+
+
+The ability to ground symbolic knowledge is central to building
+intelligent embodied agents. The symbol grounding problem is often
+cast as learning an association between linguistic description of a
+concept and aspects of the state-action space such as objects
+ *REF*, *REF*, spatial relations *REF*, *REF*, reward functions
+ *REF*, or motion constraints *REF*. These works assume the presence 
+of grounded representation for
+symbolic concepts and only learn associations between language and
+concepts. In contrast our work jointly learns higher-order concepts
+composed of simpler concepts along with their grounding in the robot&apos;s
+state and action space.
+
+
+Another line of work *REF*, [*REF* -- *REF*] leverages prior-knowledge embodied in
+LLMs to determine grounded robot control programs for a high-level
+tasks, given a tokenized description of the scene and robot
+capabilities. Our experiments (reported subsequently) demonstrate that
+complex spatial relations are challenging for textual descriptions to
+encode and are difficult to reason over. Hence, we adopt a factored approach 
+that uses a search procedure guided by
+visual reward, acting as a medium to connect the task sketch
+generation and program abstraction stages (performed by an LLM).
+
+
+Works such as *REF*, *REF* shows
+lifelong learning of skills by learning to plan high-level tasks
+through composition of simple skills for simulated agents. Efforts
+such as *REF*, *REF* detect when
+control primitives for a robot are insufficient to perform a task and
+initiate skill learning, building a library over time. However, such
+efforts do not model deep inductive use of learned concepts.
+
+
+Finally, this work draws inspiration from concept learning approaches
+in the broader AI community. Related works infer latent generative
+programs to express hand-written digits *REF*, object
+arrangements *REF*, motion plans
+ *REF* or goal-directed policies *REF*. These approaches do not explicitly model
+inductive concept of modular re-use of previously acquired concepts.
+Other efforts such as *REF* learn RL-based policies to
+construct object stacks. Here, the neural policy models locality of
+object influence via GNNs. However, the model suffers from poor
+generalization to unseen examples, (eg. tower of larger size) and do
+not possess a mechanism to re-use previously acquired concepts.
+
+
+Background and Problem Formulation
+
+
+We consider an embodied agent that uses a visual and depth sensor to
+observe its environment and can grasp and release objects at specified
+poses. We represent the robot&apos;s domain as a goal-conditioned MDP \&lt;
+S, A, T, g, R, γ \&gt; where S is the state space, A is the action
+space, T is the transition function, g is the goal, R is the reward model and γ is the
+discount factor. The agent&apos;s objective is to learn a policy that generates a sequence of actions from an initial
+state s0 to achieve the goal g in response to an instruction Λ
+specifying the intended goal from a human. We assume that the agent
+possesses a model of semantic relations (e.g., left(), right() etc.)
+as well as semantic actions such as moving an object by grasping and
+releasing at a target location. Such modular and composable notions
+can be acquired from demonstrations via approaches outlined in
+ *REF*, *REF*, *REF*. Such notions populate a library of concepts 
+L available as grounded executable
+function calls. Following recent efforts *REF*, *REF*,
+ *REF*, *REF* in representing robot
+control directly as executable programs, we represent action sequence 
+corresponding to a plan as a program consisting of
+function calls to executable actions and grounded spatial reasoning.
+
+
+Our goal is to enable a robot to interpret instructions such as
+&quot;construct a tower with red blocks of height five\&quot;. Specifically,
+we aim to learn spatial constructs like a tower that requires
+sequentia actions that repeatedly places a block on top of a previously
+constructed assembly; a process akin to induction. Given a few
+demonstrations of a constructing a spatial assembly, D, each
+consisting of natural language description Λ (&quot;construct a tower of
+red blocks of size five\&quot;) and a sequence of key frame states
+associated with the construction process, we
+seek to learn a program that models the inductive nature of the
+concept of tower. Online, the agent must generalize inductively
+to following an instruction as &quot;construct a tower of blue blocks of
+size ten\&quot;. Once the concept of tower is acquired, it is added to the
+concept library. This aids in learning the notion of a staircase as
+sequence of towers of increasing height.
+
+
+We formalize the notion of inductive spatial concepts and formulate
+the learning objective. Let C1, · · ·, C\|L\| represent the
+topological order of concepts present in the concept library L as
+per their structural complexity. An inductive spatial concept Ck
+of size n at position p can be expressed as: FORMULA. Thus,
+a tower can be described using induction and a single primitive base
+function with zero compositions.
+
+
+On the other hand, enclosures can be described as a composition of two
+rows and two columns without induction or base components. The
+functional space of inductive concepts (h) leads to a
+hypothesis space H of associated neuro-symbolic programs. Each
+goal-reaching demonstration corresponds to a particular instantiation
+of a given inductive concept, i.e. H(Ck, n, p), where the p
+comes from the sequence of frames, and n, Ck comes from Λ.
+
+
+FIGURE
+
+
+Given demonstration, we aim to learn a generic representation for the
+given concept, which is general for all n, p i.e. h(Ck, ·, ·).
+We model this as learning a particular H = h(Ck, ·, ·) where
+H ∈ H. Given (few) demonstrations of a human constructing a spatial
+structure, concept learning can be formulated as the Bayesian
+posterior *REF*, *REF*, *REF*, PH(H\|Λ, S1..Sg) ∝
+P(S1..Sg\|Λ, H) · P(H\|Λ). Here, the likelihood term
+associates a candidate program, and the prior term regularizes the
+program space. The maximum a-posteriori estimate, representing the learnt
+program, is obtained by optimizing the following objective: FORMULA. 
+
+
+Since exact inference is intractable, approximate inference is
+performed via search in the program space. Note that learning
+inductive spatial concepts given demonstration considers programs that
+represent plans that attain physically grounded/feasible structures,
+an object we model during the search. Additionally, we seek strong
+generalization from a few instances of an inductive structure to
+structures with arbitrary sizes, in effect favouring programs with
+iterative looping constructs.
+
+
+Technical Approach: Learning Inductive Spatial Concepts
+
+
+We address the problem of estimating a succinct generalized program,
+Eq. [2], modeling an inductive spatial concept modeling
+structures whose construction is observed in a human demonstration.
+Direct symbolic search in the space of programs is intractable
+(particularly due to looping constructs needed for modeling induction)
+but can explicitly reason over previously acquired concepts.
+Alternatively, neural methods attempting to predict action sequence to
+attain the assembly are challenged by continual setting where concepts
+can increase over time building on previously learnt ones but are
+resilient to noise. Our approach blends both approaches and factors
+the concept learning task as:
+- Sketch: From the natural language instruction (Λ), we extract a
+task sketch (H) using an LLM that provides the signature
+(concept name and instantiated arguments) of the concept to be
+learned. When grounded in the initial scene of the demonstration,
+the task sketch provides a particular instance of the concept
+demonstrated in the given demonstration.
+- Plan: MCTS-based search using the already learnt concepts that
+outputs the sequence of grounded actions, best explaining the given
+demonstration.
+- Generalize: The grounded plan H are
+provided to an LLM to obtain a general Python program whose execution 
+on the given scene matches the
+searched plan.
+
+
+The progress exploration of the program space can be summarised as
+follows: FORMULA. The concept library L is initialized with primitive visual and
+action concepts. Upon acquiring a new inductive concept H =
+H, we update our library accordingly: FORMULA. Next, we
+detail each of the three steps mentioned above. Fig. [2]
+illustrates an example of progressive program estimation.
+
+
+(Sketch) Grounded Task Sketch Generation
+
+
+An LLM driven by in-context learning is used to get a program
+signature (a sketch) for a concept from the natural language
+instruction. The task sketch is a tree of nested function calls that
+outlines the function header (name and the parameters) of the inductive
+concept/program to be learned. A detailed exposition on prompting
+appears in the Appendix [C.1].. The
+task sketch thus obtained is then grounded on the input scene using a
+quasi-symbolic visual grounding module akin to *REF*,
+ *REF*, *REF*. This module has three
+key components: (1) a visual extractor (ResNet-34 based) that extracts
+the features of all objects in the scene, (2) a concept embedding
+module that learns disentangled representations for visual concepts
+like green and dice, and (3) a quasi-symbolic executor equipped
+with pre-defined behaviours such as &quot;filter&quot; to select/ground the
+objects of interest. For example, grounding the task sketch &quot;Tower
+(height =3, objects = filter(green, dice))&quot; results in an instantiated
+function call &quot;Tower(height = 3, objects = \[1, 2, 3\])&quot; where \[1, 2,
+3\] are the green coloured dice.
+
+
+(Plan) Physical Reward Guided Plan Search
+
+
+The plan search involves finding a generalizable plan that effectively
+explains the demonstration S1, · · ·, Sg. Specifically, this
+involves determining the concepts, their respective grounded
+parameters, and the order of composition as specified in the equation [1].
+
+
+Identifying the position posθ(.) of the object
+placement/structure construction is achieved through a notion of
+head. Essentially, the head represents a cuboidal enclosure in 3D
+space. The movement of any object involves two key stages: (1)
+relocating the abstract head to the desired position and (2) picking
+the target object and placing it at the current position of the head.
+Conceptually, the movement of the head can be likened to the robot&apos;s
+cognitive exploration of potential object placements to attain the desired 
+spatial configuration. We define a set of four primitive
+functions, Ap, that manipulate the head. (1) store_head(): remembers the current position of the head in
+a stack. (2) reset_head(): sets the head to the last remembered position (i.e., to the top of the
+stack) and pops this position from the stack (3)
+keep_at_head(objects): places the object corresponding to the index
+with highest value in objects (a list of values) at the current
+location of head and (4) move_head(direction): A neural operator that
+takes the head and predicts the new location of the head with respect
+to the given direction. The move_head function is trained using a
+corpus of pick and place instructions, such as &quot;move the green object
+to the right of the red cube&quot; similar to the approach in
+ *REF*. When an object is passed as the parameter, the
+move_head operator is overloaded to assign the head to the location of
+the object (also referred to as assign_head(object)).
+
+
+The state is defined by bounding boxes (including the depth of the
+center) and visual attributes of all the objects that are present on
+the table. We assume that the head is initially assigned to the
+position where the structure needs to be constructed. For each learned
+inductive concept \&lt;cpt\&gt;, we define a macro-action
+&quot;Make\_\&lt;cpt\&gt;(size)\&quot; that executes the corresponding program with
+the given size argument, resulting in the construction of the desired
+inductive concept. Thus, the action space A is the union of
+primitive actions Ap and compound/macro-actions Ac. All
+actions except keep_at_head(objects) and macro actions yield a reward
+of zero, while for the latter, the Intersection over Union (IoU) between the attained state and the
+expected state in the demonstration is provided as a reward. An MCTS
+procedure is performed to find a plan that maximizes the reward. The
+search outputs a sequence of grounded actions for an instantiation of
+the given inductive concept by the task arguments.
+
+
+MCTS that searches for a plan only in terms of primitive actions may
+not be generalizable due to lack of modularity
+[C.3].. The use of macro-actions in the search ensures that the plan H for a given
+demonstration is concise, modular, and easily generalizable. This can
+be seen as a form of regularization in terms of the length of concept
+description by making the prior P (H) ∝ \|H\| (where α \&gt;
+0) in equation (2) FORMULA. However, as the action space expands with the learning of more concepts, the
+search becomes slower, necessitating the pruning of the search space. To avoid searching over the size
+parameter in macro-actions, we greedily select the smallest size that
+achieves the maximum average reward from the current state.
+Additionally, to prune primitive actions, we train a reactive policy
+πneural which, given the current state s˜t and the next
+expected state st+1 (from the demonstration), outputs one of the
+primitive actions a ∈ Ap. Consequently, the effective branching factor of
+the search is reduced to \|Ac\| + 1.
+
+
+Thus, our MCTS algorithm is modular through the hierarchical
+composition of learned concepts and efficient through action space pruning, and is referred to as
+MCTS+L+P. Further details regarding modifications in MCTS are
+given in the Appendix [A.4].
+
+
+(Generalize) Plan to Program Abstraction
+
+
+Leveraging the code generation and pattern matching abilities of LLMs
+ *REF* we use GPT-4 to distil out a general Python
+program from the sequence of grounded actions as determined by
+MCTS+L+P. The learnt program is incorporated in the concept
+library, L, for modular reuse in subsequent learning
+tasks. Additional details, prompting mechanism and use of learnt
+programs in the search step of
+future learning tasks are described in Appendix [C.2], [A.4].. We take a
+curriculum learning approach beginning from learning of primitive
+actions and visual attributes, followed by structures of increasing
+complexity. Additional details about learning of inductive concepts
+via curriculum, architecture details, and learning from multiple
+demonstrations are in Appendix [C.2], Fig. [7], [A.5].
+
+
+Evaluation Setup
+
+
+Data sets. Evaluation data set was created with a simulated Franka
+Emika Robot Manipulator constructing arrangement of blocks of uniform
+size with varied type/appearance (e.g., cubes, dice, lego etc.). The
+scene is observed with a visual and depth sensor with object masks
+extracted from a standard segmentation procedure. A total of 15
+structure types are considered including towers, staircases, X
+(cross), arch-bridge. The state and action sequences for attaining
+these structures forms the demonstration data fro training, details in
+Appendix [B]. three evaluation data sets, each consisting of simple
+structures (different size instances of a concept) and complex
+structures composed of simpler concepts (e.g., staircase consists of
+towers as substructure).
+
+
+FIGURE
+
+
+Dataset I includes contains structures ranging in sizes 3 − 5.
+Dataset II reverses the linguistic labels (e.g., the &quot;tower\&quot;
+becomes &quot;rewot\&quot;). Dataset III includes concepts of larger sizes (4 − 7).
+
+
+Alternative approaches. We compare our model with four baselines
+spanning two approaches: (1) Purely-Neural: An end-to-end neural model inspired by
+StructDiffusion, *REF* that treats structure
+construction as a rearrangement problem. We consider two variations
+of the model 1.1) Struct-Diff (SD): End-to-end approach without any
+additional supervision regarding which objects need to be moved.
+1.2) With-Grounder (SD+G): Similar to 1.1) except that we assume a
+perfect object selector/grounder that identifies the relevant set of
+objects which are to be moved.
+
+
+(2) Pre-trained models that directly output symbolic programs: 2.1)
+LLM for Scene-Graph Reasoning: pre-trained language models (GPT-4)
+that generate Python programs from instructions which would describe
+the given demonstration. To help LLM understand the underlying
+structure, symbolic spatial relationships (e.g., left(a,b)) between
+objects in the demonstration are also provided to the LLM. For this
+baseline we further assume absence of distractor objects in the
+scene. 2.2) Vision Language Model (GPT-4-V): Similar to 2.1 but has
+the ability to take input demonstration as images. For learning
+program of a new inductive concept we give the demonstration to the
+VLM in the form of Λ, (S1..Sg). Additional details on
+prompting method in Appendix [C.6].
+
+
+Model variants. We implement three variants of the MCTS search to
+perform a grounded plan search over the action space A: (i)
+MCTS+P+L: Our approach as described in section
+[4.2], that uses the learnt concepts from L as macro actions (e.g., Make_Tower(3, objects) ∈
+Ac) (L). Further it performs pruning of Ap using πneural
+(P), (ii) MCTS-P+L: Our approach without neural pruning and
+(iii) MCTS+P-L: No access to library of concepts during
+continual learning and thereby lacks ability to use macro actions.
+This method greedily selects the action from Ap as given by
+πneural. We provide more details about the 3 methods in Appendix [D.4].
+
+
+Metrics. FORMULA.
+
+
+Results
+
+
+Our experiments evaluate the following (i) How does our model perform
+as compared to baselines in terms of concept learning and execution
+ability (In-Distribution)? (ii) How does our model perform in
+comparison to baselines in ability to generalize to concept instances
+larger than those seen during training (Out-of-Distribution)? (iii)
+How robust and efficient is our learning pipeline? (iv) How can the
+acquired concepts be used in complex reasoning and planning tasks?
+
+
+Effectiveness of Concept Learning
+
+
+Tables [1] and [2] compares the the program
+accuracy and IoU/MSE metrics on attaining the final
+state of the proposed and the baseline approaches in the
+in-distribution setting. The proposed SPG approach significantly
+improves over other approaches. We make the following observations.
+First, for complex compositional structures, the accuracy of the
+pre-trained models is poor (zero), indicating their inability to
+reason over numerous and complex spatial relations inherent in
+structures (e.g., staircases, bridge, x-shaped etc.). Additionally, we
+note that program inference via an LLM (GPT4) shows improved
+performance learning simple structures (e.g., rows or columns) using
+the tokenized language description of the scene compared to a VLM
+(GPT-4V) provided with a visual input (reflecting in better IoU/MSE
+scores). However, we observe that for complex structures, the
+performance of VLM (GPT-4v) is better than an LLM (GPT) indicating the
+difficulty in complex spatial reasoning inherent in interpreting
+complex concepts. Purely neural approach that is completely grounded
+in the demonstration performs much better on complex structures as
+compared to pre-trained foundation models. However our approach still
+outperforms it and is more data efficient.
+
+
+TABLES I, II, III
+
+
+Robustness and Efficiency Analysis
+
+
+1.Reliance on pre-trained Knowledge vs. Demonstration.
+
+
+Next, we evaluate the degree to which concept learning relies on
+background knowledge vs. observed action sequences for its
+construction. We compare pre-trained models against our approach by
+learning programs on another training dataset differing only in terms
+of the names of the structures (names being reversed). Table
+[10] in the Appendix gives the corresponding program
+accuracies. Table [4] indicates the corresponding IoU and
+MSE, with our approach again showing the best
+performance. The relative decrease in performance
+for our approach (12%) is lower than GPT-4(14%) and much lower than
+GPT-4-V(30%) (in terms of program accuracy). The poorer generalization
+of pretrained models can be attributed to over-reliance prior
+knowledge and failing to effectively use demonstrations.
+
+
+FOOTNOTE: Purely neural approach is marked as NA due
+to absence of program representations.
+
+
+FOOTNOTE: Full table with standard-errors reported in Appendix, [8].
+
+
+TABLE 3 and 4
+
+
+FIGURE 
+
+
+Effectiveness of Continual Learning of Visual Concepts
+
+
+FIGURE 
+
+
+Application of Learnt Concepts for Embodied Instruction Following
+
+
+Complex instruction execution via LLM. We demonstrate our ability
+to build over the learnt program representations and perform complex
+guided robot manipulation tasks, in a simulated Franka Panda
+environment. E.g., consider instructing a robot to: &quot;Construct a
+tower of green die having the same height as the existing tower of
+white die.&quot; or &quot;Construct a tower of total 6 blocks using alternating 
+blue and red blocks&quot;. For both the above tasks we prompt
+GPT-4 by providing it with the set of inductive concepts that are
+already learnt, the set of primitive actions, and some pre-defined
+helper functions by using Python import statements in a manner similar
+to *REF*. GPT-4 generates an executable Python code in
+terms of these functions which on running generates the resultant
+trajectory. Top portion of figure [6] shows the
+execution for both these tasks. We provide details in Appendix [D.3].
+
+
+FOOTNOTE 4 For the IoU/MSE values along with standard
+errors refer to table [11] in Appendix.
+
+
+FIGURE
+
+
+Grounding learnt concepts into visual input for plan synthesis. We
+further demonstrate that the concepts we have acquired can help us to
+perform goal conditioned planning. Bottom portion of figure
+[6] demonstrates the results of our approach for the
+task of constructing a staircase beginning from an adversarial and
+assistive initial state. Note, the planner that we learn is a grounded
+neuro-symbolic planner, as a PDDL based planner cannot be hand-coded
+easily ([D.5]), and LLMs/VLMs are unable to perform such complex reasoning tasks. Relevant
+details are provided in the Appendix [D.5].
+
+
+Limitations
+
+
+Currently our methodology and evaluation setup assumes that each
+object is visible in the initial scene and does not handle partial
+observability. We assume all the objects are cubes of similar size in
+order to ensure dynamic stability of structures while stacking. During
+training we assume tracking and the ability to associate object with
+corresponding instances. We assume that the demonstration data given
+for learning is free of errors.
+
+
+Conclusions
+
+
+This paper introduces a novel approach for learning inductive spatial
+concepts as neuro-symbolic programs from language-annotated
+demonstrations. We observe that direct generation of a program via an
+LLM/VLM does not generalize to new concepts and purely neural
+approaches fail to learn the inherent inductive prior inherent in such
+concepts. Our approach factors program learning as: Sketch:
+generating the high-level program signature via an LLM, Plan:
+searching for a grounded plan that maximises the total discounted
+reward with the respect to the demonstration, and Generalize:
+abstracting the grounded plan into an inductively generalize-able
+abstract plan via an LLM. Continual learning is achieved via learning
+of modular programs by giving preference to shorter programs (through
+composition of learnt ones) and allowing for learning of primitive
+neural concepts via gradient updates. Extensive evaluation
+demonstrates accurate program learning and stronger generalization in
+relation to baselines. Further, we show the grounding of learned
+concepts in visual data to facilitate reasoning and planning for
+embodied instruction following.

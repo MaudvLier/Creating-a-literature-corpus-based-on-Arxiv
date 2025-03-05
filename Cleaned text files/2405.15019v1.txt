@@ -1,0 +1,518 @@
+Agentic Skill Discovery
+
+
+FIGURE
+
+
+Introduction
+
+
+Large Language Models (LLMs) show great capabilities in many fields that
+require common sense and reasoning. Large-scale models excel because of
+their training on human datasets, and textual or even multimodal
+reasoning. LLM-based agents, especially robots, extend the potential to
+embodiments, but they still show limitations when applied to direct
+robotic control. The reasons are insufficient real-world robot data for
+training, as well as the diversity of topologies and physical
+properties. As a workaround, abstracting robot control to a certain
+level and referring to each abstraction as a specific &quot;skill&quot; helps LLMs
+to control robots generically
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+For example, SayCan [*REF*]builds a robot that can follow a set
+of basic language instructions. When commanded with a complex task, an
+LLM decomposes the task into actionable low-level actions.
+
+
+Acquiring diverse robotic skills with minimal human supervision has
+garnered considerable attention. However, previous methods have either
+attempted to chain existing skills, relying heavily on a collection of
+basic skills [*REF*; *REF*; *REF*],
+or explored from scratch but often yielded non-interpretable robot
+behaviors, especially those using unsupervised reinforcement learning
+[*REF*; *REF*; *REF*; *REF*].
+We ask whether an LLM can encourage a robot to learn novel tasks that
+consist of entirely novel yet relevant skills. Imagine a robot being
+placed in a new environment. The robot must be motivated to explore the
+environment in a way to learn applicable skills before becoming ready to
+perform tasks. Given the knowledge about human actions, which resides in
+LLMs, we expect that an LLM can, by itself, suggest a variety of
+meaningful skills for the robot to learn. We refer to this exploration
+as Agentic Skill Discovery (ASD) when the robot interacts with the
+environment driven by semantic motivation by the LLM that launches
+required learning procedures automatically.
+
+
+In this work, we tackle the challenge of LLMs proposing entirely new
+tasks to a robot. The LLM needs to guide learning and evaluate success
+in the absence of human input or any prespecified evaluation measures.
+To tackle this novel challenge, our methodology is as follows: (i) An
+LLM iteratively proposes novel tasks that are suitable for the given
+environment (see Fig. [1]), and collects the resulting skills. (ii)
+Skills are learned by reinforcement learning, where the LLM specifies
+the reward function and evaluates success. (iii) Reward functions are
+optimized by an evolutionary strategy, where a second vision language
+model independently assesses fitness by classifying the success of the
+learned behaviors. We show that minimizing false positives and false
+negatives is critical, so the skill library does not get contaminated
+with overtrusted skills or depleted from useful skills. (iv) If a
+complex task cannot be assembled by learned skills, the LLM will propose
+to learn a missing required skill.
+
+
+Related Work
+
+
+Skill Discovery. Acquiring diverse robotic skills with less to no
+human supervision has been a hot topic. A popular way to achieve this
+goal is to discover skills with unsupervised reinforcement learning
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+However, the resultant skills are usually non-interpretable, sometimes
+meaningless, to humans. Although some efforts introduce further
+constraints to acquire natural behaviors [*REF*],
+scalability is still limited by a need for human demonstrations. The
+trade-off between low costs and meaningful resulting behavior depends on
+the amount of human knowledge introduced -- more supervision (high cost)
+generally indicates more natural robotic behaviors, and vice versa.
+
+
+Chaining known skills into new ones greatly extends robots&apos;
+capabilities. In order to efficiently combine basic skills in a
+meaningful way, avoiding combinatorial explosion, LLMs can be utilized
+to reason the logical ways of stacking skills to complete new,
+long-horizon tasks [*REF*; *REF*]. When LLMs are
+prompted with environment contexts, such as available robot joints and
+object types, they can propose meaningful motivations for the next
+movement [*REF*; *REF*]. The approach
+by [*REF*]explores generally meaningful
+skill combinations by prompting an LLM to get an interesting outcome.
+However, the incorporation of &quot;new skills&quot; is constrained by a basic
+skill library, where existing skills are simply combined instead of
+being acquired or developed from scratch. Thereby, an LLM only motivates
+the use of already known skills and plans with a given skill set. Using
+this method, for instance, if a robot is only versed in the skill of
+&quot;pushing&quot;, it remains incapable of acquiring the skill of &quot;grasping&quot;.
+
+
+Code LLM Control. Most LLM-based robots rely on pre-defined
+primitives (skills). This design is less flexible, making it difficult
+to generalize to unseen objects and instructions
+[*REF*; *REF*]. Recent approaches make an effort
+to use code LLMs to write programming code to complete open instructions
+[*REF*; *REF*]. In particular,
+VoxPoser [*REF*]uses VLM and LLM to construct a 3D
+cost map to guide a robot engaging with its surroundings. However,
+VoxPoser relies on the success of the once-composed cost map, lacking
+chanceful exploration ability, and moreover relies on the LLM and a
+trajectory solver during inference. In contrast, ASD launches
+reinforcement learning, letting the agent explore the environment and
+exploit the distilled general policy. As for the automatic learning of
+low-level robot control, previous approaches show that LLMs are capable
+of programming reward functions to optimize with, achieving remarkable
+performance even for complex tasks
+[*REF*; *REF*]. However, these methods
+have not yet been directly applied to skill learning where tasks are
+newly proposed.
+
+
+Using vision language models to analyze robot behaviors has been
+demonstrated to be useful. For example, REFLECT
+[*REF*]uses a multimodal structure to explain
+execution failures. We use the advanced GPT-4V vision language model to
+classify task success flexibly and reliably.
+
+
+Agentic Skill Discovery 
+
+
+ASD aims at acquiring new robotic skills and fulfilling given
+complicated instructions using language models rather than relying on
+exhaustive human endeavors (demonstrations, reward designs, human
+preference, handcrafted supervision signals, etc.). At a high level, ASD
+actively explores the environment motivated by self-generated task
+instructions (Sec. [3.1]); at a lower level, it learns to master these
+explorative tasks (as skills) via reinforcement learning with
+self-determined success and rewarding strategy
+(Sec. [3.2]). Moreover, with collected skills, ASD
+has the promise to complete long-horizon tasks or further extend the
+skill library by completing previously challenging tasks via task
+decomposition (Sec. [3.3]) and on-demand skill learning, which
+learns yet missing skills when required.
+
+
+Iterative Task Proposal and Skill Collection 
+
+
+Instead of relying on exhaustive human efforts, ASD utilizes LLMs to
+propose meaningful tasks given the description of a certain scene. Those
+tasks will be assigned to reinforcement learning agents to learn
+corresponding language-conditioned policies (see
+Sec. [3.2]). See Fig. [2] for an overview of the skill propose-learn-collect loop.
+
+
+To provide the LLM with sufficient information about the environment, we
+provide it the source code of the observation space, following
+[*REF*]. Also, the robot configuration, such as robotic
+arm type and DoFs, is also prompted as the initial background
+description. In addition to the static environment setup, we also
+provide dynamic aspects for a robust continual evolution. Considering
+the unpredictable difficulties of task learning caused by environment
+complexity and intrinsic instability of the learning algorithm, rather
+than letting an LLM propose several appropriate tasks at once, we guide
+the proposing and learning in an iterative mode. As a result, temporary
+uncompleted tasks will be fed back such that the LLM will have a sense
+of the limits of the learning agent, influencing the following task
+proposals. For the sake of efficiency and reusability, we encourage the
+LLM to propose tasks that are meaningful, atomic, independent, and
+incremental. (See Fig. [14] in Appendix [9])
+
+
+FIGURE
+
+
+Skill Options. Generally, control with various options for a given
+task has the promise of being more robust and generalizable
+[*REF*; *REF*]. As will be
+introduced in Sec. [3.2], in the process of the evolutionary
+search of diverse reward functions, several options lead to a learning
+success of one given task, forming a set of various control policies. A
+task will be considered complete if the resultant agent behavior aligns
+with expectations; otherwise, it is deemed unsuccessful after an
+extended period of learning.
+
+
+Completed tasks will be considered as &quot;skills&quot;, along with their
+&quot;options&quot;, to be stored in the skill library, and attempted but
+uncompleted ones will be put into a failure pool. Both will be notified
+to LLMs to inform the next turn of task proposals. Failed tasks are
+usually too sophisticated for LLMs to write reward functions to master
+at once. Rather, we will show how we can decompose and complete them by
+combining acquired and on-demand-learned skills
+(Sec. [3.3]). We collect all options for the same skill,
+i.e. various policies paired with successful reward functions, as future
+execution candidates and we leave the study of mixing various skill
+options for one robust skill control for future research.
+
+
+Evolutionary Skill Learning 
+
+
+LLMs are capable of composing reward functions for RL agents to
+accomplish specified tasks [*REF*; *REF*]. We follow a similar
+strategy of Eureka [*REF*]to prompt LLMs to program
+reward functions and evolve them with deterministic selection where only
+the best reward function, as assessed by the success rate as a fitness
+function, will survive and mutate. See
+Fig. [3] for an illustration.
+
+
+FIGURE
+
+
+However, when it comes to skill learning, i.e., optimizing on newly
+proposed tasks instead of pre-defined ones, existing methods cannot be
+directly applied since the fitness function, the ground truth of success
+determination, for each task proposal is not known beforehand, making it
+impossible for evolution selection due to this lack of a unified golden
+metric to quantify performances.
+
+
+Success Determination: Fast and Slow. Distinguishing whether
+specific behaviors fulfill a task at each step (referred to as fast
+success determination), as opposed to assessing after fixed intervals
+of execution (as slow success determination), is pivotal in
+reinforcement learning. Employing fast success determination enables
+the agent to receive sparse rewards in real-time and terminate actions
+promptly to prevent potentially adverse explorations. As a complement,
+the slow success determination, which can be an independent
+post-training evaluation, makes sense when the fast counterpart is not
+feasible/reliable. For example, the human examination of learned RL
+behaviors, especially from a draft success function to debug, can be
+regarded as a slow success determination.
+
+
+Traditionally in RL, the (fast) success determination for a specific
+task is programmed by humans into a function that is called at every
+physics step. Without resorting to human efforts to exhaustively
+construct such success conditions, we let LLMs generate success
+functions as well. These are being composed similarly to reward
+functions but with a binary output to indicate how the task is
+completed. Nevertheless, the soundness of the success function requires
+investigation. Given that the LLM serves dual roles as both a &quot;player&quot;
+(for reward function optimization) and as a &quot;referee&quot; (for fast success
+determination), employing the resultant success rate as the fitness
+function for evolution may jeopardize learning stability and
+trustworthiness. (See also Fig. [7] and Sec. [4.2] for further discussion of the undesired behaviors
+stemming from evolution with incorrect fitness measurement.)
+
+
+The success function and reward function form a chicken-egg relation in
+that 1) the reward function search relies on reliable success
+determination and, meanwhile, 2) it is unfeasible to verify the success
+function prior to the learning. As a result, it is challenging to have
+an evolutionary search for both at the same time. To establish a stable
+learning cycle, we propose coordinating both fast and slow success
+determinations for enhanced reliability. Our approach involves the
+following steps: 1. sample a set of success functions that are used unchanged throughout
+skill learning, based on which an LLM launches RL training and
+deterministically selects reward function survivors, with the
+hypothesis that determining success is much more attainable than
+programming an applicable reward function.
+
+
+2. prompt an independent vision language model to additionally examine
+the success of survivor candidates, before passing them on to the
+next evolutionary generation. In practice, we apply
+GPT-4V(ision) to describe and assess the reinforced robot
+behaviors which are deemed successful according to success functions
+(positives), securing a robust learning loop without human
+supervision. Since there are many more unsuccessful behaviors
+(negatives), and false negatives are less common and less
+harmful, we do not additionally examine them due to the high
+assessment cost.
+
+
+FIGURE 
+
+
+Early Misconduct Check. In practice, LLMs may generate unacceptable
+function designs, e.g. trying to import unsupported third-party Python
+modules or produce nonsensical outputs (See
+Appendix [8.3] for an example). Some of the potential bugs
+can be bypassed by carefully designed prompts, while others should be
+examined at runtime by a Python interpreter. Instead of directly
+launching RL and feeding back LLMs all kinds of execution errors at the
+end, as is in Eureka [*REF*], we carry out early syntax
+checks and loop until the function generations meet certain
+requirements. This separate check reduces unnecessary waiting time for
+simulation preparations and provides an efficient reward search that
+focuses only on performance feedback. See
+Fig. [4] for an overview of the evolutionary
+skill learning procedure and Fig. [15], Fig. [16], Fig. [17] and
+Fig. [18] in Appendix  [9] for detailed prompts.
+
+
+On-demand Skill Learning with Top-Down Quest Decomposition 
+
+
+ASD initially learns skills starting from similar environmental reset
+states *MATH*, where *MATH* indicates the initial
+state distribution with limited randomness, such as object placement.
+Consequently, some LLM-suggested skills cannot be trained if the
+pre-conditions are not satisfied. For example, a skill of
+&quot;&apos;placing an object&apos;&quot; requires the initial state of having the object
+picked. An intuitive solution is to configure the learning environment
+open-ended/reset-free
+[*REF*; *REF*], where an LLM
+continually observes the changes and proposes tasks to complete.
+However, it challenges both the dynamic sensing ability of LLM as well
+as RL in practice, especially when RL is accelerated by learning in many
+parallel environments. Another way is to reset the environment to the
+final state of executed skills, thereby exploring sequentially arranged
+further skills conditioned on already collected skills. Since the
+bottom-up bootstrapping of skills leads to an explosion of
+possibilities, we introduce a top-down on-demand learning strategy for
+incoming quests, namely, complex tasks.
+
+
+Given a quest, which can be either from human instruction or from the
+failure pool during the skill discovery phase, an LLM is prompted to
+decompose it into a sequence of subtasks. This decompose-and-conquer
+strategy has been successfully verified to work
+[*REF*; *REF*]. However, being different from
+existing approaches that only allow a decomposition into a limited set
+of subtasks that can be completed with known skills (bottom-up for
+completion), our method, as illustrated in
+Fig. [5], allows the LLM to come up with reasonable yet novel skills to be learned
+on demand with ASD, being more flexible and generalizable for unseen
+tasks.
+
+
+FIGURE
+
+
+To avoid the forgetting problem in multitask policy learning, we learn
+individual policy networks for each RL launch and only keep the
+surviving ones according to their performance in the evolution loop. As
+for learning of the *MATH* -th on-demand skill, since its initial state is
+reset as the final state of the last stacked skill *MATH*, i.e.,
+*MATH*, we initialize the policy
+weights from the last learned skill rather than randomly,
+*MATH*. This maintains *MATH* at the
+beginning of learning and ensures a smooth transition from there when
+being gradually optimized.
+
+
+Experiment 
+
+
+With the following setup of experiments, we aim to answer the following
+research questions: 
+1. What kind of tasks can be proposed by LLMs? (Sec. [4.1])
+2. Can ASD acquire reliable skills automatically? (Sec. [4.2])
+3. Can challenging tasks be completed by stacking skills? (Sec. [4.3])
+
+
+Environment. We build the simulation in Isaac Sim simulator
+since it supports parallel environment simulation, which dramatically
+accelerates the trials of RL with various reward functions. We set up a
+table scenario with Franka Emika Panda robotic arm, which has 7 DoF and
+a two-finger gripper. On the table, several objects are randomly placed
+in front of the arm, with a drawer that can be opened. It is a single
+scenario, but it enables multiple tasks. See
+Fig. [6] for the environment setup, with all assets available in Isaac Sim.
+
+
+FIGURE
+
+
+LLMs. We employ &apos;gpt-3.5-turbo&apos; to propose tasks and generate reward
+and fast success functions since it shows a good programming ability
+while being acceptable regarding cost. For the slow assessment of
+behaviors that were positively evaluated by fast success functions, we
+replay learned policies and record resulting behaviors as videos, from
+which we extract keyframes and apply &apos;gpt-4-vision-preview&apos;, which
+verifies the success of task completion.
+
+
+Learning. With a temperature of 1, the LLM samples 3 success
+functions in each iteration, based on each, 3 reward functions are
+further sampled to launch RL training and to evolve. We set the number
+of generations of evolutionary search to 3. For RL training, we use
+coordinate states of objects as the state input, and to avoid control
+lag caused by inverse kinematics for paralleled environments, the action
+space is set to be the robot joint position space. For optimization, we
+apply the RL framework &apos;rsl_rl&apos; implemented by Orbit
+[*REF*], where PPO [*REF*] is
+applied with the fixed same parameters across all potential tasks. For
+each RL iteration, we configure the maximum permissible physics steps to
+250, with 4096 parallel environments, and a total learning duration of
+2000 episodes. We train ASD on 6 NVIDIA GeForce GTX 1080 Ti GPUs, where
+each proposed task takes around 6 hours to complete.
+
+
+Q1. What kind of tasks can be proposed by LLMs? 
+
+
+Given the table manipulation scenario, the LLM could potentially propose
+numerous possible tasks.
+Tab. shows the first 10 proposed tasks in order, from
+which we have the following quick observations:
+- The complexity of tasks increases with the iteration of the
+proposal, though not all of them are intuitively meaningful to
+acquire.
+- Most of the proposed tasks are meaningful and completable under the
+setup. Some of the tasks are not appropriately proposed due to LLM&apos;s
+misunderstanding of the initial environment setup. For example, the
+initial state is set with the drawer closed, so &quot;&apos;close the drawer&apos;&quot;
+should not be proposed to learn under this circumstance.
+- We also notice several duplicates that differ in the literal
+expression but resemble each other at a semantic level. Further
+prompt engineering or a post-check of task proposals may help reduce
+such inappropriate trials.
+- Since all of the tasks are parameter-free language instructions,
+&quot;&apos;reach cube A&apos;&quot; and &quot;&apos;reach cube B&apos;&quot; are considered as different
+skills by the LLM.
+
+
+As can be observed from the task proposal list, the tasks are generally
+atomic and meaningful, but there is still room for improvement,
+especially in the understanding of the given initial status of the
+environment. In this work, we only prompt the coding LLM with text.
+Future research involving mixed modalities, e.g., visual observation or
+even point cloud [*REF*], has the promise to
+alleviate this phenomenon.
+
+
+Q2. Can ASD acquire reliable skills automatically? 
+
+
+To evaluate whether the proposed skills have been learned, we further
+report the learning status briefly described with two measures: 1)
+number of acquired skill options, i.e., available skill options deemed
+successful according to both fast and slow success determination (i.e.,
+success function and GPT-4V respectively); 2) number of acquired skill
+candidates, those policies that are falsely considered positive
+according to composed success functions since failed by the vision
+language model. As ground truth, we manually examine them and report the
+number of human-examined validations.
+
+
+As shown in the skill option column in
+Tab., ASD automatically collected many valid skill
+options. However, the skill candidates column shows that many behaviors
+were falsely positively evaluated by the coding LLM, necessitating an
+additional checking mechanism to avoid potential false learning cycles
+(See Fig. [7]). Due to the introduction of slow success determination, the false
+positives are dramatically filtered out, making the learning cycle
+stable and acquired skills trustworthy.
+
+
+FIGURE
+
+
+We stop exploring further skills after reaching 24 proposals. We found
+that *MATH* of them are reasonably learnable, among which *MATH* are
+acquired directly as atomic skills. More skill-learning details and
+statistical reports can be found in
+Tab. [12] and Tab. [13] in Appendix. [8.4].
+
+
+Q3. Can challenging tasks be completed by stacking skills? 
+
+
+After the initial collection of skills, we empirically find that some of
+the proposed tasks require a long horizon of execution, and are too
+challenging for the LLM to write effective reward functions. These tasks
+usually require manipulations of different entities, e.g., a
+&quot;&apos;stacking&apos;&quot; task requires one object being picked up as the first step
+and then locating another object to align them to each other. However,
+as we observed in the skill discovery phase, the best-performing
+behaviors are just picking up the cube, which leads to it being held
+aloft with no further progress.
+
+
+FIGURE
+
+
+As described above (cf. Fig. [5]), we employ LLMs to divide the long-horizon
+tasks into a sequence of short-horizon ones and learn to stack them to
+solve the original quest. Tab. [8] shows two examples of complex tasks that ASD
+fails to master in the initial skill learning phase, but succeeds by
+dividing and conquering subtasks individually. This shows that the
+policy *MATH* can be efficiently learned on top of a stack of
+existing skills, showcasing the potential of ASD for learning composed
+skills.
+
+
+Conclusion
+
+
+Agentic Skill Discovery (ASD) aligns with a broader vision of agentic AI
+systems [*REF*; *REF*], enabling robots to understand complex embodiments and autonomously
+pursue intricate goals with minimal human intervention. By using LLMs to
+devise, motivate, and improve necessary learning processes, we have
+shown that language-conditioned robotic skills can be discovered from
+scratch. Using a vision language model for third-party behavior
+assessment dramatically prevents the skill library from being influenced
+by false positives. Moreover, ASD also promises to tackle challenging,
+long-horizon tasks by dividing and conquering on demand, further
+effectively extending the skills. In principle, ASD can adapt to diverse
+embodiments, we leave further this exploration for future research.
+
+
+Limitations and Future Work 
+
+
+As discussed in Sec. [4.1], employing text-based LLMs can suffer from
+inaccuracies in sensing the environment. The reliance on GPT-4V for
+describing and assessing reinforced robot behaviors may introduce biases
+or limitations in the evaluation process. Future work could involve
+fine-tuning a specialized robot behavior assessment model by leveraging
+existing robotic datasets. In addition, a limitation lies in the
+applicability of this method to real-world scenarios, especially in
+cases where parallel learning is necessary. Addressing this challenge
+may entail a transition from real-world environments to simulations
+(real2sim) and back again (sim2real,
+[*REF*; *REF*]). Furthermore, there
+is a need for extensive real-world experimentation and discussion to
+fully explore its agenticness [*REF*].

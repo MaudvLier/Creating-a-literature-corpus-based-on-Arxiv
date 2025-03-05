@@ -1,0 +1,508 @@
+HELPER-X: A Unified Instructable Embodied Agent to Tackle Four Interactive VisionLanguage Domains with
+Memory-Augmented Language Models
+
+
+1. [Introduction]
+
+
+A typical way to adapt LLMs to downstream applications is through
+prompting (*REF*), exploiting their strong in-context and few-shot learning abilities.
+When the amount of in-context examples and task descriptions necessary
+to cover the task constraints increases, inference costs significantly
+rise due to additional attention operations. To handle computational
+challenges and LLM context length, a growing body of research explores
+the concept of &quot;memory-augmented prompting&quot; -- a method that
+involves retrieving a set of pertinent in-context examples to append to the prompt, 
+thereby broadening their applicability (*REF*).
+
+
+HELPER *REF* (*REF*) retrieves a set of
+language-program examples based on the user&apos;s input instruction and
+adds them to the prompt to provide contextualized examples for GPT-4
+task planning.
+
+
+FIGURE
+
+
+We report that two simple extensions of HELPER that allows for strong
+performance across four domains, by expanding its memory with a wider
+array of examples and prompts, and by integrating a additional APIs
+for asking questions. Specifically, we introduce two HELPER-X
+variants: HELPER-XP, which retrieves domain-specific prompt
+templates and related in-context examples for the LLM, and
+HELPER-XS, which retrieves in-context examples from a shared memory under a single
+prompt template.
+
+
+We evaluate HELPER-X across four domains that include dialogue-based
+task completion on TEACh (*REF*, *REF*), following instructions from natural language on
+ALFRED (*REF*, *REF*), engaging in instruction following with active question asking on DialFRED
+(*REF*, *REF*), and organizing rooms using spatial commonsense reasoning in the Tidy Task
+(*REF*, *REF*). HELPER-X demonstrates state-of-the-art performance in the few-shot example domain, that is,
+without in-domain training. Extending the language-program memory does
+not cause interference and does not hinder performance. In fact,
+HELPER-X matches, and sometimes even exceeds, the performance of
+agents prompted with a single-domain in mind.
+
+
+FIGURE
+
+
+2. HELPER-X
+
+
+We extend HELPER (*REF*, *REF*) to work
+across four domains. We propose two versions to extend the
+memory-augmented prompting of LLMs in HELPER: 1) HELPER-XP that
+retrieves from a memory of domain-tailored prompt templates and
+associated domain-specific examples (Section
+[2.2.1]), and 2) HELPER-XS that expands the
+memory of HELPER into a shared memory of in-context examples across
+domains combined with a domain-agnostic prompt template (Section
+[2.2.2]).
+
+
+Additionally, we extend the capabilities of
+HELPER for question asking, by appending a question API with
+functions defining possible questions and their arguments to the LLM
+prompt (Section [2.2.3]). We use HELPER (*REF*, *REF*) for execution of the
+generated program using standard perception modules.
+
+
+1. [Background]
+
+
+Here, we give an account of HELPER to make the paper self-contained.
+
+
+HELPER prompts an LLM, namely GPT-4 (*REF*,
+*REF*), to generate plans as Python programs. It
+assumes that the agent has access to a set of action skills S (e.g.,
+go_to(X), pickup(X), etc.). HELPER adds these skills to the prompt in
+the form of a Python API. The LLM is instructed only to call these
+pre-defined skill functions in its generated programs. HELPER
+considers a key-value memory of language inputs and successful program
+pairs. It retrieves a set of in-context examples relevant to the
+current input language to add to the prompt to assist program
+generation. Each key is encoded into a language embedding. The top-k
+language-program pairs are retrieved based on their euclidean distance
+to the encoding of the language input I encoding.The HELPER prompt
+also contains a role description (\&quot;You are a helpful assistant with
+expertise in\...\&quot;), a task description (\&quot;Your task is to \...\&quot;) and
+guidelines to follow for program generation (\&quot;You should only use
+functions in the API\...\&quot;), that are commonly tailored to the
+domain-of-interest.
+
+
+HELPER (*REF*, *REF*), using RGB input,
+estimates depth maps, object masks, and agent egomotion at each
+timestep. This facilitates the creation and upkeep of a 3D occupancy
+map and an object memory database, essential for obstacle navigation
+and object tracking. Object detection in each frame leads to instance
+aggregation based on 3D centroid proximity, with each instance
+characterized by dynamic state attributes (e.g., cooked, sliced,
+dirty). When an action fails, a Vision-Language Model (CLIP
+(*REF*, *REF*)) provides feedback,
+prompting the LLM to re-plan. For objects not present in the map, the
+LLM suggests areas for HELPER to search (e.g., &quot;near the sink\&quot;).
+
+
+2. [Unified Memory-Augmented Prompting]
+
+
+We explore two ways to expand HELPER to work across four domains,
+either through prompt retrieval (Section [2.2.1])
+or through a shared example memory (Section [2.2.2]).
+
+
+1. [Prompt Retrieval]
+
+
+Given an input language instruction I, the prompt retrieval agent
+HELPER-XP retrieves a specialized prompt template P and an
+associated set of specialized examples E. Each specialized prompt
+template contains role descriptions, task instructions and guidelines
+tailored to each domain, namely, dialogue-based task completion (based
+on TEACh (*REF*, *REF*)), instruction following from natural language (based on ALFRED
+(*REF*, *REF*)), instruction following with active question asking (based on DialFRED
+(*REF*, *REF*)), or tidying up rooms (based on Tidy Task (*REF*, *REF*)).
+For retrieval, a query is generated from the input instruction by
+encoding the instruction into an embedding vector using a pre-trained
+language model (*REF*, *REF*). The query retrieves the closest key from memory, where each key represents
+the language encodings of each prompt template and example text, as
+shown in Figure *REF*. The top-k in-context examples are
+further retrieved from the specialized set of examples associated with
+the retrieved prompt and added to the retrieved prompt template, and
+the resulting prompt is used for LLM&apos;s program generation.
+
+
+FIGURE
+
+
+2. [Shared Example Memory]
+
+
+Given an input language instruction I, the shared example memory
+agent HELPERXS retrieves a set of in-context examples from a
+shared memory that includes in-context examples from all domains
+considered. These examples are added to a domain-agnostic prompt
+template that does not have a specialized role description, task
+instructions or guidelines for any single domain. A query is generated
+from the input instruction by encoding it into an embedding vector
+using a pre-trained language model (*REF*, *REF*). The keys represent encodings of each in-context
+example language in the shared memory. The query embedding retrieves
+the top-k nearest neighbors keys and their values. These are added
+to the prompt as relevant in-context examples for LLM program
+generation, as shown in Figure *REF*.
+
+
+3. [Question Asking API]
+
+
+A natural limitation of asking questions in a simulator is that only
+certain types of questions can be understood and answered. We
+constrained the set of possible questions asked by the agent by
+defining an API of available questions in the DialFRED
+(*REF*, *REF*) benchmark and their
+arguments that HELPER-X can call on to gather more information. These
+include questions in three categories --- Location, Appearance, and
+Direction --- pertaining to the agent&apos;s next interaction object. Importantly, this API can be continuously expanded by adding an additional
+function to the question-asking API.
+
+
+Implementation details. We follow the
+network implementation of HELPER (*REF*, *REF*). We use GPT-4-0613 (*REF*,
+*REF*) for text generation and text-embedding-ada-002 (*REF*, *REF*) for text embeddings. We
+use the SOLQ object detector (*REF*, *REF*) and ZoeDepth network (*REF*,
+*REF*) for depth estimation from RGB input. We use k = 3 for example retrieval.
+
+
+3. [Experiments]
+
+
+We test HELPER-X in the following benchmarks: 1. Inferring and
+executing action plans from dialogue (TEACh (*REF*, *REF*)), 2. Inferring and
+executing action plans from instructions (ALFRED (*REF*, *REF*)), 3. Active question
+asking for seeking help during instruction execution (DialFRED
+(*REF*, *REF*)), and 4. Tidying up rooms (Tidy Task (*REF*, *REF*)).
+
+
+1. [Inferring and Executing Action Plans from Dialogue]
+
+
+Inferring and executing task plans from dialogue involves
+understanding dialogue segments and executing related instructions
+using the provided information in the dialogue. This task evaluates
+the agent&apos;s ability in understanding noisy and free-form conversations
+between two humans discussing about a household task.
+
+
+Dataset We use the TEACh benchmark (*REF*, *REF*), which consists of over 3,000 dialogues focused
+on household tasks in the AI2-THOR environment *REF* 
+(*REF*). We use the Trajectory from Dialogue (TfD)
+variant, where an agent, given a dialogue segment, must infer action
+sequences to fulfill tasks like making a coffee or preparing a salad.
+The training dataset contains 1482 expert demonstrations with
+associated dialogues. The evaluation includes 181 &apos;seen&apos; and 612
+&apos;unseen&apos; episodes, with &apos;seen&apos; having different object placements and
+states than in training, and &apos;unseen&apos; also having different object
+instances and room environments. The agent receives an egocentric
+image at each step and selects actions to execute, such as pickup(X), turn_left(), etc.
+
+
+Baselines We consider two kinds of baselines: 1. Methods that
+supervise low-level or high-level action prediction from language and
+visual input using expert demonstrations in the training set (1482
+in number) (*REF*, *REF*; *REF*, *REF*; *REF*,
+*REF*; *REF*, *REF*), and 2. Methods that use a small amount of expert demonstrations
+for prompting pretrained LLM (*REF*, *REF*). Specifically, HELPER and HELPER-X use 11
+domain-specific examples. We additionally include a comparison to
+HELPER-ALF, which uses specialized prompts and examples for ALFRED.
+
+
+Evaluation Metrics We follow the TEACh evaluation metrics. Task
+success rate (SR) is a binary metric of whether all subtasks were
+successfully completed. Goal condition success rate (GC)
+quantifies the proportion of achieved goal conditions across all
+sessions. Both SR and GC have path-length weighted variants weighted
+by (path length of the expert trajectory) / (path length taken by the
+agent).
+
+
+Results are reported in Table *REF*. On validation
+unseen, HELPER-XS and HELPER-XP demonstrate
+performance on-par with HELPER, with HELPER-XS even slightly outperforming
+HELPER, despite HELPER-X being shared across four domains. HELPER-X
+also outperforms the best supervised baselines trained in-domain with
+many demonstrations. On validation seen, both HELPER-X variants
+outperform HELPER, with the best model HELPER-XP outperforming
+HELPER by 2.7% in success rate.
+
+
+TABLE
+
+
+2. [Following Natural Language Instructions]
+
+
+Natural language instruction following evaluates the agent&apos;s ability
+to carry out high-level instructions (&quot;Rinse off a mug and place it in
+the coffee maker\&quot;) and low-level ones (&quot;Walk to the coffee maker on
+the right\&quot;) provided by a human user. Importantly, the language and
+tasks in this evaluation differ from the ones in the TEACh benchmark
+(Section [3.1]).
+
+
+Dataset Te ALFRED (*REF*, *REF*)
+is a vision-and-language navigation benchmark designed for embodied
+agents to execute tasks in domestic settings from RGB sensory input.
+It includes seven task types across 207 environments, that involve 115
+object types in 4,703 task instances, varying from simple object
+relocation to placing a heated item in a receptacle. The dataset
+includes detailed human-authored instructions and high-level goals,
+based on 21,023 expert demonstrations. It also comprises 820 &apos;seen&apos;
+and 821 &apos;unseen&apos; validation episodes. Agents receive egocentric RGB
+images at each step and select actions from a predefined set to
+progress, such as pickup(X), turn_left(), etc.
+
+
+Baselines Again, we consider two sets of baselines: those that
+supervise lowlevel or high-level action prediction using the expert
+demonstrations in the training set (*REF*), and those that use a small amount of
+demonstrations (\&lt;= 100) (few-shot) (*REF*), FILM (*REF*,
+*REF*) (FS), and HLSM (*REF*, *REF*) (FS) few shot baselines are adapted for the
+few-shot ALFRED setting by the authors of *REF* 
+(*REF*), where the planning modules in FILM and HLSM
+are re-trained using only 100 demonstrations. We adapt HELPER
+(*REF*, *REF*) as a baseline with
+specialized prompts and examples for ALFRED, as well as a comparison to
+HELPER-TEACh, which uses specialized prompts and examples for TEACh.
+HELPER and our HELPER-X model each use 7 domain-specific examples in
+their memory.
+
+
+Evaluation Metrics We follow the ALFRED evaluation metrics: 1.
+Task success rate (SR) and 2. Goal condition success rate (GC).
+These are defined the same as in TEACh (Section [3.1]).
+
+
+Results are reported in Table *REF*. Our conclusions are
+similar to Section [3.1]. On validation unseen, HELPER-XS and HELPER-XP demonstrate
+performance on-par with HELPER, with HELPER-XP marginally
+outperforming HELPER by 1.0%, despite. HELPER-X is also competitive
+with the best supervised baselines, despite only requiring a few
+in-domain demonstrations. On validation seen, we observe both HELPER-X
+models marginally outperforming HELPER. We additionally show that
+using HELPER-TEACh which has prompts and examples for a different
+domain (TEACh) causes a significant 6.9% drop in performance.
+
+
+TABLE
+
+
+3. [Instruction Following with Asking Questions]
+
+
+Question asking instruction following allows the agent to choose to
+ask questions to an oracle to gain additional information to help it
+complete a task defined by an initial natural language instruction.
+
+
+Dataset The DialFRED benchmark (*REF*, *REF*) enables an agent to query users while executing
+language instructions, utilizing user responses for task improvement.
+It features a human-annotated dataset with 53K relevant questions and
+answers, plus an oracle for responding to agent queries. Agents can
+ask questions in three categories --- Location, Appearance, and
+Direction --- pertaining to their next interaction object. The dataset
+covers 25 task types across 207 environments, 115 object types, and
+includes &apos;seen&apos; and &apos;unseen&apos; episodes. The agent receives egocentric
+RGB images at each step and selects actions from a set, like
+pickup(X), turn_left(), etc. This benchmark&apos;s instructions and tasks
+are distinct from TEACh and partially overlap with ALFRED, with
+significant modifications and 18 new task types.
+
+
+Questioning Implementation To ask questions in the DialFRED task,
+we add to the question asking API functions to query the oracle in
+DialFRED (see Section [2.2.3]). HELPER-X asks
+questions when it does not know the location of an object required for
+the task at hand. Unlike ALFRED, success in DialFRED requires
+interacting with a specific instance of an object class. To account
+for this, HELPER-X also asks questions to help disambiguate when it
+has seen multiple instances of the same object.
+
+
+Baselines We compare with the baselines in the DialFRED paper
+(*REF*, *REF*), which includes a
+sequence-to-sequence architecture for choosing to ask a question,
+trained with reinforcement learning, and the Episodic Transformer
+architecture (*REF*, *REF*),
+trained with behavioral cloning. We adapt HELPER
+(*REF*, *REF*) as a baseline with
+specialized prompts and examples for DialFRED, as well as our question
+asking API. We consider a few shot setting with each few shot model
+receiving 7 domain-specific examples.
+
+
+Evaluation Metrics We follow the conventions of the DialFRED
+benchmark. We use the Task success rate (SR) metric. This is
+defined the same as TEACh (Section [3.1]).
+
+
+Results are reported in Table *REF*. On validation unseen,
+we observe HELPER-XS marginally outperforming HELPER by 0.38
+points in success rate, despite HELPERX being shared across all
+domains. While HELPER-X is outperformed by the best supervised
+baselines, HELPER-X only requires a few in-domain demonstrations
+compared to the thousands of language-action demonstrations and RL
+interactions needed to train the baseline models. Most importantly, we
+see the addition of question-asking in HELPER-X improves success rate
+by 2.48 points, highlighting its efficiency in question selection and
+response utilization.
+
+
+TABLE
+
+
+4. [Tidying Up using Spatial Commonsense Reasoning]
+
+
+Tidying up involves figuring out where to place items without explicit
+instructions, relying on spatial commonsense to infer a proper
+location for an object. This task tests the agent&apos;s ability to use
+commonsense reasoning regarding contextual, object-object, and
+object-room spatial relations.
+
+
+Dataset We evaluate on the Tidy Task (*REF*,
+*REF*) benchmark, where the agent is spawned in a
+disorganized room, and must reposition objects to bring them to an
+organized tidy state. The dataset consists of 8000 training, 200
+validation, and 100 testing messy configurations in 120 distinct
+scenes of bedrooms, living rooms, kitchens and bathrooms. At each time
+step, the agent obtains an egocentric RGB and depth image and must
+choose an action from a specified set to transition to the next step,
+such as pickup(X), turn_left(), etc. In this setup, the models are
+prompted to tidy up the room, given a set of objects that are out of
+place obtained using the visual detector from TIDEE (*REF*, *REF*).
+
+
+Baselines We compare against TIDEE (*REF*,
+*REF*), which includes a graph neural network encoding
+common object arrangements. This is supervised in the training set of
+the Tidy Task to predict where a target object should be re-positioned
+to in the current scene. We adapt HELPER (*REF*,
+*REF*) as a baseline with specialized prompts and
+examples for the Tidy Task. We additionally include a random receptacle 
+baseline which chooses random receptacle placement locations for
+the out of place objects. We consider a few shot setting with each few
+shot model receiving 3 domain-specific examples.
+
+
+Evaluation Metrics We use the following evaluation metrics for the
+Tidy Task: Correctly Moved (CM) Average number of correctly moved
+objects that are out of place in the scene, and moved by the agent.
+Higher is better. Incorrectly Moved (IM) Average number of
+incorrectly moved objects that are not out of place, but were moved by
+the agent. Lower is better. Energy The \&quot;cleaniness\&quot; energy,
+where lower energy represents a higher likelihood of the room object
+configuration aligning with the configurations in the organized
+AI2THOR rooms. Following ProcThor (*REF*, *REF*), for each receptacle object, the probability
+that each object type appears on its surface is computed across the
+AI2THOR scenes. See the Appendix for more details.
+
+
+Results are in Table *REF*. On the Tidy Task,
+HELPER-XS and HELPER-XP demonstrates performance on-par with
+HELPER. HELPER-X does significantly better than if object locations
+are randomly placed (Random Receptacle). We find that the supervised
+baseline, TIDEE, outperforms HELPER-X, especially in the Energy
+metric, revealing that in-domain training on this benchmark is helpful
+for learning the common object configurations within the AI2THOR
+environments. However, we find that HELPER-X accomplishes the task in
+significantly fewer steps compared to TIDEE.
+
+
+4. [Conclusion]
+
+
+We introduce HELPER-X, an embodied agent that executes tasks from
+dialogue or language instructions, ask questions, and tides up rooms.
+HELPER-X has two variants, HELPER-XP and HELPER-XS,
+enhancing HELPER&apos;s memory capabilities. HELPER-XP retrieves
+domain-specific templates and examples for large language models,
+while HELPER-XS retrieves only examples for a domain-agnostic
+prompt template through a shared memory. Evaluation of HELPER-X in
+four domains: TEACh, ALFRED, DialFRED, and the Tidy Task, yields
+state-of-the-art performance in the few-shot example setting. Memory
+and API expansions we considered maintained or improved performance
+for the LLM, highlighting the effectiveness of memory-enhanced LLMs in
+building versatile, instructable agents.
+
+
+5. [Related Work]
+
+
+1. [Memory-Augmented Prompting of Large Language
+Models]
+
+
+Recently, external memories have been instrumental in scaling language
+models *REF* (*REF*); *REF* (*REF*), overcoming the
+constraints of limited context windows in parametric transformers
+*REF* (*REF*). They also facilitate
+knowledge storage in various forms such as entity mentions [de
+Jong](#_bookmark41) (*REF*), knowledge graphs
+*REF* (*REF*), and question-answer pairs
+*REF* (*REF*). Retrieval-augmented
+generation (RAG) (*REF*, *REF*; *REF*, *REF*) has been shown to
+significantly improve response quality in large language models (LLMs)
+by integrating external knowledge sources with the model&apos;s internal
+representations. In agent-based domains, memory-augmented prompting
+has enhanced task planning in embodied instructional contexts
+(*REF*, *REF*; *REF*, *REF*) and open-world gaming (*REF*,
+*REF*; *REF*; *REF*, *REF*). Our model, HELPER-X, employs memory-augmented
+prompting across four benchmarks, demonstrating that memory
+expansion across related domains can maintain performance.
+
+
+2. [Instructable Embodied Agents that Interact with their
+Environments]
+
+
+Numerous benchmarks assess embodied vision-and-language tasks, with
+significant advancements in learning-based embodied AI agents across
+tasks like scene rearrangement *REF*, object-goal navigation
+*REF*, pointgoal navigation and exploration, embodied question answering *REF*, 
+instructional and image navigation (*REF*), audio-visual navigation
+(*REF*, *REF*), interactive dialogue and
+natural language instruction following (*REF*), and embodied commonsense reasoning
+(*REF*). Interactive instruction benchmarks (e.g., ALFRED (*REF*, *REF*) and TEACh
+(*REF*, *REF*)) require agents to follow natural language directives
+and dialogue, identifying objects in scenes via interaction masks. Variants like DialFRED (*REF*,
+*REF*) allow agent inquiries about objects and
+locations. Benchmarks such as TIDEE (*REF*, *REF*) and HouseKeep (*REF*,
+*REF*) test agents&apos; ability to tidy rooms using
+commonsense, without explicit object placement directives. Unlike most
+methods confined to a single domain, our work focuses on creating a
+multidomain agent adept in dialogue-based task planning, natural
+language instruction following, asking questions for disambiguation of
+instructions, and tidying up scenes. Our method shows competitive
+performance across the four domains with a few task-specific
+demonstrations and without domain-specific weights, beyond the single
+image object detector.
+
+
+Interactive vision-language embodied agent methods train distinct
+agents for each language-defined task, using large datasets from
+expert demonstrations (*REF*). Some approaches use
+these demonstrations for end-to-end network training to directly
+predict actions from observations (*REF*). Others employ modular
+methods, training planners to generate subgoals handled by specialized
+perception, manipulation, and obstacle avoidance modules (*REF*).
+However, these methods often over-specialize to specific datasets and
+tasks, limited by the training domain&apos;s language and task structure.
+In contrast, our method performs competitively across multiple
+benchmarks with minimal task-specific demonstrations and without
+needing domain-specific networks.

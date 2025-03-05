@@ -1,0 +1,502 @@
+From LLMs to Actions: Latent Codes as Bridges in Hierarchical Robot Control
+
+
+INTRODUCTION 
+
+
+The field of robotics has long oscillated between two predominant
+architectural paradigms for enabling agents to solve complex tasks. At
+one end of the spectrum, we have seen modular hierarchical
+policies [*REF*] for control that leverage rigid layers like
+symbolic planning, trajectory generation, and tracking. On the other end
+are end-to-end policies [*REF*] that directly map
+sensory observations to actions through high-capacity neural networks.
+This dynamic history reflects the ongoing quest to reconcile the logical
+human-like reasoning with the flexible dexterity of human motor control.
+
+
+The advent of large language models
+(LLMs) [*REF*; *REF*] and their remarkable
+language interpretation and reasoning capabilities have reignited
+interest in hierarchical control architectures. Recent
+works [*REF*; *REF*; *REF*] have leveraged LLMs
+and Multimodal Large Language Model (abbreviated as LLM in this paper
+unless specified otherwise) in place of high-level symbolic planners,
+enabling impressive results like mobile rearrangement of objects based
+on open-vocabulary instructions. Despite these advances, the core
+deficiencies of hierarchical architectures remain -- namely the need for
+a set of clearly defined control primitives and an interface between
+layers in the hierarchy. For example, LLMs leverage the semantic meaning
+of action verbs to coordinate low-level primitives like go-to, pick,
+place etc. However, we humans perform a variety of movements with our
+body that contribute to our dexterity and daily function, yet cannot
+be easily described using language.
+
+
+In this backdrop, we present Latent Codes as Bridges, or
+&apos;LCB&apos;, a new policy architecture for control that combines the benefits
+of modular hierarchical architectures with end-to-end learning (see
+Fig. for an illustration). Specifically, not only can
+&apos;LCB&apos; directly leverage LLMs for high-level reasoning and pre-trained
+skills/policies for low-level control, but it can also improve these
+components with end-to-end learning to transcend their initial
+capabilities. This is achieved by learning an &apos;&lt;ACT&gt;&apos; token at the
+interface layer which can modulate the low-level policies. As a result
+of this choice, &apos;LCB&apos; can overcome the inherent limitations of solely
+relying on language as the interface layer, since several behaviors are
+hard to describe in language. Secondly, by leveraging a separate
+&apos;&lt;ACT&gt;&apos; token, we do not destroy the core language generation and
+reasoning capabilities of the LLM during finetuning. We test &apos;LCB&apos; on a
+series of long-horizon and reasoning tasks in Language
+Table [*REF*] and Calvin [*REF*], two common language
+based benchmarks for embodied agents. We find that &apos;LCB&apos; considerably
+outperforms baselines that leverage LLMs to sequence low-level skills
+using pure language as the interface layer. See our [website] for more.
+
+
+RELATED WORK 
+
+
+Hierarchical Control with LLMs The proliferation of LLM technology,
+coupled with their capability to interpret user prompts and perform
+reasoning, has led to growing interest in utilizing LLMs for
+robotics [*REF*; *REF*]. Of particular
+notice and relevance are the use of LLMs for high-level reasoning in
+hierarchical control architectures. Prior work has demonstrated this by
+leveraging the few-shot prompt capabilities of
+LLMs [*REF*; *REF*], their ability to code and compose
+functions [*REF*; *REF*], or their ability to
+interact with human users through language [*REF*]. In contrast to
+these works that attempt to use LLMs &quot;as-is&quot; and compose low-level
+skills, our work performs end-to-end fine-tuning through learnable
+latent codes. This includes finetuning some layers of the LLM through
+LoRA [*REF*]. Empirically we show that such finetuning can
+outperform methods that use LLMs out-of-the-box.
+
+
+Language Conditioned Imitation Learning To leverage LLMs for task
+planning and reasoning, such models need to be able to call lower-level
+skills to affect change in the environment. This can be achieve in two
+ways: (a) by leveraging semantics of the skills through language
+descriptions (e.g. &apos;go-to&apos;, &apos;reach&apos; etc.) as described above; or
+alternatively (b) through language conditioned policies which accept a
+text description as input to directly produce an
+action [*REF*; *REF*; *REF*; *REF*; *REF*].
+Such policies can typically perform only short horizon tasks and lack
+the reasoning and planning capabilities often found in LLMs. Our goal in
+this work is to leverage such &quot;simple&quot; or &quot;primitive&quot;
+language-conditioned policies along with LLMs to enable a hierarchical
+system to perform complex tasks that require multi-step planning and reasoning.
+
+
+Large Pre-Trained Models for Embodied Agents Recent years have
+witnessed growing interest in robotics to re-use large models originally
+trained for vision or language
+applications [*REF*; *REF*] or their
+architectures [*REF*; *REF*; *REF*; *REF*].
+We are also starting to see large models and representations custom
+trained for robotics [*REF*; *REF*; *REF*; *REF*].
+In our work, we leverage the recent class of Multimodal Large language
+models [*REF*; *REF*; *REF*] that extend the
+capability of text only LLMs to interpret other modalities like vision
+through alignment layers. Specifically, our instantiation of &apos;LCB&apos; model
+builds on top of LLaVA [*REF*] and finetunes the model on a
+simulated dataset of embodied reasoning and long-horizon tasks. As the
+availability of embodied datasets paired with language annotations grow,
+we hope that our method can be extended to release generalist models
+that can be deployed zero shot in new domains.
+
+
+Method 
+
+
+FIGURE
+
+
+We wish to develop a hierarchical policy architecture that can enable
+robots to perform a variety of manipulation tasks when provided with
+free-form language descriptions. Specifically, we seek an architecture
+that can handle low-level actions for fine-grained or contact-rich tasks
+(e.g. pushing, 6D object manipulation) while also having the capability
+to reason and plan without any external step-by-step instructions.
+Before we present our architecture for this purpose, we first survey two
+other families of approaches and their deficiencies, which provides the
+intuition and basis for our method. These approaches are shown in figure.
+
+
+FIGURE
+
+
+First we can consider a
+hierarchical approach where LLMs perform high-level task planning by
+calling a set of pre-defined skills or
+APIs [*REF*; *REF*]. These APIs (e.g. &apos;go-to&apos;, &apos;push&apos;) are
+described and provided to the LLM as part of the main prompt. This
+approach suffers from two primary drawbacks. Firstly, for an LLM to plan
+with skills, they need to have semantics attached to them that make
+linguistic sense. Secondly, this constrains the set of skills to a
+closed vocabulary, and prevents any form of generalization to new skills
+or capabilities. Furthermore, code-writing proficiency demands a
+high-quality LLM, a criterion met chiefly by proprietary commercial
+models such as GPT-4 [*REF*]. Additionally, end-to-end
+fine-tuning is challenging since the LLM cannot adapt or compensate for
+limited prowess of the low-level skills [*REF*].
+
+
+Language as Interface
+
+
+The second class of approaches can leverage
+language-conditioned low-level policies as opposed to a finite set of
+low-level skills. Such policies can take a simple language command as
+input (e.g. &apos;pickup the red block&apos;) and produce actions that can
+(hopefully) accomplish the task. Since these policies can accept
+free-form text as input, at least theoretically, they have the
+capability to generalize to new instructions. Furthermore, they are
+amenable to end-to-end fine-tuning from high-level instructions, through
+an LLM, to the language conditioned policy, and ultimately the action.
+Nevertheless, this class of approaches also suffer from key limitations.
+Firstly, not all high level tasks can be decomposed into sub-tasks in
+simple language. For example, imagine trying to describe step-by-step
+instructions to make a robot dance to a song. Secondly, end-to-end
+fine-tuning with such an architecture can destroy planning and reasoning
+capabilities that the LLM originally had [*REF*].
+
+
+Latent Codes as a Bridge (Ours) 
+
+
+Finally we describe our method which
+can overcome the key limitations outlined above. Our key insight is that
+we can introduce an additional latent code to act as a bridge between
+the high-level LLM and low-level language conditioned policy. We augment
+the LLM&apos;s tokenizer by adding a specialized &apos;&lt;ACT&gt;&apos; token, prompting the
+model to predict this token in response to actionable questions. The
+last layer embedding of the &apos;&lt;ACT&gt;&apos; token is then utilized as a latent
+goal for the downstream policy network. This learnable &apos;&lt;ACT&gt;&apos; token&apos;s
+embedding facilitates the transmission of abstract goals and nuances to
+the low-level policy -- details that are not easily conveyed through
+language alone. Furthermore, by using this additional learnable token,
+we preserve the embedding space for language tokens, thus preventing any
+catastrophic forgetting during end-to-end fine-tuning. We describe more
+specific details of our architecture and implementation below.
+
+
+Architecture and Implementation Details of &apos;LCB&apos;
+
+
+&apos;LCB&apos; unifies the capabilities of a slow but powerful pretrained
+Multimodal Large Language Models (LLMs) with a fast and simpler
+decision-making policies to create a model that ingests vision and
+language inputs to output low-level actions. This integration involves a
+two-component system: a pretrained LLM, denoted as *MATH*, and a
+pretrained policy, *MATH*, parameterized by *MATH* and *MATH* 
+respectively. The LLM consists of a text only large language model and a
+vision encoder, which projects images into the text only large language
+models embedding space, facilitating a multimodal understanding of
+textual and visual inputs. In this work, we leverage
+LLaVA [*REF*] as our pretrained LLM. *MATH* takes in text
+tokens *MATH* and images *MATH* and outputs text tokens. The
+pretrained policy *MATH* takes as input environment observations
+at the current time step *MATH*, with conditioning latent *MATH*, and
+outputs the action at the current time step *MATH*.
+
+
+We introduce an additional &apos;&lt;ACT&gt;&apos; token into the vocabulary of the
+language model, which is a special token that enables the language model
+to generate an action embedding to control the lower level policy. The
+model is trained to output &apos;&lt;ACT&gt;&apos; tokens when executable requests are
+provided to the model. We extract out the last-layer embedding features
+from the model of at the &apos;&lt;ACT&gt;&apos; token, following the approach used in
+Language Instructed Segmentation Assistant (LISA) [*REF*]. This
+embedding is projected into the policy latent conditioning space by a
+linear layer to extract the latent feature *MATH*  which
+is then fed into the policy *MATH*.
+
+
+Data Processing
+
+
+The &apos;LCB&apos; framework necessitates diverse and strategically curated
+datasets to make the policy effective for language-guided action
+execution in varied contexts. We cater the data collection and
+preprocessing steps towards this goal, creating a small instruction
+tuning dataset.
+
+
+We convert in domain text conditioned policy data into the chat format
+of LLM assistants. Typical language conditioned trajectory datasets
+contain one language instruction and a list of (observation, action)
+pairs *MATH* per trajectory. We
+programmatically generate text data in the format of chat interactions
+using templates. A simple example of this user-assistant interaction, is
+&quot;User: can you help me *MATH*? Assistant: yes, &apos;&lt;ACT&gt;&apos;.\&quot; Specific
+templates for chat data generation are provided in Appendix
+[6]. This trains the model to recognize and respond to direct action requests, fostering a
+conversational interface that seamlessly transitions from dialogue to
+action.
+
+
+Moreover, we enrich our training material with additional datasets
+designed to prompt specific behaviors from the language model. One such
+data source is reasoning data, where the model is tasked with a more
+abstract goal and must reason about the scene to accomplish the goal.
+Such examples are framed within a chat-like interaction, encouraging the
+model to articulate its reasoning process before executing the
+&apos;&lt;ACT&gt;&apos; command. For example, &quot;User: *MATH* Can you *MATH*?
+Assistant: I will *MATH* &apos;&lt;ACT&gt;&apos;\&quot;. Where *MATH* does not
+explicitly specify the target object and location. If *MATH* is
+&quot;move the block closest to the bottom right to the block of a similar
+color\&quot;, the assistant&apos;s response, *MATH*, provides an explanation
+of the task, such as &quot;I will move the blue cube on the bottom right to
+the blue moon\&quot;.
+
+
+We also study long-horizon tasks and incorporate training sequences that
+require the model to plan and execute multiple steps to achieve a goal.
+This is achieved by defining task stages (start, regular, transition,
+stop) and incorporating the previous action as context in the language
+model&apos;s input. This strategy trains the model to recognize task
+progression and adapt its actions accordingly, enabling it to manage
+tasks with evolving objectives. Through this dataset strategy, our model
+is finely tuned as a versatile tool capable of understanding and
+executing a wide range of language-guided actions.
+
+
+FIGURE
+
+
+Training
+
+
+The training of &apos;LCB&apos; employs a combination of techniques to integrate
+the LLM and policy components. We leverage Low Rank
+Adaptation [*REF*] (LoRA) for fine-tuning the LLM, allowing for
+more efficient training. We adopt a cold start approach to policy
+training, reminiscent of staged training strategies seen in prior works,
+by first freezing the action decoder and only fine-tuning the language
+model. This preliminary phase focuses on aligning the embeddings
+produced by the LLM with the feature space of the policy. We find that
+adding an additional CLIP loss to regularize the latent embedding
+*MATH* is necessary, ensuring that the embeddings from
+the language model remain well aligned with the lower level ground truth
+text description *MATH* of the objective for the pre-trained policy.
+In total, our loss function is comprised of 3 terms, and can be
+expressed as follows: *MATH*.
+
+
+FIGURE
+
+
+Results 
+
+
+We systematically evaluated &apos;LCB&apos; across a diverse set of environments
+and tasks to demonstrate the efficacy of integrating a pretrained Large
+Language Model (LLM) with a domain-specific, pretrained low-level
+policy. Our primary objective was to study the capabilities of the
+policy, specifically its high-level language understanding and low-level
+control. Through our experiments, we aim to answer the following
+questions:
+- Does &apos;LCB&apos; enable learning a bridge between the LLM and the policy
+more effectively than pure language?
+- Can &apos;LCB&apos; leverage the pretrained capabilities of LLMs to solve long
+horizon tasks by decomposing the high level goals into the step by
+step latent commands?
+- Can &apos;LCB&apos; outperform other baseline methods that leverage
+close-sourced state of the art LLMs such as GPT-4V?
+
+
+To answer these questions, we study how &apos;LCB&apos;performs under various
+reasoning and long horizon settings in both the Language Table and
+CALVIN benchmarks. See [1] for a visualization of the environments and
+example tasks.
+
+
+Evaluation on Language Table
+
+
+Language Table offers a simulated tabletop environment for executing
+language-conditioned manipulation tasks [*REF*]. The environment
+features a flat surface populated with blocks of various colors and
+shapes, alongside a robot with 2D action space. Language Table provides
+observations in the form of the robot end effector position and
+third-person camera images. Despite its simplicity, it provides a
+reproducible and comprehensive environment to study challenges at the
+interface of high level language and low level contact-rich dynamics and
+feedback control.
+
+
+Comparison on the original Language Table benchmark tasks. LangTable
+is the original language table policy [*REF*]. &apos;LCB&apos; is our
+method applied only to the original Language Table dataset. We see
+that &apos;LCB&apos; can help improve task performance by leveraging the vision
+language model for feature extraction. The tasks are: Block to Block
+(B2B), Block to Block Relative Location (B2RL), Seprate (S), Block to
+Relative Location (B2RL), and Block to Absolute Location (B2AL).
+
+
+We investigate the benefit of using &apos;LCB&apos; on the original Language Table
+benchmark. Here we apply our method using the same dataset that the
+original language table model was trained on, translating the original
+language instructions into chat interactions with action tokens as
+specified in [3]. As shown in [1], with the end to end optimization
+with the pretrained LLM, the success rate across the benchmark matches
+or exceeds the baseline Language Table approach. This signifies that
+&apos;LCB&apos; is able to seamlessly adapt a pretrained LLM and policy together.
+We suspect that this is due to the flexibility in the latent
+representation *MATH*, allowed for by our approach as
+well as additional capacity afforded my the language model.
+
+
+We next investigate more complex language tasks that require reasoning
+and planning capabilities. We collect a small dataset for each
+capability, training models to compare the following approaches:
+- LangTable: The original Language Table Policy, as provided by [*REF*].
+- LangTable + LLaVA (Frozen): The combination of the original
+policy and a non-fine-tuned LLaVA model interfacing through
+language. We prompt LLaVA to output language commands in the format
+and style as expected by LangTable.
+- LangTable + GPT-4V: The integration of LangTable with the
+state-of-the-art proprietary Vision Language Model (GPT-4V). In
+order to bootstrap the spatial understanding of GPT-4V, we also
+incorporate the Set of Marker (SOM) [*REF*] technique
+to enhance the GPT-4V&apos;s capability. We further include multi-modal
+few show contexts including language explanation of the tasks and
+image examples. More details are provided in Appendix [7].
+- LangTable + LLaVA (Fine-tuned): The original policy augmented by
+a LLaVA model that has been fine-tuned on the exact language needed
+for the action policy for the given task.
+- &apos;LCB&apos;: We take a pretrained LLaVA model and the pre-trained
+LangTable policy and apply &apos;LCB&apos;, learning a latent interface
+between the two on the respective instruction dataset.
+
+
+Results for long horizon performance are provided in
+[2]. In this task, the agent must sort blocks
+based on shape or color into a specified corner of the board, requiring
+a long sequence of actions from which the agent could greatly benefit
+through high-level planning. We see that &apos;LCB&apos;  exhibits a competency
+for handling such tasks, as indicated by the heightened success rates,
+improving on pure language interface baselines. This is attributable to
+the method&apos;s ability to generate a coherent sequence of latent action
+embeddings that guide the policy through the task&apos;s duration,
+facilitating a more consistent and accurate alignment with the
+sequential nature of the task. During evaluation we run the higher level
+language model at a slower rate than the lower level policy, only
+updating the language models output every 40 environment steps. We find
+that this increases computational efficiency without compromising task
+performance suggesting the effectiveness of the model hierarchy.
+
+
+Results for reasoning performance are provided in
+[3]. Tasks here are of the form &quot;There is a block
+that is closest to. Push that block to the other block of the
+same \&quot;. In order to successfully accomplish this task, the
+agent must identify which block is located closest to a given corner,
+identify the relevant property (i.e. shape or color) and consolidate
+that understanding into an executable instruction. We see that our
+approach is able to outperform baselines that involve zero-shot
+prompting as well as naively fine-tuning the language model to output
+the translated robot task. We see that fine-tuning the language model to
+output the ground truth language primitive is effective in reaching
+parity with the oracle language baseline, but that &apos;LCB&apos; is able to
+match and even exceed that.
+
+
+We provide a qualitative assessment of the language output from the
+various top performing approaches in [4]. LangTable + GPT-4V requires heavy prompt
+engineering and additional string parsing to extract out the final
+policy. LangTable + LLaVA is effectively fine-tuned by outputting the
+direct low level text command to the policy, but no longer is able to
+maintain a chat like interface to the user. In contrast, &apos;LCB&apos; is able
+to output an effective embedding for the low level policy while also
+verbalizing its reasoning. This decouples the low level policy
+conditioning from the language models text outputs, offering increased
+flexibility during instruction fine-tuning.
+
+
+FIGURE
+
+
+Evaluation on CALVIN
+
+
+CALVIN [*REF*] is an open-source simulated benchmark designed
+for learning long-horizon tasks conditioned by language. The environment
+features a 7-DOF Franka Emika Panda robotic arm equipped with a parallel
+gripper, situated at a desk with a variety of articulated furniture and
+objects for interaction. In each experiment, the robot needs to solve a
+sequence of complex full 6D manipulation tasks governed by real-world
+physics and guided by a series of language instructions. Each subtask is
+paired by a specific language instruction; upon successful completion,
+the robot proceeds to the next subtask accompanied by a new instruction.
+CALVIN encompasses four distinct environments A, B, C and D, with a
+shared set of language instructions and subtasks.
+
+
+TABLE 
+
+
+Task completion rates for various methods on CALVIN [*REF*]
+long-horizon tasks. All methods were trained exclusively on the ABC
+split of Calvin with the original language annotations and tested on
+split D with GPT-4 enriched language annotations, following the
+RoboFlamingo enriched instruction evaluation setting [*REF*].
+&#13;F denotes our own training of the RoboFlamingo model on the ABC
+Calvin split. 3DDA denotes the policy from 3D Diffuser Actor [*REF*].
+
+
+In order to demonstrate the generalization capabilities of &apos;LCB&apos;  cross
+various environments as well as its ability to comprehend and act upon
+the same instructions phrased differently in the CALVIN long horizon
+full 6D manipulation setting, we compare the following approaches:
+- RoboFlamingo (RF): RoboFlamingo [*REF*] adapts
+OpenFlamingo [*REF*] by fine-tuning solely the
+cross-attention layer to directly output actions, thus maintaining
+its language comprehension. However, this approach requires
+executing the entire LLM anew with each progression to a subsequent
+state, leading to inefficiencies.
+- 3D Diffusion Actor (3DDA): Incorporating a diffusion policy with
+3D scene representation and CLIP [*REF*] language
+embedding, the 3D Diffusion Actor [*REF*] sets the current SOTA
+on the Calvin benchmark when provided with standard language
+instruction inputs. However, a notable limitation stems from the
+constraints of the CLIP text model it employs. 3DDA can not
+generalize well on language instruction outside of its training
+distribution.
+- &apos;LCB&apos;: &apos;LCB&apos;for Calvin integrates a pre-trained
+LLaVA [*REF*] as the Multimodal Large Language Model
+backbone with a pre-trained 3D Diffusion Actor serving as the action
+policy. This combination leverages the SOTA capabilities of the 3D
+Diffusion Actor to achieve a synergistic effect: &apos;LCB&apos;for Calvin
+excels in both language comprehension and low-level manipulation.
+Since RoboFlamingo runs the entire LLM on every environment step, in
+order to make a fair comparison, we also run the LLM part of &apos;LCB&apos; 
+synchronously with the downstream policy, although we notice no
+significant performance difference for Calvin.
+
+
+[2] presents results for the CALVIN
+long-horizon, language-conditioned benchmark. In this setting, the robot
+executes a series of tasks in unfamiliar environments based on novel
+GPT-4 enriched [*REF*] instructions not encountered
+during training. The experimental outcomes demonstrate our approach&apos;s
+distinct advantage over baseline methods. &apos;LCB&apos;significantly surpasses
+all baselines in terms of task success rate at every stage and in
+average completed trajectory length.
+
+
+Conclusion 
+
+
+In this work, we introduce a novel approach, Latent Codes as Bridges, or
+&apos;LCB&apos;, that combines the abstract reasoning capabilities of large
+language models with low-level action policies. Our methodology does not
+merely stack these capabilities as in prior works but integrates them in
+an end-to-end fashion through a learned latent interface. The empirical
+evidence from our evaluations on the Language Table and CALVIN
+benchmarks shows the model&apos;s adeptness in interpreting and executing
+various reasoning and long horizon objectives. The flexibility and
+effectiveness of the hierarchy enabled by &apos;LCB&apos; shows promise for real
+world robotic applications.

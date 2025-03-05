@@ -1,0 +1,572 @@
+Inverse Kinematics for Neuro-Robotic Grasping with Humanoid Embodied Agents
+
+
+I. [Introduction]
+
+
+Precise inverse kinematics is the key factor for successful grasping
+motions in many robotic manipulation applications. IK methods predict
+joint angles that align the robot end effector with a given position
+and orientation. They therefore collapse the action space of higher
+layered motion planners to the 6D pose of the end effector, while the
+alternative is to control the robot directly in its joint space which
+poorly scales for robots with varying degrees of freedom (DoF). The
+complexity of the IK task increases drastically for redundant
+kinematic chains with more than six DoF, since for nonredundant
+chains a specific pose maps exactly to one joint configuration, while
+for redundant manipulators infinite solutions generally exist, which
+makes the problem ambiguous. The number of neuro-inspired IK methods
+that are precise enough to be applied to physical hardware is
+increasing but there are only a few approaches that utilize them for
+neural motion planning *REF*, *REF*. Many motion planners exist that
+use neural networks to sample the robot joint space and deploy
+classical planning algorithms like MPNet *REF*. Thus, only the runtime
+of the sampling decreases, while the latency for the motion planning
+itself stays high. Other approaches plan directly in Cartesian space and 
+transform the plan to the joint space
+via inverse kinematics such as CppFlow *REF*. Neural networks that
+learn to solve the IK task, which allows for parallel batched queries,
+can dramatically accelerate Cartesian planning methods but decrease
+the precision. Numerical IK approaches have to solve each pose
+individually, resulting in a trade-off between precision and runtime,
+for which we propose one of the most runtime-efficient motion planning
+systems available.
+
+
+FIGURE
+
+
+The neural inverse kinematics solver CycleIK *REF* is the central
+component of our proposed motion planning approach. CycleIK is
+scaled to arbitrary robot designs by a replacement of the loss
+functions for the positional and rotational error with two new metrics
+that are derived from the Smooth L1 loss *REF*. The low-level motion
+planner interpolates a Bezier curve between the current pose and a
+target pose and then converts the Cartesian plan into a joint space
+trajectory in a single step via CycleIK. Our method is deployed with
+the high-level embodied agent that is introduced to the NICOL *REF* 
+robot by Allgeuer et al. *REF*. We generalize the embodied agent
+architecture over our humanoid robot platform to also be embodied the
+NICO *REF* robot. The adult-sized NICOL robot is capable of
+manipulating realistic household objects, while the childsized NICO
+can only manipulate toy-sized objects.
+
+
+The humanoid embodied agent introduced by Allgeuer et al. *REF* is
+controlled with OpenAI GPT-3.5 *REF* and combines various neural 
+architectures for different domains to create an
+interactive human-in-the-loop setup. The open-vocabulary object
+detector ViLD *REF* is utilized to detect the objects in front of the
+robots, and OpenAI Whisper *REF* is used to recognize the verbal
+instructions of the user.
+
+
+The new CycleIK methodology is evaluated against two well-established
+IK methods available in Moveit *REF*, the genetic algorithm BioIK
+*REF* and the Jacobian-based least squares optimizer Trac-IK *REF*.
+The algorithms are compared on five different robot platforms: NICO,
+NICOL, Franka Emika Panda *REF*, NASA Valkyrie *REF*, and the Fetch
+*REF* robot. In addition, the proposed IK method is compared against
+two state-of-the-art neuro-generative IK approaches by Limoyo et al.
+*REF* and Ames et al. *REF*. Finally, the grasp success of our
+method is evaluated on the NICO and the NICOL robots, for 100 grasp
+attempts on each robot.
+
+
+II. [Related Work]
+
+
+Invertible Neural Networks (INNs) were introduced by Ardizzone et al.
+*REF* for ambiguous inverse problems and became a popular method for
+neuro-inspired inverse kinematics. However, the authors only
+evaluate their architecture on a three-DoF robot arm. IKFlow *REF* is
+based on the findings of *REF* but generalizes it to various
+redundant manipulator designs. It is one of the most precise neural IK
+methods available and is capable of sampling the null space. Kim and
+Perez *REF* propose a very similar setup that also utilizes
+normalizing flow-based INNs. In contrast, the FK model is not based on
+the robot URDF but is approximated by a separate neural network. The
+authors report very high errors on the precision. NodeIK *REF* is
+another conditioned normalizing flow IK method that is very similar to
+IKFlow, which encodes the latent space as neural ordinary differential
+equations. INNs show high performance for the IK task, but our results
+*REF* indicate that architectures that consist purely of fully
+connected layers can reach the same precision.
+
+
+There are various approaches to neuro-generative inverse kinematics,
+but only a few reach a high precision. Limoyo et al. *REF* introduce
+a precise graph neural network (GNN) approach that uses an encoder GNN
+to embed the robot state and the target pose into a latent space
+representation that is used by a decoder GNN to analytically compute
+the joint angles. In contrast, GNNs typically have a higher runtime
+than INNs and MLPs. Furthermore, Lembono et al. *REF* evaluate
+multiple variants of generative adversarial networks that are capable
+of sampling the poses null space but report quite large errors. IKNet
+*REF* introduces a hierarchical neural network approach in which a
+hypernet parametrizes the fully connected IK network for each joint
+independently, conditioned to the input pose. Wagaa et al. *REF* test
+different variants of recurrent LSTM and GRU architectures to solve
+the IK task for non-redundant six-DoF robots.
+
+
+Neuro-inspired animation frameworks solve the IK problem but are not
+directly applicable to robotics, as they often do not require high
+precision. ProtoRes *REF* is an animation framework that generates
+character motions from sparse user inputs. The user input is encoded
+into a latent embedding,
+which is decoded to joint angles by an IK network. SMPLIK *REF* 
+extends ProtoRes which aligns the character pose with the pose
+estimation of a 2D input image of a human. The end effector poses from
+the human pose estimation are transferred to the character end
+effectors, then inverse kinematics are solved by a neural network.
+HybrIK *REF* is an inverse kinematics solver for human pose
+estimation. The pose key points of an input image are extracted with a
+convolutional neural network and then a fully connected network, that
+takes the key points as input, predicts the joint angles. NIKI *REF* 
+is an INN-based human pose estimation method. IK and FK are trained
+jointly, similar to IKFlow.
+
+
+III. METHOD
+
+
+The presented method fundamentally updates our neuroinspired IK
+approach CycleIK *REF* to enable platform independence for our
+method. Most importantly, the loss functions for the positional and
+rotational errors are exchanged by new Smooth L1-based metrics. The
+CycleIK multi-layer perceptron (MLP) is a single-solution IK solver
+that deterministically predicts a single vector of joint angles for a
+specific pose. Secondary constraints can be applied during the
+training to influence the kinematic behavior of the model. For
+non-redundant robotic chains with up to six degrees of freedom, only
+the MLP network is applicable, as no null space exists. CycleIK also
+provides a generative adversarial network that is capable of sampling
+the null space of a specific pose for redundant kinematic chains with
+higher DoF. However, as this study does not consider obstacle-avoiding 
+motion planning, the MLP is sufficient since it is more
+applicable and will therefore be used to solve the inverse kinematics
+problem in our experiments.
+
+
+A. Architecture
+
+
+Our approach relies on a hyperparameter-optimized fully connected
+network in the form of an MLP (Fig. [2]) that quickly
+learns to approximate the inverse kinematics transformation from
+Cartesian to joint space. The networks have between six to eight
+layers. The exact number of layers and neurons per layer are part of
+the optimized hyperparameters. The input to the networks is a batch of
+one-dimensional vectors with a length of seven that represents the 6D
+pose of the robot end effector. Each of the vectors in the input batch
+holds three fields for the Cartesian position and four fields for the
+rotation in the quaternion form. The output domain of the MLP is the
+joint space of the robot, which is represented as a one-dimensional
+vector with the length of the robot DoF
+and thus varies for different robot designs.
+
+
+Both, the input and the output are normalized into the interval
+\[−1, 1\]. The output is limited to the interval by design as it
+has the tanh activation. The input and hidden layers are Gaussian-Error 
+Linear Units (GELUs) *REF* and are thus not
+limited. The input is normalized to the specified interval by the data
+loader so that our architecture does not functionally restrict the
+input values to the noted interval and likely produces unexpected
+behavior for inputs that lie out of the interval and consequently the
+training data distribution.
+
+
+FIGURE 
+
+
+FIGURE
+
+
+B. Training
+
+
+The fundamental idea of the training algorithm is shown in Fig.
+[3]. The proposed model learns to solve the IK problem by training 
+on data batch X that purely consists of Cartesian
+poses. The training algorithm most importantly makes use of the
+inverse property between the FK(Θ) and IK(X) function, as noted in
+[Eq.1:] and has also shown good performance for gradient-based systems *REF*.
+
+
+The former positional loss function of CycleIK calculated the mean
+absolute error (MAE) over the batch of target
+positions P:= and predicted result positions
+Pˆ:=. Given a batch of size N, the former loss function Lpos can be defined as in Eq.
+
+
+FORMULA
+
+
+We utilize the geometric forward kinematics solver PyTorch
+Kinematics *REF* that allows for batched FK queries as it calculates
+the end effector pose for a particular joint state by matrice
+multiplications and allows for computational acceleration by utilizing
+the GPU via PyTorch. The operations used by PyTorch Kinematics are
+differentiable and can therefore be used during the network training
+without blocking the propagation of the gradient. Every training
+iteration processes a batch of poses with a minimum size of 100, while
+the exact batch size is a hyperparameter that is optimized per robot. 
+The learning rate is decreased to zero in
+linear steps after each training epoch.
+
+
+First, the average over the three axes of the position and following
+the batch mean is calculated. The smooth L1 loss, compared to the
+Huber loss, introduces an additional parameter β. According to
+*REF*, when β = 1, the smooth L1 loss is equal to the Huber loss.
+For the positional error, whose unit is meters, we choose β =
+0.001, which means that errors below 1 mm will be smoothed. Our
+notion of the smooth L1 loss l(a, b) is based on the definition in
+the PyTorch documentation as shown in Eq. FORMULA.
+
+
+C. Metrics
+
+
+FORMULA
+
+
+D. Dataset
+
+
+However, the loss metric from Eq. [6] is problematic
+from multiple perspectives. Two quaternions exist for every possible
+orientation in spherical SO(3) space due to the existence of the
+positive and negative imaginary part of the complex orientation
+representation. The metric from Eq. [6] assumes that the
+FK solver that is used for the generation of the data set and the FK
+solver used during training, deterministically return the same either
+positive or negative imaginary part for a given joint state. According
+to *REF*, the ambiguous quaternion of a quaternion q ∈ SO(3) can be calculated by
+the negation of q, as noted in Eq. FORMULA. 
+
+
+The datasets that are used consist purely of Cartesian end effector
+poses of the corresponding robots. The datasets are created from
+uniform random samples in the joint space of the robot. Samples that
+are in a collision state are filtered out. The Moveit *REF* FK and
+collision detection functionalities are used for the data set
+aggregation. The approach independently generates training,
+validation, and test sets for each robot. The training data sets
+contain one million samples each, while the validation sets contain
+100, 000 and the test sets 200, 000 samples each.
+
+
+E. Chat Agent and Object Detection
+
+
+The embodied chat agent introduced by Allgeuer et al. *REF* is
+utilized to create a human-in-the-loop grasping scenario in which the
+user can interact with the NICO and NICOL robots via verbal
+instructions. The speech signal from the microphone is processed into
+natural language with OpenAI Whisper *REF*. The open-vocabulary
+object detector ViLD *REF* is used to detect objects that are located on the table in
+front of the robots by processing the 2D image stream from the robot&apos;s
+eye cameras. Finally, OpenAI GPT-3.5 *REF* serves as the manager of
+the chat that processes the natural language from the recognized
+speech signal. The output of GPT is transformed to the frequency domain via text-to-speech.
+
+
+FORMULA
+
+
+GPT is made aware of its role as a robot collaborator by an initial
+system prompt that introduces the main information FORMULA. 
+
+
+First, the element-wise smooth L1 loss l(qˆi, qi) with β = 0.01 
+is calculated over the batch of target quaternions Q:=
+and the predicted orientations Qˆ:=. The same procedure is repeated for the
+negated batch of target orientations −Q, so that l(qˆi,
+−qi) is calculated. The resulting error batches of shape (N × 4)
+are summed up row-wise. Then the minimum between the distance with the positive
+qi and the negative target rotation −qi is chosen for every
+index i. Finally, the batch mean is calculated over the resulting batch of minimum sums of errors.
+
+
+Our network is consequently trained by a multi-objective function that
+calculates the positional error L according to Eq.
+[4] and the rotational error L according to Eq.
+[8] to consequently build a weighted sum with the
+optional set of secondary constraints Lsecondary and their weights
+Wsecondary as noted in Eq. FORMULA about the assembly, the sensory inputs, 
+and the physical abilities of the corresponding robot. The chat agent receives recurring information
+about the current objects on the table by appending the latest
+detection results to the user input in structured natural language.
+Similar to the embedding of the sensory input, GPT is allowed to embed
+action tags in the form of structured natural language in its output,
+which enables the system to execute actions in the physical world,
+e.g. face expressions, pointing gestures, and pushing primitives. We
+foster robotic platform independence by generalizing our robotic
+agent, that now can not only be embodied by NICOL but also by NICO. We
+contribute a grasping primitive to the agents&apos; action space, that
+allows for precise manipulation.
+
+
+F. Motion Planning
+
+
+Grasping motions can quickly be generated by a small set of IK queries
+that are dynamically adapted towards a target position, while always
+maintaining the same orientation FORMULA *REF*, *REF*. 
+However, the approach lacks scalability to other robot
+workspaces and can lead to unnatural movements that,
+in the worst case, include dynamic singularities when the
+wk ∈ Wsecondary, Lk ∈ Lsecondary.
+
+
+Previously, we reported issues with the stability of the old method
+*REF*. Our system became stable by introducing the smooth L1 metric
+for the positional and SMQL for the rotational error. The reported
+issues were not encountered anymore in any of the preliminary
+experiments for this velocity and acceleration profiles of the physical motors are
+insufficiently tuned. Our approach utilizes Bezier curves for a
+motion planner. They are traditionally a popular motion planning
+method for Cartesian robots, e.g. sorting robots *REF*. The Bezier
+procedure, according to *REF*, interpolates a smooth trajectory in
+Cartesian space between a set of n.
+
+
+As a secondary property, the parameterization C\\ of
+Bezier curves can also be learned with machine learning methods, as
+in *REF*, but they are tuned manually in this study.
+
+
+Bezier curves define a continuous trajectory when the steps between
+two points are infinitely small. Our method creates a set of N
+discrete steps, which are normalized to the interval \[0, 1\], that
+are used to sample waypoints from the Cartesian trajectory, as in Eq. FORMULA.
+
+
+FIGURE
+
+
+FORMULA 
+
+
+A. Hyperparameter Optimization
+
+
+FORMULA
+
+
+Similarly, Slerp *REF* is used to generate minimum-torque spherical
+trajectories by interpolating cubic Bezier curves between start
+quaternion qstart and target quaternion qtarget in the
+spherical SO(3) space. Slerp can also handle a set of control points
+C in the interpolation. For every key rotation cn and the
+following key rotation cn+1, a cubic Bezier trajectory is 
+interpolated according to Eq. [12], which
+results in a number of n − 1 partial Bezier trajectories in SO(3)
+for n key rotations.
+
+
+A grasping primitive was implemented that grasps an object on the
+table in front of the robots and deposits it into a bin that is
+located on either the rightor lefthand side towards the outer
+workspace. A visualization of a planned trajectory is given in Fig.
+[4]. The object position is transformed from the image
+plane to the 3D coordinate through the extrinsic camera model. A
+Bezier-based motion plan is generated towards the 3D target position,
+with a fixed top grasp orientation at the target. The Cartesian
+Bezier curve, a batch that holds 50 poses, is transformed into a
+joint trajectory through the CycleIK MLP in a single step.
+
+
+The hyperparameters of our MLP models are optimized with the Optuna
+*REF* framework. 200 different hyperparameter configurations are
+evaluated for each robot. The configurations are sampled with a
+Tree-structured Partizan Estimator (TPE) and a hyper-band pruner that
+stops unsuccessful trials which are likely to show low performance
+early. We optimize the following hyperparameters: the batch size, the
+learning rate (Lr), the number of layers, the number of neurons per
+hidden layer, the number of tanh (No. tanh) layers at the end of the
+network, the position weight (wpos), and the orientation weight
+(wrot). The parameter configurations of the most successful runs
+for each robot are shown in Table [I].
+
+
+B. Precision
+
+
+TABLE II
+
+
+TABLE insufficiently
+
+
+The neuro-inspired inverse kinematics method CycleIK is evaluated on
+five different robot platforms in simulation: the NICOL *REF*, NICO
+*REF*, NASA Valkyrie *REF*, Franka Panda *REF*, and Fetch *REF* 
+robot. We evaluate the genetic algorithm BioIK *REF* and the
+Jacobian-based Trac-IK *REF* on the same test data sets for a
+baseline. Both numerical IK algorithms are available as a plug-in in
+Moveit *REF*. The results of our experiments can be seen in Table [II]. Our test data
+sets contain 200, 000 poses for each robot that were randomly
+sampled in the joint space of the robots with Moveit (See Sec.
+[III-D]). We report the mean positional and rotational error
+as well as the corresponding standard deviation of the error in millimeters and degrees. 
+MoveIt is allowed to return in-collision
+solutions, as collision-freeness is also not guaranteed by CycleIK.
+The algorithms are allowed a runtime of 1 ms, which we define to be
+the minimum required for Moveit. The error cannot be evaluated when it
+exceeds an internal Moveit threshold, as no solution is returned by
+the algorithms. We calculate the error between the idle configuration
+of the corresponding robot and the target pose in these cases. We
+utilize the success definition of Kerzel et al. *REF*, *REF* which
+allows for 10 mm positional and 20  of rotational error. Overall,
+it can be seen that CycleIK always outperforms BioIK and Trac-IK in terms of the algorithm runtime. 
+BioIK has most often the highest success rate, except for the NICO robot
+test set. BioIK shows the lowest rotational errors for three of the
+five environments (NICOL, Valkyrie, Fetch), while CycleIK shows the
+lowest positional error for three of the five robots (NICO, Valkyrie,
+Panda). Trac-IK is the least precise and successful method in our
+experiments and is only capable of outperforming BioIK on the NICO
+robot and CycleIK regarding the success rate on the Fetch robot.
+CycleIK always shows the lowest spread of the error distribution, in
+terms of the standard deviation of the error. The error distribution
+of Trac-IK always shows the highest variance except for the NICO robot
+where BioIK has the highest. BioIK only has the lowest standard deviation of the
+rotational error on the Fetch test set. The superiority of CycleIK in
+this metric can be explained by the fact that neural networks
+generalize well over the domain they were trained in so that a lot of
+unsuccessful solutions will lie only slightly above the limits of our
+error definition and thus result in a lower variance. For Moveit
+solvers like BioIK and TracIK, the variance is intuitively higher,
+as no solutions that lie out of the Moveit success definition can be
+evaluated so that the distance to the idle pose must be calculated
+which automatically increases the variance of the error.
+
+
+Furthermore, CycleIK is evaluated against the state-ofthe-art
+neuro-generative IK methods IKFlow *REF* and the Euclidean
+Equivariant Models (EEMs) proposed by Limoyo et al. *REF*. The
+results are shown in Table [III]. The experimental
+results for IKFlow and EEM are taken from the corresponding
+publication. The mean positional and mean rotational error are the
+only metrics reported in both other papers. Limoyo et al. do not
+report the inference time, which is likely high as their approach
+creates multiple embeddings via GNNs in every query. IKFlow reports
+the average runtime over batches that contain 100 poses each. We
+adopted our experiment to this setup and always inferred the IK
+solution for a batch that holds 100 poses, which results in a slightly
+higher runtime compared to the results that are reported in Table
+[II], but the same positional and rotational precision
+as the MLP models deterministically return the same solution for the
+identical pose, independent of the batch size during inference.
+
+
+CycleIK shows the overall highest precision and is only outperformed
+by the EEM approach regarding the rotational error on the Franka Panda
+robot test set. It has to be noted that IKFlow and EEMs are generative
+approaches that are capable of sampling the pose null space, while the
+CycleIK MLP is trained to return exactly one solution for every pose,
+conditioned to the secondary kinematic constraints that were set
+during the offline training. Consequently, it has to be acknowledged
+that the complexity of the task is thus slightly relieved for the
+CycleIK MLP when compared to the IKFlow and EEM approaches. The
+increase of the batch size from 1 to 100 during inference only had a
+small effect on the average inference time per batch, the runtime for the Franka Panda
+robot increased by 0.02 ms to 0.41 ms, and for the Valkyrie robot
+by 0.05 ms to 0.43 ms. Overall, batch sizes up to 1000 on average
+did not increase the runtime above 1 ms in our preliminary tests.
+
+
+FIGURE
+
+
+C. Grasping
+
+
+The grasping primitive previously described in this work is deployed
+to the physical NICO and NICOL hardware with the chat agent from
+Allgeuer et al. *REF*, which is expanded to be embodied by both
+humanoids. The Cartesian action space for the grasping primitive is an
+area of 40 cm width and 10 cm depth on the table in front of the NICO
+robot. The action space on the table in front of the NICOL robot is an
+80 cm by 30 cm area, which is more than twice as large as for NICO.
+Each robot was tasked to perform 100 grasps with small sets of objects
+that were individually selected for each of the robots.
+
+
+Five household objects from the YCB dataset *REF* were used for the
+NICOL robot: a tomato soup can, a white baseball, a yellow banana, a
+green pear, and an orange (See Fig. [1]). For the NICO
+robot, three differently shaped plush toys were used that all had a
+size of around 4 cm: a bunch of purple grapes, a red tomato, and a
+halved lemon. We always arranged all objects of the set on a
+horizontal line that is spread over the width of the table. We moved
+the line in a step size of 2 cm for NICO and 5 cm for NICOL over the
+depth coordinate of the action space so that the whole action area was
+covered. For every row, the experimenter ensured that the object
+detector ViLD, which tends to oscillate over different object classes,
+had stabilized before verbally instructing the agent to execute the
+grasps. A wrong prediction of the object class that resulted in a successful 
+grasp trial was not considered a failure. The agent was
+given the same verbal instruction for every row: &apos;{NICO
+\| NICOL}, please grasp all the objects on the table, one after
+another. Choose the order of the objects yourself.&apos;
+
+
+The results of our experiment can be seen in Fig. [5].
+We defined five different result classes into which every grasp
+approach is classified during the experiment: Success, Slipped,
+Not Grasped, Detection, and LLM. A grasp approach is considered
+Success when the object is lifted from the table and correctly
+disposed of into the bin at the outer workspace. An approach is
+considered Slipped when it is correctly lifted from the table vertically 
+but slips out of the hand
+during the transfer to the bin. Approaches that fail to grasp the
+object correctly and that are not able to lift it from the table are
+classified as Not Grasped. The Detection class contains approaches
+that cannot successfully be executed because the object detector
+predicts a wrong or no class at all, or a completely wrong location.
+The LLM class contains approaches in which the language model is
+aware of all the objects on the table but does not execute the grasp
+action on all of them.
+
+
+Our method achieves 72% success on the NICOL and 82% on the NICO
+robot. The objects slipped out of NICOL&apos;s robot hands in 15 trials,
+while the same only happened twice on the NICO robot and therefore
+poses the most significant difference between both robots. Some
+possible reasons for the performance difference are that the household
+objects that NICOL interacts with are heavier, not deformable, and
+have less friction. Therefore, NICOL´s task is more difficult. The
+number of completely failed grasps shows a very similar error ratio on
+both robots with eight missed grasps on the NICO robot and seven on
+the NICOL robot. The object detection worked twice as reliably on the
+NICOL robot with four wrong detections as on the NICO robot with eight
+wrong detections. On NICOL, the LLM did not consider grasping an
+object even though it was aware that the object was on the table in
+two cases.
+
+
+V. [Conclusions]
+
+
+This work successfully introduced a novel Bezier-based
+non-collision-free motion planner that is based on the neuroinspired
+inverse kinematics solver CycleIK. The motion planner was deployed to
+the physical humanoid robots NICO and NICOL in an embodied agent
+setup. Our method reached a success rate of 72% on the NICOL robot and
+82% on the NICO robot in a human-in-the-loop grasping scenario. New
+loss functions for the positional and rotational error calculation
+were introduced to CycleIK that were derived from the smooth L1 loss.
+We have shown that the new CycleIK method can compete with and
+partially outperforms wellknown numerical approaches such as BioIK
+and Trac-IK, but also state-of-the-art neuro-inspired approaches like
+IKFlow in terms of precision. The best iterative numerical approach
+performs slightly better than CycleIK but it requires a longer
+runtime. However, CycleIK provides an ideal choice, when runtime is a
+major critical factor and performs very good for the NICO and NICOL
+robots. We have shown that CycleIK is one of the fastest batched IK
+methods available and offers quick planning of robot motions in
+Cartesian space.

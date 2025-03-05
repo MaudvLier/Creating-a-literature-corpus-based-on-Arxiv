@@ -1,0 +1,779 @@
+From Words to Actions: Unveiling the Theoretical Underpinning of LLM-Driven Autonomous Systems
+
+
+Introduction
+
+
+The advent of large language models (LLMs) such as GPT-4
+[*REF*] and Llama 2 [*REF*] has marked a
+significant leap in artificial intelligence, thanks to their striking
+capabilities in understanding language and performing complex reasoning
+tasks. These capabilities of LLMs have led to the emergence of
+LLM-empowered agents (LLM Agents), where LLMs are used in conjunction
+with tools or actuators to solve decision-making problems in the
+physical world. LLM Agents have showcased promising empirical successes
+in a wide range of applications, including autonomous driving
+[*REF*; *REF*], robotics
+[*REF*; *REF*], and personal assistance
+[*REF*; *REF*]. This progress signifies a
+crucial advancement in the creation of intelligent decision-making
+systems, distinguished by a high degree of autonomy and seamless
+human-AI collaboration.
+
+
+LLMs only take natural languages as input. To bridge the language and
+physical domain, LLM-agents typically incorporate three critical
+components: an LLM Planner, a physical Actor, and a multimodal Reporter,
+functioning respectively as the brain, hands, and eyes of the LLM-agent,
+respectively. Specifically, upon receiving a task described by a human
+user, the LLM Planner breaks down the overall task into a series of
+subgoals. Subsequently, the Actor implements each subgoal in the
+physical world through a sequence of actions. Meanwhile, the Reporter
+monitors changes in the physical world and conveys this information back
+to the LLM Planner in natural language form. This dynamic interaction
+among Planner, Actor, and Reporter empowers LLM Agents to understand the
+environment, formulate informed decisions, and execute actions
+effectively, thus seamlessly integrating high-level linguistic subgoals
+with low-level physical task execution.
+
+
+The revolutionary approach of LLM Agents represents a paradigm shift
+away from traditional learning-based decision-making systems. Unlike
+these conventional systems, LLM Agents are not tailored to any specific
+task. Instead, they rely on the synergy of their three distinct
+components --- each trained separately and often for different objectives.
+In particular, the LLM Planner is trained to predict the next token in a
+sequence on vast document data. Moreover, when deployed to solve a task,
+the way to interact with the LLM Planner is via prompting with the LLM
+fixed. The Actor, as language-conditioned policies, can be trained by RL
+or imitation learning. Moreover, the Reporter, as a multimodal model, is
+trained to translate the physical states (e.g., images) into natural
+language. This unique configuration prompts critical research questions
+regarding the theoretical underpinnings of LLM Agents, particularly
+concerning their decision-making effectiveness.
+
+
+IMAGE
+
+
+In this work, we make an initial step toward developing a theoretical
+framework for understanding the dynamics and effectiveness of LLM
+Agents. Specifically, we aim to answer the following questions: What is a theoretical model for
+understanding the performance of LLM Agents?
+How do pretrained LLMs solve
+decision-making problems in the physical world via prompting?
+How does an LLM Agent address the
+exploration-exploitation tradeoff? 
+How do the statistical errors of the pretrained LLM and Reporter affect
+the overall performance of the LLM Agent?
+
+
+To address Question, we propose
+analyzing LLM Agents within a hierarchical reinforcement learning
+framework [*REF*; *REF*], positioning the
+LLM Planner and the Actor as policies operating within high-level POMDPs
+and low-level MDPs, respectively (§ *REF*). Both levels share the same state space --- namely,
+the physical state --- though the LLM Planner does not directly observe
+this state but instead receives a language-based description from the
+Reporter, effectively navigating a POMDP. The action space of the
+high-level POMDP is the set of language subgoals. Meanwhile, the state
+transition kernel is determined by the pretrained Actor, and thus is
+associated with a variable *MATH* that summarizes its dependency on
+low-level Actor. Such variable is unknown to LLM Planner. After
+pretraining, without prior knowledge of the Actor&apos;s quality or the
+physical environment, the LLM Planner attempts to solve the high-level
+POMDP by iteratively generating a sequence of subgoals based on feedback
+from the Reporter via prompting. Under this framework, the overall
+performance of the LLM Agent can be captured by the regret in terms of
+finding the optimal policy of the hierarchical RL problem in the online
+setting (§ *REF*).
+
+
+Furthermore, to answer Question, we
+prove that when the pretraining data includes a mixture of expert
+trajectories, during the prompting stage, the pretrained LLM Planner
+essentially performs Bayesian aggregated imitation learning (BAIL)
+through in-context learning (Theorem *REF*).
+This process involves constructing a posterior distribution over the
+hidden parameter *MATH* of the transition kernel, followed by generating
+subgoals that emulate a randomly selected expert policy, weighted
+according to this posterior distribution. Such a Bayesian learning
+mechanism is encoded by the LLM architecture and is achieved through
+prompting.
+
+
+However, since the LLM has no prior knowledge of the physical
+environment, it needs to guide the Actor to explore the physical
+environment. We prove that merely adhering to BAIL-derived subgoals can
+lead to the inadequate exploration, resulting in a linear regret
+(Proposition *REF*). To mitigate this, i.e., Question *REF*, we introduce an *MATH* -greedy
+exploration strategy, which occasionally deviates from BAIL subgoals in
+favor of exploration, significantly enhancing learning efficacy by
+ensuring a sublinear regret (Theorem *REF*). Specifically, to address Question
+we establish that the regret is
+bounded by a sum of two terms (Theorem *REF*): a *MATH* -regret related to the
+number of episodes the LLM Agent is deployed to the hierarchical RL
+problem, and an additional term representing the statistical error from
+pretraining the LLM Planner and Reporter via maximum likelihood
+estimation (MLE) and contrastive learning, respectively (Theorem *REF*).
+
+
+Finally, we extend our analysis to scenarios where the Planner utilizes
+the LLM as world model for inferring the upper-level POMDP&apos;s transition
+model via Bayesian model aggregation (Proposition *REF*,
+Corollary *REF*). Our theoretical framework also
+accommodates a multi-agent context, where the LLM Planner coordinates
+with a collaborative team of low-level actors (Corollary *REF*).
+
+
+Preliminaries and Related Works 
+
+
+Large Language Models.
+
+
+The Large Language Models (LLMs) such as ChatGPT [*REF*],
+GPT-4 [*REF*], Llama [*REF*], and Gemini
+[*REF*], are pretrained on vast text corpora to predict in an
+autoregressive manner. Starting from an initial token
+*MATH*, where *MATH* denotes the dimension
+of token vector and *MATH* denotes the language space, the LLM,
+with parameters *MATH*, predicts the next token with *MATH*,
+where *MATH* and *MATH*. Each token
+*MATH* specifies a word or word&apos;s position, and the
+token sequence *MATH* resides in the space of token sequences
+*MATH*. Such an autoregressive generating process terminates
+when the stop sequence token is generated.
+
+
+In-Context Learning.
+
+
+LLMs haved exhibited robust reasoning capabilities and a crucial aspect
+of their reasoning prowess is the in-context learning (ICL) ability.
+This ability is further enhanced through additional training stages
+[*REF*], careful selection and arrangement of informative
+demonstrations [*REF*; *REF*], explicit instruction
+[*REF*], and use of prompts to stimulate chain of
+thoughts [*REF*]. Unlike fine-tuned models customized for
+specific tasks, LLMs showcase comparable capabilities by learning from
+the informative prompts [*REF*; *REF*]. Assume that prompt,
+denoted by *MATH*, is
+generated based on a latent variable *MATH* autoregressively.
+The token follows a generating distribution such that *MATH* 
+and *MATH*, where *MATH* 
+denotes the space of hidden information or concepts. The latent
+structure is commonly employed in language models, including topic
+models like LDA [*REF*], BERT [*REF*], generative
+models like VAE [*REF*], T5 [*REF*], and is
+also widely adopted in the theoretical analysis of ICL
+[*REF*; *REF*]. Theoretical understanding of ICL
+is an active area of research. Since real-world datasets used for LLM
+pretraining are difficult to model theoretically and are very large, ICL
+has also been studied in stylized setups
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+In this paper, we build upon the framework attributing the ICL
+capability to Bayesian inference
+[*REF*; *REF*; *REF*], which posits
+that the pretrained LLMs predict the next token with probability by
+aggregating the generating distribution concerning latent variable
+*MATH* over the posterior distribution. Moreover, a series of
+practical experiments, including *REF* [*REF*],
+provide empirical support for this Bayesian statement.
+
+
+LLM Agents.
+
+
+LLMs, as highlighted in [*REF*], are powerful tools for the
+task planning [*REF*; *REF*]. The success of LLM
+agent marks a shift from task-specific policies to a
+pretrain-finetune-prompt paradigm. By breaking down the complex tasks
+into subgoals, LLM Agent facilitates the effective zero-shot resource
+allocation across environments. For instance, envision a scenario where
+a robotic arm is tasked with &quot;move a teapot from the stove to a
+shelf\&quot;, a task for which the robotic arm may not be pretrained.
+However, leveraging LLMs allows the decomposition of the task into a
+sequence of executable subgoals: &quot;grasp the teapot\&quot;, &quot;lift the
+teapot\&quot;, &quot;move the teapot to the shelf\&quot;, and &quot;release the
+teapot\&quot;.
+
+
+In the conventional task-planning and decision-making problems, symbolic
+planners have commonly been employed to transform them into search
+problems [*REF*; *REF*] or to design
+distinct reinforcement learning or control policies for each specific
+scenario. Recent empirical studies have shifted towards leveraging LLMs
+as symbolic planners in various domains, including robotic control
+[*REF*; *REF*; *REF*; *REF*],
+autonomous driving [*REF*; *REF*] and personal
+decision assistance
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+Another recent line of research has been dedicated to devising diverse
+prompting schemes to enhance the reasoning capability of LLMs
+[*REF*; *REF*; *REF*; *REF*].
+Despite the considerable empirical success, there is a lack of
+comprehensive theoretical analysis on LLM Agent. In this paper, we
+formalize this approach into a hierarchical LLM-empowered planning
+framework and provide a theoretical analysis of its performance. Two
+recent works by *REF* and *REF* also aim to
+establish provable algorithms for planning with LLMs or
+decision-pretrained Transformers (DPT). In comparison, we discuss both
+the plausibility of taking LLMs as a subgoal generator
+[*REF*] and simulated world model [*REF*].
+Furthermore, we provide a statistical guarantee for pretrained models
+and conduct a detailed examination of the algorithm&apos;s performance in
+practical settings, bringing our analysis closer to real-world
+applications.
+
+
+Theoretical Framework for LLM Agents
+
+
+To formalize the architecture of LLM Agents, we propose a general
+theoretical framework --- [P]lanner-[A]ctor-[R]eporter
+(PAR) system. Furthermore, the problem is modeled as a hierarchical RL
+problem [*REF*]. Specifically, the Planner, empowered
+by LLMs, conducts high-level task planning within the language space;
+the Actor, pretrained before deployment, undertakes low-level motion
+planning within the physical world; and the Reporter, equipped with a
+sensor to sense the physical environment, processes the information and
+feeds it back to the Planner, bridging the gap between language space
+and the physical world (see § *REF*). Additionally, we present the performance metric
+and pretraining methods of LLMs for the Planner and translators for the
+Reporter in § *REF*.
+
+
+Planner-Actor-Reporter System 
+
+
+In this section, we delve into details of the PAR system under
+[hmdp]. At the high
+level, the Planner empowered by LLM handles task planning by decomposing
+tasks into subgoals to solve a language-conditioned
+[pomdp] with a
+finite horizon *MATH*. At the low level, the Actor translates these
+subgoals into the actionable steps in the physical world to handle a
+language-conditioned [mdp] with a finite horizon *MATH* [^5]. Please
+refer to the right panel of Figure *REF* for a detailed example of LLM Agent, and
+see Figure *REF* for an overview of the hierarchical interactive
+process.
+
+
+Low-level MDP. 
+
+
+Let *MATH* be the space of language subgoals, *MATH* 
+and *MATH* respectively denote the space of physical states and actions.
+At high-level step *MATH*, the low-level MDP is specified by a transition
+kernel *MATH* and the rewards
+that depends on subgoal *MATH*. Following this, the Actor is modelled
+as a language-conditioned policy *MATH*, where
+*MATH* and
+*MATH*. Assume that the
+Actor stops at step *MATH*, regardless of the subgoal achievement.
+Subsequently, the Planner receives the observation of the current state
+*MATH* from the Reporter, and sends a new subgoal to the
+Actor based on the historical feedback.
+
+
+High-level POMDP. 
+
+
+Suppose that a low-level episode corresponds to a single high-level
+action of the Planner. Thus, the high-level
+[pomdp] reuses the
+physical state space *MATH* as the state space, but takes the subgoal
+space *MATH* as the action space instead. Following this, the high-level
+transition kernel is jointly determined by the low-level policy *MATH* 
+and the physical transition kernel *MATH* such that *MATH* where we write *MATH*. Since the LLM-empowered
+Planner cannot directly process the physical states, it relies on some
+(partial) observations generated by the Reporter. Specifically, let
+*MATH* describe the physical state *MATH* in language through
+a translation distribution *MATH*, where
+*MATH* denotes the space of observations. At each
+step *MATH*, a reward *MATH* is obtained, which
+depends on both the observation and the task *MATH* assigned
+by human users. Here, *MATH* denotes the space of
+potential tasks in language.
+
+
+Interactive Protocol. 
+
+
+The Planner aims to determine a sequence of subgoal *MATH* 
+such that when the Actor is equipped with policy
+*MATH*, these subgoals maximize the expected sum of
+rewards. During task planning, the Planner must infer both Actor&apos;s
+intention, i.e., policy *MATH*, and the environment, i.e., physical
+transition kernel *MATH*, from the historical information. Thus, *MATH* 
+constitutes all the latent information to the high-level Planner, and
+denote *MATH* as the space of all potential latent variables with
+*MATH*.
+
+
+FIGURE
+
+
+To summarize, the interactive protocol is as below: at the beginning of
+each episode *MATH*, Planner receives a task *MATH*. At step *MATH*, each
+module follows: Module 1: Planner. After collecting *MATH* from Reporter, the Planner leverages LLMs for
+recommendations on task decomposition, and the policy is denoted by
+*MATH*, where *MATH* represents the space of the trajectory sequence with
+arbitrary length. LLM&apos;s recommendation is obtained by invoking the ICL
+ability with the history-dependent prompt: *MATH* where *MATH* denotes the historical
+context and *MATH* is the trajectory until *MATH* -th step. In the PAR system, Planner retains
+autonomy and is not obligated to follow LLM&apos;s recommendations. Let
+*MATH* be the Planner&apos;s policy, which partially leverages the LLM&apos;s recommendation *MATH*.
+The Planner selects *MATH*, and sends it to the Actor.
+
+
+Module 2: Actor.
+
+
+Upon receiving *MATH* from Planner, the Actor plans to implement
+*MATH* in physical world with pretrained skill sets, denoted by a
+subgoal-conditioned policy *MATH*. A sequence of
+actions *MATH* is executed, where the
+dynamics follows *MATH* and *MATH* 
+starting from *MATH*. The low-level episode concludes at *MATH*.
+
+
+Module 3: Reporter.
+
+
+After the low-level episode concludes, the Reporter collects and reports
+the current state *MATH* via observation *MATH* generated from
+*MATH*, where *MATH* denotes
+the distribution of the pretrained translator. Subsequently, the
+observation *MATH* of the current state is sent back to the
+Planner, reinforcing to the ongoing task planning.
+
+
+The strength of the PAR system lies in its resemblance to RL
+[*REF*], allowing the Planner to iteratively adjust
+its planning strategy based on feedback from the Reporter. Moreover, the
+Reporter empowers the system to process the real-time information and
+the integration of multiple modalities of raw data like RGB, images,
+LiDAR, audio, and text [*REF*; *REF*]. The
+Actor&apos;s skill sets can effectively be pretrained using the
+goal-conditioned RL [*REF*; *REF*],
+language-to-environment grounding [*REF*; *REF*]
+or pre-programmed manually [*REF*].
+
+
+Performance Metric and Pretraining 
+
+
+Performance Metric.
+
+
+In this paper, we focus on the performance of the high-level Planner,
+and regard the low-level Actor as an autonomous agent that can use the
+pretrained skill sets following a fixed policy. For any latent variable
+*MATH* and policy *MATH* with *MATH*,
+the value function is defined as
+*MATH* where the expectation is taken concerning the initial
+state *MATH*, policy *MATH*, ground-truth translation distribution
+*MATH*, and transition kernel *MATH*. For all *MATH*, there exists an optimal policy
+*MATH*, where *MATH*.
+
+
+To characterize the performance under practical setting, we denote
+*MATH* as the value function concerning the
+pretrained translator *MATH*, and for all
+*MATH*, let *MATH* 
+be the optimal policy in practice. Then, the regret under practical
+setting is defined as
+*MATH* where *MATH* represents the Planner&apos;s policy
+empowered by a pretrained *MATH* and the
+expectation is taken with respect to the context *MATH* defined in
+*REF* generated by taking *MATH* 
+sequentially. Here, we focus on the performance when the
+Planner collaborates with a pretrained PAR system in an environment
+characterized by *MATH* and pretrained Reporter. Our goal is to design a
+sample-efficient algorithm that achieves a sublinear regret, i.e.,
+*MATH*.
+
+
+Pretraining Dataset Collection.
+
+
+The pretraining dataset consists of *MATH* independent samples with
+*MATH* episodes such that *MATH*, where *MATH*.
+For each sample, *MATH* specifies a low-level MDP with
+language-conditioned policies and *MATH* specifies
+the sequence of high-level tasks. Here, *MATH* and
+*MATH* denote the prior distributions. We assume that the joint
+distribution of each data point *MATH* in the dataset, denoted by
+*MATH*, follows that: *MATH* where *MATH* is the behavior
+policy that features how the contextual information is collected, and
+additionally the label, i.e., optimal subgoal, is sampled from the
+optimal policy *MATH* by experts. Subsequently, the latent
+information *MATH* is hidden from the context.
+
+
+LLM Pretraining.
+
+
+To pretrain LLMs, we adopt a supervised learning approach concerning the
+transformer structure, aligning with the celebrated LLMs such as BERT
+and GPT [*REF*; *REF*]. Specifically, the
+pretraining data is constructed based on *MATH*. For clarity, we extract
+the language data without expert knowledge and write the collected data
+into a sequence of ordered tokens, i.e., sentences or paragraphs. For
+the *MATH* -th sample *MATH*, we write *MATH* with a length of *MATH*, which
+contains *MATH* episodes with one task, *MATH* observations and *MATH* 
+subgoals each. Following this, LLM&apos;s pretraining dataset is
+autoregressively constructed with the expert guidance, denoted by
+*MATH*, where *MATH* and let *MATH*. In other words, when pretraining to predict the
+next subgoal, we replace the one sampled from the behavior policy with
+the one from the optimal policy. In practice, sentences with expert
+knowledge can be collected from online knowledge platforms such as
+Wikipedia [*REF*; *REF*]. Following the pretraining
+algorithm of BERT and GPT, the objective is to minimize the
+cross-entropy loss, which can be summarized as
+*MATH*  with *MATH* and *MATH* is the pretrained LLM
+by algorithm in *REF*. More details are deferred to
+§ *REF*.
+
+
+Translator Pretraining.
+
+
+To pretrain translators, we employ a self-supervised contrastive
+learning approach, which aligns with celebrated vision-language models
+such as CLIP [*REF*] and ALIGN [*REF*]. Let
+*MATH* be the contrastive pretraining dataset for
+translators, which is also constructed upon the dataset *MATH*. Following
+the framework adopted in [*REF*; *REF*], for
+each observation-state pair *MATH*, a positive or a negative data
+point, labelled as *MATH* and *MATH*, is generated with equal probability,
+following that
+- Positive Data: Collect *MATH* with label *MATH*.
+- Negative Data: Collect *MATH* with label *MATH*, where *MATH* 
+is sampled from negative sampling distribution
+*MATH* that has a full support over the
+domain of interest.
+
+
+Denote *MATH* as the joint distribution of data collected by the
+process above. The learning algorithm follows that
+*MATH*, where the contrastive loss
+*MATH* is defined as
+*MATH*. Consider function class *MATH* with finite
+elements with *MATH* 
+serving as a set of candidate functions that approximates the
+ground-truth likelihood ratio *MATH* 
+(see Lemma *REF* for justification). Following this,
+the pretrained translator for the Reporter by the algorithm in
+*REF* is thus defined as *MATH*.
+More details are deferred to
+§ *REF*.
+
+
+
+In *REF*, we assume that all pretraining data
+is generated from a joint distribution *MATH*, and then split for
+pretraining of LLM and Reporter. In practice, the pretraining dataset
+for the Reporter can consist of paired observation-state data collected
+from any arbitrary distribution, as long as  the LLM and
+Reporter &quot;speak\&quot; the same language, i.e., shared *MATH*, and  the
+coverage assumption can hold (see Assumption *REF*).
+
+
+As an example, noise contrastive estimation [NCE, *REF*] is
+one of the most widely adopted objectives in contrastive representation
+learning. From the theoretical lens, to estimate unnormalized model
+*MATH* with *MATH*, additional noise data is
+sampled from a reference distribution *MATH* and then estimate by
+maximizing *MATH* with *MATH* and *MATH*.
+With slight modifications, we use a function class *MATH* to approximate
+the ratio *MATH* rather than the relative probability *MATH* itself. In
+practice, the most commonly used contrastive training objectives are
+variations of NCE and originated from the NLP domain [*REF*]
+by sharing the same idea of minimizing the distance between the
+positive pair and maximizing the distance between the negative pairs.
+
+
+LLM Planning via Bayesian Aggregated Imitation Learning 
+
+
+In this section, we first demonstrate that LLMs can conduct high-level
+planning through [bail] in § *REF*, leveraging the ICL ability of LLMs with the
+history-dependent prompts. However, depending solely on LLM&apos;s
+recommendations proves insufficient for achieving sample efficiency
+under the worst case (see Proposition *REF*). Following this, we propose a planning
+algorithm for Planner in § *REF*, leveraging LLMs for expert
+recommendations, in addition to an exploration strategy.
+
+
+Bayesian Aggregated Imitation Learning 
+
+
+In this subsection, we show that the LLM conducts high-level task
+planning via [bail],
+integrating both Bayesian model averaging [BMA, *REF*]
+during the online planning and imitation learning [IL, *REF*] during the offline pretraining. 
+Intuitively, pretrained over *MATH*, LLM approximates the
+conditional distribution *MATH*,
+where *MATH* is the joint distribution in *REF* and the randomness introduced by the
+latent variable is aggregated, i.e.,
+*MATH*. Here, *MATH* can be
+viewed as a generating distribution with a known *MATH* and is then
+aggregated over the posterior distribution
+*MATH*, aligning with
+the form of BMA [*REF*]. We temporarily consider the perfect
+setting.
+
+
+DEFINITION
+
+
+The assumption states that the Reporter and LLMs can report and predict
+with ground-truth distributions employed based on the joint distribution
+*MATH*. During ICL, we invoke LLMs by history-dependent
+*MATH* for all *MATH*. Conditioned on latent variable *MATH* and
+*MATH*, the generating distribution is the optimal policy
+such that *MATH*,
+which is independent of historical *MATH*. In this sense, LLMs
+imitate expert policies during pretraining. The proposition below shows
+that LLMs conduct task planning via [bail].
+
+
+proposition
+Assume that the pretraining data distribution is given by
+*MATH*. Under the perfect setting in
+Definition *REF*, for all *MATH*, the LLM
+conducts task planning via *REF*, following that *MATH* where *MATH* denotes the LLM&apos;s policy
+and prompt is defined in *REF*.
+
+
+proof
+Proof of Proposition *REF* Please refer to
+§ *REF* for a detailed proof. 
+Proposition *REF* suggests that LLMs provide recommendations
+following a two-fold procedure: Firstly, LLMs compute the posterior
+belief of each latent variable *MATH* from *MATH*.
+Secondly, LLMs aggregate the optimal policies over posterior probability
+and provide recommendations.
+
+
+LLM-Empowered Planning Algorithm 
+
+
+ALGORITHM
+
+
+Following the arguments above, we propose a planning algorithm for the
+Planner within a perfect PAR system. From a high level, the process of
+task planning is an implementation of policies from imitation learning
+[*REF*; *REF*] with two key distinctions: 
+Planner collaborates with LLM, a &quot;nascent\&quot; expert that learns the
+hidden intricacies of the external world from updating prompts; 
+different from behavior cloning or inverse RL, Planner does not aim to
+comprehend LLM&apos;s behaviors. Instead, the imitation is accomplished
+during the offline pretraining, and Planner shall selectively adhere to
+LLM&apos;s suggestions during online planning. Next, we show that task
+planning solely guided by LLMs fails to achieve sample efficiency in the
+worst case.
+
+
+proposition
+Suppose that Definition *REF* holds. Given any *MATH*, there exists
+an HMDP and specific latent varibale *MATH* such that if
+Planner strictly follows LLM&apos;s recommended policies in Proposition
+*REF*, it holds that *MATH*.
+
+
+proof
+
+
+Proof of Proposition *REF*. Please refer to
+§ *REF* for a detailed proof. 
+
+
+Proposition
+*REF* indicates that relying solely on LLMs for
+task planning can result in a suboptimal *MATH* regret in the worst
+case when *MATH*. Thus, additional exploration is essential to discern
+the latent information about the external world, a parallel to the
+practical implementations in latent imitation learning
+[*REF*; *REF*] and LLM-based reasoning
+[*REF*; *REF*]. In practice, while the
+language model can guide achieving a goal, it&apos;s important to note that
+this guidance is not grounded in real-world observations. Thus, as
+pointed out by [*REF*], the information provided in
+narratives might be arbitrarily wrong, which highlights the need for
+exploration to navigate new environments effectively. Similar to
+*MATH* -greedy algorithms [*REF*; *REF*], we
+provide a simple but efficient algorithm for LLM-empowered task
+planning. Algorithm *REF* gives the pseudocode. In each episode, the
+Planner performs two main steps: 
+- Policy Decision (*MATH*): Randomly decide whether to
+execute the exploration policy *MATH* or follow the
+LLM&apos;s recommendations within this episode with probability
+*MATH*.
+- Planning with LLMs (*MATH*): If Planner decides
+to follow the LLM&apos;s recommendations, the subgoal is obtained by
+prompting LLMs with *MATH*,
+equivalently sampling from *MATH*.
+Otherwise, the Planner takes sub-goal from *MATH*.
+
+
+In conventional *MATH* -greedy algorithms, explorations are taken
+uniformly over the action space *MATH*, i.e.,
+*MATH*. Recent work has extended it
+to a collection of distributions (e.g., softmax, Gaussian noise) for
+function approximation [*REF*]. Following this, we instead
+consider a broader class of exploration strategies that satisfy the
+*MATH* -distinguishability property below.
+
+
+DEFINITION
+We say an exploration policy *MATH* is
+*MATH* -distinguishable if there exists an absolute constant *MATH* 
+such that for all *MATH* with *MATH*, it holds that *MATH*.
+The *MATH* -distinguishability implies the existence of exploration
+policy *MATH* that could well-distinguish the models with an
+*MATH* -gap in Hellinger distance concerning the distribution of whole
+trajectory, which also impose condition over the model seperation. Next,
+we introduce the assumption over priori.
+
+
+ASSUMPTION
+There exists a constant *MATH* such that *MATH*.
+
+
+The assumption asserts a bounded ratio of priors, implying that each
+*MATH* has a non-negligible prior probability. The
+assumption is intuitive, as a negligible priori suggests such a scenario
+almost surely does not occur, rendering the planning in such scenarios
+unnecessary. Now, we are ready to present the main theorem of the
+Planner under perfect setting.
+
+
+THEOREM 
+
+
+REMARK 
+
+
+Pretraining Large Language Model 
+
+
+In this subsection, we elaborate on the pretraining of LLMs using
+transformer architecture. We employ a supervised learning algorithm
+minimizing the cross-entropy loss, i.e.,
+*MATH*, as detailed in *REF*. Following this, the population risk
+follows that *MATH* where *MATH*, *MATH* is
+distributed as the pretraining distribution, and
+*MATH* is the Shannon entropy. As the minimum is achieved at
+*MATH*, estimated *MATH* and *MATH* are expected to
+converge under the algorithm with a sufficiently large dataset.
+Specifically, our design adopts a transformer function class to stay
+consistent with the architectural choices of language models like BERT
+and GPT. Specifically, a transformer model comprises *MATH* sub-modules,
+with each sub-module incorporating a Multi-Head Attention (MHA)
+mechanism and a fully connected Feed-Forward (FF) layer. See
+§ *REF* for further details, and we specify two widely adopted assumptions in
+the theoretical analysis of LLM pretraining
+[*REF*; *REF*].
+
+
+ASSUMPTION 
+
+
+ASSIUMPTION
+
+
+The ambiguity assumption states that the generating distribution is
+lower bounded, and the assumption is grounded in reasoning as there may
+be multiple plausible choices for the subsequent words to convey the
+same meaning. Next, we present the performance of the pretrained LLMs.
+
+
+THEOREM
+
+
+Pretraining Observation-to-Language Translator 
+
+
+In this subsection, we focus on the pretraining of
+observation-to-language translators under a self-supervised learning
+architecture using the contrastive loss. Consider the function class
+*MATH* with finite elements, and the contrastive loss
+*MATH* in *REF* is then defined over
+*MATH*. Note that the contrastive loss can be equivalently
+written as the negative log-likelihood loss of a binary discriminator,
+following that *MATH*,
+where we define *MATH*. Based on *REF* and the algorithm
+*MATH*, the population risk follows that *MATH*. As the minimum is attained at
+*MATH*, where *MATH* is the distribution of the label conditioned on the *MATH* pair in
+contrastive data collection, estimated *MATH* 
+and *MATH* are expected to
+converge, and thus the learning target is the ground-truth likelihood
+ratio *MATH* (see Lemma *REF*). Below, we assume the learning
+target *MATH* is realizable in *MATH*, which is standard in
+literature [*REF*].
+
+
+ASSUMPTION 
+
+
+THEOREM 
+
+
+Performance with Pretrained PAR System 
+
+
+In this subsection, we delve into the performance of task planning with
+pretrained PAR system. We first introduce the online coverage
+assumption, which pertains to the distribution of online planning
+trajectories under practical scenarios and trajectories in pretraining
+datasets.
+
+
+ASSUMPTION 
+
+
+THEOREM 
+
+
+REMARK 
+
+
+We also present two extensions. In § *REF*, we discuss the design of Planner by taking LLMs as
+World Model (WM). Here, the Planner prompts the LLM to predict the next
+observation rather than subgoals, alleviating the reliance on expert
+knowledge. By leveraging model-based RL methods like Monte Carlo Tree
+Search (MCTS) and Real-Time Dynamic Programming (RTDP), the
+Planner utilizes the LLM-simulated environment to optimize its
+strategies based on the contextual information. As shown in Proposition
+*REF*, the simulated world model via ICL conforms to Bayesian Aggregated World
+Model (BAWM). Hence, the LLM Planner achieves a regret at rate of
+*MATH* under practical setting with regularity conditions (see Corollary
+*REF*). Besides, we extend the results in
+§ *REF* to accommodate the scenario of multi-agent collaboration, i.e., *MATH* Actors.
+In § *REF*, we formulate the probelm as a cooperative
+hierarchical Markov Game (HMG) and establish a theoretical guarantee of
+*MATH* under the
+perfect setting (see Corollary
+*REF*). These two extention correponds to
+recent works on LLM planning as world model [e.g., *REF*] and
+muti-agent collaboration of LLM Agents [e.g., *REF*].
+
+
+Conclusion
+
+
+In this work, we embedded the LLM-empowered decision-making problem into
+a hierarchical RL framework named PAR system where at the high level,
+the LLM Planner decomposes the user-specified task into subgoals, and at
+the low level, the Actor(s) translate the linguistic subgoals into
+physical realizations while also providing feedbacks for augmenting the
+planning process through a trained reporter. Under the perfect setting,
+we characterize the BAIL nature of the LLM-aided planning pipeline and
+the nessecity of exploration even under expert guidance. We also shed
+light on how the training errors of both LLM and reporter enter the ICL
+error under practical scenarios.

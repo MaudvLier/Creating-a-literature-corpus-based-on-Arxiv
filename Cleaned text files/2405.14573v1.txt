@@ -1,0 +1,663 @@
+AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents
+
+
+Introduction
+
+
+Autonomous agents that interpret human natural language instructions and
+operate computing devices can provide enormous value by automating
+repetitive tasks, augmenting human intelligence, and accomplishing
+complex workflows. The enthusiasm for building such agents is evident by
+the growing number of computer control agent
+systems [*REF**REF*; *REF*; *REF*; *REF*; *REF*]
+and code repositories [*REF*; *REF*; *REF*; *REF*].
+Yet, most existing approaches evaluate agents with proxy metrics, by
+comparing an agent&apos;s trajectory to a previously collected human
+demonstration [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+This kind of measurement is not representative of real-world
+performance [*REF*; *REF*] because it does not
+reflect that there are usually multiple correct paths to solve a task,
+environments may behave non-deterministically (e.g., the environment
+freezes), and agents can dynamically learn from mistakes to correct
+their actions [*REF*; *REF*; *REF*; *REF*].
+Towards more accurate evaluation, emerging testing
+environments [*REF*; *REF*; *REF*; *REF*]
+place agents in interactive environments and measure their task
+completion rates across a suite of tasks.
+
+
+Reward signals are quantitative metrics that indicate functional
+correctness of a task, i.e. is the stated goal achieved? For example,
+for the task &quot;Send a text message to Jane confirming I&apos;ll be there\&quot;, a
+positive reward indicates the relevant message has been sent. Yet,
+real-world environments (apps and websites), unlike simulations
+[*REF*; *REF*] and games
+[*REF*; *REF*; *REF*], do not naturally provide
+explicit reward signals. The internals of most apps and websites are
+hidden from developers making it difficult to program rewards.
+Additionally, such systems are seemingly infinitely expansive, spanning
+millions of continuously-changing apps and websites. All these factors
+make it hard to establish reliable and durable reward functions.
+
+
+One way to obtain reliable reward signals is to leverage human
+judgment [*REF*; *REF*; *REF*; *REF*].
+This allows one to conduct one-off evaluations on a diverse suite of
+tasks, however each evaluation run requires significant time and costly
+manual review. LLM-based &quot;judges\&quot; used to evaluate natural language
+generation on open-ended
+questions [*REF*; *REF*; *REF*] are
+emerging as a solution to dynamic real-world
+environments [*REF* -rw; *REF*] and while showing promise also
+for computer control agents [*REF*; *REF*] they remain
+imperfect evaluators. As a result, existing testing environments for
+computer control agents that provide automated reward signals are
+limited in their real-world diversity and scale. They cover mostly
+single-app tasks on a small set of domains (1--6
+websites [*REF*; *REF*; *REF*])
+and evaluate agents on static test sets
+[*REF*; *REF*], instead of across across varied
+conditions and inputs which are found in real-world scenarios.
+
+
+FIGURE
+
+
+To tackle these challenges, we introduce and release
+[AndroidWorld], a robust agent environment for Android that
+offers realism and scalability for developing and evaluating computer
+control agents. [AndroidWorld] is an open environment
+consisting of a fully-functioning Android OS, allowing access to
+millions of Android apps and the Web. Crucially, it provides a highly
+reproducible task suite for developing and evaluating computer control
+agents, consisting of 116 tasks across 20 apps. Similarly to the popular
+MiniWoB++ [*REF*] benchmark, each task is dynamically instantiated
+using randomly-generated parameters, challenging agents with millions of
+unique task goals and conditions. While MiniWob++ consists of simple,
+synthetic websites, [AndroidWorld] supports real-world
+Android applications. To make reward signals durable using real
+applications, [AndroidWorld]&apos;s key insight is to leverage
+the extensive and consistent state management capabilities of the
+Android operating system, using the same mechanisms that the apps
+themselves utilize. The dynamic nature of [AndroidWorld]&apos;s
+tasks is not only a test of adaptability for evaluation purposes, but it
+can also spawn new research on online learning algorithms for computer
+control agents.
+
+
+[AndroidWorld] is a lightweight environment, requiring only
+2 GB of memory and 8 GB of disk space, and is designed with convenience
+in mind. It connects agents to Android OS by leveraging the Python
+library AndroidEnv [*REF*] to connect to the freely available
+Android Emulator. [AndroidWorld] is highly extensible,
+making it easy to add new tasks and even new benchmarks, which we
+demonstrate by integrating the MiniWoB++ [*REF*; *REF*]
+benchmark.
+
+
+To demonstrate [AndroidWorld]&apos;s usefulness as a benchmark,
+we build and release a new multi-modal agent, [M3A]
+(Multimodal Autonomous Agent for Android), and establish
+state-of-the-art results on [AndroidWorld]. We analyze
+[M3A]&apos;s performance using both multimodal and text-only
+input, and we show that multimodal perception significantly improves
+agent performance. On [AndroidWorld], [M3A]
+achieves a 30.6% success rate. This performance surpasses that of a web
+agent adapted for Android but remains significantly lower than the human
+success rate of 80.0%. In pursuit of building robust computer control
+agents, our study extends to a series of real-world condition tests,
+where we show performance varies significantly across variations in
+intent parameters, phrasing, and environmental configurations.
+
+
+We make the following contributions: (i) the creation of a new, highly
+diverse and realistic computer control agent environment; (ii)
+establishment of benchmark performance with a state-of-the-art
+multimodal agent, and (iii) a careful analysis demonstrating the need to
+evaluate agents across multiple test sets and conditions due to the
+inherent stochasticity in both models and environments.
+
+
+Related Work
+
+
+TABLE
+
+
+Interactive evaluation environments
+
+
+Effective evaluation of autonomous agents requires environments that not
+only mimic real-world scenarios but also provide immediate reward
+signals upon successful task completion
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+MiniWoB++ [*REF*; *REF*] offers a lightweight framework of small,
+synthetic HTML pages with parameterized tasks which allow for unlimited
+task variability. WebShop [*REF*] provides a simulated
+e-commerce environment, whereas WebArena [*REF*] and
+VisualWebArena [*REF*] consist of simulated websites
+across up to four domains. OSWorld [*REF*] provides an
+interface and programmatic rewards across nine apps for desktop OSes.
+GAIA [*REF*] is a static dataset that tests an agent&apos;s ability
+to interact with live web environments. MMInA [*REF*] is a
+multihop and multimodal benchmark designed to evaluate agents for
+compositional Internet tasks. B-MoCA [*REF*] is the only
+interactive testing environment that exists today for mobile. It
+supports 31 tasks whose success is determined by comparing an agent&apos;s
+execution with logs from human demonstrations using simple regex
+expressions. Unlike MiniWoB++, all these recent frameworks use a fixed
+set of evaluation tasks where initial conditions and goals are
+statically defined, limiting adaptability. As has been observed in other
+domains such as reinforcement learning
+[*REF*; *REF*; *REF*], the current
+output of foundation models is stochastic and highly sensitive to their
+inputs [*REF*; *REF*; *REF*; *REF*],
+motivating the need to test them under varying conditions.
+
+
+Reward signal construction is crucial when comparing interactive
+benchmarking environments. MiniWoB++  [*REF*] dynamically constructs
+tasks, embedding rewards directly in custom HTML and JS code, a method
+specific to web-based tasks and less adaptable to other environments.
+WebArena [*REF*], VisualWebArena [*REF*]
+and MMInA [*REF*] check trajectories for specific URLs and
+examine result pages for expected strings or images. Information
+retrieval tasks compare returned answers against a ground truth. WebShop
+[*REF*] identifies specific products by matching their
+attributes against predefined gold attributes. B-MoCA
+[*REF*] uses regular expressions to match log outputs.
+These types of reward are application specific and time dependent.
+OSWorld [*REF*] scales better by inspecting device states or
+querying the cloud to compute rewards, thus offering robust functions
+adaptable to content and app updates, and shareable across multiple
+tasks. [AndroidWorld] enhances OSWorld&apos;s approach by
+dynamically constructing the start states and varying the task goals in
+unlimited ways.
+
+
+Additionally, other studies leverage human evaluation
+[*REF*; *REF*; *REF*] for tasks
+where automatic evaluation is not available. Lastly, emerging research
+[*REF*; *REF*] explores the potential of multimodal
+models to generalize agent evaluations to new settings, though this area
+requires further research to achieve accuracy comparable to manually
+coded rewards.
+
+
+Static datasets for automation
+
+
+Datasets derived from human interactions provide proxy metrics that
+correlate with real-world agent performance
+[*REF*; *REF*; *REF*; *REF*]. On mobile
+platforms, AitW [*REF*], PixelHelp [*REF*], UGIF
+[*REF*], and MoTIF [*REF*] consist of demonstrations across Android
+apps and mobile websites, with screens often represented via
+accessibility trees. In contrast, desktop web environments typically
+utilize the DOM for representing website content, with Mind2Web
+[*REF*], OmniAct [*REF*] and others, across
+various desktop websites. Mobile-based datasets frequently involve more
+complex actions, such as scrolling, which are not as useful in DOM-based
+desktop interactions where the entire action space is readily
+accessible. Additionally, API-centric datasets like API-Bank
+[*REF*], ToolTalk [*REF*], and ToolBench [*REF*]
+assess agents&apos; capabilities to manipulate computer systems via APIs.
+
+
+Interactive agents
+
+
+Prior to today&apos;s foundation models, traditional approaches to developing
+user interface-operating agents primarily used reinforcement learning
+and behavioral cloning to simulate interactions like mouse clicks and
+keyboard typing [*REF*; *REF*; *REF*; *REF*].
+More recent work tends to leverage off-the-shelf foundational models
+[*REF*; *REF*; *REF*] with in-context learning (ICL) and fine-tuning applied to mobile
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*],
+desktop web [*REF*; *REF*; *REF*; *REF*],
+and desktop OS [*REF*; *REF*; *REF*]. Recent
+work explores agents that reflect on system state
+[*REF*; *REF*; *REF*] by leveraging
+exploration, self-evaluation, and retry-capabilities enabling continual
+learning and adaptation [*REF*; *REF*; *REF*; *REF*].
+
+
+[AndroidWorld]
+
+
+Android for autonomous agents
+
+
+Android is an ideal environment for developing autonomous agents. It is
+the most widely used operating system globally and is highly
+flexible for research, while providing an open world of the Web and
+over 2M applications for agents to operate in. Using emulation, the
+Android environment is easy to deploy, does not require specialized
+hardware, and can be run on a laptop. Android Virtual Devices (AVDs), or
+emulator images, are well suited for research because they are
+self-contained, easily distributable, and configurable.
+
+
+Compared to desktop environments, mobile environments, like Android,
+pose unique research challenges for computer control agents. On one
+hand, mobile UIs tend to be simpler than their desktop counterparts
+because of their smaller screen size. On the other hand, the action
+space on mobile devices is more complicated and more actions can be
+required to complete tasks. Precise gestures are needed to fully operate
+the UI, such as when navigating a carousel widget, long-pressing on a
+widget, or performing multi-finger gestures to zoom in. Since it is an
+OS, Android is a fully open environment compared to web-browser-only
+environments. Android&apos;s flexibility is also reflected in its action
+space; in addition to UI actions (click, scroll, type, etc.), Android
+provides function-calling APIs, such as sending a text message, for
+example, which allow computer control agents to utilize a broader action
+space.
+
+
+The observation and action space
+
+
+[AndroidWorld] provides an interface for agents to receive
+observations and execute actions on Android. It uses AndroidEnv
+[*REF*] and the Android Device Bridge to facilitate interaction
+between Android and the agent. The observation space consists of a
+full-resolution screenshot and a UI tree representation developed for
+accessibility purposes. The action space is similar to that which humans
+use, consisting of gestures (i.e., tapping, long-press, and swiping),
+typing, and navigation buttons (i.e., go home and go back). In addition
+to these naturalistic actions, [AndroidWorld] exposes a
+limited set of function calling APIs, such as &apos;send_text_message&apos;, to
+help agents accomplish goals.
+Appendix [7] provides more details on the
+observation format and action space.
+
+
+Reproducible and parameterized tasks
+
+
+FIGURE
+
+
+[AndroidWorld] consists of a suite of 116 tasks, spread
+across 20 diverse applications (see Appendix
+[8] for more details). These tasks
+simulate practical, everyday activities, including note-taking,
+scheduling appointments, communicating through messaging, and
+interacting with system utilities. The suite consists of open-source
+apps and built-in Android system apps, such as Settings and Contacts. As
+rated by humans, the tasks vary in difficulty, duration, and categories
+(Figure [2]).
+
+
+To achieve a high degree of reproducibility in real-world scenarios,
+[AndroidWorld] precisely controls the OS and app state in
+several ways. The Android OS is fixed, consisting of a Pixel 6 emulator
+running Android 13 with a fixed time on the date October 15th, 2023. All
+applications in [AndroidWorld] are fully-functional,
+open-source apps, besides the OS-level apps included with Android. For
+the open-source apps, [AndroidWorld] maintains a constant
+environment by installing a fixed version of each app, acquired from
+F-Droid.  OS-level apps&apos; versions are determined by the Android OS,
+which is also fixed. [AndroidWorld] only utilizes apps that
+do not require login/authentication, can function offline, and store
+their application data on device.
+
+
+In addition to managing the states of apps and operating systems,
+[AndroidWorld] precisely defines and controls the state
+during task execution. Each task has its own unique setup, reward
+determination logic, and teardown procedures (see
+Appendix [8.2] for a detailed example), ensuring a
+fully reproducible suite of tasks. This careful state management not
+only ensures reproducibility but also allows for easy customization of
+tasks through parametrization. Task parameters, initialized randomly
+at the start of each task based on a controlled random seed, dictate the
+initial state and influence reward outcomes. Similarly to
+MiniWoB++[*REF*; *REF*], [AndroidWorld]
+consists of a practically infinite set of varying initial conditions and
+success criteria. This approach provides more granular analyses of
+agents&apos; adaptability --- a vital attribute for real-world deployment.
+Beyond testing agent robustness, the dynamic construction of tasks
+supports the use of online learning methodologies, particularly
+reinforcement learning [*REF*; *REF*; *REF*; *REF*].
+It also simplifies the generation of distinct train/test datasets,
+facilitating supervised learning experiments
+[*REF*; *REF*; *REF*].
+
+
+Durable rewards from system state
+
+
+[AndroidWorld] provides reward signals by managing
+application state using the Android Debug Bridge (&apos;adb&apos;). With the &apos;adb&apos;
+tool [AndroidWorld] has complete access to system resources
+including the file system, application databases, and system settings.
+Determining reward signals from system state has several benefits. It is
+highly accurate because an application&apos;s state can be quickly inspected
+and manipulated using the same mechanisms that the app itself utilizes.
+Using the underlying system state is much more durable than matching
+superficial UI changes. Additionally, it facilitates easy re-use across
+disparate apps, which tend to use the same underlying caching
+mechanisms. For instance, logic for checking existence of a specific
+file is used across many unrelated applications, including those for
+file management, note-taking, and media playback. For applications
+leveraging SQLite databases, a common pattern,
+[AndroidWorld] implements evaluators that verify the
+existence of new and deleted rows.
+Table shows examples of the validators in
+[AndroidWorld]. For more examples see
+Table in the Appendix.
+
+
+Task composability
+
+
+In addition to facilitating accurate and reusable evaluations, inferring
+a task&apos;s success from system state makes it easy to create composite
+tasks by combining together existing tasks. For example, the task
+&quot;Create a calendar event with details and text the details to contact\&quot;
+could be created by combining together two existing tasks for creating a
+calendar event and for sending a text message, which is possible because
+each task initialization and success detection logic is hermetic.
+Composite tasks tend to be more challenging because of their complexity,
+although they provide partial rewards based on completion of sub tasks,
+to help facilitate hill climbing. The last two rows of Table show the validation code for
+composite tasks.
+
+
+Integrating MiniWob++
+
+
+To demonstrate [AndroidWorld]&apos;s extensibility, we implement
+the MiniWoB++ in the [AndroidWorld] framework and term it
+MobileMiniWoB++. Each MiniWoB++ task is instantiated using the standard
+[AndroidWorld] interface, inheriting from &apos;TaskEval&apos; base
+class, and contains methods like &apos;initialize_state&apos; and &apos;is_successful&apos;.
+Since MiniWoB++ leverages JavaScript for task configuration and success
+detection, we built a WebView app to communicate between Python and the
+app. For instance, the &apos;is_successful&apos; method of each task retrieves the
+reward value from the WebView app via an Android intent.
+
+
+MobileMiniWoB++ introduces modifications in both observations and
+actions compared to the original benchmark. For example, HTML5 &apos;&lt;input&gt;&apos;
+elements are natively rendered with native Android UI widgets like the
+date-picker (see Figure 
+[4] in the Appendix), enhancing the
+realism of the tasks. MobileMiniWoB++ uses the same observation space as
+the Android tasks (accessibility tree and screenshot). Notably, it does
+not include the DOM as in the original implementation. The action space
+from [AndroidWorld] is retained. We manually review and test
+each task to ensure they are solvable. We excluded twelve of the
+original tasks that failed to render correctly on Android, presented
+compatibility issues with the touch interface, or required near
+real-time interaction, which poses challenges on emulators. Overall,
+[AndroidWorld] supports 92 MiniWoB++ tasks.
+
+
+[AndroidWorld] as a computer-control benchmark
+
+
+To test [AndroidWorld] applicability for autonomous agents,
+we develop and test a state of the art agent and its variants across all
+20 apps and 116 tasks as well as on MobileMiniWoB++.
+
+
+Computer control agents
+
+
+[M3A]
+
+
+We develop a multimodal autonomous agent for Android, [M3A].
+It is zero-shot, integrating ReAct-style [*REF*] and
+Reflexion-style [*REF*] prompting to consume user
+instructions and screen content, reason, take actions, and update its
+decision-making based on the outcome of its actions.
+
+
+In the first stage, [M3A] generates an action, represented
+in JSON, and reasoning for that action. To generate this output, the
+agent is provided with a list of available action types, guidelines for
+operating the phone, and a list of UI elements derived from the Android
+accessibility tree&apos;s leaf nodes. The agent receives the current
+screenshot and a Set-of-Mark (SoM) [*REF*] annotated screenshot,
+which includes bounding boxes with numeric labels on the top-left corner
+for each UI element (see screenshot in
+Figure [5] in the Appendix). The agent attempts to
+execute outputted action by referencing the specific mark (if
+applicable). In addition to the multimodal agent, we have developed a
+text-only variant that consumes the screen represented using the
+accessibility tree and selects the relevant action in JSON format.
+
+
+After executing an action, [M3A] reflects on its effect by
+observing any state changes that may have occurred. During this stage,
+the agent is provided with available action types, general operating
+guidelines, the actual action taken, and its reasoning, as well as
+before-and-after UI states, represented by UI element representations
+and screenshots with SoM annotations. We request the LLM to provide a
+concise summary of this step, including the intended action, success or
+failure, potential reasons for failure, and recommendations for
+subsequent actions. This summary will serve as the action history and be
+used for future action selection.
+
+
+SeeAct baseline
+
+
+We implement a baseline agent based on SeeAct [*REF*], which
+was originally designed for GPT-4V for web navigation tasks.
+Specifically, we implement the best-performing variant of
+SeeActchoice, which grounds actions via textual choices. We implement
+SeeAct for the Android environment to evaluate how an existing model
+that performs well on web tasks [*REF*] can be adapted and
+applied to Android.
+
+
+To accommodate the Android environment, we adapt SeeAct in several ways.
+Firstly, we augment the action space from the original SeeAct
+implementation to support actions needed for mobile, including scroll,
+long press, navigate home and back, and open app actions. Secondly, in
+lieu of the DOM, which is not available for Android apps, we utilize the
+accessibility tree to construct candidate UI actions. Due to the lack of
+the DOM representation, we do not use the bespoke ranker model from the
+original implementation. However we observe that after applying a
+filtering heuristic to remove non-interactable elements, the majority of
+screens contains less than 50 candidate elements.
+
+
+Experiment results
+
+
+We evaluate the performance of [M3A] and SeeAct on the
+[AndroidWorld] and MobileMiniWoB++ task suites. For each
+task, we set the seed to 30 and provide a task-specific step budget that
+allows for solving the task with additional buffer steps. The agents
+operate in a zero-shot manner and do not draw from a memory of prior
+screens, although they maintain a history of prior actions and their
+effects. We experiment with Gemini 1.5 Pro and GPT-4 Turbo as the
+underlying base models. For MobileMiniWoB++, similarly to recent work,
+we evaluate on a subset of 62 tasks
+[*REF*; *REF*; *REF*].
+
+
+Table presents the success rates (SR) for
+the agents and human performance on both task suites. Although the
+agents have far from human performance, they demonstrate out-of-the-box
+capabilities in operating mobile UIs, exhibiting basic understanding and
+control capabilities of UIs. They can perform a variety of actions,
+including long-press, scrolling to search for information, and revising
+their plan if actions do not work out. The best performance is obtained
+for M3A when using GPT-4. On [AndroidWorld] the SoM-based
+variant is less performant, while on MobileMiniWoB++ it performs best. A
+similar result was obtained in recent work in the context of computer
+agents for desktop applications [*REF*]. We posit SoM
+grounding is less beneficial for [AndroidWorld] as the
+accessibility tree for Android apps is generally better populated than
+for mobile websites and covers the required action space, reducing the
+value of SoM.
+
+
+Grounding remains a key challenge for all agents. The agents struggle
+with precise interactions, such as manipulating text and are often
+unable to recover from mistyping errors. This is evidenced by agents
+exhibiting better performance in data editing tasks compared to data
+entry tasks. As another example, operating sliders proves difficult for
+agents despite their simplicity for humans.
+
+
+Screen understanding for mobile UIs remains challenging, with agents
+failing to detect subtle items that are essential for task completion
+(see Figure [8] in the Appendix). Additionally, agents
+struggle with certain UI patterns and affordances, often lacking the
+capability to sufficiently explore and adapt as humans do. For example,
+when encountering unfamiliar UI elements or tasks, agents are unable to
+figure out the correct actions through exploration (see Figure
+[10] in the Appendix). Moreover, agents
+sometimes struggle with tasks that simply involve confirming system
+states, e.g., confirming the WiFi is turned on, suggesting challenges in
+both task and screen understanding.
+
+
+Longer tasks are harder for agents, due to increased opportunities to
+make mistakes. Longer tasks also may require agents to keep track of
+memory, and perform significant data entry, which can pose difficulties
+for agents. For these tasks that demand agent memory, such as performing
+transcriptions across apps or multiplying numbers, or tasks that involve
+scrolling across entries, the agents struggle as they do have little
+ability to &quot;remember\&quot; what was seen on the prior screens.
+
+
+Compared to [M3A], SeeAct is less performant on the
+[AndroidWorld] task suite but performs similarly on
+MobileMiniWoB++. This stronger performance on the web is expected, as
+SeeAct was optimized for web environments. SeeAct struggles with
+operating mobile UIs, particularly with mobile-specific actions such as
+long-presses and swipes. Additionally, SeeAct sometimes fails to select
+the correct action based on its generated output, likely because it does
+not utilize screen elements during action generation.
+
+
+Beyond difficulties with actions, SeeAct struggles with tasks requiring
+memory, as it only caches its actions, not their results. For instance,
+we observed SeeAct getting stuck in loops, issuing ineffective actions
+like continually scrolling despite reaching the bottom of a page.
+Scrolling is particularly challenging for SeeAct, as its original
+implementation did not require this action. Although SeeAct can
+sometimes recover from errors, it often does not do so quickly enough,
+leading to termination when the maximum number of steps is reached.
+
+
+Finally, we also note the use of large foundation models introduces
+significant latency, and agents are about three times slower than humans
+to finish a task on average. On average, [M3A] takes 3.9
+minutes to complete a task, with the text-only version taking 2.5
+minutes.
+
+
+Agent robustness under random seeds
+
+
+FIGURE 
+
+
+We evaluate agent robustness under two conditions: (1) identical tasks
+with the same parameters and (2) tasks with different parameter
+combinations, which change the initial state and task definition. Due to
+computational constraints, we perform this analysis on a representative
+subset of [AndroidWorld] tasks (listed in
+[9.4]). We use the strongest agent,
+[M3A] using the accessibility tree and GPT-4, for this
+analysis. Our results are shown in Figure [3].
+
+
+In the baseline experiment using the same seed, the agent is unable to
+perform the add and edit tasks, and rarely solves the two delete tasks.
+For the add and edit tasks, the agent struggles with UI operations,
+while for the delete file task, it often gets confused before the step
+budget is consumed. Surprisingly, the agent&apos;s performance varies even
+with a fixed seed, indicating the model&apos;s non-determinism affects agent
+reliability.
+
+
+Under varying seeds, agent performance is much more variable, with
+statistically significant differences observed in the add expense and
+edit note tasks compared to the same seed group. Interestingly, the
+agent can solve the tasks fairly often under different seeds, suggesting
+the model&apos;s sensitivity to task parameters and the potential for
+improvement via RL-like mechanisms. This experiment demonstrates the
+importance of supporting parameterizable tasks to better characterize
+real-world performance of autonomous agents.
+
+
+Further, the high intra-task variation indicates current agents&apos; lack of
+robustness to environmental changes and unreliable performance due to
+model non-determinism. As observed in RL environments
+[*REF*; *REF*; *REF*], we also observe
+agent performance is more accurately represented using the mean across
+random seeds. Finally, we note the non-zero reward observed under some
+seeds suggests the possibility of future improvements through RL-like
+mechanisms.
+
+
+Limitations
+
+
+[AndroidWorld] currently supports tasks with open-source
+Android apps with at least 1 million downloads and built-in Android
+system apps. While testing on more trending apps is desirable, we found
+open-source apps to be equally realistic and, in some cases, more
+challenging than apps with larger user bases. Trending apps tend to have
+UIs which are heavily optimized for smooth user experience, offering
+more UI functionality and shortcuts. Testing on less-optimized UIs makes
+the agent&apos;s task harder. In an example failure we reported in the
+Appendix, the agent needed to delete all notes in a list and failed by
+repeatedly searching for a &quot;delete-all&quot; button. Instead, an agent with
+stronger reasoning capabilities would have probably searched once for
+that functionality, realized it was not available, and deleted the notes
+one by one.
+
+
+Conclusion
+
+
+We introduced [AndroidWorld], a realistic and robust agent
+environment for Android that enables the development and evaluation of
+autonomous agents across a wide range of tasks and apps.
+[AndroidWorld] provides a reproducible task suite consisting
+of 116 tasks across 20 apps, with each task dynamically generated using
+random parameters to challenge agents with millions of unique goals.
+This dynamic nature not only tests the adaptability of agents for
+evaluation purposes but also opens up new research opportunities for
+online learning algorithms in computer control agents.
+
+
+To showcase [AndroidWorld]&apos;s effectiveness as a benchmark,
+we developed and released [M3A], a state-of-the-art agent,
+and established benchmark results on [AndroidWorld]. We
+tested our agent using multimodal input and text-only. We found that
+incorporating multimodality, with Set-of-Mark prompting, does not
+improve performance on Android tasks and the text-only model achieved
+the best results. Despite outperforming a web agent adapted for Android,
+our best-performing agent achieved a success rate of 30.6%, which is
+much lower than the human success rate of 80.0%. This highlights the
+need for further research and development to build more reliable and
+robust computer control agents.
+
+
+We also observe that agent performance varies significantly across
+variations in intent parameters, with performance even varying with the
+same parameters, due to unpreventable model stochasticity. These
+findings underscore the importance of comprehensive evaluation and the
+need to improve the reliability of these models under diverse real-world
+conditions.
+
+
+[AndroidWorld] provides a realistic and extensible
+environment for developing and evaluating agents in the Android
+ecosystem. By releasing [AndroidWorld] and establishing
+benchmark performance with [M3A], we aim to accelerate
+research and development in this area, ultimately leading to the
+creation of more reliable and robust computer control agents capable of
+operating effectively in real-world environments.

@@ -1,0 +1,610 @@
+MARE: Multi-Agents Collaboration Framework for Requirements Engineering
+
+
+Introduction
+
+
+Requirements Engineering (RE) is one of the most critical phases in the
+software development process. It aims to generate a well-defined set of
+requirements by eliciting, analyzing, specifying, and verifying the
+needs and expectations of stakeholders for a software
+system [*REF*]. As the complexity and scale of the
+software system [*REF*] continue to grow, developers will spend a lot of
+effort on various tasks in RE to create high-quality requirements models
+and write requirements specifications.
+
+
+Nowadays, deep learning (DL) techniques have been successfully applied
+to automate various RE tasks [*REF*]. For example, DL has been used to
+mine stakeholders&apos; needs [*REF*] [*REF*], extract requirements
+model [*REF*] [*REF*], and deal with ambiguity in
+requirements [*REF*]. However, to obtain high-quality
+requirements specifications, different RE tasks need to be interwoven
+and iterated. The automation of only a few of these tasks limits further
+increase in effectiveness and efficiency.
+
+
+Recently, large language models (LLMs) have achieved significant
+performance in the fields of software engineering (SE) [*REF*] and
+natural language processing (NLP) [*REF*]. There have also been some
+early explorations of the application of LLMs to RE [*REF*] [*REF*].
+For example, [*REF*] used LLMs to generate requirements elicitation
+interview scripts. [*REF*] used ChatGPT to detect inconsistency
+in natural language requirements. [*REF*] provided prompt
+strategies for requirements traceability. These efforts demonstrate the
+effectiveness of using LLMs for specific requirements tasks and do not
+take full advantage of LLMs for collaboration among RE tasks.
+
+
+Inspired by the multi-agents collaboration [*REF*] and
+team design, researchers started to investigate the possibility of
+designing the communicative agents mechanisms [*REF*] for
+facilitating the accomplishment of complex tasks. [*REF*] presented a
+virtual chat-powered software development company to unveil fresh
+possibilities for integrating LLMs into the realm of software
+development. [*REF*] proposed an meta-programming framework
+incorporating efficient human workflows into LLM-based multi-agent
+collaborations, allowing agents with human-like domain expertise to
+verify intermediate results and reduce errors. Studies show that
+multi-agent collaboration mechanisms are interrelated with specific
+tasks.
+
+
+Along this line, in this paper, we propose a novel framework, named
+MARE (Multi-Agent collaboration for Requirements
+Engineering) to automate the entire RE process based on
+collaboration between multiple tasks and roles. Specifically, given a
+very rough idea of requirements, MARE autonomously and iteratively
+performs the basic tasks of RE, i.e., elicitation, modeling,
+verification, and specification, to achieve end-to-end requirements
+specifications generation. Each task is accomplished with one or two
+specific agents and MARE contains five agents, i.e., the stakeholders,
+the collector, the modeler, the checker, and the documenter. Each agent
+is responsible for a requirements task and performs predefined actions
+to accomplish that task. Nine actions are designed for this purpose.
+MARE also offers a shared workspace to these agents for supporting the
+collaboration among agents.
+
+
+We conduct extensive experiments to evaluate MARE. (1) To evaluate its
+modeling ability, we compare MARE with three baselines for automated
+requirements modeling on five public cases, one public dataset, and four
+new cases created in this paper. The three baselines are
+state-of-the-art (SOTA) methods for use case diagrams, problem diagrams,
+and goal models, respectively. Three widely used evaluation metrics
+(Precision (P), Recall (R), and F1) are used for the evaluation. Results
+demonstrate the impressive performance of MARE on requirements
+modeling. In terms of F1, MARE (gpt-3.5-turbo) outperforms the three
+SOTA baselines by up to 15.4%, 23.9%, and 0.6%, respectively. (2) To
+evaluate its specification generation ability, we conduct a human
+evaluation to evaluate the quality of generated requirements
+specifications in three aspects (correctness, completeness, and
+consistency) and provide insights about their quality. (3) We conduct an
+ablation study comparing individual LLMs with MARE on requirements
+modeling task. Results prove the contributions of multi-agents
+collaboration framework.
+
+
+We summarize our contributions as follows.
+- To the best of our knowledge, this is the first study exploring
+end-to-end automation of the entire RE process. This study unifies
+main tasks through LLMs, eliminating the need for specialized models
+at each task.
+- We propose MARE, a multi-agents collaboration framework for RE. By
+merely specifying a rough idea about the requirements, MARE
+iteratively handles requirements elicitation, modeling,
+verification, and specification.
+- We conduct extensive experiments on nine cases and one dataset.
+Compared with three SOTA baselines, MARE shows superiority in
+modeling. We further manually evaluate the generated specifications
+and provide insights about the quality of them in three aspects.
+
+
+In the remainder of the paper, Section II presents the approach. Section
+III sets up the experiments. Section IV describes the results and
+analysis. Section V introduces the related work. Section VI concludes
+our work.
+
+
+Approach
+
+
+This section presents the multi-agent collaboration framework, named
+MARE, for end-to-end RE based on LLMs.
+
+
+Overview
+
+
+Requirements Engineering is characterized by discussions and
+brainstorming to define the scope, functionality, and quality of a
+product. The RE process is challenging because it usually consists of
+multiple tasks, e.g., requirements elicitation, requirements modeling,
+requirements verification, and specification. Traditionally,
+requirements engineers as well as stakeholders actively iteratively
+collaborate with each other to establish a common understanding of the
+envisioned product. We investigate the possibility of automating the
+end-to-end RE process from a novel perspective by proposing a generative
+framework, i.e. to create a generative model *MATH* that generates a
+requirement specification *MATH* based on a rough idea of requirements *MATH*.
+
+
+Concretely, we design a multi-agent framework, MARE, that leverages
+LLMs in the RE process. We design prompt-engineering-driven LLM agents
+to allow these agents with abilities to do RE tasks and introduce a
+shared workspace in which the artifacts can be stored as the
+communication structure. To obtain requirements specifications that meet
+quality standards, these agents work together iteratively and
+collaboratively to complete the RE process, just like the Human
+Requirements Engineering team does. Figure depicts this framework, in which, we assume
+the following four tasks in the RE process:
+- Elicitation. Given a rough idea of requirements *MATH*, this task
+collects stakeholders&apos; needs *MATH* and generates a requirements draft
+*MATH*.
+- Modeling. Based on the generated requirements draft *MATH*, this
+task generates a requirements model *MATH* as required by the
+&apos;Metamodel&apos;.
+- verification. The task detects requirements smells *MATH* in the
+requirements draft *MATH* and requirements model *MATH* with &apos;accept
+criteria&apos;.
+- Specification. If requirements smells *MATH* don&apos;t exist, this task
+generates a requirement specification *MATH* based on the requirements
+draft *MATH*, and requirements model *MATH* by following a &apos;Template&apos;.
+Otherwise, this task generates an Error report *MATH*.
+
+
+FIGURE
+
+
+Tasks 
+
+
+As shown in Figure, the RE-Agent Collaboration team conducts
+iteratively four tasks in MARE.
+
+
+The purpose of the requirements elicitation task is to get stakeholders&apos;
+needs *MATH* corresponding to the rough idea of system requirements *MATH*.
+Various Stakeholders can be involved to express their requirements
+for this system. The requirements Collector interviews these
+stakeholders to further delve into their needs and preferences and write
+down their needs into a requirement draft *MATH*. The information
+Collector agent and a set of Stakeholders agents are designed to
+complete this task.
+
+
+The purpose of the requirements modeling task is to elaborate the
+requirements models, including the extraction of the requirements
+entities and relations. Following the previous study [*REF*], the
+requirements Modeler identifies requirements entities from the
+requirements draft *MATH*, e.g., the actors in use case diagrams and the
+machine in problem diagrams. The Modeler then decides whether a
+certain relationship exists between any pair of entities and determines
+the type of the relationship, e,g., the include in use case diagrams
+and the requirements reference in problem diagrams. Finally, the
+Modeler combines these entities and relationships to form the
+requirements model *MATH*. The Modeler agent is designed to accomplish
+this modeling task.
+
+
+The purpose of the requirements verification task is to confirm that the
+system requirements contain all the necessary elements of well-written
+requirements, e.g., correctness, completeness, and consistency. In the
+real world, the quality Checker first figures out the acceptance
+criterion, then reads the requirements draft *MATH* and requirements model
+*MATH* to assess the quality of the current requirements draft. The
+Checker agent is designed in MARE to finish this quality-checking
+task.
+
+
+Finally, if the quality of the current version of the requirements
+document meet the quality criteria, the specification task write the
+software requirements specification (SRS), otherwise presents an error
+report. The Documenter writes SRS *MATH* based on requirements draft
+*MATH* and requirements model *MATH* according to the pre-defined SRS template
+or presents the Error Report. The Documenter agent is designed for
+this task.
+
+
+When an error report appears in the shared workspace, Collector and
+Modeler will work sequentially, improving the requirements draft *MATH* 
+and requirements model *MATH*, respectively, and then Checker will
+check their quality again.
+
+
+Agent Definition 
+
+
+The necessary agents in MARE have been identified in Section
+[2.2]. They are Stakeholders, Collector, Modeler, Checker, and
+Documenter. Here we describe each agent and the interactions among agents.
+
+
+Agent Specialization. In MARE, any agent has a role definition,
+which includes the name, the profile, the goal, and the actions. The
+name and profile indicate which role the agents play. The goal describes
+tasks for which the agent. The action gives the skills that the agent
+has. For instance, Collector can interview with Stakeholders and
+write the requirement draft based on user stories. Thus, the
+Collector agent is equipped with ProposeQuestion action and
+WriteReqDraft action. Figure [1] shows an example of the Collector agent.
+
+
+FIGURE
+
+
+The other agents are defined via the same way based on the analysis in
+section [2.2]. The Stakeholders agent can express their expectations for the systems
+and answer questions from Collector. Then, So the Stakeholders
+agent can do actions such as SpeakUserStories and AnswerQuestion.
+The Modeler agent splits the requirements modeling task into two
+steps, which are extracting requirements entities and determining the
+relationships among the entities. So the Modeler agent can do
+actions such as ExtractEntity and ExtractRelation. The Checker
+agent can do CheckRequrement action. The Documenter agent can
+write requirements specifications or present the error report. So
+Documenter agent is equipped with WriteSRS and WriteChceckReport
+action. The role definition of each agent is shown in Table.
+
+
+TABLE
+
+
+Interaction between Agents. MARE adopts a shared workspace
+mechanism [*REF*] to facilitate effective interaction and
+collaboration between different agents. As shown in figure
+[2], the shared workspace stores various requirements artifacts which can be operated by
+agents, such as the use stories, the requirements drafts, the
+requirements models, and the requirements specifications, etc.. The
+requirements artifacts in the workspace have five properties, which are
+content, role, caused_by, sent_from, and send_to. The content property
+represents the content of the requirements artifacts. The role property
+indicates which agent generates the requirements artifacts. The
+caused_by property describes which action generates the requirements
+artifacts, which can be used to perform action migration. The action
+migration mechanism will be described in detail in the next section. The
+sent_from and send_to properties give the flow of requirements artifacts
+among agents. For example, the content of use stories can be &quot;As a
+homeowner, I want to be able to control the temperature in my home
+remotely, so that I can adjust it to my desired level before I
+arrive.&quot;, the role and cause_by of use stories can be stakeholders and
+SpeakUserStories. The sent_from and send_to can be Stakeholders
+and Collector.
+
+
+FIGURE
+
+
+Action Definition 
+
+
+Action Space. Section [2.3] describes the actions of each agent. There are a
+total of nine actions in MARE. Each action is implemented by designing
+a prompt for LLMs. Therefore, we designed multiple prompts of various
+actions for LLMs and the details about these prompts are at the open
+link [*REF*]. Table [10] shows the input and output for each action.
+The input will be put in each designed prompt and the output is referred
+to generated requirements artifacts by each action. The input for these
+actions is generated by agents within MARE, except for the rough idea
+of requirements which is provided by humans. For the requirements draft
+and software requirement specification in Table [10],
+their generation follows our predefined templates. The details of these
+templates are written in the prompt of WriteReqDraft action and
+WriteSRS action, which are publicly available at the same open link.
+
+
+Action Migration. MARE iteratively performs a series of actions to
+achieve the end-to-end RE process. There is a sequential relationship
+between these actions. For example, action WriteDraft happens after
+action SpeakUserStories. Figure [3] shows the whole action migration mechanisms in
+MARE. HumanInteraction is the start action and it can provide human
+feedback to MARE.
+
+
+Study Design
+
+
+To assess the effectiveness of our MARE, we perform an extensive study
+to answer three research questions. In this section, we describe the
+details of our study, including evaluation cases, metrics, baselines,
+and experiment settings.
+
+
+Research Questions
+
+
+Our study aims to answer three research questions(RQ). In RQ1, we
+compare our MARE to three SOTA automated requirements modeling
+baselines on 9 evaluation cases and 1 dataset to prove the modeling
+superiority of MARE. In RQ2, we conduct a human evaluation to evaluate
+the generated software requirements specifications on 9 software systems
+in three aspects. In RQ3, we conduct an ablation study to prove the
+contributions of multi-agent collaboration.
+
+
+RQ1: How do the requirements models generated by MARE compared to
+the SOTA approaches? We first use MARE to generate requirements
+models on 9 evaluation cases. Then, we use multiple metrics to evaluate
+the generated requirements models and compare them with the existing
+three SOTA baselines. We select multiple LLMs to verify that MARE is
+effective for different LLMs.
+
+
+RQ2: How do the requirements specifications generated by MARE?. We
+first use MARE to generate software requirements specifications on 9
+evaluation cases. Then, we manually evaluate the generated requirements
+specifications in three aspects. Finally, we calculate the average
+results.
+
+
+RQ3: How does MARE perform compared to individual LLM? Our MARE
+contains multiple LLMs-based agents. We assess the contributions of
+agents collaboration by comparing MARE with individual LLMs on
+requirements modeling.
+
+
+FIGURE
+
+
+Evaluation Cases 
+
+
+We conduct experiments on 5 public evaluation cases for generating use
+case diagrams, 1 public dataset for generating goal models, and 4 new
+evaluation cases for generating problem diagrams collected by this work.
+
+
+Five public evaluation cases are proposed for automated modeling use
+case diagrams. The 5 cases are the ATM system (ATM) [*REF*],
+the cafeteria ordering system (COS) [*REF*], the library system
+(TLS) [*REF*], the assembly system (TAS) [*REF*] and the time
+monitor system (TMS) [*REF*]. They are common and are often used to
+evaluate DL model to extract actors and actions in the use case. The
+original requirements descriptions for these cases can be obtained from
+the existing literature.
+
+
+One public evaluation dataset are proposed for automating modeling
+goal models [*REF*]. The origin requirements descriptions in this
+dataset come from PURE [*REF*], a dataset of 79 publicly available
+natural language requirements documents collected from the Web. In this
+paper, we refer to this dataset as GoalModelDataset.
+
+
+Four new evaluation cases are proposed for automated modeling
+problem diagrams. The 4 cases are the smart home control system (TSHCS),
+the temperature control system (TTCS), the air conditioner control
+system (TACCS), and the humidistat control system (THCS). The origin
+requirements descriptions for these cases are shown in the same open
+link as the section [2.4].
+
+
+Evaluation Metrics 
+
+
+Evaluation for requirements models. We use three commonly used
+metrics to evaluate the performance, i.e., Precision, Recall, and F1.
+(1) Precision (P), which refers to the ratio of the number of correct
+predictions to the total number of predictions; (2) Recall (R), which
+refers to the ratio of the number of correct predictions to the total
+number of samples in the golden test set; and (3) F1, which is the
+harmonic mean of precision and recall. When comparing the performance,
+we care more about F1 since it is balanced for evaluation.
+
+
+Evaluation for requirements specifications. Following the previous
+work [*REF*], we manually evaluate the generated specifications by
+MARE in three aspects, including completeness, correctness, and
+consistency. For each aspect, the score is ranging from 0 to 2 (from bad
+to good). The evaluators are computer science master students and are
+not co-authors.
+
+
+Baselines
+
+
+We select 3 recently proposed automated requirements modeling approaches
+as baselines. They are state-of-the-art methods for automated modeling
+of problem diagrams, use case diagrams, and goal models, respectively.
+- IT4RE [*REF*]: is an approach to automatically identify
+actors and actions from natural language requirements&apos; description
+using an NLP parser.
+- EPD [*REF*]: is a method for Extracting requirements
+entities, e.g., machine domain, requirement domain and given domain,
+in Problem Diagram based on BERT.
+- HAGM [*REF*]: is a Hybrid Approach to requirements
+entities, e.g., role, agent, and relation, in Goal Model
+based on machine learning and logical reasoning.
+
+
+TABLE
+
+
+Experiment Settings
+
+
+The implementation details of our MARE are as follows. We use the
+open-source multi-agent framework - MetaGPT [*REF*] to build
+our MARE. For the LLM engine of the MARE, we use different versions
+of ChatGPT-3.5, named gpt-3.5-turbo [*REF*], text-davinci-002
+[*REF*] and text-davinci-003 [*REF*]. They are the closed-source
+model developed by OpenAI. So we experimented by purchasing the access
+api-key from OpenAI. Considering that the responses of the LLMs are
+somewhat random, in order to ensure the stability of the experimental
+results, we set temperature as 0, max_tokens as 3000, top_p as 1,
+frequency_penalty as 0, presence_penalty as 0, best_of as 1. These are
+the hyper-parameters of the LLMs.
+
+
+For requirements modeling, the experiments include generating modeling
+elements in problem diagrams, use case diagrams and goal models. To be
+specific, for the problem diagrams, we use MARE to generate the the
+machine domains, the requirements domains, the physical devices, the
+sharing phenomenon, and the requirements references. For the use case
+diagram, MARE is to generate the actors and the use cases. For the
+goal model, MARE is used to generate the roles and the agents.
+
+
+Results and Analyses
+
+
+In our first research question, we evaluate the performance of the
+requirements modeling by MARE compared with the previous automated
+requirements modeling approaches.
+
+
+RQ1:How do the requirements models generated by MARE compared to the
+SOTA approaches?
+
+
+TABLE
+
+
+Setup. We evaluate baselines (Section
+[3.4]) and MARE on 9 evaluation cases and 1 public evaluation dataset (Section
+[3.2]). The evaluation metrics are described in
+Section [3.3], i.e., the Precision (P), Recall (R), and
+F1. For all metrics, higher scores represent better performance. Given
+the name of each evaluation case, MARE can generate modeling elements.
+We compute these three metrics based on these modeling elements.
+
+
+Results. Table, Table and Table show the experimental results of the problem diagrams, the use case
+diagrams, and the goal models compared with three baselines. Red
+indicates improved, and green indicates decreased.
+
+
+Analyses. MARE achieves the best results among all baselines. For
+modeling problem diagrams, MARE (gpt-3.5-turbo) improves the SOTA
+approach, i.e., EPD, by 8.9% for average precision, by 24.4% for average
+recall and by 15.4% for average F1. Similarly, for modeling use case
+diagrams, MARE (gpt-3.5) outperforms the SOTA approach, i.e., IT4RE, by
+30.1% for average precision, 1.6% for average recall, and 23.8% for
+average F1. For modeling goal models, MARE (gpt-3.5) improves the SOTA
+approach, i.e., HAGM, by 0.4% for average precision, 0.7% for average
+recall, and 0.6% for average F1. These results indicate MARE can more
+accurately generate modeling elements in various requirements models.
+
+
+center
+
+
+In RQ2, we aim to evaluate the performance of requirement specification
+generated by MARE.
+
+
+RQ2: How do the requirements specifications generated by MARE?
+
+
+Setup. We evaluate MARE on 9 evaluation cases (Section
+[3.2]). Given the name of these cases, we collect
+the requirements specifications generated by MARE. To guarantee the
+correctness of the evaluation, we built an inspection team, which
+consisted of three master students. All of them are fluent English
+speakers and have done intensive research work with RE. Each student
+scored each of the 9 requirements specifications from three aspects
+(Section [3.3]). Finally, the average score was
+calculated.
+
+
+Results. Table shows the results of evaluation for
+requirements specifications generated by MARE (gpt-3.5-turbo).
+
+
+TABLE
+
+
+Analyses. MARE can generate requirement specifications for various
+software systems. For the 9 various software systems, the completeness
+score of the generated specification is between 0.78 and 1.21. The
+correctness score of them is between 1.53 and 1.85. Similarly, the
+consistency score of them is between 1.54 and 1.95. For average score,
+MARE achieves 0.98 for completeness, 1.92 for correctness, and 1.98
+for consistency. These results imply that MARE can effectively
+generate requirements specifications. We also notice that the
+completeness aspect is slightly lower than the correctness and
+consistency. By investigating the causes, we believe that there are two
+reasons. First, the reason why evaluators give lower scores for the
+completeness is that they think each section of the generated
+requirement specifications is insufficient. Second, the length of text
+is reduced by LLMs when generating long text.
+
+
+center
+
+
+RQ3:How does MARE perform compared to individual LLM on requirements
+modeling?
+
+
+Setup. We compare MARE with an individual LLM to generate
+requirements models on 5 public cases. For MARE, we compute three
+metrics (Section [3.3]) based on extracted requirements modeling
+elements from the generated requirements drafts. For the individual LLM,
+we directly use one LLM to extract requirements modeling elements from
+the requirements drafts generated by MARE and computer the same
+metrics. Besides, we use gpt-3.5-turbo as the individual LLM and select
+the use case diagrams.
+
+
+Results and Analyses. Table shows the comparative results between MARE and the individual LLM on 5
+public cases. MARE can generate more correct requirements modeling
+elements compared with the individual LLM on the 5 public cases. To be
+specific, MARE outperforms the individual LLM by 0.2% for average
+precision, 2% for average recall and 1.1% for average F1.
+
+
+center
+
+
+Related Works
+
+
+Deep-Learning-based Requirements Engineering. With the rapid
+development of the deep learning technique, many researchers are devoted
+to applying DL to RE to improve the effectiveness of software
+development [*REF*] [*REF*] [*REF*]. For Requirement
+elicitation task, recent work has more focus on mining user
+needs [*REF*] from the open source community [*REF*] and
+facilitating conversations [*REF*]. For Requirement modeling
+task, some researchers use pre-defined rules to extract modeling
+entities and relations [*REF*]. Others focus on building neural
+network models [*REF*] [*REF*] to extract the requirements
+models. Recent works also have attempted to explore the ability of LLMs
+for requirements modeling [*REF*]. For Requirement verification
+task, [*REF*] designed a tool to detect smell in requirements
+requests based on rules. Besides, many works focus on detecting
+ambiguous and inconsistent [*REF*] requirements. Compared to these
+existing studies, our work leverages LLMs throughout the entire
+requirements engineering through collaboration, rather than just dealing
+with a single task in RE.
+
+
+LLM-Based Multi-Agent Frameworks. LLMs have shown remarkable
+performance across a wide range of domains. [*REF*] improves the
+reasoning accuracy by leveraging multi-agent debate. [*REF*] proposed
+ChatDev, a virtual chat-powered software development company consisting
+of multiple agents based on LLMs. [*REF*] introduce MetaGPT, an
+innovative meta-programming framework incorporating efficient human
+workflows into LLM-based multi-agent collaborations. Compared to these
+studies, our work focuses on tasks in RE.
+
+
+conclusion
+
+
+In this paper, we propose MARE, a multi-agent collaboration framework
+based on LLMs, to improve the efficiency of processing requirements
+engineering tasks. In MARE, different agents perform requirements
+elicitation, requirements modeling, requirements verification, and
+requirements specification, respectively, and collaborate to generate
+the requirement specification. When conducting these tasks, some
+external knowledge has been used, e.g. The Modeler extracts the
+requirements models according to the &apos;Meta model&apos;; the Checker checks
+the models based on &apos;Accept criteria&apos;; and the Documenter produces the
+specification in terms of the &apos;Template&apos;. MARE can contribute to
+multiple LLMs (such as gpt-3.5-turbo). We demonstrate the superiority of
+MARE&apos;s requirements modeling capabilities by comparing three SOTA
+automated requirements modeling approaches. Besides, we have provided
+insights into the quality of the requirements specification generated by
+MARE.

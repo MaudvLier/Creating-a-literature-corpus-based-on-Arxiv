@@ -1,0 +1,904 @@
+SwiftRL: Towards Efficient Reinforcement Learning on Real Processing-In-Memory Systems
+
+
+Introduction 
+
+
+In recent years, Reinforcement Learning (RL) has seen important
+breakthroughs in various domains such as robotics, games, and
+healthcare  *REF*; *REF*; *REF*; *REF*; *REF*.
+All of these applications involve active interactions with the
+environment, from which observations are made in
+order to train the RL agent. Extending RL to real-world applications
+presents challenges, particularly in scenarios such as self-driving
+cars, where exploration and training in the field can be impractical and
+may even raise safety concerns while piloting a car due to delayed
+decisions stemming from the performance bottlenecks of underlying
+RL-based decision-making modules  *REF*; *REF*.
+
+
+Learning effective RL policies using
+pre-collected experience datasets reduces
+safety risks and the need for real-time interactions with the
+environment during training  *REF*; *REF*; *REF*.
+In this setting, a behavior policy interacts with the environment to
+collect a set of experiences and learns the optimal policy from
+pre-generated datasets during the training phase. Such offline RL has
+achieved considerable success in a diverse set of
+safety-critical applications, including healthcare decision-making,
+robotic manipulation skills, and certain recommendation
+systems  *REF*; *REF*; *REF*. Nevertheless, training from logs 
+to learn a behavior policy and making
+data-driven decisions is a performance-intensive process, and there
+may be a vast amount of data points during the training
+phase  *REF*. Furthermore, frequent (re)training will be
+necessary on newly acquired data on such safety-critical applications,
+where modern processor-centric systems face the challenge of having to
+perform costly data movement between memory and processor units before
+performing RL computations, negatively impacting both the total
+execution time and the resulting energy consumption  *REF*; *REF*; *REF*; *REF*.
+
+
+The Processing-In-Memory (PIM)  *REF*; *REF*; *REF*; *REF*; *REF* 
+computing paradigm, which places the processing elements inside or close
+to the memory chips, is well positioned to address the performance
+bottlenecks of memory-intensive workloads.
+Despite being researched for decades, real-world PIM chips have only
+recently entered the commercial market. The UPMEM PIM computing
+platform  *REF* is the first
+commercially available architecture designed to accelerate memory-bound
+workloads  *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*.
+Recent studies leverage PIM architectures to provide high performance
+and energy benefits on bioinformatics, neural
+networks, machine learning, database kernels, homomorphic operations and
+more  *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*;
+*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*.
+However, no prior work has explored the adaptation of RL workloads on
+this real-world PIM architecture and evaluated
+its potential to accelerate the RL training phase, which is critical in
+efficiently learning effective policies.
+
+
+In this paper, we present SwiftRL, where we accelerate RL
+algorithms, namely Tabular
+Q-learning  *REF*; *REF*; *REF* and
+SARSA  *REF*, on UPMEM PIM systems and measure their
+performance using two different environments and three sampling
+strategies. We implement performance optimization strategies during RL
+adaptation to the PIM system via approximating
+the Q-value update function (which avoids high performance costs due to
+emulation used by runtime libraries) and by adding certain custom
+PIM-specific routines needed by the underlying algorithms. Further, we
+evaluate the multi-agent version of Q-learning, showing how a real PIM
+system may be used for algorithmic scaling with
+multiple agents. Our experimental analysis
+demonstrates the performance and scalability of RL workloads across
+thousands of PIM cores on real-world OpenAI environments  *REF*.
+
+
+In summary, our paper makes the following contributions:: itemize
+We present a roofline model that highlights the memory-bounded behavior
+of RL workloads during their training phases.
+This motivates our SwiftRL design that accelerates the RL algorithms
+with PIM cores attached to the memory banks responsible for storing
+training datasets.
+
+
+We study the benefit of real in-memory computing
+systems on two RL algorithms learning under two distinct environments
+and various sampling strategies for experience data: sequential,
+stride-based, and random.
+
+
+We conduct scalability (strong scaling) tests by evaluating our RL
+workloads on thousands of PIM cores. Across all of our workloads, we
+observe a near-linear scaling of *MATH* in
+performance when the number of cores increases by *MATH* (125 to
+2000 PIM cores).
+
+
+Our experimental results demonstrate superior performance of
+the real PIM system over
+implementations on Intel(R) Xeon(R) Silver 4110
+CPU and NVIDIA RTX 3090 GPU, where the measured performance speedups of
+PIM adaptations are at least *MATH* and *MATH* respectively.
+
+
+Background and Motivation 
+
+
+Reinforcement Learning
+
+
+Reinforcement learning is a process where an agent learns to make
+decisions by mapping specific situations to actions in order to maximize
+a cumulative reward. The agent is not given explicit instructions on
+which actions to take; instead, it must experiment with different
+actions to discover which ones generate the greatest
+rewards  *REF*. In many real-world domains like guided navigation and autonomous mission
+controls, the RL agent learns entirely from a dataset of past
+interactions rather than interacting in real-time with the
+environment  *REF*. The dataset can be collected from
+agents following suboptimal or exploratory
+policies  *REF*; *REF*. The data logs include
+tasks such as Frozen Lake and Taxi  *REF*. To
+illustrate, frozen lake environment involves crossing a frozen lake on
+foot from start to goal without falling into any
+holes. The player may not always move in the
+intended direction due to the slippery nature of the frozen
+lake  *REF*. The taxi environment involves navigating to
+passengers in a grid world, picking them up, and dropping them off at
+one of four locations  *REF*. The end goal in this
+setting is still to optimize a reward function.
+
+
+To elaborate on the operational workflow of offline reinforcement
+learning, we illustrate the process in
+Figure 1. We collect a large set of experiences using an unknown behavior policy
+*MATH*, and the obtained dataset is labeled as
+*MATH*. We perform this step once
+prior to the training phase of the reinforcement learning algorithm. In
+the offline training phase, the learning algorithm processes data tuples
+known as experiences in the dataset, which includes states, actions,
+rewards, and next states (*MATH*)  *REF*.
+The learning algorithm uses this data to
+repeatedly update a policy, specifically refining the quality values
+associated with state-action pairs until the expected rewards are
+reached. This involves reading (memory reads) from the dataset,
+learning, and then writing (memory writes) these updated quality values
+associated to the state-action pairs to the
+Q-table. After thoroughly training the
+policy (i.e., constructing the final Q-table) for a number of
+episodes, the policy is then ready for testing and deployment.
+
+
+FIGURE
+
+
+RL algorithms typically exhibit memory-bounded behavior due to repeated
+memory accesses during the training phase. This involves iterating over
+the dataset multiple times to refine the policy and construct the final
+Q-table. To quantify the memory-boundedness of the CPU versions of our
+RL workloads (Q-learning  *REF*; *REF*; *REF*,
+and SARSA learner  *REF*), we employ a roofline
+model  *REF* to visualize the extent to which our
+workloads are constrained by memory bandwidth and computational limits.
+Figure 2 shows the roofline model on an Intel(R) Core(TM) i7-9700K CPU (Coffee lake) with
+Intel Advisor  *REF*.
+
+
+The shaded area at the intersection of DRAM bandwidth and the peak
+compute performance roof is defined as the memory-bound area in the
+roofline plot. We make a key observation from
+Figure 2 that both
+the Q-learner and SARSA-learner CPU versions are in the memory-bound
+region. This is because their performance is primarily constrained by
+low DRAM bandwidth, which prevents the RL algorithms from achieving the
+maximum possible hardware performance. As a result, these RL workloads
+are potentially suitable for PIM.
+
+
+FIGURE
+
+
+Processing-In-Memory 
+
+
+Recently, real-world Processing-In-Memory
+(PIM)  *REF* systems have emerged and are now part of the market landscape, with
+UPMEM  *REF* pioneering the first-ever commercialization of a PIM
+architecture. Additionally, there have been
+announcements regarding Samsung HBM-PIM  *REF*; *REF*,
+Samsung AxDIMM  *REF*, SK Hynix AiM  *REF*, and Alibaba
+HB-PNM  *REF*. All these architectures have been prototyped
+and evaluated on real systems, sharing key and significant
+characteristics, as illustrated
+in Figure 3 for the UPMEM PIM system. First, these PIM systems
+feature a host CPU processor integrated with standard main memory, a
+deep cache hierarchy, and PIM-enabled memory modules. Second, the
+PIM-enabled memory contains multiple PIM chips connected to the host CPU
+through a memory channel. Third, the PIM processing elements operate at
+relatively low frequencies, typically a few hundred MegaHertz. Each PIM
+core (i.e., processing element; PIM PE) may include a small private
+instruction memory and a small data storage (scratchpad cache) memory.
+Fourth, PIM PEs can access data in their local memory bank, and there is
+typically no direct communication channel among the PIM cores. However,
+communication between multiple PIM cores occurs typically through the
+host CPU processor in architectures like
+UPMEM  *REF*; *REF*; *REF*,
+HBM-PIM  *REF*; *REF*, and AiM  *REF*.
+
+
+FIGURE
+
+
+In this study, we use UPMEM PIM, which uses conventional 2D DRAM arrays
+and tightly integrates them with general-purpose PIM cores, namely DRAM
+Processing Units (DPUs), on the same chip. UPMEM-based PIM systems use
+the Single Program Multiple Data (SPMD)  *REF* programming
+model. The DPUs are programmed using the C language with additional
+library calls  *REF*; *REF*; *REF*; *REF*, while the host
+library offers C++, Python, and Java API support. The UPMEM
+SDK  *REF* supports common C data types and interfaces seamlessly
+with the LLVM compilation framework  *REF*. For a
+comprehensive listing of supported instructions, we refer the reader to
+the UPMEM PIM user manual  *REF*.
+
+
+The state-of-the-art UPMEM architecture has 20 PIM-enabled DIMMs, each
+with two ranks of 8 PIM chips. In total, 2,560 DPUs (PIM cores) are
+deeply pipelined and implemented with fine-grained
+multi-threading  *REF*; *REF* providing
+a peak throughput of 1 TOPS (*MATH*, *MATH*). Each PIM chip
+has eight 64-MB DRAM banks, with a programmable PIM core, 24-KB
+instruction memory (IRAM), and a 64-KB scratchpad memory (WRAM) coupled
+to each bank  *REF*. The DPUs have in-order 32-bit
+RISC-style instruction set architecture operating at 450
+MHz  *REF*; *REF*. The DPU has 24 hardware threads, each with 24
+32-bit general-purpose registers. They include native support for 32-bit
+integer addition/subtraction and 8-bit multiplication. The complex
+operations, such as the multiplications on 64-bit integers, 32-bit
+floating point operations, and 64-bit floating point operations, are
+emulated by the run-time library and take tens to thousands of
+cycles  *REF*; *REF*; *REF*; *REF*.
+
+
+The conventional main memory and PIM-enabled memory modules exhibit
+distinct data layouts. The host processor can access MRAM banks for
+tasks such as copying input data (from main memory to MRAM, i.e., CPU to
+DPU) and retrieving results (from MRAM to main memory, i.e., DPU to
+CPU). Since there are no direct communication channels between DPUs,
+inter-DPU communication occurs exclusively through the host CPU,
+utilizing parallel CPU-DPU and DPU-CPU data
+transfers  *REF*; *REF*; *REF*.
+
+
+Even though we demonstrate adaptation of RL workloads to UPMEM
+architecture, our proposed optimization strategies are versatile and can
+be deployed on other real PIM hardware, resembling the architecture
+illustrated in Figure 3. Thus, we use the terms PIM core, PIM thread, DRAM
+bank, scratchpad, and CPU-PIM/PIM-CPU data transfer, which correspond to
+the DPU, tasklet, MRAM bank, WRAM, and CPU-DPU/DPU-CPU transfer in the
+PIMs implemented by UPMEM. For more detailed analysis of the UPMEM
+architecture, we refer the reader to  *REF*; *REF*; *REF*; *REF*.
+
+
+SwiftRL Design and Implementation 
+
+
+In this section, we first study the memory
+behavior of RL workloads and their performance bottlenecks. We
+then demonstrate our workload adaptation
+strategies for PIM.
+
+
+Memory Behavior of RL workloads 
+
+
+The training phase of offline reinforcement learning is heavily
+influenced by the need to access experiences stored in a dataset, which
+were gathered using a specific behavior policy. This phase often
+encounters memory bottlenecks due to two primary reasons:  RL algorithms
+sequentially process large volumes of historical experience data for
+optimal policy learning, and  Different sampling strategies (impacting
+data locality) are used during the learning process. For instance,
+complex environments (e.g., Atari  *REF*,
+StarCraft  *REF*; *REF*) typically require the
+agent to explore a broad range of the
+state-action space in early time-steps, so the agent performs random
+sampling. This random sampling can result in irregular memory access
+patterns and poor data locality as the state-action space
+expands  *REF*; *REF*; *REF*.
+To mitigate these bottlenecks, we first implement our workloads with
+different sampling strategies and test the efficiency of PIM. We
+distribute data chunks across various PIM cores in memory to accelerate
+the training phase and execute batch updates for each iteration
+in near-bank PIM cores  *REF*; *REF*; *REF*.
+
+
+Implementation of RL algorithms on PIM Architecture 
+
+
+Tabular Q-learning  *REF*; *REF*; *REF* and
+SARSA  *REF* are popular RL algorithms widely used
+in various applications  *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF* 
+and as part of machine learning for hardware/software
+systems  *REF*; *REF*; *REF*; *REF*; *REF*.
+Both the algorithms learn from Q-tables. The Q-tables store the
+quality values associated with state-action pairs.
+
+
+Q-learning 
+
+
+Tabular
+Q-learning  *REF*; *REF*; *REF* is a
+widely-used model-free and off-policy RL
+workload  *REF*; *REF*; *REF* that learns through a trial-and-error
+approach  *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*.
+Agents interact with the environment based on some off-policy
+approach  *REF*; *REF* like random selection or epsilon greedy. In order to train the
+workload offline, we employ a behavior policy (i.e., random action
+selection)  *REF*; *REF* to collect the dataset *MATH* once. While
+we use the random action selection, other policies such as epsilon
+greedy and boltzmann can also be used to execute actions on the
+environment and log the
+experiences  *REF*; *REF*; *REF*.
+The objective in this offline setting is still to collect enough
+experiences and learn a policy (i.e., constructing the final Q-table)
+that maximizes the expected return  *REF*.
+
+
+Each experience tuple in the dataset is represented as *MATH* 
+(*MATH*), where *MATH* denotes the index of the transition
+within the dataset. *MATH* represents the next state resulting from taking
+action *MATH* in state *MATH*, and the reward *MATH* is determined by the
+state-action pair *MATH*.  *MATH* is a
+discount factor that determines the balance between the immediate and
+future rewards  *REF*. *MATH* is the learning rate parameter that determines the rate at
+which the quality values associated with the state-action pairs in the
+Q-table are updated  *REF*.
+
+
+To illustrate the offline training phase of the tabular Q-learning
+algorithm, we outline the steps in
+Algorithm. The Q-learning algorithm initializes a Q-table
+with arbitrary values. For each episode (line 5), multiple batches (line
+7) are selected to iteratively update the Q-values (line 12) based on
+the total number of experiences in the
+dataset  *REF*. The term *MATH* is
+the maximum Q-value for the next state *MATH*, across all possible actions
+*MATH*  (line 10). In other words, it calculates the highest Q-value for
+the next state *MATH*, by trying out all the available actions *MATH*,
+ensuring the selection of the most rewarding action for the next state.
+
+
+We note that multi-agent reinforcement learning
+has recently been widely adopted in several
+popular domains from gaming to autonomous
+driving  *REF*.
+In this decentralized Q-learning approach, each agent maintains its own
+experience dataset and updates its Q-table to make
+decisions  *REF*. In our modeling, the independent learners do
+not observe the actions of other agents in the system.
+
+
+ALGORITHM 
+
+
+PIM Implementation:  Initially, the training dataset (*MATH*)
+resides in the main memory of the host CPU. The first step involves
+transferring individual chunks of the training dataset to the local
+memories (DRAM banks) of PIM cores. To maximize parallelism in the
+Q-value update kernel, we partition the training dataset (*MATH*)
+so that each PIM core (*MATH*) handles a distinct chunk of data
+(*MATH*), enabling faster memory accesses. Secondly, within
+each PIM core (*MATH*), Q-learning updates (line 12 from
+Algorithm) are computed for each transition
+(*MATH*) in (*MATH*) using a single hardware
+thread (this work focuses solely on PIM-core parallelism). Each PIM core
+(*MATH*) is allocated a Q-table with arbitrary values, and all
+PIM cores train in parallel asynchronously updating their local Q-tables
+using the state-action-reward-next state trajectories. The third step
+involves transferring partial results obtained from processing the
+individual data chunk in a specific PIM core back to the host processor
+to aggregate the final Q-table. The operational workflow of SwiftRL
+execution on a real PIM system is described
+in Figure 4.
+
+
+FIGURE 
+
+
+We implement six versions of Q-learning with different input data types,
+and three sampling strategies (SEQ - sequentially sampling
+experiences, RAN - randomly selecting experiences to update for
+thorough exploration, and STR - selecting experiences at regular
+intervals). We note that experimenting with different sampling
+strategies enables us to assess their impact on the computational
+workload during the sampling phase.
+- Q-learner-FP32 trains with 32-bit real values for
+*MATH*, and Q *MATH* initialization and no
+scaling optimization. We use 32-bit data types as they provide a
+more accurate representation of transition data across episodes than
+16-bit data.
+- Q-learner-INT32 trains with 32-bit fixed point representations of
+*MATH*, Q *MATH* initialization, and we
+scale up the reward *MATH* for each experience  *MATH*,
+learning rate *MATH*, and the discount factor *MATH* by
+using a constant scale factor=10,000 (scale factor is chosen to
+prevent overflow and underflow errors while ensuring sufficient
+precision for floating-point multiplications) to mitigate the cost
+of floating-point multiplications for the update equation (line 12)
+in Algorithm. We scale down after the Q-value update and
+finally store the descaled value in the Q-table. This hybrid
+implementation is motivated by the fact that real-world PIM cores
+only support arithmetic operations of limited precision. For
+instance, UPMEM DPUs  *REF* execute naive 8-bit integer
+multiplication and emulate the 32-bit integer multiplication using
+shift-and-add instructions  *REF*; *REF*. Apart
+from UPMEM, other accelerators like HBM-PIM  *REF* and
+AiM  *REF* feature only 16-bit floating point operations.
+Additionally, replacing the compiler-generated 16-bit and 32-bit
+multiplications with custom 8-bit built-in
+multiplications  *REF* may be adopted to boost the
+training time further and reduce the number of instructions, but
+this optimization, which is specific to UPMEM, might only apply to
+some environments (e.g., frozen lake) which have limited value range
+that fits in 8 bits. Additionally, we implement custom routines such
+as linear congruential generator  *REF* to
+replicate the functionality of the &apos;rand()&apos; function within PIM
+cores (some standard library functions are not supported by UPMEM
+PIM architecture).
+- We evaluate the performance of the aforementioned two versions using
+different sampling strategies with the data laid out in diverse
+memory access patterns. The six implemented versions
+include: Q-learner-SEQ-FP32, Q-learner-RAN-FP32, Q-learner-STR-FP32,
+Q-learner-SEQ-INT32, Q-learner-RAN-INT32, Q-learner-STR-INT32.
+
+
+Multi-agent Q-learning
+
+
+For multi-agent Q-learning, we employ a random policy to explore the
+environment and log individualized experiences. Subsequently, we load
+the agent-specific datasets into the PIM cores&apos; local memories (DRAM
+banks). The only difference in this workload compared to the Q-learning
+is that each PIM core will have agent-specific experiences to learn
+from, enabling multiple independent learners concurrently. We pin each
+agent to a PIM core in this design and iteratively train on its unique
+dataset. The host processor retrieves the final Q-tables for multiple
+agents upon completion of the training process. Notably, the aggregation
+step would be unnecessary in this setting as the learners operate
+independently throughout the training.
+
+
+SARSA Learning 
+
+
+SARSA (State-Action-Reward-State-Action) is an on-policy algorithm that
+learns the optimal policy by continuously updating the policy toward
+achieving the maximum reward  *REF*. The only
+difference for SARSA compared to Q-learning is that, SARSA employs an
+epsilon-greedy approach  *REF* to select next action
+*MATH* and this function uses a custom routine (&apos;rand()&apos; function) to generate
+random action  *REF*. The
+SARSA update equation is: *MATH*.
+The terms are similar to Q-learning, and the SARSA algorithm has the
+same training pattern, but the key difference is *MATH* term, where
+the action *MATH* is the actual next action taken, following the policy
+being learned. Instead, in Q-learning maximum Q-value across all
+possible actions is used  *REF*.
+
+
+PIM Implementation: To extract parallelism in the SARSA learning
+update kernel, the first step involves partitioning the training dataset
+(*MATH*) into subsets of equal size so that each PIM core
+(*MATH*) receives a unique chunk of data (*MATH*).
+Secondly, a hardware thread is dedicated to computing SARSA
+updates within each PIM core (*MATH*). We note that, similar to the
+Tabular Q-learning implementation, we currently focus on the core-level
+parallelism in this work. In the third step, the results obtained from
+processing individual chunks of data within each PIM core
+(*MATH*) are then transferred back to the host processor. The
+host processor finally aggregates all the partial results from multiple
+PIM cores, facilitating the final Q-table learned using SARSA update
+rule  *REF*. SARSA learner follows the same
+arithmetic intensity as Q-learning since only one floating-point
+multiplication is needed, and we substitute it with the fixed-point
+representation and scaling optimization.
+
+
+We implement different variations of SARSA learning, featuring different
+data types (FP32 and INT32) and diverse sampling strategies.
+SARSA-learner-INT32 learning uses 32-bit fixed point representations of
+*MATH*, *MATH* initialization, and we scale up the
+reward *MATH* for each experience  *MATH*, learning rate
+*MATH*, and the discount factor *MATH* by using a constant
+scale factor=10,000 and scale down after the experience update and
+finally transfer Q-values back to the host CPU in original precision. We
+implement the SARSA-learner-INT32 as a substitute for the naive
+version (SARSA-learner-FP32) that trains with 32-bit real values (for
+variables mentioned above), which takes relatively longer execution
+cycles as the UPMEM PIM only supports native integer
+multiplications  *REF*; *REF*; *REF*; *REF*  (specifically
+8-bit). We evaluate the performance of the two variations mentioned
+above using diverse sampling strategies (SEQ - sequentially sampling
+experiences, RAN - randomly selecting experiences to update for
+thorough exploration, and STR - selecting experiences at regular
+intervals). The six implemented versions for SARSA are: SARSA-SEQ-FP32,
+SARSA-RAN-FP32, SARSA-STR-FP32, SARSA-SEQ-INT32,
+SARSA-RAN-INT32, SARSA-STR-INT32.
+
+
+Experimental Evaluation
+
+
+In this section, we first describe our experimental setup. Second, we
+evaluate SwiftRL in terms of training
+quality (Section 4.2), and performance scaling characteristics,
+specifically strong scaling results (Section 4.3). Third, we compare our PIM
+implementations to state-of-the-art CPU and GPU implementations (Section 4.4).
+
+
+Experimental Setup 
+
+
+Table 1 summarizes the specifications of the UPMEM
+PIM, CPU, and GPU systems. We perform our
+experiments on a real-world PIM server \156\ with 2,524 PIM cores
+running at 425 MHz and 158 GB of DRAM memory. The table also outlines
+the characteristics of the baseline CPU and GPU systems used for
+comparative analysis.
+
+
+TABLE
+
+
+The RL workloads are evaluated using popular environments, namely frozen
+lake and taxi, developed by Gym  *REF*. The taxi
+environment has a state space of *MATH* since there are 25 taxi
+positions, 5 possible locations of the passenger (including the case
+when the passenger is in the taxi), 4 destination locations, and an
+action space of *MATH*, while the frozen lake environment has a
+state space of *MATH* since the map size is *MATH* and an
+action space of *MATH*. In our experiments, we use a learning
+rate of 0.1, *MATH* - the discount factor, set to 0.95, and train the
+workloads for 2,000 episodes. To obtain a partially trained policy, we
+train a random behavior policy online and log the experiences until the
+policy performance achieves a performance threshold (Average reward) for
+frozen lake and taxi, respectively. We collected 1 million transitions
+for frozen lake and 5 million for the taxi paradigm. We collected more
+data for the taxi environment  *REF* because it
+encompasses *MATH* more states compared to the frozen lake
+envrionment  *REF*; *REF*.
+
+
+FIGURE
+
+
+RL Training Quality 
+
+
+The trained policy in Q-learning and SARSA is evaluated with the frozen
+lake and taxi environments. The hyper-parameters for the evaluation
+include 1,000 episodes with synchronization period (*MATH*) set to
+50  *REF*; *REF*. *MATH* refers to the
+communication rounds for the Inter-PIM core communication, where the
+total number of episodes, denoted by *MATH*, is assumed to be
+divisible by *MATH*. The algorithm outputs the final aggregated
+Q-estimate as the average of all local Q-tables. In this context,
+*MATH* is defined as *MATH*, representing the
+rounds of communication required in the training phase. Our performance
+results of PIM implementations takes into account the estimated time,
+which includes the impact of *MATH*, specifically in the
+context of Inter-PIM core communication.
+
+
+For the frozen lake environment, for Q-learner-SEQ, we estimate the
+average mean reward for 1000 episodes with synchronization
+period (*MATH*) set at 10, 25, and 50 is observed to be 0.74, 0.7295,
+and 0.70, respectively. These are relatively same or slightly better
+than CPU implementation. For the SARSA-learner-SEQ with a *MATH* of 50,
+a mean reward of 0.71 is registered against the 0.723 of the CPU
+version. We note that the Q/SARSA-learner-RAN/STR also perform on par
+with Q/SARSA-learner-SEQ.
+
+
+For the taxi environment, we evaluate an approximated model
+Q-learner-SEQ algorithm with synchronization period (*MATH*) set at 50
+is observed to be -7.9 against the -8.6 of the CPU version. The
+SARSA-learner-SEQ exhibits similar behavior with *MATH* of 50, a mean
+reward of *MATH* against the *MATH* of the CPU version. Even with INT32,
+we convert the values back from INT32 to FP32 using scaling optimization
+before the PIM cores transfer the partial results to the host CPU.
+
+
+FIGURE
+
+
+Performance Analysis of PIM Kernels: Scaling PIM Cores 
+
+
+In this section, we evaluate the performance scaling characteristics of
+our RL workloads using strong scaling experiments.
+Figure 5 illustrates the performance scaling results across 125-2000 PIM cores
+for various versions of our RL workloads. We present the total execution
+time, which is further broken down into (1) the execution time of the
+PIM kernel, (2) communication time between the host processor and PIM
+cores for initial dataset transfer (CPU-PIM), (3) communication time
+between PIM cores and the host CPU for final result transfer (PIM-CPU),
+and (4) communication time between PIM cores for Q-values
+transfer (Inter PIM core). The Inter PIM core synchronization is
+estimated using the synchronization period (*MATH*), where the total
+number of episodes, denoted by *MATH*, is assumed to be divisible
+by *MATH*. Given that we train for 2,000 episodes with *MATH* set to 50,
+the value of *MATH* is 40. During this process, the local
+results are aggregated before advancing to next episode.
+
+
+To demonstrate how the performance of RL workloads scales with an
+increasing number of PIM cores, we maintain a fixed dataset size for the
+frozen lake and taxi environments  *REF*. We make four
+observations from Figure 5 and
+Figure 6. First, we observe that the
+PIM kernel time scales linearly with the PIM cores. On average, across
+all RL workloads for FP32 and INT32, the speedup from 125 PIM cores to
+2,000 PIM cores exceeds *MATH*. The scaling for the taxi environment
+also follows a similar trend in performance
+scaling (Figure 6). This speedup can be attributed to the large
+memory bandwidth and increased concurrency offered by scaling the number of PIM cores.
+
+
+Second, the communication cost between PIM cores
+is relatively small for RL workloads with the frozen lake scenario due
+to minimal data transfer between PIM cores. The largest fraction of
+Inter PIM core synchronization over the total execution is *MATH* for
+Q-learner-STR-INT32 with 2000 PIM cores for the taxi environment. Even
+so, 2000 PIM core configuration significantly reduces the overall
+execution time for Q-learner. This trend is similar in
+Q-learner-SEQ-INT32 with *MATH* over the total execution time spent
+on inter-PIM core communication, followed by *MATH* for
+Q-learner-RAN-INT32 in the taxi
+environment (Figure 6). This is because the taxi environment requires
+approximately *MATH* more data (Q-values compared to frozen
+lake  *REF*) that needs to be
+transferred between the PIM cores. Overall, the
+prominence of inter-PIM core communication correlates with the amount of
+data exchanged, with taxi environment exhibiting dominance due to its
+higher data exchange demands compared to frozen lake.
+
+
+Third, in terms of initial setup costs,
+Q-learner-STR-INT32 incurs the highest cost at *MATH* in the frozen
+lake environment due to the initial dataset transfer (CPU-PIM) amount to
+each PIM core is comparatively more substantial than the small amount of
+data (Q-values) being transferred between the PIM cores.
+
+
+Fourth, the communication cost associated with
+initial setup (CPU-PIM) and final PIM-CPU transfers exhibit negligible
+overhead on the total execution time for the taxi environment.
+
+
+Comparison with CPU/GPU platforms 
+
+
+We implemented the CPU and GPU versions of all of our RL algorithms that
+are widely considered as state-of-the-art
+baselines  *REF*; *REF*; *REF*; *REF*: (1) CPU-V1: Multiple threads update 
+a shared Q-table through the update
+function. Each thread operates on a portion of the dataset
+independently, and the same Q-table is used for updates, and 
+(2) CPU-V2: Distributed version, where multiple threads update the portions of data
+independently by using local Q-tables.
+
+
+Figure 7 illustrates the execution times of Q-learning and SARSA learning on PIM,
+CPU, and GPU with frozen lake and taxi
+environments  *REF*. We make four observations. First,
+from our analysis, we observe that both Q-learner
+and SARSA show higher execution times across SEQ/STR/RAN due to
+floating-point operations, which are not natively supported by our PIM
+architecture  *REF*; *REF*. Despite this limitation, our
+Q-learner-SEQ-FP32 and SARSA-SEQ-FP32 workloads are *MATH* and
+*MATH* faster than their counterpart CPU versions (CPU-V1) for
+frozen lake task.
+
+
+Second, for frozen lake, when using random
+sampling to prioritize exploration (Q-learner-RAN-FP32), we observed a
+speedup of *MATH* compared to the CPU-V1 version. However, in the
+taxi environment, compared to the CPU-V1, our PIM
+implementation (Q-learner-SEQ-RAN-STR-FP32) is almost *MATH* 
+slower on average due to the large number of floating point operations
+performed corresponding to huge state-action size. Compared to the
+CPU-V2 in the taxi environment, we observe a slowdown in execution time
+for sequential and stride-based sampling techniques against the CPU-V2.
+This is due to CPU hardware prefetcher&apos;s ability to enhance cache
+locality for sequential and stride memory access patterns, where
+CPU-cache latencies are lower than that of PIM-DRAM.
+
+
+Third, using fixed-point representation (INT32)
+offers higher performance than the floating-point (FP32) format. For
+example, Q-learner-SEQ-INT32 is *MATH* faster than
+Q-learner-SEQ-FP32, and the trend is similar across various sampling
+strategies. This is the result of using natively supported instructions
+(even though 32-bit integer multiplications are emulated by the run-time
+library  *REF*; *REF*).
+
+
+Fourth, the GPU version of Q-learning with
+sequential sampling outperforms Q-learner-SEQ-FP32-FL by *MATH*,
+benefiting from the Ampere architectures&apos; large set of SIMD lanes and
+enhanced memory bandwidth. Notably, our Q-learner-SEQ-INT32-FL achieves
+a substantial speedup of *MATH* over the GPU version due to INT32
+instructions. The SARSA-SEQ-INT32-FL achieves a speedup over
+SARSA-SEQ-FP32-FL by *MATH*.
+
+
+Finally, our findings highlight the UPMEM architectures potential for
+accelerating the training of multiple independent Q-learners, where each
+agent trains an offline dataset of size 10,000 (frozen lake) transitions
+and learns individual optimal policies. To illustrate, when training
+1,000 agents, each with 10,000 transitions, for 2,000 episodes, the
+overall execution time is approximately 996.52 seconds. Scaling up to
+2,000 agents increases the execution time to about 1,943.78 seconds on
+an Xeon CPU.
+
+
+Our PIM implementation with fixed-point representation introduces
+agent-level parallelism, demonstrating algorithmic scalability. By
+training individual agents on PIM cores, we achieve significant speedup
+compared to their baseline CPU version, which utilizes multiple
+independent Tabular Q-learners. Specifically, SwiftRL achieves a speedup
+of approximately *MATH* for 1,000 agents and *MATH* for
+2,000 agents when executing on 1,000 and 2,000 PIM cores, respectively.
+
+
+Key Takeaways 
+
+
+Our design and evaluation of SwiftRL, the first-known implementation
+that accelerates RL workloads on processing-in-memory systems, gave us
+several insights:
+- RL workloads demonstrate reduced performance potential on UPMEM
+hardware PIM accelerator due to instruction emulation by the runtime
+library as the floating-point operations are not supported by the
+UPMEM platform. To tackle this, we adopt 32-bit fixed-point
+representations (Section 4.3).
+- The most suited reinforcement learning (RL) algorithms for the UPMEM
+PIM architecture are those that have memory-intensive tasks and
+require minimal communication between the inter-PIM cores. For
+instance, our study shows multi-agent
+Q-learning demonstrates better hardware adaptability (Section 4.4).
+- Scaling the PIM cores linearly leads to a nearly proportional
+reduction in the execution time for a given working set
+size (Section 4.3).
+- We demonstrate that PIM is beneficial for random memory accesses.
+However, when it comes to accessing data sequentially or in
+stride-based patterns, the CPU hardware prefetcher&apos;s strong
+capability in managing data locality results in improved
+performance (Section 4.4).
+
+
+Related Work 
+
+
+To our knowledge, our work represents the first instance of adapting RL
+on real PIM architectures. We have already
+extensively compared SwiftRL to state-of-the-art CPU-based and GPU-based
+systems and presented the strong scaling experiments in
+Sections 4.4 and 4.3, respectively. In this
+section, we briefly summarize other related works in two categories: 
+Outlining recent advancements in leveraging PIM systems to accelerate
+workloads, including deep learning and machine learning.  Reviewing
+prior efforts to accelerate RL and highlighting how our work
+distinguishes itself.
+
+
+Processing-in-Memory Systems
+
+
+DL Training and Inference
+
+
+Prior efforts leverage PIM systems to accelerate deep learning (DL)
+inference and training phases  *REF*. For instance, various proposals have
+been studied to accelerate DL inference phases, including
+CNNs  *REF*; *REF*; *REF*, RNNs  *REF*; *REF*, and recommendation
+systems  *REF*; *REF*. Another avenue of exploration in
+academia and industry capitalizes on the analog computation capabilities
+of non-volatile memories (NVMs), particularly for tasks like
+matrix-vector multiplication, thereby facilitating the training of deep
+neural networks  *REF*; *REF*; *REF*.
+Samsung&apos;s AxDIMM is an illustrative prototype, embedding an FPGA fabric
+in the DIMM&apos;s buffer chip, specifically designed to accelerate
+recommendation inference in Deep Learning Recommendation Models
+(DLRMs)  *REF*. Additionally, SK Hynix has introduced the
+Accelerator-in-Memory, a PIM architecture based on GDDR6, featuring
+specialized multiply-and-accumulate units and lookup-table-based
+activation functions to expedite deep learning workloads  *REF*.
+
+
+PIM for ML algorithms
+
+
+Few related prior works propose solutions for ML algorithms and evaluate
+the performance benefits of PIM technologies  *REF*; *REF*; *REF*.
+For instance, UPMEM PIM is the first real-world processing-in-memory
+architecture used to accelerate ML workloads encompassing tasks like
+linear regression, logistic regression, and K-nearest
+neighbors  *REF*. Another line of work leverages
+different memory technologies (e.g., 3D-stacked
+DRAM  *REF*; *REF*, SRAM  *REF*) to accelerate memory-bound machine
+learning applications  *REF*; *REF*; *REF*; *REF*.
+None of these works present a comprehensive implementation and
+evaluation of RL algorithms utilizing a real processing-in-memory
+architecture.
+
+
+UPMEM PIM system
+
+
+Several studies have focused on characterizing and outlining the
+architecture of UPMEM&apos;s PIM system  *REF*; *REF*; *REF*; *REF*; *REF*.
+There are several works that explore accelerating variety of
+applications and algorithms UPMEM&apos;s PIM system, such as ML
+training/inference  *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*,
+bioinformatics  *REF*; *REF*; *REF*; *REF*; *REF*,
+analytics &amp; databases  *REF*; *REF*; *REF*; *REF*,
+security  *REF*; *REF*, distributed
+optimization algorithms  *REF* and
+more  *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*.
+However, none of the prior works have explored reinforcement learning
+(RL) algorithms on UPMEM&apos;s PIM system, a gap that we fill by
+implementing and conducting a comprehensive evaluation in this
+paper.
+
+
+Accelerating Reinforcement Learning Workloads
+
+
+Distributed Training
+
+
+Prior works on distributed training have been proposed to accelerate the
+training phase of RL workloads  *REF*; *REF*; *REF*; *REF*; *REF*; *REF*.
+Another strategy for multi-agent RL acceleration is to restrict the
+agent interactions to one-hop neighborhoods and adopt a distributed
+training strategy to accelerate the training phase  *REF*.
+However, training on VM-based approaches still requires extensive
+management of the cluster and deploying the training jobs. Prior
+studies, like FA3C  *REF*, have focused on accelerating multiple
+parallel worker scenarios, where each agent is controlled independently
+within their own environments using single-agent RL algorithms. Contrary
+to that, SwiftRL designs a distributed learning architecture, with PIM
+cores executed concurrently without extra cluster management.
+
+
+Quantization
+
+
+Low-precision (Quantization) training for neural networks reduces the
+neural network weights, enables faster compute operations, and minimizes
+the memory transfer computation time. Quantization aware
+training  *REF*; *REF*, post-quantization
+training  *REF*; *REF*, and mixed
+precision  *REF* demonstrated that neural networks may
+be quantized to a lower precision without significant degradation in the
+accuracy or rewards. Furthermore, to speed up the training, prior works
+have shown that half-precision quantization can yield significant
+performance benefits and improve hardware efficiency by reducing
+precision from FP32 to FP16 or even lower while achieving adequate
+convergence  *REF*. Other relevant approaches include
+QuaRL  *REF*, where the authors demonstrated that applying
+quantization on RL algorithms and quantizing the policies down to ≤ 8
+bits led to substantial speedups compared to full precision training. In
+contrast, we accelerate the training phase of offline RL workloads with
+large datasets on a real-world PIM architecture that exhibits a
+memory-bounded behavior.
+
+
+Conclusion 
+
+
+In this paper, by adapting and implementing popular RL algorithms on a
+real Processing-in-Memory (PIM) architecture, we
+explore the potential of memory-centric systems in Reinforcement
+Learning (RL) training. We evaluate our PIM-based Q-learning and SARSA
+algorithm implementations on the UPMEM PIM
+system with up to 2000 PIM cores. We explore
+several optimization strategies that will enhance the performance of
+these RL workloads under different input data types and sampling
+strategies. We evaluate the quality, performance, and scalability of RL
+workloads on PIM architectures compared to
+state-of-the-art CPU and GPU baselines. Our findings indicate that PIM
+systems offer superior performance compared to CPUs and GPUs when
+handling memory-intensive RL workloads. Our studies demonstrate a
+near-linear scaling of 15× in performance when the number of PIM cores
+increases by a factor of 16× (125 to 2000). Our research results
+demonstrate that PIM systems have the potential to serve as
+effective accelerators for a diverse range of RL
+algorithms in the future.

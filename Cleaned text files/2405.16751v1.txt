@@ -1,0 +1,591 @@
+LLM-Based Cooperative Agents using Information
+
+
+Relevance and Plan Validation
+
+
+Introduction
+
+
+Digital agents collaborating with humans are crucial in games,
+educational platforms, and virtual universes. Known as Non-Player
+Characters (NPCs), these agents enhance user immersion in commercial
+applications but often operate on pre-scripted behaviors, limiting
+adaptability and resulting in repetitive actions. In games like World
+of Warcraft and Diablo, NPCs who must be escorted by the player often
+fail to comprehend the situational context, rushing into danger and creating challenges for players. 
+This lack of adaptive
+intelligence detracts from the gaming experience, highlighting the
+need for advanced AI-driven agents.
+
+
+Recently, OpenAI showcased an AGI Robot using large language models
+(LLMs) for recognition of natural language and household tasks.
+Inspired by this, we aim to create adaptive, intelligent cooperative
+agents. By facilitating natural language interactions, high-level
+planning, and scene-dedicated low-level controllers, these LLM-based
+agents will address cooperative problems more effectively than
+traditional methods relying on static, learnable models or
+reinforcement learning.
+
+
+This paper introduces REVECA, a RElevance and
+Validation-Enhanced Cooperative Language Agent, an
+LLMbased agent framework addressing decentralized control, costly
+communication, complex tasks, partially observable environments, and
+noisy settings. Similar to prior work *REF*, we focus
+on multi-objective household tasks using well-constructed virtual
+settings. Specifically, we focus on two decentralized agents
+cooperating on a multi-objective, long-horizon household task under
+complex partial observations. Additionally, continuous communication
+incurs time costs, and irrelevant dummy objects add noise,
+complicating the environment.
+
+
+The primary advancements of REVECA over previous works are threefold.
+Firstly, REVECA leverages LLMs to assess the relevance of newly
+acquired information before storage, prioritizing it and reducing
+reasoning complexity for planning. Previous research
+*REF*, *REF* stored all information in
+memory, leading to performance declines due to increasing memory
+requirements, limited context length, and intensifying reasoning
+complexity. Some studies *REF*, *REF* used
+queues to retain recent K pieces of information, but this resulted
+in suboptimal planning due to the limited historical information.
+
+
+Secondly, REVECA uses a novel modular cognitive architecture to
+mitigate false planning. This occurs in partially observable
+environments because changes induced by collaborators are not
+immediately reflected in the agent&apos;s memory. Traditional approaches
+*REF* update information via constant pre-task
+communication, which is costly. REVECA&apos;s Validation Module checks plan
+validity by assessing information relevance and estimating
+collaborators&apos; recent plans, enabling communication only when
+necessary and improving efficiency and effectiveness.
+
+
+Lastly, REVECA excels in planning by incorporating spatial
+information. Previous studies often neglected spatial information due
+to its integration challenge in language models. Although some studies
+*REF*, *REF* have attempted to incorporate
+spatial information through image or text representations, they did
+not report performance improvements. We attempt to address this by
+considering the spatial distance between agents and objects in LLM
+reasoning processes. By employing a prompting technique, that
+effectively integrates numerical distances, REVECA enhances the
+cooperative performance.
+
+
+We conducted comparative analysis, ablation studies, and user studies,
+using three multi-room simulation environments: Communicative
+Watch-And-Help (C-WAH), ThreeDWorld Multi-Agent Transport (TDW-MAT),
+and Noisy-C-WAH. Noisy-C-WAH, a variant of C-WAH with dummy obstacles,
+tested REVECA in noisy settings. Results show that REVECA achieves
+higher success rates, efficiency, and robustness than recent studies.
+
+
+In summary, our main contributions are as follows:
+- Addressed cooperative challenges: decentralized control, costly
+communication, complex long-horizon tasks, partially observable
+environments, and noisy multi-object settings.
+- Developed an LLM-based relevance estimation method for optimal
+planning and robustness in noisy environments.
+- Introduced an agent framework that validates plans and incorporates
+spatial information for mitigating false planning.
+- Conducted extensive evaluations that show REVECA&apos;s superior
+performance over previous studies in C-WAH, TDW-MAT, and
+Noisy-C-WAH.
+- Performed a user study demonstrating potential trustworthy human-AI
+cooperation.
+
+
+Related Work
+
+
+Research on cooperative agents has a long history *REF*,
+*REF*. The traditional cooperative agent has been
+studied across various directions, mainly leveraging reinforcement
+learning technique *REF*. These
+approaches have facilitated the development of agents that can
+autonomously learn to cooperate by maximizing cumulative rewards
+through trial and error in various simulated settings. Notable studies
+have explored aspects such as visual reinforcement learning for
+navigation and interaction *REF*, mapping state spaces
+to actions effectively *REF* and enhancing the
+robustness of learning algorithms in multi-agent systems
+*REF*. 
+
+
+FIGURE
+
+
+Some other researchers have aimed to develop platforms to test
+cooperative agents *REF*. These provide standardized environments to
+benchmark the performance and generalization capabilities of the
+agents.
+
+
+However, a significant limitation of previous work is the lack of
+support for natural language-based communication between agents
+*REF*. The effective communication is crucial for enhancing collaboration,
+especially in complex, multi-agent environments. Natural language
+processing capabilities enable agents to exchange information in a
+more intuitive and human-like manner.
+
+
+LLMs have recently attracted significant interest in both academia and
+industry, also gaining attention in the field of agents
+*REF*, *REF*. The common-sense reasoning
+capabilities and natural language processing abilities of LLMs have
+contributed to enhancing the agent&apos;s decision-making *REF* and planning *REF* abilities.
+
+
+Recent studies on LLM-based embodied agents *REF* represent a
+significant step forward in this field. These agents utilize LLMs for
+understanding the environment, planning tasks, and communicating with
+human users and other agents. However, existing studies face
+suboptimal performance due to issues with LLMs, such as inadequate
+spatial data processing capabilities *REF*,
+performance degradation with large input data *REF*,
+and insufficient reasoning abilities with complex reasoning tasks *REF*. 
+
+
+This paper introduces REVECA, an LLM-based embodied agent framework
+designed to address the limitations of the previous works by
+leveraging information relevance, plan validation, and effective
+communication strategies.
+
+
+PROBLEM DEFINITION
+
+
+This paper focuses on a scenario where two decentralized intelligent
+agents collaborate on a long-horizon rearrangement task
+*REF* within an indoor multi-room environment,
+utilizing noise-free broadcast communication. While the focus is on
+two agents, the methods and experiments are generalizable to scenarios
+with more agents. The agents can perform navigation actions,
+interaction actions, and communication actions. The task includes
+several predicates gi with specified counts, such as IN
+(cupcake, fridge): 2, which represents the sub-task of placing two
+cupcakes in the fridge.
+
+
+FIGURE 
+
+
+REVECA framework
+
+
+Our framework comprises six key modules: Communication Module,
+Observation Module, Memory Module, Planning Module, Validation Module,
+and Execution Module. Communication Module facilitates natural
+language-based information sharing. Observation Module gathers and
+categorizes information into four relevance levels while the agent
+explores the environment. Memory Module comprises six components:common goal, communication history, scene observation history,
+self-information history, collaborators-information history, and a
+low-level action skill book. It is responsible for storing and
+updating data. Planning Module employs memory data to generate
+efficient plans, considering information relevancy, predicted
+proximity of all agents, and collaborators&apos; information history.
+Validation Module checks for false plans by generating and
+confirming collaborators&apos; possible interaction scenarios between
+observation and planning times, then discards and reformulates plans
+if needed. Execution Module executes validated plans using the
+low-level action skill book. The modular design of REVECA is
+illustrated in *REF* and an example scenario
+presenting REVECA&apos;s workflow is depicted in *REF*.
+
+
+Communication for information sharing
+
+
+The Communication Module, facilitating natural language information
+sharing, is invoked in four cases. 1) Simulation Initiation:
+Agents exchange initial information about their locations and
+surrounding objects. 2) Validation Requests: Agents query about
+task history. 3) Response to Validation Requests: Agents provide
+task completion history. 4) Sub-goal Achievement: Agents announce
+sub-goal completion. The detailed illustrations for each case are
+presented in *REF*. 
+
+
+Observation-time: Relevance Estimation and Storage
+
+
+During observation time, agents acquire four types of information:
+scene, self-agent, communication, and collaboratoragent. Scene
+information includes object details like 3D position, ID, name, room,
+and interactions. Self-agent information includes the held object,
+current position, and completed plan history. These are obtained at
+every simulation step. Communication information, conveyed in natural
+language, is obtained when it occurs. Collaboratoragent information
+is acquired when communicating with or seeing a specific agent. It
+includes the same details as self-agent information.
+
+
+Scene and communication information are stored in scene observation
+history and communication history, respectively, with four
+relevance levels (strong, medium, low, none) assessed by LLMs. This
+prioritizes information, avoiding the need to re-reference all memory
+entries and reducing the reasoning complexity during the LLM-based
+planning process. An example of determining the relevance score for
+scene information is depicted in *REF*. 
+
+
+FIGURE
+
+
+FIGURE 
+
+
+Self-agent information, which is fully observable, is directly stored
+in self-information history. Conversely, collaboratoragent
+information, which is acquired discontinuously, is interpolated to
+address gaps before being stored in collaboratorsinformation
+history.
+
+
+Planning-time: Real-Time Adaptation
+
+
+Existing research on agent-based simulations *REF*,
+*REF*, *REF*, *REF* often
+constructs sequential long-term plans for specific goals, effective in
+individual tasks where the agent is the sole entity influencing the
+environment and in centralized settings where a manager oversees the
+environment. However, in decentralized cooperative tasks within
+partially observable environments, agents must dynamically adapt their
+plans to changes, as long-term plans devised at earlier stages can
+become impractical and lead to false plans.
+
+
+In this situation, since the goal is to find and put the target objects
+into the fridge, the most efficient action to take would be to grab
+the pancake. Option C is strong in relevance to the goal, and since
+you are closer than Bob to the kitchen where the pancake is located, it
+would be more efficient for you to grab it.
+
+
+FIGURE
+
+
+FIGURE 
+
+
+To address this, we propose a Planning Module that devises the next
+optimal action at each decision point, both at the start of the
+simulation and following the execution of each action. It starts with
+creating K plans based on information relevance and relative
+proximity of collaborators. LLMs then utilize zero-shot
+chain-of-thought prompting *REF* to select the
+optimal plan, prioritizing tasks based on relevance, self-information,
+and collaborators&apos; information. This approach implicitly guides the
+planning process to prioritize tasks that are crucial for achieving
+the goal while ensuring the agent&apos;s actions are more efficient than
+those of its collaborators. This two-step planning procedure is
+depicted in *REF*.
+
+
+Validation-time: Scenario-based Validation
+
+
+Even a well-constructed plan may become invalid due to the
+environmental changes caused by collaborators during the interval
+between observation and planning. In partially observable
+environments, determining whether such changes have occurred is
+challenging for the agent.
+
+
+A straightforward method to resolve this is to revisit the object&apos;s
+location or query all collaborators about their interactions. However,
+this can result in inefficient path planning and incur significant
+communication costs.
+
+
+FIGURE
+
+
+To address this, REVECA includes scenario-based plan validation,
+estimating plan validity using stored information. The agent generates
+all possible scenarios for the object&apos;s interactions with
+collaborators between the observation and planning times. The agent
+then uses collaborator information from its Memory Module to ask the
+LLM to determine the most likely scenario employing the zero-shot
+chain-of-thought prompting technique *REF*. If the
+scenario where no collaborator interacted with the object is most
+likely, the agent assumes the plan is valid. If another scenario is
+likely, the agent communicates with the collaborator to confirm the
+interaction. If confirmed, the agent discards the original plan,
+creates a new one, and repeats the scenario-based validation. The
+scenarios with and without the Validation Module are shown in *REF*.
+
+
+Executing Navigation and Contextual Actions
+
+
+After the plan is determined, the Execution Module retrieves sub-task
+information from the Memory Module to identify the target location. We
+use the A-star search algorithm for efficient pathfinding. Upon
+approaching the object, the agent retrieves a predefined animation
+from the low-level action skill book to execute the planned
+interaction.
+
+
+We conducted experiments using three types of indoor multi-room
+simulation environments: C-WAH, TDW-MAT *REF*, and
+Noisy-C-WAH. To ensure a fair comparison, we adopted the detailed
+parameters defined in the previous study&apos;s settings
+*REF*.
+
+
+C-WAH *REF*, an extended version of the Watch-And-Help
+Challenge *REF*, is built on the realistic
+multi-agent simulation platform, VirtualHome *REF*.
+This environment includes five household tasks, such as setting the
+table and doing the dishes, forming the common goal. Our experiments
+consist of 10 episodes, each with five different household tasks
+across two test environments. In C-WAH, agents can acquire or provide
+information through communication with other agents while executing
+instructions. When an agent enters a specific room, it can observe all
+objects not inside a container like fridges or microwaves. To observe
+objects inside containers, the agent is required an additional action
+of opening containers. Agents are limited to using up to 500
+characters per frame to mimic real-world communication costs. Horizon
+h is set to 250 steps, and each task includes 3 to 5 subgoals (or
+objects). Failing to achieve the common goal within the 250 steps
+results in an episode failure. The layout is shown in
+*REF* 7(a).
+
+
+TDW-MAT, an extended version of the ThreeDWorld Transport Challenge
+*REF*, is built on the TDW *REF*. It
+features more natural object placements and a variety of objects and
+containers that assist in transporting items. The common goals involve
+transporting items in two categories: Food and Stuff. Each episode
+includes 10 target objects, and 2 to 5 containers are placed to
+facilitate moving multiple items simultaneously. Unlike C-WAH, agents
+in TDW-MAT cannot obtain complete room information without performing
+a 360-degree rotation in 15-degree increments. Communication is
+limited to 500 characters per frame, and h is set to 3,000 steps.
+The layout is shown in *REF* 7(b).
+
+
+Noisy-C-WAH is a customized version of C-WAH augmented with an
+additional 10 or 20 dummy objects per episode to demonstrate the
+robustness of our framework in noisy environments. These dummy objects
+increase the complexity of the environment, challenging the agents&apos;
+observation, planning, and communication processes.
+
+
+In C-WAH and Noisy-C-WAH, we evaluate the agent performance using
+Simulation Steps (SS), Travel Distance (TD), Communication Steps (CS),
+and Character Counts (CC) to measure the time cost to achieve the
+common goal, the average distance traveled, the time cost to perform
+communication, and the average number of characters used in the
+communication, respectively. In TDW-MAT, performance is evaluated
+based on the success rate of transporting items,
+
+
+including the overall success rate (TOTAL), and specific success rates
+for objects categorized as Food (FOOD) and Stuff (STUFF).
+
+
+REVECA and Baselines
+
+
+In comparative experiments, our REVECA was evaluated against three
+baselines: the MCTS-based Hierarchical Planner (MHP), the Rule-based
+Hierarchical Planner (RHP), and the Cooperative Embodied Language
+Agent (CoELA). We compared REVECA with MHP and CoELA in C-WAH, with
+RHP and CoELA in TDW-MAT, and with CoELA in Noisy-C-WAH.
+
+
+REVECA leverages GPT-3.5 through the OpenAI API. Although GPT-4 is the
+latest model, its high token cost makes extensive experimentation
+impractical. Thus, we employed GPT-3.5 with default parameters: a
+temperature of 0.7, top-p of 1, and a maximum token limit of 256.
+
+
+MHP, from the Watch-And-Help Challenge, is a Hierarchical Planner with
+a high-level planner utilizing MCTS and a low-level planner based on
+regression planning *REF*. 
+
+
+RHP, from the ThreeDWorld Transport Challenge, is a Hierarchical
+Planner with a high-level planner using heuristics and a low-level
+A-start-based planner for navigation using a semantic map and Frontier
+Exploration strategy.
+
+
+CoELA leverages LLMs for planning and communication, enabling
+collaborative task-solving. For a fair comparison and cost efficiency,
+we used GPT-3.5-driven CoELA (CoELA-3.5) for the experiment and
+provided GPT-4.0-driven CoELA (CoELA-4.0) performance from the CoELA
+manuscript *REF* for a comprehensive analysis of
+different LLM capacities.
+
+
+Comparative Analysis Results
+
+
+TABLE 1
+
+
+TABLE 2
+
+
+*REF* shows that REVECA outperforms other baselines
+in C-WAH. Specifically, GPT-3.5-driven REVECA uses fewer steps to
+complete tasks compared to CoELA-4.0, CoELA-3.5, and MHP,
+demonstrating superior effectiveness. The performance of CoELA
+significantly drops with GPT-3.5, even below MHP, highlighting CoELA&apos;s
+reliance on GPT-4.0&apos;s reasoning capability. REVECA also shows fewer
+average travel distances, communication steps, and characters used per
+communication.
+
+
+*REF* presents TDW-MAT results, where GPT-3.5-driven
+REVECA outperforms all baselines, including GPT-4.0driven CoELA,
+across all metrics (TOTAL, FOOD, and STUFF).
+
+
+In Noisy-C-WAH, the experiment included 10 or 20 additional dummy
+objects. As shown in [Figure 8,](_bookmark9) REVECA outperforms
+CoELA-3.5 in all metrics. CoELA&apos;s strategy of storing all acquired
+information in text form leads to a significant decline in reasoning
+performance. As dummy objects increase, the advantages of using
+relevance scores become more evident.
+
+
+FIGURE 8
+
+
+TABLE 3
+
+
+TABLE 4
+
+
+Ablation Study Results
+
+
+To demonstrate the significance of each component in our framework, we
+conducted an ablation study within C-WAH and Noisy-C-WAH environments,
+the latter augmented with 20 dummy objects. The results are presented
+in *REF* and *REF*.
+
+
+Initially, we examined the REVECA without spatial information and
+without relevance scores to evaluate their impact on performance. The
+absence of spatial information degraded performance across all
+metrics, highlighting its importance in effective planning. Omitting
+relevance scores improved SS and TD scores but worsened CS scores in
+C-WAH while degrading all scores in Noisy-C-WAH. This suggests that
+relevance scores are crucial in more complex environments like
+Noisy-C-WAH with over 20 objects. To aid readers understand, example
+scenarios with and without using spatial information are illustrated
+in *REF*.
+
+
+Next, we tested REVECA without the Validation Module and with a
+setting where communication occurred before every action. The absence
+of the Validation Module worsened SS and TD scores. Conversely,
+frequent communication before every action slightly improved SS and TD
+but significantly degraded CS and CC scores, indicating that the
+Validation Module enhances performance without excessive
+communication.
+
+
+We also tested the REVECA without considering collaborator
+information, resulting in significantly degraded performance across
+all scores. This underscores the importance of collaborator
+information, even when some details are inferred.
+
+
+Lastly, we varied the number of plans (K) and relevance levels (R)
+considered by the LLM planner. Our default parameters of K = 3 and
+R = 4 yielded the best performance.
+
+
+User Study Results
+
+
+We conducted a user study to evaluate REVECA&apos;s ability to collaborate
+seamlessly with humans to achieve common goals. Five participants
+(four men and one woman) with an average age of 23.4 years were
+recruited. The experiment was conducted in the C-WAH environment using
+four methods: REVECA, REVECA without communication (w/o comm), REVECA
+with always ask before action (always ask), and CoELA. Participants
+shared the same observation and action space as the agents and
+interacted with the environment by selecting actions from a predefined
+list.
+
+
+Participants completed 5 sub-goals with each method. After each, they
+answered a 7-point Likert scale (1: strongly disagree, 7: strongly
+agree) questionnaire on four research questions: 1) Did the agent
+respond appropriately to your intentions? (Appropriateness), 2) Was
+the interaction with the agent helpful in achieving the goal?
+(Usefulness), 3) Did the agent&apos;s performance help achieve the goal
+quickly? (Efficiency), and 4) Did you feel a sense of trust with the
+agent? (Trust) The &quot;w/o comm\&quot; method excluded Appropriateness and
+Usefulness questions, due to the lack of interaction. Participants
+were then interviewed about each method.
+
+
+As shown in *REF* REVECA scored highest across
+all four questions, excelling in human collaboration. Participants
+noted that CoELA often produced messages focused on status reports and
+planning rather than addressing their questions, resulting in lower
+scores in Appropriateness and Usefulness. In the &quot;always ask\&quot;
+condition, participants found the agent&apos;s repetitive questions disruptive and demotivating. Regarding Trust,
+participants noted that the lack of communication in the &quot;w/o comm\&quot;
+method made it difficult to understand the agent&apos;s actions and
+situation, thereby hindering trust-based collaboration.
+
+
+FIGURE 9
+
+
+Conclusion
+
+
+In this paper, we introduced REVECA, an LLM-driven cognitive
+architecture designed for multi-objective household tasks, enabling
+efficient cooperation between decentralized agents under complex
+partial observations. By leveraging relevance assessment, spatial
+information, and plan validation, REVECA enhances agent cooperation in
+dynamic and partially observable environments, while minimizing
+continuous communication costs and effectively managing irrelevant
+dummy objects.
+
+
+REVECA&apos;s applications extend beyond household tasks to gaming, virtual
+universes, and educational environments. In gaming, REVECA can
+revolutionize NPC behavior, enabling adaptive and intelligent
+interactions for a richer player experience. In virtual universes,
+REVECA can enhance user-agent interactions, facilitating collaborative
+tasks and social interactions for more seamless experiences. In
+education, REVECA can manage complex tasks and provide real-time
+feedback, supporting personalized learning and creating interactive
+simulations and virtual tutors tailored to individual needs.
+
+
+FIGURE 10
+
+
+However, REVECA has limitations that warrant further exploration. Its
+effectiveness in highly dynamic and unpredictable outdoor settings
+remains to be validated. The framework has been tested primarily with
+two agents, and scaling to more agents may introduce new challenges in
+social interactions and coordination. Additionally, REVECA&apos;s use of a
+low-level action skill book could be enhanced by integrating recent
+advancements in animation generation technologies, enabling more
+realistic and context-sensitive actions.
+
+
+Addressing these limitations could make future REVECA even more robust
+and applicable across a broader range of multi-agent environments and
+tasks.

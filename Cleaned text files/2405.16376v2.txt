@@ -1,0 +1,698 @@
+STRIDE: A Tool-Assisted LLM Agent Framework for Strategic and Interactive Decision-Making
+
+
+Introduction 
+
+
+Large language models (LLMs) such as GPT-4 have demonstrated exceptional
+proficiency in generating coherent natural language from textual inputs
+[*REF*]. These models not only exhibit strategic thinking
+akin to humans [*REF*; *REF*] but also demonstrate a
+remarkable ability to reason flexibly, adeptly handling nuanced and
+context-specific information [*REF*]. These
+achievements have sparked significant interest in their potential for
+decision-making in complex environments
+[*REF*; *REF*; *REF*].
+
+
+To further integrate LLMs into our society, such as deploying them as
+fiduciary agents on behalf of individuals or organizations in a
+competitive environment where human and AI agents coexist, the ability
+to reason strategically is of vital importance. However, due to their
+inherent limitations in basic mathematics [*REF*],
+instruction following [*REF*], and susceptibility to
+hallucinations [*REF*], the following challenges exist: (i) LLMs may fail to accurately interpret game rules and objectives
+expressed in natural language, e.g., form a well-defined utility
+function that reflects their preference over possible outcomes
+[*REF*]; (ii) LLMs are generally inept at long-horizon planning
+to maximize their utility, which is essential in scenarios where
+decisions have extended consequences [*REF*]; (iii) They exhibit
+poor capabilities in strategic exploration of unknown environments
+[*REF*], which hampers their ability to optimize
+decisions on unforeseen conditions; (iv) LLMs have limited capacity in
+anticipating opponents&apos; moves and adapting their strategies accordingly
+[*REF*], which is a crucial aspect for any competitive
+interaction. These limitations collectively underscore the challenges in
+deploying LLMs for nuanced and dynamic strategic reasoning tasks.
+
+
+In light of these challenges, this paper proposes a LLM agent framework
+designed to enhance their STRategic and Interactive DEcision
+making capability, named STRIDE[^2], as illustrated in Figure *REF*. Compared to simply prompting the LLM with
+a description of the problem setup and potentially some chain-of-thought
+examples [*REF*; *REF*], STRIDE can
+effectively address the aforementioned challenges and enhance the LLM&apos;s
+reasoning capability in strategic settings. Specifically, the LLM, which
+serves as the controller of the whole framework, orchestrates the
+reasoning process through a structured Thought sequence, as shown at
+the top of Figure *REF*. Compared with popular frameworks like
+ReAct [*REF*] and Reflexion [*REF*], whose
+Thought step typically involves a single step of textual reasoning
+before interacting with the environment, which is depicted as the green
+region of Figure *REF*, our design is tailored to multi-step
+reasoning assisted with tools and memory, as shown in the blue part of
+Figure *REF*. Each Thought unit outlines a sequence
+of operations to be executed, which consist of tools specifically
+engineered to manage the low-level calculations needed in various
+decision-making scenarios. Additionally, an external working memory is
+integrated to preserve crucial parameters. Therefore, Challenge (i) can
+be addressed by executing an operation that evaluates the agent&apos;s
+utility in the Thought unit. Challenge (ii), which is mainly caused by
+the information loss in long-context [*REF*], can be addressed by
+storing important problem parameters and intermediate results in the
+working memory. Challenges (iii) and (iv) can be addressed using a
+combination of demonstrations and dedicated operations that implement
+the behavior of strategic exploration or belief update.
+
+
+ILLUSTRATION
+
+
+To evaluate our framework, we carefully choose a collection of
+decision-making problems that highlight the aforementioned challenges in
+significant and economically relevant real-world strategic settings.
+[First,] we evaluate our framework in a general
+single-agent Markov Decision Process (MDP), which exemplifies Challenges
+(ii) and (iii). Here the agent needs to strategically explore the
+unknown environment to improve their estimate of the transition and
+reward function, as well as planning over a long horizon to compute the
+optimal policy [*REF*].
+[Second,] we consider a dynamic mechanism
+design environment, which offers a multi-agent generalization of MDP
+where the mechanism designer seeks to maximize the cumulative sum of
+rewards over multiple agents based on agents&apos; reported reward functions
+[*REF*; *REF*]. In the multi-agent
+mechanism design environment, each agent has private information which
+evolves over time. This problem covers Challenges (i)-(iv). The
+mechanism designer needs to anticipate the agents&apos; strategic behavior
+and makes decisions, i.e., allocation and pricing rules, to ensure that
+truthfully reporting the reward function is unilaterally optimal for
+each agent. This setting encompasses many important allocation problems
+such as auctions for sponsored search and display advertising.
+[Third,] we consider an important class of
+bilateral bargaining games, where a seller and a buyer negotiate on the
+price of a good over a finite number of time steps under complete or
+incomplete information [*REF*; *REF*].
+This covers Challenges (i), (ii) and (iv), as the agent needs to assess
+its utility for reaching a deal at different prices and time steps,
+inferring the opponent&apos;s private value based on his/her past responses,
+as well as predicting the opponent&apos;s future behaviors. The bargaining
+environment has many important applications in procurement and
+supply-chain sourcing decisions. For each strategic environment, we
+offer quantitative metrics that allow us to conclude whether the agent
+succeeded in making the optimal decisions based on the available
+information.
+
+
+Through extensive empirical evaluation on the selected decision-making
+problems, we show that STRIDE framework can make strategic decisions on
+new problem instances with high success rate with few demonstrations.
+This highlights the transformative potential of integrating LLMs with
+specialized tools, memory, and control structures to enhance strategic
+decision-making capabilities.
+
+
+Related Work
+
+
+Evaluating LLMs&apos; Reasoning Capability in Strategic Environments.
+Recent advancements in LLMs have spurred investigations into their
+capacity for strategic reasoning. There have been several contributions
+recently studying the behavior of LLMs in strategic settings, e.g.,
+matrix games like Dictator and Prisoner&apos;s Dilemma
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+These works have been particularly interested in assessing whether LLMs
+can perform strategic or rational reasoning effectively with minimal
+initial input, often referred to as zero-shot prompting. Recent work by
+*REF* and *REF* also used bargaining games
+to evaluate the strategic reasoning of LLMs. Their findings in general
+suggest that while LLMs can sometimes generate plausible strategies,
+they often lack consistency and a deep understanding of game dynamics.
+Another pivotal study by *REF* proposed to enhance the
+strategic reasoning of LLMs by providing few-shot chain-of-thought (CoT)
+examples for matrix games and multi-turn bargaining games, and showed
+that LLMs are capable of generalizing the demonstration to new game
+instances, but still has difficulties in games with complex rules or
+long horizon. A recent work by *REF* also made a similar
+observation about the limited capability of LLMs to generalize to
+various game instances, despite using CoT to enhance reasoning.
+
+
+Applications of LLM-based Agents beyond Strategic Reasoning. While
+our focus is on enhancing the strategic reasoning capabilities of LLMs,
+it is important to acknowledge the broader applications of LLM-based
+agents that do not primarily focus on strategic tasks [*REF*],
+such as social simulation, e.g., building virtual environment with
+LLM-based agents to simulate social phenomena
+[*REF*; *REF*], scientific research assistant,
+e.g., utilize LLMs for automating the design, planning, and execution of
+scientific experiments [*REF*], software development, e.g.,
+let multiple LLM agents communicate and collaborate through natural
+language to complete the software development life cycle
+[*REF*], and robotics, e.g., equip LLM with a wide
+range of manipulation and navigation skills to control a mobile
+manipulator robot [*REF*]. This wide range of applications has led
+to various design of the LLM agent architecture to enhance its
+capability in the specific domain, but typically, an LLM agent
+architecture features memory [*REF*] and planning
+[*REF*] modules that enable LLMs to recall past behaviors and
+plan future actions in a dynamic environment, and a set of tools
+[*REF*] that facilitate mathematical computation, accessing
+internal or external memory, and interacting with the environment.
+
+
+LLM-Enhanced Reinforcement Learning Algorithms. The works mentioned
+in the previous two paragraphs, as well as the STRIDE framework proposed
+in this paper, utilize LLMs as the decision maker, that is, LLMs are fed
+prompts containing the current state of the environment, and they
+generate action recommendations based on this input. The reasoning
+process that produces the recommendation, regardless of whether it
+follows certain algorithmic behavior as STRIDE, happens in the language
+space. Another distinct line of research, emerging primarily from the
+reinforcement learning community, instead integrates LLMs into
+traditional reinforcement learning algorithms to leverage the common
+sense knowledge that LLMs acquire during pretraining
+[*REF*; *REF*; *REF*; *REF*].
+In this way, the reasoning process is hard-coded in programming language
+like Python, which defines how different components interact with each
+other. Currently, the most prevalent approach in this domain is the
+integration of LLMs into Monte Carlo tree search (MCTS) algorithms,
+where they typically serve as tree traversal policy [*REF*],
+action pruner [*REF*], world model [*REF*], and
+evaluation function [*REF*]. In comparison, our approach is
+much more flexible in the sense that we can repurpose the reasoning
+process of STRIDE to emulate different algorithmic behaviors using
+various tools and demonstrations. This flexibility extends the utility
+of our approach well beyond decision-making problems.
+
+
+ILLUSTRATION 
+
+
+LLM Agent Framework for Strategic Decision Making 
+
+
+In this section, we first present the building components of the STRIDE
+framework, explain how these components interact to support strategic
+decision-making, and then provide a detailed example by applying it to
+an autonomous driving scenario, which is modeled as a MDP.
+
+
+Main Components of the STRIDE Framework
+
+
+Our primary strategy to address the four challenges in Section
+[1] is to provide the LLM with tools that take care of low-level computation and a
+working memory that retains important parameters. Most importantly, we
+introduce a reasoning module that acts as the central executive,
+orchestrating the information flow among components and synthesizing
+structured Thought sequences to solve complex problems. Figure
+*REF* provides a flowchart that illustrates how these components
+collaboratively facilitate strategic decision-making in an MDP. In the
+following paragraphs, we will introduce these three components of STRIDE
+framework in detail.
+
+
+Tool Set. As shown in Figure
+*REF*, the tools utilized by STRIDE are
+categorized into two distinct groups: operational tools, which are
+tailored to support sophisticated reasoning processes, and interaction
+tools, designed to enable STRIDE to interact effectively with its
+environment. What sets our work apart from previous LLM agents, such as
+ReAct [*REF*] and Reflexion [*REF*], is the
+sophisticated integration of these operational tools by the Thought
+sequence to execute complex calculations that traditionally pose
+challenges for LLMs. For instance, these operations can calculate the
+utility of the agent based on the outcomes of a game or update the
+belief about uncertainty on the environment or the other agents. A
+combination of such operations allows STRIDE to emulate various
+algorithmic behaviors such as dynamic programming to solve MDPs and
+Bargaining Games, facilitating a deeper and more precise decision-making
+process. They also enable our framework to scale to more complex
+problems through their abstraction of detailed computations. This
+scalability is crucial in handling larger and more challenging scenarios
+that are beyond the capacity of typical LLM agents. For instance, in the
+concrete MDP example to be discussed later in this section, STRIDE can
+easily handle a state space of size 120. After the reasoning process
+is completed, which produces a textual description of the LLM&apos;s
+decision, the interaction tools translate this unstructured text into a
+structured format that is actionable within the specific environment,
+such as selecting an action in an MDP or offering a price in a
+sequential bargaining game.
+
+
+Reasoning Module. To effectively leverage the operational tools for
+solving complex problems, we propose a unique design for the reasoning
+module, which is empowered by a pretrained LLM like GPT-4
+[*REF*] or Claude [*REF*], in the STRIDE framework. Using the
+MDP example in Figure [1], the reasoning process starts when the agent
+is prompted to answer the question about which action to take at the
+current time step, as shown on the top right corner. As the first step
+to answer this question, the LLM generates a Thought unit [^3], whose
+text field describes a general plan about what needs to be done for the
+current reasoning step in order to answer the question and the
+operations field comprises an ordered list of operation names that the
+LLM deems necessary for completing the current step. For the MDP example
+in Figure [1], the LLM decides to use value iteration to
+compute the optimal policy, and thus the first step of its reasoning is
+to compute the Q values associated with the last time step *MATH* (see
+Appendix [5] for details about value iteration). To
+do so, operations named &apos;UpdateQbyR&apos; and &apos;UpdateVbyQ&apos; are suggested by
+the LLM, as shown at the bottom of the figure. Note that here the
+Thought unit only needs to specify which operations are necessary,
+that is, only the names are needed. The arguments for each selected
+operation are decided by the LLM on separate API calls based on the
+context history, as shown on the left of the figure. This particular
+design choice is motivated by our empirical observation that, letting
+the LLM simultaneously decide arguments for multiple operations is more
+prone to error.
+
+
+Before the execution of the selected operations, the generated Thought
+unit undergoes a validation process based on predefined rules to ensure
+its integrity. For example, a common rule applied in our experiments is
+the mutual exclusivity of the exit condition and the presence of
+operations: the Thought unit must not simultaneously specify an exit
+as true while containing non-empty operations, as this often indicates a
+premature termination of the reasoning process. If this conflict occurs,
+the system will generate an appropriate error message, append it to the
+prompt, and prompt the LLM to revise and resubmit the Thought unit for
+re-evaluation. This mechanism ensures that operations proceed only with
+validated and logically consistent instructions. Enhanced applications
+of this functionality involve utilizing an additional LLM to verify
+whether the newly generated Thought unit adheres to the reasoning
+logic and language style presented in the demonstration. This step can
+improve consistency and prevent hallucinations. Employing a secondary
+LLM for cross-verification not only reinforces the accuracy of the
+Thought unit but also contributes to the ongoing research in
+maintaining coherence and reliability in LLM outputs, which is of
+independent interest. With the Thought unit validated, the selected
+operations will be executed in the specified order. The outcomes of
+these operations are then utilized to generate the subsequent Thought
+unit. This process continues until Exit is set to be true, signaling
+the completion of the reasoning process.
+
+
+Working Memory. As mentioned in Section
+[1], for long-horizon decision making, the LLM may forget or neglect important
+parameters that were mentioned early in the context history. Moreover,
+an accurate description of the problem instance may sometimes require
+parameters of high dimensions, e.g., transition matrices of MDP. In this
+case, storing these parameters in the context history is costly and
+prone to error. Therefore, STRIDE is equipped with a working memory that
+stores these parameters, as well as intermediate results computed by the
+operational tools during the reasoning process. Information contains in
+the working memory is retrieved by the reasoning module for decision
+making.
+
+
+Example: STRIDE Framework in Highway Environment 
+
+
+To illustrate the functionality of the STRIDE framework, we apply it to
+the Highway Environment [*REF*] to optimally control a vehicle,
+as depicted in Figure [2]. We will provide a detailed explanation of the
+operational tools available to the LLM and how they are used in the
+Thought sequence for strategic decision making.
+
+
+ILLUSTRATION
+
+
+Tabular MDP Formulation. This decision-making problem can be
+formulated as a tabular MDP with known transition function
+*MATH* and reward function
+*MATH* (*MATH* and *MATH* denote the state
+and action spaces, respectively), where each state *MATH* indexes a
+unique three-way tensor representing the time to collision with other
+vehicles[^4], and the action set *MATH* includes &apos;changing to left lane&apos;,
+&apos;idle&apos;, &apos;changing to right lane&apos;, &apos;faster&apos;, and &apos;slower&apos;. Here we focus
+on a finite-horizon setting, i.e., the agent interacts with the
+environment for some fixed *MATH* steps. At each step *MATH*, the
+agent observes the current state *MATH*, and then chooses
+action *MATH*. The environment then produces a reward feedback
+*MATH* to the agent, with positive reward for staying in the
+right lane or maintaining a high speed, and negative reward for any
+collision, and then the state transits to
+*MATH*. It is known that the optimal
+policy, in this case, the fastest way to navigate through the traffic,
+can be computed using value iteration, which we will refer to as a
+reference algorithm for STRIDE. In the next paragraph, we show how to
+emulate this algorithmic behavior in the reasoning of STRIDE with
+specialized operations and demonstration.
+
+
+Tools and Thought Sequence that Emulate Value Iteration. Value
+iteration starts from the end of the horizon *MATH* and works backwards to
+the beginning, such that at each step *MATH*, it updates the
+*MATH* and *MATH*, with *MATH*. During interaction, the agent can simply
+choose *MATH* for state *MATH* at
+each step *MATH*. Therefore, to enable the LLM to compute the optimal
+policy for any MDP instance in this principled manner, we equip it with
+the following operations, i.e., a set of primitives that handle
+low-level calculations, thereby freeing the LLM to focus on higher-order
+reasoning.
+- &apos;UpdateQbyR&apos;: add reward *MATH* to *MATH* for all *MATH* 
+pairs at the specified time step *MATH*,
+- &apos;UpdateQbyPV&apos;: add one-step look-ahead value *MATH* to *MATH* 
+for all *MATH* pairs at the specified time step *MATH*,
+- &apos;UpdateV&apos;: take maximum *MATH* for
+the specified time step *MATH*,
+- &apos;GetQ&apos;: retrieve the values of *MATH* for all action
+*MATH* at the specified time step *MATH* and state *MATH*.
+- &apos;GetArgMax&apos;: return the indices corresponding to the maximal value
+in the given list of numbers
+To make the LLM generate Thought sequences that correctly utilize
+these operations to emulate value iteration, we employ a structured
+demonstration generation approach outlined as follows:
+- Implement the value iteration algorithm in Python using the provided
+operations to handle the computational intricacies;
+- Augment the algorithm with annotated code that generates explanatory
+comments --- the Thought text --- at key steps to illustrate the logic
+and progression of the algorithm;
+- Sample a specific instance of the MDP, execute the augmented value
+iteration algorithm on this instance, and capture the resulting
+sequence of operation calls and textual comments.
+
+
+With the generated demonstration sequence, STRIDE not only performs
+calculations correctly but also maintains a logically coherent order
+when handling various MDP instances. Moreover, the flexible design of
+our framework, as detailed in Figure [1],
+allows it to emulate a broad spectrum of algorithms beyond value
+iteration. Consequently, STRIDE offers a flexible framework that can be
+extended to a diverse array of problem domains involving strategic
+decision-making, where algorithmic behavior of LLMs is critical. In
+particular, to tailor STRIDE to other domains, it suffices to construct
+domain-specific Tool Sets and modify the Thoughts to emulate other
+algorithms leveraging these tools. As we will see in the sequel, our
+framework can be applied to dynamic mechanism design, two-player
+bargaining games, and zero-sum Markov games such as Tic-Tac-Toe, where
+various Tool Sets and Thoughts are constructed under the STRIDE
+framework.
+
+
+Experiments 
+
+
+For each decision-making problem mentioned in Section
+[1], we first construct the operational tools and generate the corresponding
+demonstrations following the procedure described in Section
+[3.2], so that STRIDE is able to mimic the
+reference algorithm when solving each problem. Descriptions of the
+selected reference algorithms and the constructed operations can be
+found in Appendix [5]. Then to evaluate whether STRIDE can
+reliably solve new problem instances given provided demonstrations, we
+repeat experiments on randomly sampled instances and report the averaged
+results. For comparison, we include the following baseline agents: (i)
+zero-shot Chain-of-Thought (CoT), (ii) zero-shot CoT with code
+interpreter, and (iii) few-shot CoT with code interpreter, where the
+latter two can utilize the coding capability of LLMs (through OpenAI
+Assistants API) to write and execute programs to solve the
+decision-making problems. Compared with (ii), (iii) is additionally
+provided with example implementation of the reference algorithm for each
+problem. Prompts used in all the experiments are given in Appendix
+[6]. We also conducted additional experiments on other problem setups like
+Tic-Tac-Toe and Connect-N games to further demonstrate the generality of
+STRIDE. Details about these additional experiments are given in Appendix
+[7].
+
+
+Markov Decision Processes 
+
+
+We first evaluate STRIDE and the baselines (GPT-3.5-Turbo-0125 with
+temperature set to *MATH* is used for all agents) on MDP under both known
+model, where the transition function *MATH* and reward function *MATH* are
+given to the agent in the beginning, and unknown model, where the agent
+needs to estimate *MATH* and *MATH* during online interactions. In the
+following paragraphs, we first provide a formal definition of the
+objective of the agent under each setting, and then discuss the
+experiment setup and results.
+
+
+Agent&apos;s Objective in MDP with Known Model. When the transition and
+reward functions are known to the agent, the objective of the agent is
+to find a policy, denoted as *MATH* with
+*MATH* for *MATH*, that maximizes the
+expected cumulative rewards over *MATH* time steps: *MATH* 
+where the expectation is with respect to the randomness in state
+transitions and the stochasticity of *MATH*. Let&apos;s denote the optimal Q
+value function as *MATH* for *MATH*. Then for any
+state *MATH* encountered by the agent at step *MATH*, we check
+whether the action *MATH* taken by the agent satisfies
+*MATH*, and report the average
+success rate in the following experiment.
+
+
+Experiment Setup and Results. We evaluate on MDPs with horizon
+length *MATH*, number of states *MATH*, and
+number of actions *MATH*. For each configuration, we
+repeat the experiment for *MATH* times on randomly generated instances, by
+sampling dense tensors of size *MATH* and
+*MATH* as the transition function and reward function,
+respectively. The average success rates are reported in Table *REF*. For STRIDE, we only provide it
+with a single demonstration that solves a MDP instance with
+*MATH*. We can see that STRIDE outperforms the baselines in terms
+of finding the optimal policy for the given MDP instances.
+
+
+TABLE
+
+
+Agent&apos;s Objective in MDP with Unknown Model. In this setting, *MATH* 
+and *MATH* are unknown to the agent, but the agent is allowed to
+repetitively interact with the same MDP instance for a total number of
+*MATH* episodes to explore and update its belief about *MATH* and *MATH* using
+the observed feedback. The objective of the agent is to choose a
+sequence of policies *MATH*, that minimizes the
+cumulative regret: *MATH*. 
+
+
+In addition to the challenge of long-horizon planning exemplified by
+*REF* also requires addressing the
+exploration-exploitation dilemma. Specifically, the agent needs to
+strategically balance between exploring unfamiliar state-action pairs to
+learn *MATH* and *MATH*, and exploiting the current knowledge about *MATH* and
+*MATH* to obtain more rewards. A classic solution to this problem is
+UCB-VI [*REF*], which is used as the reference algorithm
+for STRIDE. To help the baselines work with long context history
+(*MATH* interactions in total), an external summarization of the
+past episodes is added in their prompts at the beginning of each new
+episode, similar to *REF*.
+
+
+Experiment Setup and Results. In addition to STRIDE and the
+aforementioned baselines, we also include UCB-VI algorithm in the
+experiments, which serves as a reference. We evaluate on *MATH* randomly
+generated MDP instances with *MATH*, *MATH*, and *MATH*, with the
+agents repetitively playing each instance for a total number of *MATH* 
+episodes, and average the results over the *MATH* instances. In Figure
+[3], we report how the cumulative rewards collected in each episode change as
+the number of episodes experienced by the agent increases. STRIDE
+reliably implements the behavior of UCB-VI algorithm using the
+provided operations, and thus converges to the optimal policy at a
+similar rate as UCB-VI. In comparison, the baselines, though given
+additional summarization of history, fail to find the optimal policy as
+they cannot efficiently explore the environment.
+
+
+ILLUSTRATION
+
+
+Dynamic Mechanism Design 
+
+
+Section [4.1] presents the challenges of long-horizon
+planning and strategic exploration in MDP, which only involves a single
+agent. Here we further evaluate STRIDE (GPT-4o-2024-05-13 with
+temperature set to *MATH*) on dynamic Vickrey-Clarke-Groves (VCG) mechanism
+design problem [*REF*], a multi-agent generalization of
+MDP, which further necessitates the agent&apos;s ability to anticipate other
+agents&apos; behaviors and plan accordingly.
+
+
+Agent&apos;s Objective in Dynamic Mechanism Design. Consider a mechanism
+designer and a set of *MATH* agents. The mechanism designer needs to elicit
+the reward functions *MATH* from the *MATH* 
+agents, with each *MATH*,
+and the agents can be untruthful. Based on reported reward functions,
+the designer chooses a policy *MATH*. At
+each step *MATH*, the designer takes action
+*MATH*, e,g., the allocation of some scarce resource
+among *MATH* agents, and each agent *MATH* receives reward
+*MATH*, i.e., agent *MATH* &apos;s valuation for *MATH* at state
+*MATH*. After *MATH* steps of interactions, the designer needs to charge
+each agent *MATH* some price *MATH*. The objective of each agent
+*MATH* is to maximize its utility
+*MATH* by strategically reporting the reward function *MATH*. The objective of the
+designer is to maximize the expected cumulative sum of rewards, by
+strategically choosing the policy and pricing rule. This can be
+formulated as the following optimization problem
+*MATH* where the constraint guarantees the incentive
+compatibility of all agents. It is known that the unique solution to
+Eq is the VCG mechanism, i.e., *MATH* where *MATH*.
+
+
+Similar to Eq, Eq  can be solved by separately computing
+policies *MATH* and *MATH* via value
+iteration, and then evaluating *MATH* on MDP instances with
+transition function *MATH* and reward function
+*MATH* for *MATH* (description of
+this reference algorithm is given in Appendix
+[5]). The success rate for the experiments
+on this problem is computed by considering: (i) whether the chosen
+action *MATH* satisfies *MATH* for
+*MATH*; and (ii) whether the charged price *MATH* satisfies
+*MATH*.
+
+
+Experiment Setup and Results. We evaluate on problem instances with
+horizon *MATH*, number of states *MATH*, number of actions *MATH*,
+and number of agents *MATH*. For each configuration, we repeat
+the experiment *MATH* times on randomly generated instances, by sampling
+dense tensors of size *MATH* and
+*MATH* as the transition function and reward
+functions for *MATH* agents, respectively. The average success rate are
+reported in Table. We observe that the baselines, despite
+being capable of computing the optimal action most of the times, cannot
+generalize the same value iteration procedure to compute the VCG price
+correctly. In comparison, STRIDE can reliably compute the VCG price on
+most problem instances, which leads to its higher success rate.
+
+
+TABLE
+
+
+Bargaining Games 
+
+
+We further evaluate STRIDE and the baselines (GPT-4o-2024-05-13 with the
+temperature set to *MATH*) on bargaining games, in which a buyer and a
+seller engage in repeated negotiation for a finite number of steps. In
+order to maximize their utility, both the buyer and the seller need to
+predict the response of their opponent over long-horizon, based on the
+potentially incomplete information they have.
+
+
+Alternating Offer Bargaining under Complete Information. We first
+consider the elementary yet seminal setting in which a buyer and a
+seller engage in a *MATH* -step bargaining process (with *MATH*) over
+price *MATH* of the good. Specifically, at time step *MATH*, the buyer
+offers a price to the seller and the game ends if the seller accepts the
+offer. Otherwise, the game continues to the next time step *MATH*, where
+the seller makes a counteroffer. They repeat this process until the
+deadline *MATH* is reached. Assuming the buyer&apos;s value for the item is *MATH* 
+and the seller&apos;s cost is *MATH*, then the utility function of the buyer,
+denoted as *MATH*, and that of the seller, denoted as *MATH*, for some
+price *MATH* at time step *MATH* are *MATH* being
+the discount factor of their utilities over time. Note that in this
+setting, the buyer&apos;s value *MATH*, the seller&apos;s cost *MATH*, and the values of
+*MATH* and *MATH* are public information. The optimal
+decision for either agent, assuming his/her opponent is also acting
+optimally, i.e., being rational, is to play the Subgame Perfect
+Equilibrium (SPE) strategy, which, in this setting, is unique and can be
+computed using backward induction [*REF*]. Description of
+this reference algorithm and the operations constructed for STRIDE is
+given in Appendix [5]. To evaluate whether STRIDE and the
+baselines can make optimal decisions, we let buyer and seller empowered
+by the same method to bargain with each other, and report the success
+rates in reaching SPE.
+
+
+Experiment Setup and Results. We evaluate on bargaining problems
+with deadline *MATH*. In each case, we repeat the experiments
+on *MATH* randomly generated instances, by sampling discount factors
+*MATH*. The average success
+rates are reported in Table. We can see that, none
+of the baseline methods attains success rate higher than *MATH*, which is
+because when it is their turn to offer, they cannot offer a price close
+to SPE, though being explicitly instructed in the prompt to assume
+rational opponent behavior when making decisions. It is worth noting
+that the existence of the code interpreter did not provide any advantage
+this time compared with the results for MDP in Table. Though the LLM did attempt to
+implement the backward induction algorithms to solve SPE, they failed to
+get everything right and produce the correct results. We hypothesize
+that this distinction is due to the insufficiency of training data
+related to the implementation of backward induction algorithms for
+bargaining, especially compared with the value iteration algorithm for
+MDP.
+
+
+TABLE
+
+
+Moreover, to further illustrate the advantage of being able to
+strategically reason about the decisions in bargaining, we pit STRIDE
+against zero-shot CoT, the best-performing baseline in Table. The results (averaged
+over *MATH* randomly generated instances) are summarized in Table. We can see that, by mimicking the
+reference algorithm, STRIDE guarantees an outcome that is no worse than
+the SPE regardless of the role it plays. As mentioned in the previous
+paragraph, the baseline cannot accurately compute the SPE price, and
+thus, when it serves as the buyer who needs to make the initial offer,
+often ends up with a sale price that is higher than SPE price, which
+demonstrates its sub-optimality.
+
+
+TABLE
+
+
+Seller Making Offers under Uncertainty of Buyer&apos;s Value. Now we
+consider the more challenging scenario where the buyer&apos;s value, denoted
+as *MATH*, is privately known to himself, and thus the seller
+needs to update his/her belief about *MATH* based on the observed
+responses, i.e., buyer&apos;s rejection of seller&apos;s offers. The seller&apos;s cost
+(still assumed to be *MATH*) and the prior distribution of *MATH*, represented
+as a cumulative distribution function *MATH*, are public information.
+*MATH* is supported on *MATH* and we assume *MATH*, i.e., a
+uniform distribution. In each time step *MATH*, the seller
+offers a price and the buyer responds by acceptance or rejection.
+Similar to Eq, their utility functions are
+*MATH*. Different from the complete information setting where we
+evaluate the agents by examining whether the unique SPE is reached, here
+we consider sequential equilibrium (SE) due to the uncertainty on the
+buyer&apos;s value. Fortunately, in the particular setting described above,
+the SE is still unique [*REF*], and thus we can
+similarly evaluate the agents using the success rates of reaching SE. To
+compute the SE, we propose a reference algorithm for STRIDE that
+combines bisection search and backward induction and construct the
+specialized tools. More details are given in Appendix
+[5].
+
+
+Experiment Setup and Results. We evaluate the agents on problems
+with deadline *MATH*. In each case, we repeat the experiments
+on *MATH* randomly generated instances, by sampling discount factors
+*MATH* and buyer&apos;s value
+*MATH*. The average success rates are reported in Table. Again, we observe
+that STRIDE outperforms the baseline methods, as it is able to compute
+the SE by mimicking the reference algorithm we designed.
+
+
+TABLE
+
+
+Conclusion 
+
+
+This paper presented the STRIDE framework, enhancing LLMs&apos; strategic
+decision-making capabilities. Through integrating a structured Thought
+process with external working memory and operational tools, STRIDE
+enables LLMs to overcome significant limitations such as strategic
+exploration and dynamic opponent interaction. Our evaluations across
+diverse decision-making scenarios validate STRIDE&apos;s effectiveness,
+suggesting its potential as a robust tool for strategic thinking in
+complex environments. For further development of the STRIDE framework,
+we propose the following research avenues. (i) Currently, STRIDE utilize
+specially designed Python functions as tools to facilitate the formation
+of strategies and the choice of actions by the agents in bilateral
+bargaining, an interesting direction is to replace it with models
+trained using data collected during interactions. (ii) Automatic
+synthesis of operations: Another interesting direction would be
+developing LLMs specifically fine-tuned on implementing primitives that
+handle the low-level calculations of various decision-making problems.
+(iii) Fine-tuning on the Thought Sequence: To further enhance LLM&apos;s
+understanding and execution of the Thought sequence as well as the
+associated operations, we can fine-tune the model on the sequences
+generated using the procedure described in Section
+[3.2].

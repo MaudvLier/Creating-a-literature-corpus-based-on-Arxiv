@@ -1,0 +1,568 @@
+Meta-Task Planning for Language Agents
+
+
+Introduction
+
+
+Autonomous agents, a.k.a., intelligent entities, excel in executing
+designated tasks. A key function of these agents is planning, which
+necessitates advanced understanding, reasoning, and
+decision-making [*REF*]. Optimal policy discovery of
+intelligent agents requires comprehensive exploration and interaction
+with unknown, stochastic environments [*REF*],
+limiting the application of supervised learning approaches due to sparse
+supervision signals [*REF*]. Deep reinforcement learning
+(DRL) is widely used for autonomously discovering optimal control
+policies without supervisory signals from data or
+experts [*REF*]. The efficacy of DRL-based control
+critically relies on developing accurate environmental models, enabling
+precise task understanding through its exploration capabilities.
+However, this requires expertise from domain specialists, limiting DRL&apos;s
+application in complex scenarios [*REF*].
+
+
+Recently, there has been a notable surge in the interest towards
+empowering agents with large language models (LLM), wherein these models
+function as the cognitive core of the agent [*REF*]. Thanks to
+their adeptness in comprehending and executing human directives in
+natural language, the LLM-enhanced agent has emerged as a highly
+favoured paradigm. The LLM-based agent, with its exceptional logical
+prowess essential for strategic planning, is widely regarded as the most
+promising avenue thus far towards achieving artificial general
+intelligence (AGI) [*REF*].
+
+
+Current LLM agent planning solutions aim to map tasks to sequences of
+executable actions [*REF*]. The plan-then-execute
+methods [*REF*; *REF*] break down complex tasks into
+small, manageable sub-tasks to facilitate the inference of a sequence of
+executable actions. In contrast, the step-by-step
+methods [*REF*; *REF*; *REF*; *REF*; *REF*]
+interleave planning and execution, where each action is determined based
+on previous outcomes. The former simply assumes each sub-task can be
+executed with a single tool [*REF*], but real-world
+applications often require tools with diverse
+functionalities [*REF*]. The latter is unsuitable
+for time-sensitive constraints requiring comprehensive condition
+assessment, meticulous planning and subsequent execution. Moreover, the
+piecemeal nature of these approaches may lead to suboptimal outcomes and
+potential task failure. To improve planning stability and performance,
+recent studies [*REF*; *REF*; *REF*]
+integrate LLMs with external planning tools requiring task descriptions
+in specific formats, e.g., first-order
+logic [*REF*]. However, translating various tasks
+into certain computational logic can be challenging and often demands a
+myriad of domain knowledge [*REF*]. Existing LLM-based
+multi-agent systems primarily simulate human behaviors and social
+activities [*REF*; *REF*; *REF*], while
+planning for collaborative multi-agent systems, despite their
+significant potential, remains underexplored.
+
+
+In this work, we propose Meta-Task Planning (MTP), a
+zero-shot planning method for collaborative LLM-based multi-agent
+systems. MTP simplifies complex task planning by breaking it down into a
+hierarchy of subordinate tasks or meta-tasks, each achievable through
+a series of (heterogeneous) tool calls. Specifically, MTP comprises a
+manager agent for task decomposition and a fleet of executor agents
+to perform meta-tasks. The manager performs task-level planning by
+decomposing the task into a graph, where each node represents a specific
+meta-task and the edges delineate the dependency topology among tasks.
+Then each meta-task is decomposed into a sequence of function calls,
+i.e.,step-level planning and execute, via an executor. The executor
+may utilize off-the-shelf planning techniques, like
+ReAct [*REF*], to facilitate meta-task accomplishment. MTP can
+be viewed as a framework that extends the capabilities of individual LLM
+agents by equipping with planning cores, thus transforming them into
+multi-agent cooperation. In constrained scenarios, such as those with
+budget limitations, MTP categorizes constraints into &quot;local&quot; and
+&quot;global&quot; types. Local constraints are managed by executors during
+meta-task execution, whereas global constraints are considered in
+conjunction with other variables. To improve the success rate and
+stability, MTP employs a supervisor agent to summarize intermediate
+meta-task results and a deliverer agent to produce final outcomes.
+
+
+Distinct from the toy tasks [*REF*] or
+puzzles [*REF*] commonly used in existing planning methods, we
+evaluate MTP on two real-world applications: itinerary planning and
+daily tool usage. Experiment results show that MTP achieves substantial
+performance gains on two benchmarks. Specifically, MTP obtains
+*MATH* success rate on TravelPlanner [*REF*], a
+significant increase from the initially reported *MATH*. It also
+surpasses *MATH* -4 with ReAct on API-Bank [*REF*] by
+*MATH* in absolute improvement. To the best of our knowledge, MTP is
+the first plan-and-execute method for collaborative LLM-based
+multi-agent systems addressing complex real-world tasks.
+
+
+Preliminaries
+
+
+The LLM-based agent is an AI system that leverages an LLM as its primary
+computational framework to showcase functionalities extending beyond
+text generation. These functionalities include engaging in dialogues,
+executing tasks, logical reasoning, and showcasing a level of autonomous
+operation. Formally, an LLM agent consists of several key elements: *MATH*. *MATH* is
+the language model instance, e.g., LLaMA [*REF*], utilized
+by the agent as the cognitive core to reason, plan, and decision making.
+*MATH* is a set of functions/actions called or taken by the
+agent. *MATH* is the role of the agent specified by the prompt.
+*MATH* is the agent&apos;s state, including its existing
+knowledge and internal processes. This state changes as the agent learns
+new information and engages with its surroundings, such as the
+environment or other agents. Finally, *MATH* is the communication module
+for the agent to exchange information or knowledge with other agents.
+The collaborative LLM-based multi-agent system consists of multiple
+agents, *MATH*, that work together to achieve a common
+goal. Each agent *MATH* in the system has a specific role *MATH* and
+specializes in performing a particular task, e.g., task decomposition.
+
+
+Meta-Task Planning
+
+
+Complex projects, such as those in construction or manufacturing, often
+present significant challenges, particularly with diverse,
+geographically dispersed teams. However, thorough planning, effective
+communication, and collaboration can ensure successful
+outcomes [*REF*]. In light of this, we introduce
+meta-task planning (MTP), a novel zero-shot planning approach for
+collaborative LLM-based multi-agent systems to improve the coordination
+among each agent. In MTP, a designated manager agent decomposes a
+complex task *MATH* into
+smaller, more manageable sub-tasks, termed meta-tasks,
+*MATH* through task-level planning. These
+meta-tasks are then converted into a sequence of heterogeneous
+tool-using actions executed by a fleet of executor agents, a process
+referred to as step-level planning and execution. Additionally, MTP
+incorporates a supervisor agent to facilitate sharing synthesized
+meta-task outcomes among executors and a deliverer agent to consolidate
+final results upon the collective findings of all meta-tasks. The
+comprehensive framework of MTP is illustrated in
+Figure [1].
+
+
+FIGURE 1
+
+
+The Collaborative Multi-Agent System Design
+
+
+FIGURE
+
+
+Manager Agent
+
+
+The manager agent has two primary objectives. Firstly, it decomposes the
+intricate task *MATH* into a set of interconnected meta-tasks
+*MATH*. These meta-tasks often exhibit dependencies, where completing one task is contingent on
+completing another. For instance, deciding on hotels usually depends on
+finalizing the trip destination. Thus, the manager must identify and
+define these inter-dependencies meticulously. Additionally, the manager
+has to assign suitable executors to each meta-task. Executors are viewed
+as a collection of composite tools, and the manager matches them based
+on the meta-task requirements, a method termed the executor as tools
+technique.
+
+
+Secondly, the manager must make well-informed decisions on task
+assignments, especially under constraints like budget limits or specific
+transportation needs in travel scenarios. Some constraints can be
+managed during individual meta-tasks. For instance, for a meta-task that
+searching for accommodation, the minimum stay requirement ensures only
+suitable hotels are considered. The manager also needs to identify
+constraints that interact with other variables across meta-tasks and
+cannot be solved within a single meta-task. For instance, when selecting
+a flight, available hotel and restaurant options provided by other
+meta-tasks must be jointly considered. Identifying local and global
+constraints to divide and conquer them is crucial for successfully
+completing complex tasks. The formal definitions for the local and
+global constraints are presented as follows: 
+Definition 1. A constraint *MATH* is local if and only if
+*MATH* such that *MATH* can be fulfilled purely based on
+the results of *MATH*.
+
+
+Definition
+
+
+It is important to note that the manager identifies potential
+constraints and categorizes them into local and global ones exclusively
+based on internal knowledge. No prior information about the constraints
+for *MATH* is provided, ensuring that the zero-shot property of
+MTP is maintained. Figure  *REF* depicts the logic for manager
+prompt design.
+
+
+FIGURE
+
+
+Executor Agent
+
+
+The manager agent assigns each meta-task to an executor agent, which has
+access to various heterogeneous tools (e.g., functions). The executor
+aims to create a sequence of actions (e.g., function calls) to
+complete the assigned meta-task while adhering to local constraint
+*MATH*. This process significantly reduces the planning complexity, as
+the executor focuses on a specific, well-defined task with clear
+requirements and constraints. Consequently, applying off-the-shelf
+single-agent planning methods to map a task to an execution sequence is
+feasible. Figure  *REF* illustrates the conceptual prompt
+design of the executor. Owing to the functional variation among
+executors, a tailored design approach is necessary for each executor,
+depending on the specific tools available to them.
+
+
+Supervisor Agent
+
+
+The role of the supervisor agent is to refine the meta-task *MATH* by
+incorporating synthesized outcomes from neighboring meta-tasks. After
+the manager agent decomposes the main task, only ambiguous objectives
+(e.g.,&quot;Finding a hotel in city B&quot;) and inter-dependencies among
+meta-tasks (e.g.,&quot;Searching flight to New York&quot; *MATH* 
+&quot;Finding a hotel in city B&quot;) are identified. To execute *MATH* 
+effectively, its input parameters need precise specifications. For
+instance, the input &quot;Finding a hotel in city B&quot; must be correctly
+updated to &quot;Finding a hotel in New York near John F. Kennedy
+International Airport&quot; based on outcomes (e.g.,&quot;Booked flight ZC9896
+to New York, arriving at John F. Kennedy International Airport&quot;) from
+preceding meta-task (e.g.,&quot;Searching flight to New York&quot;). To
+address these nuances and eliminate ambiguities, the supervisor agent
+acts before the commencement of *MATH*. It rewrites *MATH* by referencing
+the outcomes of all neighboring meta-tasks. This ensures all necessary
+parameters are included and accurately instantiated.
+
+
+Here, the neighbor of *MATH* is defined as the collection of meta-tasks
+that have direct inter-dependencies with *MATH*. Formally, the
+neighborhood of *MATH* is defined as: 
+
+
+DEFINITION
+
+
+REMARK 
+
+
+PROPOSITION
+
+
+PROOF
+
+
+FIGURE
+
+
+Deliverer Agent
+
+
+The primary objective of the deliverer agent is to synthesize the
+outcomes of all meta-tasks while ensuring alignment with the global
+constraints, *MATH*. This synthesis is critical because *MATH* can
+only be effectively addressed once all meta-task results are available.
+Thus, the deliverer agent is uniquely positioned to manage these
+constraints, ensuring that the final results comprehensively satisfy all
+global constraints. The logic of the deliverer prompt design is depicted
+inFigure  *REF*.
+
+
+The detailed prompt design and technical introduction of all agents are
+presented in Appendix [10].
+
+
+Hierarchical Task Planning and Execution
+
+
+Task-Level Planning.
+
+
+The manager agent will analyze the given complex task *MATH* and
+decompose it into a series of inter-dependent meta-tasks
+*MATH*. MTP represents them via a directed graph
+*MATH*, termed meta-task graph. In
+*MATH*, each node *MATH* corresponds to a
+meta-task *MATH* and each edge *MATH* delineates the
+dependencies between meta-tasks *MATH* and *MATH*, where *MATH*.
+The architecture of the meta-task graph is illustrated in
+Figure [3]. Executors adhere to the graph&apos;s
+topology, i.e., its edge orientation, to ensure all prerequisites of a
+meta-task are met before its initiation, thereby enhancing the efficacy
+of the overall task execution. Furthermore, the meta-task graph serves
+as a tool for visualizing the task decomposition and an interactive
+interface to enhance the interpretability of MTP systems. It offers a
+mechanism for ongoing monitoring and potential human intervention,
+making it essential for MTP.
+
+
+Step-Level Planning and Execution.
+
+
+After task-level decomposition, each meta-task is manageable to be
+further decomposed into a sequence of executable actions, i.e.,
+function calls. The complexity of each meta-task is significantly
+reduced as it is now a specific, well-defined task with clear
+requirements and local constraints, making the off-the-shelf planning
+method directly applicable, e.g., ReAct [*REF*]. Specifically,
+before the commencement of meta-task *MATH*, the supervisor agent will
+rewrite *MATH* by referencing the outcomes of all neighboring meta-tasks
+*MATH*. Then, the local constraints *MATH* for meta-task
+*MATH* identified by the manager will be given as the auxiliary
+information together with the refined *MATH* to the executor agent *MATH*,
+which will utilize the planning method, e.g., ReAct, to accomplish
+*MATH* by decoding *MATH* into a sequence of actions. The whole process is
+illustrated in Figure [4].
+
+
+Experiments
+
+
+To assess MTP, we move beyond the existing planning methods that largely
+focus on simplistic tasks [*REF*] or
+puzzles [*REF*] irrelevant to practical applications. Instead,
+we evaluate MTP through its application to real-world scenarios.
+Specifically, we examine its efficacy in the domains of itinerary
+planning [*REF*] and daily tools using [*REF*]. We
+fine-tune MTP (prompts, etc.) for each benchmark exclusively on the
+validation set and apply the fine-tuned model directly to the test sets.
+For [*REF*], the training dataset was employed as a proxy for the
+validation set owing to the lack of a dedicated validation set. For all
+benchmarks, each instance is executed only once without sampling, though
+multiple trials could potentially enhance performance. We will make the
+code publicly available upon acceptance.
+
+
+Experiment Setup 
+
+
+Benchmarks
+
+
+TravelPlanner [*REF*]. In &apos;TravelPlanner&apos;, users
+specify their origin, destination, and individual requirements. The
+benchmark assesses the ability of language agents to (1) efficiently
+gather necessary information using appropriate tools and (2) create
+practical, personalized travel plans for users. The plan is assessed
+using four main metrics: (1) delivery rate (a plan has to be delivered
+within 30 steps), (2) commonsense constraint pass rate, (3) hard
+constraint pass rate, and (4) final pass rate (the rate for meeting all
+commonsense and hard constraints), which is the most important metric
+for evaluation. For (2) and (3), we define the \&quot;micro\&quot; pass rate as
+the ratio of passed constraints to total constraints and the \&quot;macro\&quot;
+pass rate as the ratio of plans passing all constraints to total plans.
+
+
+The travel duration can be 3, 5, or 7 days. Due to budget constraints,
+we demonstrate that a 3-day dataset sufficiently justifies the
+effectiveness of MTP. The queries are categorized as &apos;easy&apos;, &apos;medium&apos; or
+&apos;hard&apos;.
+
+
+However, we found that the benchmark includes odd rules as part of its
+evaluation. For instance, choosing the same restaurant multiple times
+throughout a trip breaches the &apos;Diverse Restaurants&apos; constraint, and
+selecting an airport as a meal location breaches the &apos;Within Sandbox&apos;
+constraint. Yet, under normal circumstances, it&apos;s reasonable for a
+tourist to return to a favoured restaurant or dine at airport
+restaurants during their trip. To ensure that the agent recognizes these
+rules as part of commonsense knowledge, we provide specific guidance to
+the planning agents: the &apos;Deliverer Agent&apos; in MTP and the &apos;Planner&apos; in
+React and Sole-Planning. To maintain the integrity of the experiment and
+stay true to the objectives of the original &apos;TravelPlanner&apos;, we conduct
+a separate experiment that excludes this external knowledge. This
+experiment still incorporates the less conventional rules used in both
+&apos;Diverse Restaurants&apos; and &apos;Within Sandbox&apos; settings.
+
+
+As our method consists of tool-use and planning (two-stage), we compare
+our method with the two-stage baseline, &apos;ReAct&apos; from
+[*REF*] using *MATH* -3.5-Turbo and
+*MATH* -4-Turbo as language models. We also further compare
+our method to the best sole-planning baseline, Direct
+*MATH* &apos;&lt;!-- --&gt;&apos;4-Turbo, which has provided
+necessary information to the agent and only require agent to output the
+travel plan.
+
+
+API-Bank [*REF*]. &apos;API-Bank&apos; is a benchmark designed to
+evaluate the tool-use capabilities of large language models, focusing on
+APIs that are commonly used in everyday life, such as email. The
+benchmark includes three levels of difficulty, with Level 3 being the
+most challenging. We chose Level 3 for our experiment because it best
+assesses the planning abilities of the agent.
+
+
+The benchmark assesses agents based on Accuracy and &quot;ROUGE&quot;
+(ROUGE-L) scores. The Accuracy metric gauges the correctness of API
+calls based on user queries, calculated as the proportion of correct API
+calls to total predictions. We modified this metric for a more
+consistent and fair assessment by defining Correctness as the ratio of
+unique correct API calls to total predictions. This adjustment addresses
+the tendency of some language models, like *MATH* -3.5 and
+*MATH* -4, to make repetitive correct API calls. The
+ROUGE-L score evaluates the responses generated from these API calls.
+Our experiments indicate that using this refined Accuracy metric results
+in lower baseline scores.
+
+
+In addition to Correctness, we introduce the &quot;Completeness&quot; to
+better assess task execution. Correctness alone may not fully capture an
+agent&apos;s performance, as minimal API calls could artificially inflate
+scores. Completeness measures the ratio of unique, correct API calls to
+the total required API calls for the task, addressing the limitations of
+Correctness and ensuring a more accurate evaluation of the agent&apos;s
+effectiveness. We also introduce another metric named &quot;Tool
+Repeats&quot;, which measures how often the model correctly calls an API
+after its initial use. A lower number of repeats indicates fewer
+unnecessary inferences, signifying a more efficient solution.
+
+
+Result Analysis
+
+
+Result Analysis for &apos;TravelPlanner&apos;.
+
+
+From TABLES it is evident that MTP significantly outperforms all baseline methods
+irrespective of the presence of unconventional hints. Notably, when
+hints are included, *MATH* &apos;&lt;!-- --&gt;&apos;4 enhanced by
+MTP achieves a superior average final pass rate of 42.68% across all
+difficulty levels, compared to a meagre 2.92% by baselines. This data
+underscores the potential of integrating large language models (LLMs)
+with multi-agent systems, marking it as a promising area for future
+research in LLM-based agent systems.
+
+
+In the absence of hints, the setting replicates that described
+in [*REF*], where the highest final pass rate for
+baseline models stands at 0.56%, consistent with the original study&apos;s
+findings. In this scenario, MTP significantly improves with an average
+final pass rate of 22.4%, surpassing the best-reported baseline result
+in [*REF*].
+
+
+Notably, the Meta-Task Planner (MTP) significantly outperforms the
+Standard Planner (SP) in settings that employ hints and those that do
+not. The SP operates purely as a decision-making framework in which all
+elements necessary for completing the itinerary, such as multiple
+choices for hotels, flights, and restaurants, are pre-supplied; thus,
+the SP agent merely selects the most suitable options from these
+pre-defined sets to construct the final itinerary. This renders SP a
+relatively simpler task compared to MTP and other benchmarks, which
+necessitate the searching and gathering of necessary elements prior to
+decision-making. Nonetheless, MTP achieves a superior final pass rate, a
+finding which may appear counter-intuitive yet can be elucidated as
+follows: MTP&apos;s exceptional performance is attributable to its effective
+deployment of a divide-and-conquer strategy in managing constraints. By
+resolving numerous local constraints during the execution of meta-tasks,
+MTP considerably reduces the complexity that the agent encounters in
+formulating the ultimate itinerary plan.
+Table  *REF* presents the detailed
+pass rates for individual constraints, indicating that MTP significantly
+outperforms *MATH* &apos;&lt;!-- --&gt;&apos;4+ReAct+CoT in terms of
+pass rates across all constraints. However,
+*MATH* &apos;&lt;!-- --&gt;&apos;3.5 is less effective than
+*MATH* &apos;&lt;!-- --&gt;&apos;4 when equipped with MTP, possibly
+due to less model performance. We have provided illustrative results for
+each difficulty level in Appendix [11]. We also present the detailed results
+for each difficulty level (easy, medium, hard) in Appendix [9].
+
+
+Result Analysis for &apos;API-Bank&apos;.
+
+
+Firstly, MTP significantly enhances the performance of both
+*MATH* &apos;&lt;!-- --&gt;&apos;4 and
+*MATH* &apos;&lt;!-- --&gt;&apos;3.5 across all critical evaluation
+metrics. Compared to existing baselines, MTP consistently demonstrates
+superior performance. Notably, the best performance reported in the
+original paper [*REF*] achieved a 70% success rate, which our
+reimplementation slightly exceeds at 71.48%. Thus, MTP stands out by
+surpassing the top method referenced in  [*REF*] by a substantial
+margin of at least 14%. Furthermore, MTP excels in other key areas such
+as task completeness, achieving an impressive 64.08%, and exhibits
+significantly fewer redundant tool interactions, with a count of just
+seven. This robust performance underscores MTP&apos;s potential in redefining
+the capabilities of advanced language models. We have provided
+illustrative results for each difficulty level in Appendix [11].
+
+
+Literature Review for Language Model Agent Planning
+
+
+The emergence of LLMs introduces new paradigms for
+agents [*REF*; *REF*; *REF*],
+demonstrating significant intelligence in
+reasoning [*REF*; *REF*; *REF*],
+planning [*REF*; *REF*; *REF*],
+instruction-following [*REF*; *REF*; *REF*],
+and tool-usage [*REF*; *REF*; *REF*]
+across various domains. Planning acts as an essential capability to
+interact with external environments, which involves organizing thought
+trajectories, setting objectives, and determining steps to accomplish
+the objectives [*REF*]. Some
+work [*REF*; *REF*; *REF*; *REF*]
+focuses on task decomposition, aiming to solve complex tasks in a
+divide-and-conquer manner. The plan selection
+methods [*REF*; *REF*; *REF*; *REF*]
+elicit LLMs to generate various alternative plans for a task following
+by a search algorithm for optimal plan selection and execution. Recent
+studies [*REF*; *REF*; *REF*; *REF*]
+also explore to enhance LLM&apos;s planning ability via reflection and
+refinement strategies. Moreover, some
+work [*REF*; *REF*; *REF*] also introduces
+external planners to aid the planning procedure of LLMs.
+
+
+Numerous strategies have been developed to harness the potentials of
+LLMs for specific agent planning [*REF*], whose effectiveness and
+accuracy of planning significantly determine the agent&apos;s robustness and
+usability. Web-agents [*REF*; *REF*; *REF*; *REF*]
+explore the interaction between LLM and web-environment by simulating
+human&apos;s web-browsing behaviors via RL-based planning or trajectory
+planning. General tool-agents require to interact with massive APIs or
+tools, making the planning procedures more challenging. Solutions to
+tool-agent planning usually rely on various task
+decomposition [*REF*; *REF*],
+self-rectification [*REF*] and
+domain-reasoning [*REF*] strategies. Other task-specific
+agents focus on designing sophisticated planning strategies, such as
+tree search [*REF*] and Bayesian adaptive
+MDPs [*REF*]. Multi-agent
+systems [*REF*; *REF*; *REF*; *REF*]
+seek to solve more complex real-world tasks by combining multiple
+powerful LLM-based agents. Existing solutions mainly focus on tackling
+the complexities inherent in integrating heterogeneous agents with
+different capabilities and specializations [*REF*], while the
+planning strategies among these agents are overlooked. In contrast, our
+MTP focuses on designing generalized, robust planning strategies for
+multi-agent systems. Although
+*MATH* Swarm [*REF*] shares a similar concept
+with MTP, it focuses on visualizing multi-agent collaboration via
+composite graphs to aid prompt tuning, while our MTP is a planning
+algorithm specifically designed for systems with multiple collaborative
+agents.
+
+
+Conclusion
+
+
+This paper presents Meta-Task Planning (MTP), an innovative zero-shot
+methodology for collaborative LLM-based multi-agent systems. MTP
+simplifies complex task planning by breaking it down into hierarchical
+meta-tasks, each mapped to executable actions. MTP was evaluated on two
+benchmarks, TravelPlanner and API-Bank. It achieved an average success
+rate of about 42% on TravelPlanner, a significant improvement from the
+initial 0.6%, and outperformed *MATH* with ReAct by 14%
+on API-Bank. However, the current design still requires human input from
+executor agents. Enhancing MTP by enabling the manager agent to
+autonomously design prompts for executor agents could optimize executor
+creation, accelerating MTP&apos;s practical application. Future research
+should focus on developing more autonomous agents through advanced
+prompt optimization, as suggested in recent literature [*REF*].
+This approach promises to refine MTP&apos;s functionality and expand its
+applicability without human intervention, leading to more intelligent
+and self-sufficient multi-agent systems.

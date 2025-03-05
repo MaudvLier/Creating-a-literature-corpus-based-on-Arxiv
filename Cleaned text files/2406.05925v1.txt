@@ -1,0 +1,554 @@
+Hello Again! LLM-powered Personalized Agent
+for Long-term Dialogue
+
+
+Introduction
+
+
+Open-domain dialogue systems aim to establish long-term, personalized
+interactions with users via human-like chatbots
+*REF* -- *REF*. Unlike most existing studies
+*REF* -- *REF* that are limited to brief,
+singlesession interactions spanning 2-15 turns, real-life scenarios
+often necessitate a chatbot&apos;s capability for long-term companionship
+and familiarity *REF*, *REF*,
+*REF*. Achieving this requires the chatbot not only to
+understand and remember extensive dialogue histories but also to
+faithfully reflect and consistently update both the user&apos;s and its
+personalized characteristics *REF*, *REF*,
+*REF*.
+
+
+FIGURE
+
+
+Motivated by real-life demands, the core challenge of open-domain
+dialogue systems is to simultaneously maintain long-term event
+memory and preserve persona consistency
+*REF* -- *REF*, *REF*. Existing
+research often addresses these aspects separately --- focusing either on
+event memory or persona extraction --- thereby hindering long-term
+consistency. Current strategies for event memory typically involve
+constructing a memory bank that stores historical event summaries,
+complemented by retrieval-augmented approaches to access relevant
+information for response generation *REF*,
+*REF*. Studies on persona-based dialogue rang from
+unidirectional user modeling *REF* to bidirectional
+agent-user modeling *REF*, *REF*,
+*REF*, enhancing personalized chat abilities by
+leveraging profile information. Worse still, the aforementioned
+methods are highly dependent on specific model architectures, making
+them challenging to adapt to other models. Additionally, These
+dialogue models largely lack zero-shot generalization capabilities,
+essential for effective deployment across various real-world domains
+*REF*, *REF*. We conjecture that an
+optimal long-term dialogue framework should be model-agnostic,
+deployable in various real-world domains, and capable of autonomously
+integrating comprehensive data from both event memories and personas,
+as illustrated in Figure *REF*. However, developing such a
+model-agnostic, cross-domain, and autonomous framework remains
+unexplored and challenging.
+
+
+Benefiting from the excellent human-like cognitive and reasoning
+abilities of large language models (LLM), there is an increasing trend
+*REF* -- *REF* to employ LLMs as the cores
+of agent-based simulation systems to automate the process of
+perception, decision-making, and problem-solving. While recent studies
+have developed LLM-powered agents in various fields, such as economics
+*REF*, politics *REF*, sociology
+*REF*, and recommendation *REF*, its
+application in open-domain dialogue remains unexplored. To effectively
+support long-term open-domain dialogue, an LLM-powered dialogue agent
+framework should exhibit broad generality, cross-domain adaptability,
+and the ability to dynamically refine information across dimensions
+like events, user personalities, and agent personalities.
+
+
+In this paper, we propose LD-Agent --- a model-agnostic
+Long-term Dialogue Agent framework consisting of three
+principal components: an event memory perception module, a persona
+extraction module, and response generation module (see the framework
+of LD-Agent in Figure *REF*). The event memory perception
+module is designed to enhance coherence across sessions by separately
+maintaining long-term and short-term memory banks. The long-term
+memory bank stores vector representations of high-level event
+summaries from previous sessions, refined through a tunable event
+summary module. The short-term memory bank maintains contextual
+information for ongoing conversations. The persona extraction module,
+designed to facilitate personalized interactions, incorporates a
+disentangled, tunable mechanism for accurate user-agent modeling.
+Extracted personas are continuously updated and stored in a long-term
+persona bank. These personas, along with relevant memories, are then
+integrated into the response generation module, guiding the generation
+of appropriate responses, as depicted in Figure *REF*.
+
+
+We conduct comprehensive experiments on two illustrative long-term
+multi-session daily dialogue datasets, MSC *REF* and
+Conversation Chronicles (CC) *REF*, to evaluate the
+effectiveness, generality, and cross-domain capabilities of the
+proposed framework. In terms of effectiveness, LD-Agent
+achieves state-of-the-art performance on both
+benchmarks, significantly outperforming existing methods
+*REF*, *REF*, *REF*. To
+assess generality, we examine the framework from both model and task
+perspectives. From the model perspective, LD-Agent is evaluated across
+a range of both online and offline models, including LLMs
+*REF* and non-LLMs *REF*. From the
+task perspective, we extend our evaluation to multiparty dialogue
+tasks *REF*, where LD-Agent also demonstrates
+substantial improvements, showcasing its adaptability across different
+models and tasks. Regarding the method&apos;s cross-domain capabilities, we
+design two cross-domain settings: tuning the model on the MSC dataset
+and testing it on the CC dataset, and vice versa. In both scenarios,
+LD-Agent shows competitive performance, nearly matching the results of
+in-domain training.
+
+
+Our contributions can be summarized as follows:
+- We develop LD-Agent, a general long-term dialogue agent framework,
+considering both historical events and personas. The event memory
+module ensures dialogue coherence across sessions, while the persona
+module ensures character consistency.
+- We introduce a disentangled, tunable approach for long-term dialogue
+to ensure the accuracy of each module. The highly modular framework
+enables it to adapt to various dialogue tasks through module
+re-training.
+- We confirm the superiority of our proposed framework through
+rigorous experiments across multiple challenging benchmarks, diverse
+illustrative models, and various tasks. Extensive insightful
+ablation studies further highlight its effectiveness and
+generalization.
+
+
+Method
+
+
+In this section, we introduce the detailed description of LD-Agent
+with the framework shown in Figure *REF*. We first
+introduce the task definition of long-term dialogue in Section.
+*REF*. Consequently, we separately introduce the
+mechanism of event perception (Section. *REF*),
+dynamic personas extraction (Section.
+*REF*), and response generation
+(Section. *REF*).
+
+
+Task Definition
+
+
+The goal of the long-term multi-session dialogue task is to generate
+an appropriate response r, by utilizing the context of the current
+session C, along with selected information extracted from historical
+session H. In this task, the current conversation session C is
+defined as {u1, u2,..., udc−1, udc }, where each
+ui represents i-th utterance, and dc represents dc turns
+of the current session. Each historical session within H in N historical sessions is denoted as
+FORMULA, where di is the number of utterances of the i-th conversational
+session. Distinct from single-session dialogue models, a long-term
+multi-session dialogue system integrates both current and long-term
+historical conversational cues to generate contextually appropriate
+responses.
+
+
+Event Perception
+
+
+The event memory module is designed to perceive historical events to
+generate coherent responses across interval time. As shown in Figure
+*REF*, this event memory module is segmented into two major
+sub-modules that focus separately on long-term and short-term memory.
+
+
+Long-term Memory
+
+
+Memory Storage. The long-term memory module aims to extract and
+encode events from past sessions. Specifically, this involves
+recording the occurrence times t and brief summaries o into
+representations that are stored in a low-cost memory bank ML =
+{ϕ(tj, oj) \| j ∈ {1, 2,..., l}}. Here, ϕ(·)
+indicates the text encoder (e.g., MiniLM *REF*),
+and l specifies the length of the memory bank. The encoded 
+representations are then efficiently retrieved
+through an embedding-based mechanism, which enhances the accessibility of the stored memory.
+
+
+Event Summary. Different from previous agent approaches
+*REF*, *REF*, *REF* that
+entirely rely on LLM&apos;s zero-shot ability to excavate and summarize
+events, we apply instruction tuning *REF* to the
+event summary module, which can directly improve the event summary
+quality. Specifically, we rebuild the DialogSum dataset *REF*, a large-scale
+dialogue summarization dataset, into the following format: (1) an
+introduction to the task background, (2) the related conversations
+that need to be understood, and (3) detailed summarization requests.
+These three parts serve as input prompts (see Appendix.
+*REF* for more details), combined with the
+original summaries from DialogSum as answers, and are jointly used to
+fine-tune the event summary module, thereby directly improving the
+quality of event summarization.
+
+
+FIGURE
+
+
+Memory Retrieval. To improve retrieval accuracy, we employ a
+retrieval mechanism that comprehensively considers semantic
+relevance, topic overlap, and time decay. Optimizing the retrieval
+accuracy of agent memory is challenging due to the difficulty in
+obtaining accurate memory retrieval data. Most existing methods
+*REF*, *REF* use event summaries as keys
+and context as queries, calculating the query-key semantic relevance
+score ssem to find relevant memories, which inevitably results in
+significant errors. To enhance retrieval reliability, we extract nouns
+from corresponding conversations with the summaries to construct a
+topic library V and calculate topic overlap score stop by: FORMULA 
+where Vq, Vk denote the topic noun set of query and key.
+Additionally, we apply a time decay coefficient λt = e to
+reweight the overall retrieval score sr, signified as: FORMULA. 
+
+
+To avoid retrieving inappropriate memory due to no suitable memories
+existing, we implement a semantic threshold γ. Only memories with
+semantic score ssem greater than γ could be retrieved. If no
+appropriate memories are retrieved, &quot;No relevant memory&quot; will be
+returned. Eventually, the process of retrieving relevant memory m
+can be denoted as: FORMULA.
+
+
+Short-term Memory
+
+
+The short-term memory module actively manages a dynamic dialogue cache
+MS = {(ti, ui)\|i = {1, 2, 3,..., rc}} with timestamps to preserve the
+detailed context of the current session. Upon receiving a new utterance u, the module
+first evaluates the time interval between the current time t and the last recorded time 
+tr in the cache. If this
+interval exceeds a threshold β, the module c triggers the long-term memory module to summarize the cached dialogue
+entries, creating new event records for storage in the long-term
+memory bank. Simultaneously, the short-term memory cache is cleared,
+and the new dialogue record (t) is added to the cache. The
+mathematical expression of this process is given by: FORMULA where M denotes the updated long-term memory bank, o = A(·)
+represents the event summary L function, which process the accumulated dialogue in MS.
+
+
+Dynamic Personas Extraction
+
+
+The persona module is pivotal in maintaining long-term persona
+consistency for both participants in a dialogue system. Drawing
+inspiration from prior work *REF*, we adopt a
+bidirectional user-agent modeling approach, utilizing a tunable
+persona extractor to manage long-term persona bank Pu and Pa
+for the user and agent, respectively. Specifically, we develop an
+open-domain, utterancebased persona extraction dataset derived from
+MSC *REF*. We enhance the persona extractor with
+LoRA-based instruction tuning, which allows for the dynamic extraction
+of personality traits during conversations. These traits are
+subsequently stored in the corresponding character&apos;s persona bank. For
+utterances devoid of personality traits, the module outputs &quot;No
+Trait&quot;. Additionally, we employ a tuning-free strategy that harnesses
+the zero-shot capabilities of LLM models to directly extract personas
+based on prompts. To further improve the agent&apos;s ability to excavate
+user personas without training, we adjust our reasoning strategy from
+direct reasoning to a Chain-of-Thought reasoning
+*REF* (see Appendix.
+*REF*).
+
+
+Response Generation
+
+
+Upon receiving a new user utterance u, the agent integrates
+various inputs: retrieved relevant memories m, short-term context
+MS, and the personas Pu and Pa for the user and agent,
+respectively. These combined inputs are fed into a response generator
+to deduce an appropriate response r, as formulated in Eq.
+*REF*. FORMULA.
+
+
+To enhance the agent&apos;s ability for coherent and contextually
+appropriate responses, we develop a longterm, multi-session dialogue
+dataset, featuring dynamic retrieval memories, context, and personas
+sourced from the MSC and CC datasets for generator tuning.
+Specifically, for each sample, covering five sessions, we dynamically
+simulate the entire progression of the conversation. As each new
+utterance is introduced, the previously tuned modules for event
+summarization, persona extraction, and topic-aware memory retrieval
+are utilized to collect the necessary context, retrieved memories, and
+both user and agent personas related to the utterance. This
+comprehensive data is then integrated into a response generation
+prompt (see Appendix. *REF*). The
+original responses from the MSC and CC datasets are used as ground
+truth sentences.
+
+
+Experiments
+
+
+We aim to answer the following research questions:
+- RQ1: How does LD-Agent perform in long-term dialogue tasks?
+- RQ2: How is the generality and practicality of LD-Agent?
+
+
+Evaluation Settings
+
+
+In this subsection, we briefly introduce the experimental dataset,
+evaluation metrics, and baseline models in our study. Detailed
+evaluation settings are elaborated in Appendix.
+*REF*.
+
+
+Datasets. Extensive experiments are
+conducted on two illustrative multi-session datasets, MSC
+*REF* and CC *REF*, each
+comprising 5 sessions with approximately 50 conversational turns per
+sample, to investigate the effectiveness of LD-Agent on long-term
+dialogue scenarios. The experiments cover model independence
+assessment, module ablation, persona extractor analysis, and
+cross-domain evaluation.
+
+
+Additionally, to evaluate the transferability of the LD-Agent, we
+apply our method to the Ubuntu IRC benchmark
+*REF*, a dataset known for its multiparty interaction
+tasks.
+
+
+Metrics. Our evaluation combines both automatic and human
+assessments to thoroughly investigate the effectiveness of LD-Agent.
+For automatic evaluation, we use three widely used standard metrics:BLEU-N (BL-N) *REF*, ROUGE-L (R-L)
+*REF*, and METEOR (MET) *REF* to
+measure the quality of response generation. Additionally, accuracy
+(ACC) is employed to evaluate the classification performance of the
+persona extractor. In human evaluation, we measure topic coherence
+across sessions, interaction fluency, and user engagement using the
+metrics of coherence, fluency, and engagingness, respectively.
+
+
+Baselines. To demonstrate the effectiveness and model independence
+of LD-Agent, we deploy LD-Agent on multiple platforms and models.
+Specifically, the LLM-based models (online model: ChatGPT; offline
+model: ChatGLM *REF*) and traditional language models
+(BlenderBot *REF*, and BART *REF*)
+are employed as our baselines. In our experiments, The notation
+&quot;ModelLDA&quot; denotes models that incorporate the LD-Agent
+framework, while &quot;Model&quot; refers to the original baseline models
+without LD-Agent. Additionally, we also utilize HAHT
+*REF*, the previous state-of-the-art model in
+long-term dialogue task, as a contrast. See the above baselines stand
+and their role in rich literature in Appendix. *REF*.
+
+
+TABLE
+
+
+Results of Multi-Session Dialogue
+
+
+We adopt two multi-session dialogue dataset to quantitatively evaluate
+our method in long-term dialogue scenarios. The first session is used
+to initialize conversation and the subsequent four sessions are used
+to evaluate the performance of long-term dialogue. In these
+experiments, our framework is applied to both zero-shot models,
+including ChatGLM and ChatGPT, and to tuned models such as BlenderBot
+and ChatGLM. The results are shown in Table *REF*.
+
+
+Impressive performance on long-term dialogue tasks. On both
+datasets, all models employing LD-Agent consistently achieve
+significant improvements across all sessions and metrics, showcasing
+the powerful ability of LD-Agent on supporting long-term dialogue.
+Most notably, comparing
+with previous state-of-the-art model HAHT, BlenderBot employing
+LD-Agent, which has similar parameter scale to HAHT, outperforms it
+with a large performance gap of 3.39%, 3.72%, 3.41%, and 3.32% on
+BLEU-2 ranging from session 2 to 5. This further highlighting the
+effectiveness of LD-Agent on long-term dialogue tasks.
+
+
+TABLE
+
+
+Remarkable generality of LD-Agent. The generality of LD-Agent are
+proved from two aspects: data transferability and model
+transferability. The consistently improvements brought by LD-Agent on
+both benchmarks demonstrate the generality of our framework on various
+long-term dialogue scenarios. In parallel, we observe that LD-Agent
+also plays positive roles in the zero-shot setting, employing to the
+online model of ChatGPT and the offline model of ChatGLM. In the
+tuning setting, LD-Agent achieves significant enhancements on both LLM
+of ChatGLM and traditional model of BlenderBot, fully proving the
+remarkable model transferability of LD-Agent. These results
+comprehensive demonstrate the generality of LD-Agent.
+
+
+Ablation Studies
+
+
+To further analyze the effectiveness of each components, we conduct
+ablation studies for memory module and personas module. We adopt
+ChatGLM as our backbone, which is tuned solely using the context of
+the current session, referred to here as &quot;Baseline&quot;. Afterward, we
+separately add &quot;Event Memory&quot;, &quot;Agent personas&quot;, and &quot;User personas&quot;
+modules for additional tuning on top of the baseline. The results are
+presented in Table *REF*.
+
+
+The results clearly demonstrate that all modules positively influence
+long-term dialogue capabilities, with the event memory module
+contributing the most significant improvements. It is worth noting
+that although all modules experience a performance decline as the
+number of sessions increased, the addition of the event memory module
+results in more stable performance compared to the use of user or
+agent personas. This highlights the critical role of event memory in
+maintaining coherence across multiple sessions.
+
+
+TABLE
+
+
+Persona Extraction Analysis
+
+
+To explore the effect of different persona extractor, including
+zero-shot ChatGLM with Chain-of-Thought *REF* and
+ChatGLM tuned on the persona extraction dataset collected from MSC
+training set, we carry out comparison experiments on two perspectives:Persona Extraction Accuracy and Impact to Response Generation. The
+results are shown in Table *REF*.
+
+
+TABLE
+
+
+FIGURE
+
+
+Extraction Accuracy. We evaluate the extraction accuracy on the
+persona extraction dataset collected from MSC testing set, through
+BLEU-2/3, R-L, and ACC. ACC is to assess the classification accuracy
+of dividing utterance into &quot;with personas&quot; or &quot;without personas&quot;. The
+results of extraction in Table *REF* show that the
+extractor after tuning performs better than CoT ChatGLM on all
+metrics. The higher BLEU and R-L indicates the tuned extractor
+performs better capability to extract personas from an utterance,
+while higher ACC indicates a stronger capability to distinguish
+whether personas are contained in an utterance.
+
+
+Impact to Response Generation. In addition, to explore the effect
+of different persona extractor to the final response generation, we
+conduct experiments on MSC by comparing the results of zero-shot
+ChatGLMLDA with personas extracted by CoT and tuned extractor,
+respectively. The Generation results in Table *REF* 
+indicate the tuned extractor performs better in most sessions. As the
+number of sessions increases, the gap is also constantly expanding,
+demonstrating tuned extractor is more suitable for long-term dialogue.
+
+
+Human Evaluation
+
+
+To further explore the performance of LD-Agent in real-life
+conversation, we adopt human evaluation to separately evaluate the
+ability of memory recall and response generation with the results on
+Figure *REF*.
+
+
+Retrieval Mechanism Analysis. Retrieval mechanism plays a crucial
+role for event memory accurately utilized in long-term dialogue. To
+evaluate the superiority of topic-based retrieval approach than direct
+semantic retrieval commonly used in previous methods, we conduct an
+event memory human evaluation. In the beginning, we initialize a
+conversation using first four sessions and store event memories for
+each session into long-term memory bank. In the last session, we let
+evaluators select relevant memories from long-term memory bank for
+each utterance as the ground truths. Consequently, we separately
+utilize direct semantic retrieval and topic-based retrieval to search
+relevant memories for each utterance, and calculate the accuracy and
+recall based on human annotations. The results are shown in Figure
+*REF*. The topic-based retrieval outperforms direct
+semantic retrieval with significant gap on both ACC and Recall,
+proving that our retrieval method accurately retrieves relevant
+memories.
+
+
+Response Generation Analysis. To further validate the superiority
+of LD-Agent in long-term opendomain dialogue tasks, we organize
+multiple multi-session human-bot conversations on ChatGLM with
+LD-Agent and w/o LD-Agent. We first initialize a predefined dialogue
+as the first session for all chatbots. Subsequently, we employ some
+human evaluators to chat with each chatbot with a time interval from
+first session. The interactions are evaluated on three aspects:coherence, fluency and engagingness. The results in Figure
+*REF* demonstrate the advantages of LD-Agent in long-term
+real-life dialogue scenarios.
+
+
+TABLE
+
+
+Generality Analysis
+
+
+We further explore the generality of LD-Agent from two perspectives:cross-domain and cross-task capability.
+
+
+Cross-domain Results The cross-domain capability is important for
+open-domain dialogue task. Poor cross-domain capability, easily
+occuring on models tuned with specific datasets, largely limits its
+practicality in real-world environments. To explore the practicality
+of our tuned model in real-world, we conducts two cross-evaluation
+experiments on MSC and CC, two long-term dialogue datasets with
+significant domain gap due to the difference of collecting approaches,
+including manually annotating and LLM generation. Specifically, we
+first tune ChatGLM on CC, and test it on MSC. Then we tune ChatGLM on
+MSC, and test it on CC. The results are reported in Table
+*REF*. We can observe that the models tuned on one dataset
+still performs well on the other dataset, only with a slight
+performance decrease than the models tuned on the same dataset.
+Besides, cross-domain tuned model always outperforms zero-shot model
+with a large performance gap. These experiments fully demonstrate the
+powerful cross-domain capability and strong practical potential of our
+method.
+
+
+Cross-task Results The other capability worth exploring is the
+transferability of LD-Agent to different dialogue tasks. We explore
+the effectiveness of our method on multiparty dialogue, a task
+requires playing multiple roles simultaneously. We conduct our
+experiments on Ubuntu IRC dataset *REF*, a commonly
+used multiparty dialogue dataset. where our backbone adopts BART
+*REF*. We compare our method with some previous
+multiparty dialogue methods, including GPT-2 *REF*,
+GSN *REF*, HeterMPCBART *REF*, and
+BART tuned without prompt. The results are reported at Table
+*REF*. It can be seen that BART tuned with LD-Agent
+obtained the state-of-the-art performance in most metrics,
+outperforming previous multiparty dialogue approach HeterMPCBART,
+which also employs BART as backbone. This well proves the powerful
+task tranferability of LD-Agent.
+
+
+TABLE
+
+
+Conclusion
+
+
+In this work, we delved into the long-term open-domain dialogue agent
+to satisfy real-life chatbot demands of long-term companionship and
+personalized interactions. We introduced a model-agnostic long-term
+dialogue agent framework, LD-Agent, which comprehensively considers
+both historical events and user-agent personas to support coherent and
+consistent conversation. Our framework was capably decomposed into
+three learnable modules, significantly improving the adaptability and
+transferability. We conducted extensive experiments, well demonstrated
+the strong capability of LD-Agent to handle long-term dialogue tasks.
+The practicality of LD-Agent was also demonstrated through extensive
+experiments across multiple benchmarks, diverse models, and various
+tasks. Limited by the length of existing long-term dialogue datasets,
+the capability of LD-Agent in longer conversation scenarios is
+valuable to be explored.

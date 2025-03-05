@@ -1,0 +1,588 @@
+Self-Corrected Multimodal Large Language Model for End-to-End Robot Manipulation
+
+
+Introduction
+
+
+Recently, Multimodal Large Language Models
+(MLLMs) [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*]
+have showcased remarkable abilities in visual instruction following and
+common sense reasoning. Some
+studies [*REF*; *REF*; *REF*; *REF*]
+integrate MLLMs into robot manipulation, enabling robots to explore
+multimodal information and formulate task plans. Concurrently, other
+researchers [*REF*; *REF*; *REF*; *REF*]
+are focusing on developing MLLMs capable of directly predicting robotic
+low-level action trajectories. bWhile the integration of MLLMs into
+robotics has shown promising progress, the current pipelines may lead to
+failure predictions when faced with novel tasks or object instances.
+Existing methods lack the capability to automatically detect and
+self-correct failure actions within the closed-loop control
+process [*REF*; *REF*]. This limitation
+significantly impacts their practicality in real-world settings, where
+uncertainties and unexpected obstacles are prevalent.
+
+
+FIGURE
+
+
+Recognizing the crucial role of self-correction in robot manipulation,
+recent studies have introduced some solutions. REFLECT [*REF*]
+stands out by utilizing LLMs to generate failure explanations and assist
+a language-based planner in correcting errors. Following this
+innovation, subsequent
+researches [*REF*; *REF*; *REF*]
+delve deeper into LLMs&apos; robot correction capabilities, correcting both
+high-level task planning and low-level skill primitives. However,
+existing robot correction methods still face two main challenges. 1)
+Lacking the ability to correct low-level pose prediction. Existing
+methods can correct low-level skill primitives, such as generating the
+language prompt \&quot;Move a little bit to the right.\&quot; However, these
+prompts are often difficult for the action model to understand and
+translate into specific poses. Moreover, they are unable to directly
+correct the pose prediction of atomic tasks, which are fundamental for
+completing manipulation tasks. 2) Lacking the ability to learn from
+correction feedback. Current correction frameworks fail to learn from
+successful correction cases and improve policy predictions. They still
+depend on external experts (e.g., GPT-4 [*REF*]) when
+encountering similar failures, which hampers their practicality and
+sustainable development.
+
+
+In this paper, we introduce an end-to-end robotic agent called
+Self-Corrected (SC)-MLLM. As shown in
+Figure *REF*, SC-MLLM can directly predict end-effector poses, autonomously correct
+failed atomic actions, and continuously learn policies from corrected
+samples. To empower the pre-trained MLLM with pose prediction
+capability, we initially transform manipulation pose prediction into a
+language modeling problem, using language to directly generate poses.
+During the training process, we parameter-efficient fine-tune the
+integrated trainable adapters [*REF*] to preserve the inherent
+abilities of MLLMs. According to the static RGB image and a text prompt,
+our SC-MLLM generates the contact pixel coordinates on the image and an
+end-effector 3D direction, then projects the pixel coordinates into 3D
+space using depth information. To equip our model with failure detection
+capability, we categorize pose prediction errors as position, rotation,
+or combined errors, utilizing the final state image and robot
+end-effector pose for failure recognition. Based on the type of error,
+SC-MLLM dynamically requests correction feedback from experts (i.e.,
+position [*REF*], rotation [*REF*], and reasoning
+expert [*REF*]), leading to a reevaluation of the current
+failure scenario and more accurate pose predictions. Moreover, we design
+a continuous policy learning method tailored for successfully corrected
+samples, using exponential moving average
+techniques [*REF*] to learn corrected poses. This method
+not only enhances the model&apos;s adaptability to the current scene
+configuration but also reduces the frequency of expert intervention.
+
+
+Note that our end-to-end SC-MLLM agent can be used multiple times within
+each application scenario, continuously enhancing the accuracy of our
+model&apos;s pose predictions. For example, in furniture settings, the scene
+environment and manipulated objects differ among users. After acquiring
+fundamental manipulation capabilities, our SC-MLLM can undergo repeated
+close-loop corrections and continuous policy learning sessions within
+each user&apos;s home. This process efficiently provides customized
+manipulation policies for each user instead of a shared low-accuracy
+policy.
+
+
+To train our SC-MLLM, we generate 12k manipulation success samples, 15k
+failure samples, and corresponding 60k correction prompts in the SAPIEN
+simulation [*REF*]. To systematically evaluate our method,
+we conduct extensive experiments in both simulation and real-world
+datasets. In the simulator, our method demonstrates an improvement in
+the manipulation success rate from 66% to 87% on seen object categories
+and from 30% to 68% on unseen object categories, based on expert
+correction prompts. After continual policy learning without expert
+feedback, SC-MLLM can also achieve 79% and 69% accuracy on seen and
+unseen categories, respectively. Additionally, we verify that SC-MLLM
+can correct failure cases in real-world experiments, as shown in the
+supplementary video. In summary, our contributions are as follows:
+- To unleash general MLLMs as an end-to-end robotic agent, we
+introduce a Self-Corrected (SC)-MLLM, equipping our model not only
+to predict end-effector poses but also to autonomously recognize and
+correct failure actions
+- Our SC-MLLM makes the first attempt to detect the failure cause of
+low-level pose prediction. Based on the cause, SC-MLLM can
+adaptively request prompt feedback from experts to rethink the
+current failure scene and generate the corrected action.
+- We design a continuous policy learning method for corrected samples,
+enhancing the model&apos;s adaptability to scene configurations and
+reducing expert intervention frequency.
+
+
+Related work
+
+
+Robotic Manipulation. Robotic manipulation has become a pivotal area
+of research due to its wide-ranging applicability. State-based
+reinforcement learning is a popular approach in this
+field [*REF*; *REF*; *REF*; *REF*].
+While some studies have explored using the pure state as the policy
+input [*REF*], more intricate scenarios require
+vision-based observation [*REF* ; *REF*; *REF*; *REF*;
+*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*]
+to perceive the environment and comprehend complex scenes and
+objects [*REF*; *REF*]. Besides, the Diffusion
+Policy [*REF*] marks the first instance of integrating a
+diffusion model to learn trajectory predictions. Inspired by Multimodal
+Large language models&apos; (MLLMs) success in general
+scenarios [*REF*; *REF*; *REF*; *REF*; *REF*],
+some works have tried to employ the common sense reasoning ability of
+MLLMs to solve manipulation tasks. Palm-E [*REF*] trains
+multimodal encodings end-to-end in conjunction with LLMs for
+manipulation planning. VoxPoser [*REF*] extracts
+affordances and constraints from MLLMs to further zero-shot generate
+trajectories for manipulation tasks. RT2 [*REF*], which
+transfers information to actions, holds promise for adapting more
+rapidly to novel situations. Robotflamingo [*REF*] tries to
+fine-tune MLLM on imitation learning datasets to complete basic
+long-horizon tasks. ManipLLM [*REF*] further employs the
+reasoning ability of MLLMs and equips it with the ability to predict
+end-effector poses. Although integrating MLLMs into robotics has shown
+promising progress, current pipelines often lead to failure predictions
+when facing novel tasks or object instances. Existing methods lack the
+capability to self-correct failed actions [*REF*; *REF*]
+within the closed-loop control process.
+
+
+Robotic Failure Correction. Several studies have delved into
+correcting robotic failures. REFLECT [*REF*] introduces LLMs
+for reasoning based on a summary of past experiences, utilizing failure
+explanations for improved planning. MULTIREACT [*REF*]
+utilizes a vision-language model [*REF*] as a reward
+model to recognize and autonomously recover from intermediate execution
+failures. DoReMi [*REF*] conducts immediate detection of
+misalignments between plans and execution using LLMs and then recovers
+from them. CLAIRify [*REF*] generates iterative prompting
+with program verification to ensure action plans are valid. While these
+works demonstrate the use of LLMs in correcting execution failures in
+robotic tasks, they are limited to directly correcting low-level actions
+(e.g., 6 DoF pose) and fail to learn from the corrected feedback. In
+this paper, we aim to bridge this gap by allowing MLLMs to autonomously
+recognize and correct end-effector actions, and then continually learn
+from the corrected samples. Finally, due to space limitations, we
+include the related work on MLLMs in
+Appendix  *REF*.
+
+
+Method
+
+
+In Section [3.1], we introduce our problem formulation. Subsequently, in Section
+[3.2], we present our proposed Self-corrected (SC)-MLLM, detailing the model architecture
+design and the process of equipping our model with pose prediction and
+failure correction abilities. Finally, we explain the details of the
+continuous policy learning mechanism in Section [3.3].
+
+
+Problem formulation 
+
+
+In this paper, we make the first attempt to empower the MLLM with both
+manipulation and failure correction abilities, constructing a
+closed-loop framework. Therefore, our problem formulation comprises two
+main components: pose prediction and action correction.
+
+
+End-effector pose prediction. For manipulation ability, our SC-MLLM
+policy *MATH* generates an action *MATH* based on the image
+(*MATH*) and language question
+(*MATH*) at the initial state. This action, denoted as
+*MATH*, corresponds to the 6-DoF control of a
+Franka Emika Panda robot arm [*REF*; *REF*]. It is
+parameterized by the end-effector position and direction, where
+*MATH*, with *MATH* representing a 3D coordinate and
+*MATH* representing a rotation
+matrix. We include the end-effector position and direction in the
+language for MLLM fine-tuning.
+
+
+Low-level action correction. During the actual manipulation process,
+robot action *MATH* often encounters failures, known as error action
+*MATH*. For failure correction ability, our SC-MLLM policy *MATH* 
+utilize the end state RGB image
+(*MATH*) and the
+language-descriptive end-effector pose (*MATH*) to identify failure
+cases, represented as *MATH*. Depending
+on the error type *MATH*, our SC-MLLM can dynamically request prompt
+feedback *MATH* from experts. This feedback is then utilized as input to
+re-predict actions *MATH* using our SC-MLLM policy
+*MATH*. Details of the correction process are
+provided in Section [3.2.3].
+
+
+Self-Corrected MLLM 
+
+
+Model architecture
+
+
+To equip our model with foundational reasoning abilities, we adopt
+LLaMA-Adapter V2 [*REF*] as our base MLLM. As shown in Figure
+[2], when
+presented with an RGB image, we utilize CLIP visual
+encoder [*REF*] to extract visual features.
+Simultaneously, text prompts are encoded into textual features using the
+pre-trained LLaMA tokenizer [*REF*]. Subsequently, our MLLM
+employs a projection layer to align visual tokens with LLM&apos;s token
+embedding, enabling the LLaMA to perform multimodal comprehension and
+generate corresponding answers. During the training process, we only
+fine-tune the injected adapters [*REF*] within the LLM, while
+keeping the major pre-trained parameters frozen. This strategy is aimed
+at preserving the robust capabilities of the existing MLLM while
+enhancing the model with additional functionalities in manipulation and
+failure correction.
+
+
+Action pose prediction
+
+
+This part is aimed at enabling our SC-MLLM to generate precise
+end-effector poses. During the pre-collection of training data, we
+capture RGB images and their corresponding end-effector poses in the
+simulator [*REF*] when the manipulation is successful. The
+collection details are described in
+Section [4.1]. During fine-tuning, as shown in the pose prediction prompts of Figure
+[2] Step 1, we
+structure the input text prompt for pose prediction as &quot;Predict the
+contact point and orientation for pushing/pulling the object.&quot; The
+answer format is specified as &quot;The contact point is *MATH*, the
+gripper up 3D direction is *MATH*, and the
+gripper forward 3D direction is *MATH*.&quot; To
+simplify the direction regression
+prediction [*REF*; *REF*], we convert it into a
+classification problem by discretizing the continuous numbers in the 100
+normalized integer vectors into (-50, 50) discrete bins.
+
+
+During inference, our SC-MLLM focuses solely on predicting the 2D
+coordinates *MATH* of the contact pixel on the image, which is
+then translated into 3D space using depth information. Meanwhile, we
+obtain the gripper&apos;s left direction (gripper z-forward) from its up and
+forward directions based on geometric relation. To improve the accuracy
+of manipulation, we selectively leverage Chain-of-Thought (CoT)
+reasoning in real-world experiments. Specifically, we can improve the
+stability of the model&apos;s pose predictions by integrating object category
+recognition and task planning descriptions using CoT methodology before
+making predictions. For example, if the model responds with &quot;You would
+typically pull the door from the right side.&quot; this planning-based
+feedback can help the model generate a more precise contact point. While
+CoT showcases the benefits of pose prediction, introducing it also
+entails additional inference time and computational costs. Therefore, we
+do not use this scheme in our quantitative experiment.
+
+
+FIGURE
+
+
+Failure detection and correction 
+
+
+Different from previous correction
+works [*REF*; *REF*] aimed at correcting high-level
+planning or low-level skill primitives, we make the first attempt to
+directly correct the end-effector&apos;s 6-DoF control action. Since atomic
+tasks are fundamental for completing complex and long-horizon tasks,
+correcting the pose prediction of each atomic task is crucial. Before
+moving on to the correction process, it&apos;s necessary to assess whether
+the action has failed and identify the causes of the failure.
+Specifically, we leverage our model&apos;s inherent visual understanding
+capabilities, along with specific prompts, to determine whether the task
+has been completed. For instance, we feed the end-state image into our
+SC-MLLM and pose the question, &quot;Was the microwave door closed? Please
+answer yes or no.&quot; Subsequently, since the pre-trained MLLM lacks
+failure recognition capabilities, we fine-tune the injected adapter of
+our model using the failure detection prompts shown in Figure [2] Step 2.
+Based on the end-state image and end-effector pose, our model can
+accurately identify failure causes, including position, rotation, or
+combined errors.
+
+
+Based on the error type, our SC-MLLM can adaptively request prompt
+feedback from specified experts and utilize this feedback to re-predict
+the action pose, as shown in the Figure
+[2] Step2. To
+obtain position expert prompt feedback, as shown in Figure
+[3] a), we first use
+Where2Act [*REF*] to generate an affordance map by inputting
+2D images. The affordance map indicates the probability of achieving a
+moving distance when operating on certain pixels, reflecting the
+manipulable region of objects. However, existing affordance-based
+methods [*REF*] can only predict a
+potential manipulable region with limited accuracy. For example, in
+Figure [3](fig:cor){reference-type=&quot;ref&quot; reference=&quot;fig:cor&quot;}, the
+highest affordance score region predicted by the expert is C0-C3, which
+is obviously not a manipulable region. Therefore, to provide a more
+reliable contact point, we utilize the common sense reasoning ability of
+a reasoning expert (e.g., GPT-4V [*REF*]) to further filter the
+contact points. Specifically, we randomly select points from areas with
+high affordance scores. These selected points are then projected back
+onto the image and fed into the reasoning expert, using the following
+prompt to filter: &quot;Which of the contact points shown in the image can
+close the object? Please select n points \...\&quot; This process allows us
+to automatically obtain relatively accurate contact points, which are
+then used as input prompts for our SC-MLLM.
+
+
+As shown in Figure [3] b), we use Anygrasp [*REF*] to generate
+the rotation correction prompt. Anygrasp is trained on large-scale data
+and directly inputs 3D point cloud data, which includes rich contextual
+information, enabling accurate grasp rotation prediction. However, our
+actions are not limited to grasping, so we cannot predict the position
+and rotation for the entire object. This is why we do not use Anygrasp
+as the position expert. To generate the rotation for the local region of
+each object, we select a manipulation box based on the contact point
+predicted by our model and generate the rotation within the selected box
+region. For the manipulation box, we expand 5 pixels outward from the
+contact point as the center. If the failure case involves combined
+errors, we sequentially apply position and rotation corrections. The
+rotation expert uses the highest-confidence contact point provided by
+the position expert to generate the corresponding rotation. Finally, we
+combine the correction feedback for both position and rotation as input
+prompts for our model. To enable our SC-MLLM to understand expert
+feedback, we introduced a similar question format during training, as
+shown in the Figure [2] Step 2. During inference, our model can
+significantly improve the action accuracy for failure samples based on
+the feedback prompt, as demonstrated in
+Section [4.2].
+
+
+FIGURE
+
+
+Continuous policy learning 
+
+
+To empower our model with both manipulation and failure correction
+abilities, we integrated pose prediction, failure detection, and failure
+correction data for co-fine-tuning. Following previous
+works [*REF*; *REF*], all outputs from the LLM are
+supervised using the cross-entropy loss *MATH*. Since the
+relative position of the robot and the object changes during each
+manipulation process, it cannot reuse previous expert feedback.
+Therefore, after obtaining successfully corrected samples, we design a
+continuous policy learning method. This method aims to enhance the pose
+prediction ability without requiring expert feedback prompts, as expert
+interventions incur additional communication costs and time. However,
+during fine-tuning with new successful samples, there is a risk of
+catastrophic forgetting, leading to a loss of capabilities in our
+SC-MLLM. Therefore, we explore the use of exponential moving average
+(EMA) [*REF*] to continually learn from new data,
+formulated as: *MATH*.
+
+
+Where *MATH* is the time step, *MATH* represents our model. We set the
+updating weight *MATH* based on [*REF*]. We
+evaluate the effectiveness of the EMA scheme in action continual
+learning, as shown in Appendix [9]. Finally, our SC-MLLM can perform repeated
+closed-loop corrections and continuous policy learning sessions for each
+scene configuration, continuously improving the model&apos;s prediction
+accuracy. This process efficiently generates customized manipulation
+policies for each application scenario, rather than relying on a shared,
+low-accuracy policy.
+
+
+Experiment
+
+
+In this section, we conduct extensive experiments in both simulation and
+real-world settings. First, we introduce the experimental setup in Sec.[4.1], including data
+collection, implementation details, and evaluation metrics. In Sec.[4.2], we compare
+our SC-MLLM with previous baselines on the simulation dataset. The
+ablation study is presented in Sec.[4.3], demonstrating the effectiveness of each component.
+Finally, we present the qualitative analysis of real-world experiments
+in Sec.[4.4].
+
+
+Experiment setting 
+
+
+Data Collection. We adopt the SAPIEN engine [*REF*] to
+set up an interactive simulation environment with articulated objects
+from PartNet-Mobility [*REF*]. The Franka Panda Robot, equipped
+with a suction gripper, serves as the robotic actuator. During data
+collection, we randomly select a contact point p on the movable part
+and orient the end-effector&apos;s z-axis opposite to its normal vector, with
+a random y-axis direction to interact with the object. Successful
+operations are categorized as successful samples and integrated into the
+dataset. Our training dataset comprises 12k successful manipulation
+samples across 20 categories. (Details are shown in
+Appendix [7.1]) For evaluation, we generate 1k examples for
+the test A set, comprising 20 training (seen) and 10 testing (unseen)
+categories. Additionally, we collect a test B set where only the
+relative positions between the robot and the object are altered compared
+to the test A set. This test B set validates the effectiveness of our
+continuous policy learning, ensuring it does not exhibit catastrophic
+forgetting or overfit to test A set.
+
+
+Implementation Details. Our SC-MLLM loads the pre-trained parameters
+of LLaMA-Adapter-v2 [*REF*], which includes a pre-trained CLIP
+[*REF*] as the visual encoder, a 7B LLaMA
+[*REF*] model as the language model, and a multi-modal
+projection module consisting of 32 transformer layers. Throughout the
+fine-tuning phase, we utilize the Adam optimizer with
+*MATH* and an initial learning rate of
+1e-4, with a warm-up period of one epoch. We fine-tuned our model on
+four 80G A100 GPUs for 10 epochs, with each epoch taking approximately
+half an hour.
+
+
+Evaluation Metric. Follow previous
+works [*REF*; *REF*; *REF*], we only
+test pulling accuracy in the simulator. The object starts in the closed
+state and the goal is to actuate the joint to its open state, i.e.,
+from near one end of its range of motion to the other end of its range.
+We use the predicted contact point and rotation to interact with objects
+in the simulator. The trajectory for pulling is predefined, moving
+backward along the z-axis of the end-effector. To measure the model&apos;s
+performance, we employ the manipulation success rate, defined as the
+ratio of successfully manipulated samples to the total number of test
+samples. A manipulation is considered successful if the joint state
+difference before and after interaction exceeds a threshold of 0.1
+meters. In the real-world experiment, we validate the effectiveness of
+our method for both pulling and pushing actions.
+
+
+Manipulation main results 
+
+
+Table 
+
+
+In the main experiment, we compare our SC-MLLM against four
+representative baselines: UMPNet [*REF*],
+Flowbot3D [*REF*], ManipLLM [*REF*], and our
+utilized experts. Following previous SOTA work [*REF*], we
+conduct comparisons with other approaches only on the initial movement
+setting. This reflects how well the model can generate end-effector
+poses for the initial state, which plays the most important role in
+achieving the entire long-distance movement. For a fair comparison, all
+methods use the same train/test split and end-effector settings. We
+provide the reproduction details of baselines in
+Appendix [7.2]. As shown in Table, by using expert feedback prompts for corrected
+pose prediction, Ours-c achieved an impressive 87% accuracy on seen
+categories and 68% accuracy on unseen categories. Compared to
+traditional methods, Ours-cl achieves significant improvement over
+UMPNet and Flowbot3D. We find that training on these diverse categories
+may lead to a decrease in manipulation success rates compared to the
+baseline original papers. This finding highlights the importance of
+researching MLLM-based methods, which leverage MLLM&apos;s strong
+generalization capabilities to learn manipulation skills across various
+categories. Compared to MLLM-based methods, Ours-cl (without expert
+prompts) also achieved a 22% and 22% improvement on seen and unseen
+categories over the previous SOTA ManipLLM, respectively. The results
+demonstrate that our proposed method can effectively correct failed
+actions, learn from successfully corrected samples, and improve
+generalization to unseen objects. Finally, we compare SC-MLLM with our
+employed experts (zero-shot) to verify that the improvement does not
+stem from the expert prompts but also from our model&apos;s rethinking and
+correction based on these prompts.
+
+
+Ablation study 
+
+
+To elucidate the contribution and effectiveness of individual methods
+within our SC-MLLM, we conduct extensive ablation studies in
+Figure [4].
+
+
+FIGURE
+
+
+The impact of expert type. First, we explore the impact of different
+expert feedback prompts on corrected pose prediction. As shown in
+Figure [4] (a), \&quot;P\&quot; and \&quot;R\&quot; represent utilizing position and rotation feedback,
+respectively. \&quot;P + R\&quot; represents utilizing combined expert feedback,
+while \&quot;Ours\&quot; represents adaptively seeking expert feedback based on
+the failure cause. For all experiments, we input the prompt feedback
+into our SC-MLLM, allowing it to re-predict poses based on the prompt.
+We find that any type of expert prompt can improve unseen manipulation
+accuracy, demonstrating the importance of correction for novel object
+manipulation. Additionally, we observe that \&quot;Ours\&quot; achieves comparable
+results to \&quot;P + R\&quot;, but with lower expert intervention costs. The
+results confirm that detecting failure cases and adaptively seeking
+expert feedback is essential in real-world applications. The accuracy of
+failure detection is shown in Appendix [8].
+
+
+The impact of correction times. Our expert system can return
+multiple prompts simultaneously; for example, the position expert can
+provide n potential contact points. Therefore, we explore the impact of
+different correction times on pose correction accuracy. As shown in
+Figure [4] b), the x-axis represents the number of expert prompts used for correction. Note
+that we count a manipulation as successful if it succeeds even once
+during multiple corrected actions. We find that with just one
+correction, the model achieves an improvement of 15.4% on seen objects
+and 17.8% on unseen objects compared to direct prediction without expert
+feedback. The results demonstrate the effectiveness of our designed
+correction paradigm. Furthermore, when the number of corrections reaches
+three or more, the model achieves a promising manipulation success rate.
+
+
+The impact of close-loop correction times Our SC-MLLM agent can be
+used multiple times within each application scenario, repeating the
+closed-loop correction: \&quot;failure detection *MATH* failure
+correction *MATH* continual policy learning\&quot;. As shown in
+Figure [4] b, we aim
+to demonstrate whether our SC-MLLM can continually improve pose
+prediction accuracy without expert prompts. The x-axis represents the
+number of closed-loop correction iterations. We find that both seen and
+unseen categories show significant improvement after multiple rounds of
+closed-loop correction. The results not only confirm the effectiveness
+of our continual policy learning but also demonstrate the practicality
+of our method, which can efficiently provide customized manipulation
+policies for each user. Finally, to demonstrate that the improvements
+are not due to overfitting on the test A set, we also evaluate our model
+on the test B set after each closed-loop correction
+(Appendix [10]).
+
+
+Real-world evaluation 
+
+
+We conduct real-world experiments involving interactions with various
+household objects using a Franka Emika robotic arm. We modify the finger
+gripper by attaching double-sided tape to convert it into a suction
+gripper, which provides the gripper head with adhesive properties.
+Details are shown in the supplementary video. Although
+ManipLLM [*REF*] demonstrate that MLLM-based methods are less
+affected by the sim-to-real domain gap, we still made efforts to
+increase the diversity of simulation data collection. Specifically, we
+increase scenario diversity by varying elements such as object part
+poses, camera angles, lighting, and more to mitigate the potential
+sim-to-real gap. As shown in
+Figure [5], we project our corrected pose predictions
+back into the 2D image using camera parameters to indicate the pose that
+will contact the object. The green, red, and yellow lines represent the
+z-axis, y-axis, and x-axis of the end-effector direction, respectively,
+while the blue dot indicates the contact point. After closed-loop
+correction, our method can accurately predict the contact point and 3D
+direction in the real world. In addition, for many real-world objects,
+our model can directly predict accurate action poses, and we only
+execute the correction scheme in failure cases.
+
+
+FIGURE 
+
+
+Conclusion and limitation
+
+
+In this paper, we innovatively propose Self-Corrected (SC)-MLLM, which
+can not only predict end-effector poses but also autonomously correct
+failure actions. Our SC-MLLM makes the first attempt to detect the
+failure cause of low-level pose prediction. Based on the cause, SC-MLLM
+can adaptively request prompt feedback from experts to reevaluate the
+current failure scenario and generate the corrected action. To construct
+the closed-loop correction, we propose a continuous policy learning
+strategy that enhances the model&apos;s adaptability and reduces the
+frequency of expert intervention. Through our proposed closed-loop
+correction, we can automatically provide customized policies for each
+application scenario. As for limitations, while SC-MLLM achieves
+promising manipulation accuracy, multiple forward propagation through
+the MLLM results in additional computational overhead. Our future
+research will focus on developing more efficient correction methods.

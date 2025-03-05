@@ -1,0 +1,496 @@
+Devil&apos;s Advocate: Anticipatory Reflection for LLM Agents
+
+
+Introduction
+
+
+EPIGRAPH
+
+
+The enduring appeal of Frost&apos;s emblematic poem, &quot;The Road Not Taken,&quot;
+resides not just in its poetic elegance, but also in the profound lesson
+it imparts about decision-making. As we stand at the crossroads of a
+choice, it is a daunting challenge to assess probable outcomes and
+choose a course that best aligns with our objectives. This task becomes
+even more formidable when Large Language Model (LLM) agents
+[*REF*; *REF*; *REF*] have to navigate
+complex scenarios unfolding in real time, e.g., solving tasks in web
+environments [*REF*; *REF*; *REF*; *REF*],
+conducting simulated science experiments [*REF*],
+and solving embodied household tasks [*REF*].
+
+
+Indeed, LLM agent decision-making has witnessed enhancement by post-hoc
+reflection and correction [*REF*; *REF*], coupled
+with adaptive planning [*REF*; *REF*], where the
+agents learn from past successes and failures while concurrently mapping
+out flexible strategies. However, frequent shifts in plans, albeit a
+mere inconvenience for humans, can lead to disorientation for AI agents.
+This may produce confusion, a standstill, or even an infinite loop of
+failure, which substantiates the importance of thoroughly executing a
+set plan with utmost effort before resorting to a plan revision.
+Therefore, this paper puts forward a methodology aimed at achieving an
+optimal balance between consistency and adaptability. This critical
+equilibrium mirrors the resilience and agility that is anticipated of a
+capable system that is prepared for curveballs but unwavering in the
+execution of its plan.
+
+
+In this paper, we introduce a novel approach that integrates
+introspection into the fabric of LLM agents. This approach enables
+agents to continuously reflect on their actions, thereby stimulating a
+learning process that dynamically optimizes exploration paths and
+enhances robust decision-making under uncertainty. Our introspective
+intervention focuses on three principal dimensions: 
+1. Anticipatory reflection before action execution (similar to a
+devil&apos;s advocate);
+2. Post-action evaluation and backtracking with remedy when necessary,
+to ensure the outcome aligns with subtask objectives;
+3. An extensive review upon plan completion to generate finer plans for
+subsequent trials.
+
+
+We implement this introspective methodology within WebArena
+[*REF*], a comprehensive web environment featuring 812 tasks
+in five scenarios: online shopping, e-commerce management, social
+discussion forums, maps, and software development platforms.
+Experimental results demonstrate that our approach, which is zero-shot,
+significantly outperforms existing zero-shot methods while improving
+efficiency, paving the way for a new paradigm of intelligent systems
+that are more consistent, adaptable, and effective at solving
+problems.
+
+
+Related Works 
+
+
+In this paper, we develop and expand upon several key themes within the
+realm of natural language processing, with a specific focus on the
+integration of action generation, planning, and reflection in the
+construction of LLM agents.
+
+
+Action Generation: LLMs have been employed in tasks requiring
+decision-making or action generation and have proven useful as
+agent-controlling policies in embodied environments
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+They have also demonstrated effectiveness in text-based environments
+[*REF*; *REF*; *REF*], where
+techniques like ReAct [*REF*] have shown notable benefits.
+Despite its success, ReAct&apos;s limitation lies in its inability to adjust
+to changes in the environment. Several improvements
+[*REF*; *REF*] have been proposed to
+counter these limitations, advocating for self-reflection to enhance
+decision-making and reasoning. However, these techniques primarily aim
+to improve single plans or trajectories without considering alternative
+actions, which could modify the plan in a wrong direction.
+
+
+Position Bias Mitigation: While comparing answer choices is
+generally effective, large language models used for action generation
+are not without flaws. They can exhibit bias, especially towards the
+first (or sometimes second) answer they see, regardless of its quality.
+This is known as position bias [*REF*; *REF*]. Our
+method mitigates this bias by asking follow-up questions that challenge
+its own answer.
+
+
+Planning: Extensive research has explored the potential of LLMs in
+task planning
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+The concept of decoupling planning and execution in formulating LLM
+agents has been validated through numerous paradigms such as ReWOO
+[*REF*], ADaPT [*REF*], Structured Self-Reflection
+[*REF*], and DEFS [*REF*]. Nonetheless, these
+methods exhibit a deficiency in establishing a resilient mechanism for
+plan execution, with agents frequently revisiting and revising their
+plans following each instance of adverse environmental feedback, often
+due to inaccurately executed actions. Our approach, conversely,
+emphasizes executing a previously defined plan with unwavering effort
+before considering any modifications. This guarantees a more stable and
+consistent problem-solving process. To implement this, the factor of
+tree search becomes crucial for exploring the best solutions. Past
+approaches, including ToT [*REF*], RAP
+[*REF*], LATS [*REF*], AdaPlanner
+[*REF*], and ToolChain\ [*REF*], have
+incorporated tree search techniques in identifying the optimal route to
+the desired solution. However, our approach distinguishes itself by
+engaging the LLM in preparing alternate solutions in anticipation of
+impending failures, ensuring more comprehensive consideration in action
+generation.
+
+
+Reflection and Self-refinement: Reflection and refinement techniques
+have advanced significantly through works such as Reflexion
+[*REF*], AdaPlanner [*REF*], and AutoEval
+[*REF*]. Our methodology further enhances this by
+incorporating an anticipatory reflection mechanism that operates before
+each action rather than performing post-action reflection. This approach
+simplifies exploration by expediting remedial action and reducing
+extensive backtracking and serial plan revisions, thereby improving
+efficiency in the overall task handling process.
+
+
+Method
+
+
+Given a task *MATH* and an environment *MATH* with which
+the LLM agent *MATH* interacts, our objective is to enable the agent to
+systematically and adaptively complete the task through introspective
+methods. We first present how we decompose the task and generate action
+regarding each state in the environment in [3.1] and [3.2]. Then we introduce the introspection mechanism
+in [3.3].
+
+
+Task Decomposition and Planning 
+
+
+The first step involves decomposing the task *MATH* into subtasks
+in a sequential manner, forming a plan. This decomposition is achieved
+through an LLM generation process. Let *MATH* denote the
+agent&apos;s plan generation function, prompted by the task *MATH*.
+description of the initial state *MATH*, and any experience from past
+trials, i.e., history *MATH*: *MATH*. Here, the plan *MATH* is parsed into a sequence
+of ordered subtasks: *MATH* where *MATH* represents the *MATH*-th subtask in the
+plan, and *MATH* is the number of subtasks. For instance, Fig.
+[1] shows a plan with 5 subtasks for solving a task in WebArena. The distribution of
+WebArena tasks based on the number of subtasks within each task is
+illustrated in Fig. [2]. This also reflects the difficulty of the tasks in
+WebArena, where most tasks take 4-8 steps to complete.
+
+
+FIGURE
+
+
+State and Action Representation 
+
+
+Let *MATH* denote the current state of the environment at
+time *MATH*, where *MATH* is the set of all possible states. From
+state *MATH*, let *MATH* denote the next action taken by
+the agent, where *MATH* is the set of all possible actions. The
+next action is generated based on the the specific subtask *MATH* 
+currently being addressed, current state *MATH*, and action history
+*MATH* up to time *MATH*: *MATH* where *MATH* denotes the agent&apos;s action
+generation function. Let *MATH* denote the history of actions
+taken up to time *MATH*: *MATH* where *MATH* is a textual description of action
+*MATH*, along with useful information learned from this action execution,
+generated with function *MATH*. The history would later
+be used to answer questions in the task or to revise the agent&apos;s plan.
+*MATH* accepts as input the state before the action, the
+action itself, the state after the action: *MATH*. When the state observation is too long to fit in the
+context window of an LLM, the state is first summarized by the LLM into
+a shorter description before being fed to *MATH* (e.g.,
+this operation is commonly needed for solving web navigation tasks on
+content management platforms). Note that a subtask can involve several
+actions, and thus *MATH* does not necessarily equal to *MATH*. Given the
+possibility that the task can be finished at some time *MATH* before the
+completion of all subtasks, whenever the agent arrives at a new state,
+we ask the agent to check two things: whether the subtask is finished
+*MATH* , and whether the task is finished
+*MATH*: *MATH* where *MATH* denotes the function for
+checking whether an objective is fulfilled. If
+*MATH*, the agent moves on to solve the next subtask
+*MATH*; whereas when the agent determines
+*MATH*, it finishes the current trial
+regardless of whether the plan *MATH* is finished.
+
+
+ALGORITHM 
+
+
+Introspective Mechanisms 
+
+
+The sequential action generation above can potentially execute the plan
+and solve the task already. Nevertheless, without proper introspection
+and adaptation, the agent might be stuck at a certain unsolvable subtask
+or go into a loop of failure when unexpected problems emerge. Thus, we
+introduce three introspective mechanisms to enhance our LLM agent&apos;s
+problem-solving ability below.
+
+
+Anticipatory Reflection (Devil&apos;s Advocate)
+
+
+The first layer of introspection occurs before each action execution.
+The agent anticipates potential failures and comes up with *MATH* 
+alternative remedies *MATH*. Each
+remedy action is by prompting the LLM with a follow-up question after
+*MATH*: \&quot;If your answer above is not correct, instead, the next action should
+be:\&quot;
+
+
+We use *MATH* to denote the generation of remedy actions,
+which accepts as input the subtask *MATH*, the current state *MATH*,
+the action history *MATH*, and the LLM predicted next
+action *MATH* at first attempt: *MATH*. If later found necessary, the agent can go back to state
+*MATH* to modify the original action *MATH* to try the remedy action
+*MATH* to ensure a smooth plan execution. For example, in Fig.
+[3], we show a state observation
+where all three clicking actions align with the objective of the current
+subtask. The execution of any of these actions would complete the
+subtask; yet the agent might need to return to this state if it later
+determines that the action predicted at first attempt was incorrect.
+
+
+Post-action Evaluation and Backtracking
+
+
+The second introspective mechanism kicks in after the execution of each
+action. Here, the agent evaluates whether the action and the resulting
+state align with the subtask objective. This introspective function,
+denoted as *MATH*, is motivated by the state before the
+action *MATH*, the action *MATH*, the resulting state *MATH*, the
+current subtask *MATH*: *MATH*. Here *MATH* denotes the evaluation score
+reflecting how well the state *MATH* aligns with the subtask
+objective *MATH*. It is a binary signal indicating whether the agent
+needs to stop and backtrack to some previous state and take an
+alternative action *MATH*, if the execution of *MATH* does
+not meet the objective of the current subtask. In our experiments with
+web environments, the URL of the webpage is a useful information
+recorded as part of *MATH*. When backtracking, we can easily navigate
+back to the URL. However, the element information on the URL might
+differ from the state we first encountered upon arriving at that page.
+To address this, we prompt the LLM to map the recorded element in the
+action to the new element with which we want to interact, if necessary.
+
+
+FIGURE
+
+
+Plan Revision
+
+
+The third introspective mechanism occurs upon plan failure, i.e., when
+the stack is empty and *MATH*. Now the agent
+performs a thorough review of the actions executed and the notes taken,
+and refines its future plan based on identified problems: *MATH*.
+
+
+Here, *MATH* is the new plan after reflecting on the
+past failed trials. The agent then re-enters the plan execution phase
+and starts a new episode.
+
+
+Through these three layers of introspection, our agent is more capable
+of navigating the complexities of unforeseen circumstances and
+addressing tasks, bringing us a significant stride closer to achieving
+truly autonomous, adaptable, and intelligent systems. By structuring the
+problem in this manner, we have established a clear framework for
+enabling LLM agents to perform tasks autonomously and adaptively through
+introspection. Algorithm shows a pseudo code demonstration of our approach.
+
+
+FIGURE
+
+
+Experiments
+
+
+In this section, we demonstrate how introspection enhances consistency
+and adaptability of LLM agents in solving complex tasks in web
+environments. We first introduce the experimental setup for evaluation
+[4.1], followed by evaluation results
+[4.2]. Detailed error analysis is provided in
+[4.3], which highlights the directions for future
+endeavor.
+
+
+Experimental Setup 
+
+
+Live environments: We evaluate our proposed method in the simulated
+web environments of WebArena [*REF*], a dataset of
+human-annotated web browsing tasks designed to evaluate the ability of
+LLMs to perform complex, real-world actions on the internet. The 812
+tasks in WebArena involve five websites: an online shopping website, a
+software development website, a social forum platform, a map, and an
+e-commerce management platform; and these tasks can be categorized into
+three classes: information seeking tasks, site navigation and content &amp;
+config tasks, and unachievable tasks. Though WebArena provides visual
+observation (screenshots), in this work we use the text observation
+only. The observation at each step is the accessibility tree of the
+webpage, and the elements in the accessibility tree are all within the
+current viewport of a 1280 *MATH* &apos;&lt;!-- --&gt;&apos;720 screen. The
+action space of our LLM agent includes actions that interact with
+environment: click, type, scroll, goto, go_back, go_forward,
+and also a note_down action that takes down useful snippet/summary for
+answering information-seeking questions.
+
+
+Baselines: We employ &apos;gpt-4-0613&apos; [*REF*] with a
+context window of 8k tokens to build the agents and compare our method
+with three other agent construction strategies: planning and sequential
+decision making (Plan + Act w/o reflexion), similar to ReWOO
+[*REF*]; planning and sequential decision making with reflection
+(Plan + Act), similar to AdaPlanner [*REF*]; and tree
+search based planning, similar to LATS [*REF*], but with
+reflection. In all methods, we set the upper limit on the number of
+actions to 30, i.e., after the agent executes 30 actions for a given
+task, it has to stop. In all three methods, we adopt the same prompts
+for action generation *MATH*, plan generation
+*MATH*, and evaluator *MATH* and
+*MATH* to ensure a fair comparison. In our
+experiments, we set the LLM temperature to 1.0 and max_tokens to 512,
+and keep all other parameters as default.
+
+
+Metrics: We follow the evaluation metric Success Rate in
+[*REF*], and count the number of actions per trial and the
+number of plan revisions per task. To determine whether a task is
+successfully completed, the &apos;exact_match&apos; metric is used for some site
+navigation and information seeking tasks. However, this can sometimes be
+overly stringent. For instance, consider the URLs below that display the
+same content (under &apos;electronics&apos;, the category id of &apos;headphones&apos; is
+60): both of them are correct answers but only one exact match with the
+gold answer (the first one) is considered correct. To address this
+issue, we manually review the evaluation process and correct such cases
+in our results.
+
+
+FIGURE
+
+
+Results 
+
+
+The experimental results, depicted in Fig.
+[5], demonstrate the efficacy of our introspection-driven approach in
+enhancing the consistency and adaptability of LLM agents in web
+environments. We compare the success rates of various agent construction
+strategies across multiple episodes. Our method, anticipatory reflection
+(AR), consistently outperforms the others, achieving a success rate of
+23.5% after seven episodes, closely followed by LATS with 22.7%. In
+contrast, the Plan + Act method shows gradual improvement, reaching
+19.8%, but remains significantly lower than the tree-search-based AR and
+LATS methods. Taking a closer look at the last few rounds of LATS
+reveals marginal improvements due to the homogeneous generated actions
+through direct sampling. In comparison, AR benefits from the &quot;devil&apos;s
+advocate&quot; approach, enabling more thorough planning and execution due to
+introspective follow-up questions. This trend underscores the importance
+of incorporating introspection mechanisms for both plan execution and
+revision, highlighting their critical role in achieving more consistent
+and efficient results.
+
+
+TABLE 
+
+
+Further insights can be gleaned from
+[1], which compares the average number of actions in the first and last
+trials across different methods. Our AR method shows an increase in the
+average number of actions from 6.39 in the first trial to 7.07 in the
+last trial, indicating a robust learning and adaptation process. In
+comparison, the average number of actions in the first trial of the
+Plan+Act method is only 4.01, suggesting that it stops at an early stage
+without completing full plan execution. Thus, our method effectively
+leverages a greater number of actions to achieve better outcomes,
+thereby reducing the number of plan revisions by 45% and improving
+overall efficiency.
+
+
+Error Analysis 
+
+
+The subsequent sections shed light on an analysis of errors we observed
+from the agent&apos;s behavior when executing tasks. Two key areas have been
+identified for detailed discussion: an agent&apos;s occasional inability to
+fully learn from past failures, and inefficiencies in solving specific
+kinds of tasks due to a sequential planning scheme.
+
+
+Agent only takes partial lesson from past failures
+
+
+One category of errors we notice is that the agent is not taking full
+lesson from past failure in generating a new plan. As illustrated in
+Fig. [6],
+the agent is at the final step of drafting a refund message for a
+Bluetooth speaker, after a series of steps taken to seek information for
+the order. From the screen, we know that the agent should consolidate
+all the gathered information and type one piece of text into the (only)
+box titled &quot;What&apos;s on your mind?&quot;. However, as depicted in Fig.
+[7], while some improvements were made by adding the date of purchase and a more
+detailed explanation in the revised plan, the agent still failed to
+optimize the input process, repeating the typing actions separately for
+fields that do not exist. This inefficiency in the agent&apos;s behavior
+showcases the need for either an LLM with stronger reasoning ability or
+a better mechanism to solicit more comprehensive and accurate
+reflection.
+
+
+FIGURE
+
+
+Sequential planning cannot solve all tasks
+
+
+In our analysis, we observed a recurrent error pertaining to the design
+of the agent&apos;s planning process. Currently, the proposed methodology
+structures a plan as a sequence of tasks that are executed in a specific
+order. This approach, effective in a decent amount of use cases, seems
+to falter when faced with tasks necessitating more sophisticated logic.
+Specifically, tasks that mandate implementing a function encapsulating
+several actions, employing a loop construct, or those executed
+repetitively, tend to challenge the model&apos;s current configuration. For
+example:
+-  List out reviewers, if exist, who mention about average print
+quality
+-  Give me the SKU of the products that have 1-3 units left.
+-  Like all submissions created by CameronKelsey in subreddit
+earthporn.
+
+
+The ability to process these tasks effectively would necessitate the
+incorporation of additional cognitive constructs into the planning
+model --- e.g., loops, repetitive actions, or encapsulation of a group of
+actions into callable functions. Though taking notes can help the agent
+eliminate wrong choices, these systemic extensions would add crucial
+capabilities to the web agent, significantly enhancing its navigation
+and problem-solving competence in realistic web environments. Moreover,
+while the current agent can succeed in the limited search space of
+simple tasks, it often struggles to review and introspect upon more
+extensive descriptive tasks requiring dynamic problem-solving. By
+addressing these limitations in future work, i.e., effectively
+converting textual description of a plan into robust execution of
+callable functions and loops, we believe that the reasoning capability
+of our agent can be substantially improved, leading to better outcomes
+in understanding and solving tasks that involve dynamic cognition in web
+environments.
+
+
+Conclusion
+
+
+In this work, we introduce a novel introspective methodology that
+significantly enhances the problem-solving capabilities of LLMs in
+complex environments, as demonstrated through comprehensive evaluations
+in the WebArena setting. Our approach strategically decomposes tasks
+into actionable subtasks and incorporates a three-tiered introspection
+process, which includes anticipatory reflection, robust post-action
+evaluation, and episode-level plan revision. This setup not only allows
+LLM agents to adapt their strategies in real time but also fosters
+long-term learning, reducing the need for frequent interventions as
+experience accumulates. The successful application of our introspective
+methodology in the WebArena suggests its potential transferability to
+other domains that demand dynamic decision-making such as autonomous
+driving, healthcare, and interactive customer services. By enabling LLM
+agents to proactively contemplate potential failures, evaluate actions
+post-execution, and continuously refine their strategy based on
+experiential insights, our approach equips AI systems with a human-like
+strategic thinking capability.
+
+
+Broader Impact 
+
+
+Looking forward, the integration of multi-modal data inputs could
+further enhance the contextual understanding and decision-making
+accuracy of these agents. The principles and findings from our approach
+provide a robust foundation for future research in AI, particularly in
+aspects of autonomous decision-making, learning efficiency, and
+adaptability. As AI continues to integrate into diverse aspects of
+decision-making, embedding introspective capabilities will be essential
+to ensure these systems operate not only with precision but with an
+understanding akin to strategic human cognition.

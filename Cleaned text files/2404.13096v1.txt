@@ -1,0 +1,487 @@
+Reducing Redundant Computation in Multi-Agent Coordination through Locally Centralized Execution
+
+
+Introduction
+
+
+Multi-agent deep reinforcement learning (MADRL) has made remarkable
+advancements recently [*REF*; *REF*]. Two
+frameworks, centralized training and decentralized execution
+(CTDE) [*REF*] and centralized training and centralized
+execution (CTCE) [*REF*], are usually employed for
+MADRL. In the CTCE model, a centralized network processes the
+information from all agents and determines their joint actions. However,
+CTCE is practical only in limited scenarios because of the complex
+interference of agents&apos; actions and the exponential growth of the joint
+action space with the number of agents. By contrast, agents in CTDE
+learn their policies using a centralized network, yet they execute
+decisions based on their individual observations. This makes the CTDE
+approach more suitable for real-world applications of multi-agent
+systems [*REF*; *REF*].
+
+
+FIGURE
+
+
+Yet several problems with CTDE frameworks have long been overlooked. In
+particular, redundant computation is a well-known traditional problem
+in multi-agent systems (MASs) [*REF*], meaning that the
+similar computation is done in some agents redundantly. Such redundant
+computations are caused by overlapping observations, resulting in the
+associated similar inference in different agents. As depicted in
+Fig. [1]a, agents in decentralized execution
+(DE), in which they observe and process their local information, often
+have overlapping fields of observation. This overlap means that
+information about various entities in the environment, like other
+agents, obstacles, and objectives, is processed repeatedly by several
+agents as they determine their next steps, which seems as a waste of
+computing, especially in scenarios requiring teamwork and inter-agent
+communication. By contrast, this issue of redundant computation is
+avoided in the CTCE framework
+(Fig. [1]), where all observed data are summed up
+and provided to a central network.
+
+
+Appropriate mitigation of duplicate observations can significantly
+reduce waste in calculations without compromising the effectiveness of
+MASs. Thus, a hybrid execution framework called the locally centralized
+execution (LCE) as shown in Fig. [1]c, in which agents perform less overlapped
+observations and less redundant processes, is introduced. In conjunction
+with centralized training (CT), the LCE framework designates certain
+agents as leaders. These leaders are responsible for making decisions
+not only for themselves but also for other agents, termed workers,
+within their field of view. Consequently, workers do not need to process
+their surroundings or decide on their actions independently. Unlike
+models that depend on aggregating all agents&apos; observations, the LCE
+approach cuts down on unnecessary computations and lowers the complexity
+of decision-making by operating within a significantly smaller joint
+action space.
+
+
+We then introduce a centralized training and localized execution
+(CTLCE) framework based on LCE and propose a localized centralized team
+transformer (LCTT) to create target messages to others. Additionally,
+we also introduce the redundant observation ratio *MATH* 
+(*MATH*) to measure the extent of redundant computation within an MAS
+algorithm, This ratio allows for a direct comparison of the
+computational expenses between different deep learning-based methods,
+assuming they have a comparable number of parameters. To our knowledge,
+This study is the first attempt to address redundant computational
+issue in MADRL.
+
+
+The proposed LCTT comprises of LCE, team transformer (T-Trans), and
+leadership shift (LS). LCE first establishes a cooperative framework
+where agents are dynamically organized into leader and worker roles,
+based on the directionality of instruction messages. Then, T-Trans
+utilizes a mechnizm simitar to the attention [*REF*] to
+allow leaders to dispatch specific instructions to workers under its
+control. Third, we employ the leadership Q-values, which are
+calculated for agents to identify their aptness as leaders.
+Subsequently, we propose LS, which enables a current leader to decide
+which agents within their observation range are best suited to assume
+leadership in the following time step, based on their leadership
+Q-values. This process allows for a fluid transition of leadership roles
+among agents, ensuring that leadership is always assigned to the most
+qualified agents throughout the interaction.
+
+
+The proposed LCTT was implemented upon QMIX [*REF*] and
+then trained within the CTLCE framework. We conducted its experimental
+evaluatation in a level-based foraging (LBF)
+problemt [*REF*; *REF*], by comparing the
+performance with the baselines, multi-agent incentive
+communication (MAIC) [*REF*] and QMIX without LCTT. We shows
+that LCTT achieved faster convergence with comparable rewards owing to
+the significant reduction of redundancy in computation.
+
+
+Related Work
+
+
+In addressing challenges within multi-agent learning, one
+straightforward approach involves utilizing a centralized network that
+determines joint actions to guide the behavior of all agents. This
+approach is known as CTCE [*REF*; *REF*]. However,
+as the number of agents increases, the joint action space grows
+exponentially, which restricts the scalability of CTCE to scenarios with
+many agents due to computational limitations. Another scheme is
+DTDE [*REF*], in which each agent employs reinforcement
+learning individually to develop its policy [*REF*]. By training
+policies independently, DTDE sidesteps the issue of an exponentially
+expanding joint action space, offering a more scalable solution for
+multi-agent environments.
+
+
+However, from the perspective of individual agents, the challenge with
+DTDE lies in the non-stationary nature of the environment, which changes
+dynamically due to the actions and policies of other agents that also
+learn. This often leads to difficulties in achieving convergence. In
+contrast, CTDE methods [*REF*; *REF*] learn a
+shared policy for all agents in a centralized manner while allowing
+agents to act based on their own local observations. Therefore, CTDE
+mitigates the problem of non-stationarity and reduces the complexities
+associated with a huge joint action space. However, DE in CTDE and DTDE
+encounters an issue of redundant computations. Thus, we propose LCE to
+mitigate redundant computations and also propose a CTLCE framework,
+which can be regarded as an intermediate scheme of CTCE and CTDE.
+
+
+Background and Problem
+
+
+Cooperative Dec-POMDP with Communication
+
+
+Similar to some conventional
+methods [*REF*; *REF*; *REF*; *REF*],
+our model is based on a fully cooperative decentralized partially
+observable Markov decision process (Dec-POMDP) augmented with
+communication. Let *MATH* be the set of global states and
+*MATH* represent the set of *MATH* agents. We also
+denote *MATH* as the set of actions that can be executed by
+*MATH*. Discrete time *MATH* is introduced but we
+often omit the the subscript if *MATH* for the sake of simplicity. At every
+time *MATH*, agent *MATH* may send a message *MATH* based on *MATH* to the agents in the observable
+area. Concurrently, *MATH* might also receive messages from other agents;
+these messages are denoted as vector
+*MATH* whose element *MATH* denotes
+the message from *MATH* to *MATH* (*MATH*). We set
+*MATH* if message did not arrive from *MATH*. Then,
+referring to *MATH* and *MATH*, *MATH* selects *MATH* 
+using its policy *MATH* might receive reward
+*MATH* and the state transistions to the next state
+*MATH*. Agent *MATH* attempts to to increase the expected value
+of the discounted cumulative reward
+*MATH* as much as possible through learning of *MATH*.
+
+
+We employ DQN [*REF*] to learn Q-function, *MATH*,
+that enables agents to appropriately decide their actions, where
+*MATH* is the parameters of the associated deep neural network.
+Parameters *MATH* is adjusted through learned to minimize the loss
+function *MATH*. *MATH* where *MATH* denotes the output from the
+target Q network parameterized by *MATH* which is updated with
+*MATH* periodically, and *MATH* and *MATH* are the action and
+observation at the next time step,
+
+
+Level-Based Foraging (LBF) Environment
+
+
+In a LBF environment, agents are tasked with collaboratively loading and
+collecting food. An example snapshot of the LBF is shown in
+Fig. [2]. At the start of the game, *MATH* agents (circles in
+Fig. [2]) and *MATH* (*MATH*) foods *MATH* (apples in in
+Fig. [2]) are randomly scattered in the environment. Food *MATH* is assigned an
+association level *MATH*, reflecting the challenge associated
+with acquiring that food *MATH*. Similarly, agent *MATH* is characterized
+by an associated level, *MATH*, which represents the *MATH* &apos;s capability
+to forage for food. These levels are expressed by the numbers on foods
+and agents in in Fig. [2]. Agents can observe local areas shown by the
+lighter color shade of each agent in
+Fig. [2], communicate with each other, and execute the selected actions every
+time. This set of actions *MATH* includes moving in four
+different directions, a &quot;none&quot; action indicating inactivity, and a
+&quot;loading&quot; action which is used when an agent to attempt to collect food
+*MATH* on the adjacent node.
+
+
+If *MATH*, agent *MATH* is unable to collect *MATH* 
+individually and fails this attempt. For instance, agent *MATH* in
+Fig. [2] whose level is one, will fail if it tries to collect food at level of five on
+its own, hence *MATH* has to wait for other agents (e.g., *MATH* and *MATH*) to
+come up with the food. Then, when *MATH*, i.e., the sum of the levels of the agents that try to load
+*MATH* simultaneously is larger than or equal to *MATH*, they
+can collect, divide, and load it. Note that *MATH* 
+represents the set of agents that executes &quot;loading&quot; *MATH* at its
+neighbor nodes, simultaneously.
+
+
+When agents load *MATH* successfully, they receive the rewards by
+dividing *MATH* by their levels. Therefore, The rewards of
+*MATH* is *MATH* which means that the reward for food and the level of that food are the
+same. Each agent *MATH* aims to maximize both their individual rewards
+*MATH* and team rewards *MATH*. While agents
+collaborate to maximize *MATH*, the pursuit of maximizing *MATH* may not
+always align with team cooperation, especially if an additional agent
+joins the effort to collect food unnecessarily.
+
+
+FIGURE
+
+
+Problem Statementn
+
+
+Agents *MATH*, *MATH*, and *MATH* in Fig. [2] observe food *MATH* and communicate to
+cooperatively to load it. The information in *MATH* &apos;s observations,
+containing information about *MATH*, *MATH* and *MATH*, is included in *MATH* &apos;s
+observations. Likewise, the information for *MATH* &apos;s observations is also
+included in *MATH* &apos;s observation. This results in the repeated processing
+of the same information across the networks for these agents, leading to
+wasted use of computing resources. This issue becomes even more
+pronounced within the CTDE framework where agents operate under shared
+network parameters.
+
+
+Therefore, instead of allowing *MATH*, *MATH*, and *MATH* make decisions
+separately, a more efficient approach would be enabling agent *MATH*, using
+*MATH* &apos;s observation and network, to coordinate the actions of *MATH* and *MATH* 
+through communication. This method prevents the need for executing
+networks in agents *MATH* and *MATH* redundantly. We posit that such a
+mechanism can reduce the required computing cost and enhance the overall
+efficiency of MADRL. Our research introduces a framework in which agents
+autonomously determine which agents should instruct or be instructed.
+
+
+Proposed Method
+
+
+Redundant Observation Ratio
+
+
+We propose a metric redundant observation ratio *MATH* for DE to
+describe the extent of redundant computation in MASs. This metric
+quantifies the average number of times the information pertaining to
+each entity is processed across agents. It is defined as follows.
+*MATH* where *MATH* is the set of entities, such as all targets, agents, and
+obstacles, in the environment and *MATH* represents the number of
+entities in *MATH* &apos;s observation. Function *MATH* express the
+observability of entity *MATH*, i.e., *MATH* if an agent
+observes *MATH*; otherwise, *MATH*.
+
+
+Hence, *MATH* indicates the extent of overlaps in their
+observations and thus the associated redundant computations. For
+instance, *MATH* are *MATH*, *MATH*, and *MATH*, respectively, in
+Figs. [1]a, [1]c, and [1]d. Usually, *MATH* holds.
+Because the observations of all agents are merged and fed to the
+centralized network in the CE framework (Fig. [1](b)), we can consider *MATH*.
+
+
+Locally Centralized Execution (LCE)
+
+
+First, let *MATH* (*MATH*) agents be leaders and the other *MATH* agents
+be workers.
+
+
+To mitigate redundant observations and computations, we enable leaders
+to construct instructions of actions for workers in their observable
+region including itself. The workers act as the leaders&apos; instructions
+and thus can eliminate the need to observe their surroundings (and their
+observations were excluded from Eq).
+*MATH* and *MATH* are the sets of workers and leaders,
+respectively. The instruction message, *MATH*, from *MATH* (leader) to
+*MATH* (worker) encapsulates the Q value of *MATH* &apos;s possible actions,
+*MATH* for *MATH* and observation *MATH*.
+
+
+FIGURE
+
+
+An example structure of the CTLCE framework is shown in
+Fig. [3], in which agents are able to observe their
+neighboring two agents. Agents *MATH* and *MATH* are leaders and agents *MATH* 
+and *MATH* are workers. The actions of agents *MATH* and *MATH* are instructed
+by their adjacent leaders in the LCE phase
+(Fig. [3]a). In CT phase (Fig. [3]b), the policy is trained similar to
+standard QMIX [*REF*].
+
+
+Algorithm shows the pseudocode for LCE. If leaders are
+observable each other, they construct the instructions for other leaders
+as well as for themselves. When a agent *MATH* receives multiple
+instruction from various leaders, it averages these instructions to
+determine the Q values for its actions. In the LCE framework, the number
+of leaders is typically set to be *MATH*; LCE with *MATH* represents DE
+without any form of communication between agents, and that with *MATH* 
+indicates DE where there is dense communication across all agents.
+Finding an appropriate value for *MATH* is crucial for the efficiency of
+the framework and often requires experiments and experience.
+
+
+All agents within the system share the same neural network architecture,
+although workers typically do not activate their networks as often as
+leaders do. Only when a worker does not receive any instruction, the
+worker observes the surroundings and run its own network to obtain
+Q-values for itself.
+
+
+FIGURE
+
+
+Team Transformer (T-Trans) 
+
+
+In existing research, teammate modeling [*REF*; *REF*]
+has been employed to allow agents to to send specific messages to a
+designated teammate. Unfortunately, this approach is unsuitable for our
+leaders, as workers do not (always) determine their actions using their
+own policies. Therefore, we introduce T-Trans so that leaders are able
+to generate targeted messages for their workers. T-Trans and leadership
+shift (which will be described below) are employed in the CTLCE
+framework, which is referred to as the locally centralized
+T-Trans (LCTT), hereafter.
+
+
+Fig. shows the T-Trans structure. First, agent
+*MATH* &apos;s observation is organized as a collection of information
+corresponding to each entity within its observational range:
+*MATH*, and *MATH* for any entity that falls outside of *MATH* &apos;s observable area.
+Subsequently, they are passed to a gate recurrent
+unit (GRU) [*REF*] cell (see (a) in
+Fig.) to obtain temporal information. Then they
+are passed to an attention-like module [*REF*] (see (b)
+in Fig.), to represent the associations among
+entities. Agent&apos;s characteristics and the temporal features are
+concatenated, and then they forwarded through an action head for
+calculating Q-values. Additionally, a classifier, which is shown as (c)
+in Fig., is applied to determine the most
+appropriate candidate among the agents as the leader for the next time.
+
+
+In the attention-like module, the calculation of the attention feature
+is executed as *MATH* where *MATH* represents the transpose of *MATH*; *MATH* 
+encapsulates a representation unique to each teammate among the agents.
+Then, *MATH* is concatenated with the duplicated hidden states and
+converted into teammate-specific instructions by the fully connected
+(FC) layer action head.
+
+
+Leadership Shift (LS) 
+
+
+At the start of each episode, we randomly select *MATH* (*MATH*) agents as
+leaders. The LS mechanism was introduced to facilitate the dynamic allocation of
+leadership and to ensure that instructions are sent to workers from
+appropriate leaders. An MLP ((c) in
+Fig. ) is used by leaders to generate the hidden
+states and calculate the leadership scores,
+*MATH*, where *MATH* is the score of *MATH* &apos;s
+assessment for *MATH* &apos;s potential as a leader. Based on these scores, a
+leader nominates one of the agents it observes to take over as a next
+leader. Algorithm is the pseudocode of LS for agent *MATH*.
+
+
+To train the leadership scores *MATH* effectively, we propose the
+leadership Q-value to create pseudo-labels for *MATH* as follows.
+First, the leadership Q-value for all agent *MATH* 
+is calculated as *MATH* where *MATH* is an agent observable by *MATH*. Note that
+*MATH* is required to calculate *MATH* only in the CT phase. Our
+method in the LCE phase does not depend on acquiring observations from
+other agents. Then, the pseudo-labels for *MATH*, denoted by *MATH*, are
+obtained using the onehot function: *MATH* where
+*MATH* if *MATH* can observe *MATH* and *MATH*,
+otherwise. After that, *MATH* is learned through the minimization of the
+cross-entropy loss: *MATH* where *MATH* is the
+Kullback-Leibler divergence of *MATH* from *MATH*, and *MATH* is
+the entropy of *MATH*. Note that *MATH* is obtained from the
+observations at *MATH* as the output of the target network with
+*MATH*, whereas *MATH* is computed using the observations of *MATH* 
+at *MATH* from the network specified by *MATH*.
+
+
+Finally, the Q-values generated by the agents are fed into a mixing
+network [*REF*] to combine these values effectively, and
+the collective learning goal for all parameters is
+*MATH* where *MATH* is a weight
+hyperparameter and *MATH* is the standard DQN loss
+function (Eq.).
+
+
+ALGORITHM 
+
+
+Experiments
+
+
+We conducted an experiment to evaluate our method, LCTT, using the LBF
+environment, as shown in Fig. [2], where the size of the grid world is $10 &#9;imes
+10 *MATH* n=4 *MATH* \beta=2$. These results are then compared to those with the baselines,
+QMIX [*REF*] and MAIC [*REF*].
+
+
+The level of any agent, *MATH* is set to an integer randomly selected
+between *MATH* and *MATH*. The level of food *MATH* is also set tp a random
+integer *MATH*. The visibility for all agents was confined to a *MATH* area. The setup
+for our experiments matched the conditions found in the official MAIC repository.
+
+
+Fig. [4] shows the experimental results, in which
+LCTT- *MATH* L means the LCTT with *MATH* leaders; for instance, LCTT-1L
+corresponds to a scenario where one leader instructs others although the
+leadership can shift among agents. LCTT-0L correspond to a DE setup,
+while LCTT-4L depicts a scenario where every agent attempts to instruct
+other agents.
+
+
+FIGURE
+
+
+Figure [4] a displays the mean rewards obtained by LCTT
+and baseline methods over timestep in the test phase. While all
+approaches eventually reached comparable reward upon convergence, the
+LCTT with two leaders, denoted as LCTT-2L, achieved the fastest
+convergence. MAIC enables each agent to send incentive messages that can
+bias the value functions of other agents. In this case, MAIC can be
+considered a special case of LCTT in which *MATH*. The faster
+convergence of LCTT-4L compared to MAIC could be attributed to the
+utilization of the T-Trans structure for message generation, rather than
+relying on teammate modeling. This is because T-Trans bypasses the need
+for explicit modeling or an ancillary loss function. QMIX is a classical
+CTDE method, underpinning both LCTT and MAIC, where agents decide based
+solely on their observations without communication. From this
+perspective, QMIX represents a version of LCTT with *MATH*, i.e., all
+agents are workers and make their own decisions, without using T-Trans.
+The founding that LCTT-0L converged faster than QMIX suggests that the
+T-Trans framework is more effective than conventional MLP networks in
+learning. For clarity, the performance curves of LCTT-1L and LCTT-3L
+were excluded from Fig. [4]. They both converged faster than MAIC yet
+not as fast as LCTT-2L.
+
+
+Figure [4]b presents the mean values of redundant
+observation ratio, *MATH*. It&apos;s clear that LCTT-2L has a
+significantly lower redundant observation ratio compared to other
+methods, suggesting that two leaders of LCTT-2L effectively instruct
+worker agents in collaborative tasks rather than let workers decide
+their own actions. For LCTT-4L, LCTT-0L, MAIC, and QMIX, where all
+agents are required to make decisions, the redundant observation ratios
+are higher than those seen in LCTT-2L. Moreover, their redundant
+observation ratios temporarily increased at the beginning of the
+learning process,reflecting the agents&apos; realization that solo efforts
+are insufficient for task completion, necessitating collective action.
+Over time, these ratios then level off to a more stable range as agents
+learn the importance of spreading out to effectively scout for food
+sources. Unlike the others, the redundant observation ratio for LCTT-2L
+remains low throughout, only slightly decreasing as learning progresses,
+benefiting from the LCE strategy. This strategy ensures that while
+agents come together, the redundant observation ratio does not rise
+because workers fall within the leaders&apos; instruction region and cease
+their individual observations; conversely, as agents spread out, the
+redundant observation ratio does not fall further since workers exit the
+leaders&apos; instruction region and resume their observation.
+
+
+Conclusion
+
+
+This research addresses the issue of redundant computation in
+multi-agent systems. We introduced a novel metric, the redundant
+observation ratio, to quantitatively assess the extent of redundant
+computations. Our findings suggest that reducing redundancy is feasible
+through a structured system of instruction construction among agents. We
+developed the LCTT framework, enabling agents to decide which agents
+should instruct and be instructed by others, and how. Through the
+experimental results in LBF, we demonstrated that the proposed method
+significantly reduces redundant computation without causing a reduction
+in rewards, but instead achieving faster convergence. Thus, when our
+method is applied to practice, it helps to save a large computational
+cost.
+
+
+We believe that it is promising to combine our study with research on
+multi-agent communication, for example, establishing communication among
+leaders pave the way for even more significant advancements.

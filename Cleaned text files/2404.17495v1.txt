@@ -1,0 +1,669 @@
+Q-Learning to navigate turbulence without a map.
+
+
+Bacterial cells localize the source of an attractive chemical even if
+they hold no spatial perception. They respond solely to temporal changes
+in chemical concentration and the result of their response is that they
+move toward attractive stimuli by climbing concentration
+gradients [*REF*]. Larger organisms also routinely sense
+chemicals in their environment to localize or escape targets, but cannot
+follow chemical gradients since turbulence breaks odors into sparse
+pockets and gradients lose information [*REF*; *REF*; *REF*; *REF*; *REF*].
+The question of which features of turbulent odor traces are used by
+animals for navigation is natural, but not well understood. Beyond
+olfaction, some animals could use also prior spatial information to
+navigate  [*REF*; *REF*; *REF*; *REF*], but if and how 
+chemosensation and spatial perception are coupled is still not clear.
+
+
+An algorithmic perspective to olfactory navigation in turbulence can
+shed light on some of these questions. Without aiming at an exhaustive
+taxonomy, see e.g. [*REF*] for a recent review, we recall
+some approaches relevant to put our contribution in context. One class
+of methods are biomimetic algorithms, where explicit navigation rules
+are crafted taking inspiration from animal behavior. An advantage of
+these methods is interpretability, in the sense that they provide
+insights into features that effectively achieve turbulent navigation,
+for example: odor presence/absence [*REF*; *REF*; *REF*; *REF*];
+odor slope at onset of detection [*REF*]; number of
+detections in a given interval of time [*REF*] and the time
+of odor onset [*REF*]. On the flip side, in biomimetic algorithms
+behaviors are hardwired and typically reactive, not relying on any
+optimality criterion.
+
+
+A way to tackle this shortcoming is to cast olfactory navigation within
+a sequential decision making framework [*REF*]. In this context,
+navigation is formalized as a task with a reward for success; by
+maximizing reward, optimal strategies can be sought to efficiently reach
+the target. A byproduct is that most algorithmic choices can often be
+done in a principled way. Within this framework, some approaches make
+explicit use of spatial information. Bayesian algorithms use a spatial
+map to guess the target location and use odor to refine this guess or
+&quot;belief&quot;. A prominent algorithm for olfactory navigation based on the
+concept of belief is the information-seeking algorithm [*REF*] akin
+to exploration heuristics widely used in
+robotics [*REF*; *REF*] (see e.g. [*REF*; *REF*]). Using Bayesian sequential
+decision making and the notion of beliefs, navigation can be formalized
+as a Partially Observable Markov Decision Process
+(POMDP) [*REF*; *REF*; *REF*], that can be approximatively
+solved [*REF*; *REF*; *REF*]. POMDP approaches are
+appealing since beliefs are a sufficient statistics for the entire
+history of odor detections. However, they are computationally
+cumbersome. Further, they leave the question open of whether navigation
+as sequential decision making can be performed using solely olfactory
+information.
+
+
+Recently, two algorithms studied navigation as a response to olfactory
+input alone [*REF*; *REF*]. In [*REF*]
+artificial neural networks were shown to learn near optimal strategies,
+but they were trained on odor cues with limited sparsity, and training
+with sparse odor cues typical of turbulence remains to be tested.
+In [*REF*] an approach based on finite state
+controllers was proposed. Here, optimization was done using a
+model-based technique, relying on prior knowledge of the likelihood to
+detect the odor in space, hence still using spatial information. A
+different model free optimization could also be considered avoiding
+spatial information but this latter approach also remains to be tested.
+More generally, all the above approaches manipulate internally the
+previous history (memory) of odor detections. In this sense they are
+less interpretable, since the features of odor traces that drive
+navigation do not emerge explicitly.
+
+
+FIGURE 
+
+
+In this paper, we propose a reinforcement learning (RL) approach to
+navigation in turbulence based on a set of interpretable olfactory
+features, with no spatial information, and highlight the role played by
+memory within this context. More precisely, we learn optimal strategies
+from data by training tabular Q learning [*REF*] with realistic
+odor cues obtained from state-of-the-art Direct Numerical Simulations of
+turbulence. From the odor cues, we define features as moving averages of
+odor intensity and sparsity: the moving window is the temporal memory
+and naturally connects to the physics of turbulent odors. States are
+then obtained discretizing such features. Due to sparsity, agents may
+detect no odor within the moving window. We show there is an optimal
+memory minimizing the occurrence of this &quot;void state&quot;. The optimal
+memory scales with the blank time dictated by turbulence as it emerges
+from a trade off requiring that: (i) short blanks -- typical of
+turbulent plumes -- are ignored by responding to detections further in
+the past, and (ii) long blanks promptly trigger a recovery strategy to
+make contact with the plume again. We leverage these observations to
+tune the memory adaptively, by setting it equal to the previous blank
+experienced along an agent&apos;s path. With this choice, the algorithm tests
+successfully in distinct environments, suggesting that tuning can be
+made robustly to enable generalization. The agent learns to surge upwind
+in most non-void states and to recover by casting crosswind in the
+absence of detections. Optimal agents limit encounters with the void
+state to a narrow band right at the edge of the plume. This suggests
+that the temporal odor features we considered effectively predict when
+the agent is exiting the plume and point to an intimate connection
+between temporal predictions and spatial navigation.
+
+
+FIGURE
+
+
+Significance 
+
+
+Finding mates or food in the presence of turbulence is challenging
+because odors constantly switch on and off unpredictably. As a result,
+it is unclear whether animals couple odor to other sources of
+information, what are the relevant features of odor stimuli and how they
+change according to the environment. A long history of bioinspired
+algorithms address this problem by crafting rules for navigation that
+mimic animal behavior: but can effective navigation be learned from the
+environment rather than set a priori? To address this question we train
+a reinforcement learning algorithm with realistic turbulent stimuli.
+Searchers learn to navigate by trial and error and respond solely to
+odor, with no further input. All computations are defined explicitly,
+enhancing interpretability. The upshot is that the algorithm identifies
+odor features as averages over a temporal scale (memory) dictated by the
+time between odor detections and thus by physics. There is no need to
+know physics beforehand, as memory can be adjusted based on experience.
+This approach naturally complements previous algorithms that use prior
+information and a map of space to plan navigation, rather than learn it
+from the environment. To what extent different animals plan vs learn
+to navigate remains to be understood.
+
+
+Results 
+
+
+Background 
+
+
+Given a source of odor placed in an unknown position of a
+two-dimensional space, we consider the problem of learning to reach the
+source, Figure A. We formulate the problem as a
+discrete Markov Decision Process by discretizing space in tiles, also
+called &quot;gridworld&quot; in the reinforcement learning
+literature [*REF*]. In this problem, an agent is in a given
+state *MATH* which is one of a discrete set of *MATH* tiles: *MATH*. 
+At each time step it chooses an action *MATH*.
+which is a step in any of the coordinate directions *MATH*. 
+The goal is to find sequences of actions that lead to the source as 
+fast as possible and is formalized with the notion of policy and 
+reward which we will introduce later. If agents have perfect knowledge 
+of their own location and of the location of the source in space, 
+the problem reduces to finding the shortest path.
+
+
+Using time vs space to address partial observability. 
+
+
+In our problem however, the agent does not know where the source is,
+hence its position *MATH* relative to the source, is unknown or &quot;partially
+observed&quot;. Instead, it can sense odor released by the target. In the
+language of RL, odor is an &quot;observation&quot; -- but does it hold information
+about the position *MATH*? The answer is yes: several properties of odor
+stimuli depend on the distance from the source. However in the presence
+of turbulence, information lies in the statistics of the odor stimulus.
+Indeed, when odor is carried by a turbulent flow, it develops into a
+dramatically stochastic plume, i.e. a complex and convoluted region of
+space where the fluid is rich in odor molecules. Turbulent plumes break
+into structures that distort and expand while they travel away from
+their source and become more and more
+diluted [*REF*; *REF*; *REF*; *REF*], see
+Figure A. As a consequence, an agent within
+the plume experiences intermittent odor traces that endlessly switch on
+(whiff) and off (blank) Figure B. The intensity of odor whiffs and how
+they are interleaved with blanks depends on distance from release, as
+dictated by physics [*REF*]. Thus the upshot of turbulent transport is
+that the statistical properties of odor traces depend intricately on the
+position of the agent relative to the source. In other words,
+information about the state *MATH* is hidden within the observed odor
+traces.
+
+
+This positional information can be leveraged with a Bayesian approach
+that relies on guessing *MATH*, i.e. defining the probability distribution
+of the position, also called belief. This is the approach that has been
+more commonly adopted in the literature until
+now [*REF*; *REF*; *REF*]. Note that because of the
+complexity of these algorithms, only relatively simple measures of the
+odor are computationally feasible, e.g. instantaneous presence/absence.
+Here we take a different model-free and map-free approach. Instead of
+guessing the current state *MATH*, we ignore the spatial position and
+respond directly to the temporal traces of the odor cues. Two other
+algorithms have been proposed to solve partial observability by
+responding solely to odor traces with recurrent neural
+networks [*REF*] and finite state
+controllers [*REF*] that manipulate implicitly the
+odor traces. Here instead we manipulate odor traces explicitly, by
+defining memory as a moving window and by crafting a small number of
+features of odor traces.
+
+
+Features of odor cues: definition of discrete olfactory states and sensing memory. 
+
+
+To learn a response to odor traces, we first define a finite set of
+olfactory states, *MATH*, so that they bear information about the
+location *MATH*. Defining the olfactory states is a challenge due to the
+dramatic fluctuations and irregularity of turbulent odor traces. To
+construct a fully interpretable low dimensional state space, we aim at a
+small number of olfactory states that bear robust information about *MATH*,
+i.e. for all values of *MATH*. We previously found that pairing features of
+sparsity as well as intensity of turbulent odor traces predicts robustly
+the location of the source for all *MATH* [*REF*]. Guided by
+these results, we use these two features extracted from the temporal
+history of odor detections to define a small set of olfactory states.
+
+
+We proceed to define a function that takes as input the history of odor
+detections along an agent&apos;s path and returns its current olfactory
+state. We indicate with *MATH* the (unknown) path of an agent, and with
+*MATH* the observations i.e. odor detections along its path. First,
+we define a sensing memory *MATH* and we consider a short excerpt of the
+history of odor detections *MATH* of duration *MATH* prior to the current
+time *MATH*. Formally, *MATH*. Second, we measure the average intensity *MATH* (moving average of odor
+intensity over the time window *MATH*, conditioned to times when odor is
+above threshold), and intermittency *MATH* (the fraction of time the odor
+is above threshold during the sensing window *MATH*). Both features *MATH* and
+*MATH* are described by continuous, positive real numbers. Third, we define
+15 olfactory states by discretizing *MATH* and *MATH* in 3 and 5 bins
+respectively. Intermittency *MATH* is bounded between *MATH* and *MATH* and we
+discretize it in 3 bins by defining two thresholds (33% and 66%). The
+average concentration, *MATH*, is bounded between 0 and the odor
+concentration at the source, hence prior information on the source is
+needed to discretize *MATH* using set thresholds. To avoid relying on prior
+information, we define thresholds of intensity as percentiles, based on
+a histogram that is populated online, along each agent&apos;s path (see
+Materials and Methods). The special case where no odor is detected over
+*MATH* deserves attention, hence we include it as an additional state named
+&quot;void state&quot; and indicate it with *MATH*. When *MATH* is
+sufficiently long, the resulting olfactory states map to different
+spatial locations (Figure C, with *MATH* equal to the simulation
+time). Hence this definition of olfactory states can potentially
+mitigate the problem of partial observability using temporal traces,
+rather than spatial maps. But will these olfactory states with finite
+memory *MATH* guide agents to the source?
+
+
+Q learning: a map-less and model-free navigation to odor sources. 
+
+
+To answer this question, we trained tabular episodic Q
+learning [*REF*]. In a nutshell, we use a simulator to place an
+agent at a random location in space at the beginning of each episode.
+The agent is not aware of its location in space, but it senses odor
+provided by the fluid dynamics simulator and thus can compute its
+olfactory state *MATH*, based on odor detected along its path in the
+previous *MATH* sensing window. It then makes a move according to a set
+policy of actions *MATH*. After the move, the simulator
+displaces the agent to its new location and relays the agent a negative
+reward *MATH* if it is not at the source and a positive reward *MATH*
+if it reaches the source. The goal of RL is to find a policy of actions
+that maximizes the expected cumulative future reward
+*MATH* where the expectation is
+over the ensemble of trajectories and rewards generated by the policy
+from any initial condition. Because reward is only positive at the
+source, the optimal policy is the one that reaches the source as fast as
+possible. To further encourage the agent to reach the source quickly, we
+introduce a discount factor *MATH*.
+
+
+Episodes where the agent does not reach the source are ended after
+*MATH* with no positive reward. As it tries actions and
+receives rewards, the agent learns how good the actions are. This is
+accomplished by estimating the quality matrix *MATH*, i.e. the maximum
+expected cumulative reward conditioned to being in *MATH* and choosing
+action *MATH* at the present time: *MATH*.
+At each step, the agent improves its policy by choosing more frequently
+putatively good actions. Once the agent has a good approximation of the
+quality matrix, the optimal policy corresponds to the simple readout: *MATH* where *MATH*, for
+non-void states *MATH*.
+
+
+[Recovery strategy.] To fully describe the behavior of our
+Q-learning agents, we have to prescribe their policy from the void state
+*MATH*. This is problematic because turbulent plumes are
+full of holes thus the void state can occur anywhere both within and
+outside the plume, Figure A. As a consequence, the optimal action
+*MATH* from the void state is ill defined. We address this
+issue by using a separate policy called &quot;recovery strategy&quot;. Inspired by
+path integration as defined in biology [*REF*; *REF*; *REF*],
+we propose the backtracking strategy consisting in retracing the last
+*MATH* steps after the agent lost track of the odor. If at the end of
+backtracking the agent is still in the void state, it activates Brownian
+motion. Backtracking requires that we introduce memory of the past *MATH*
+actions. This timescale *MATH* for activating recovery is conceptually
+distinct from the duration of the sensing memory -- however here we set
+*MATH* for simplicity.
+
+
+We find that Q-learning agents successfully learn to navigate to the
+odor source by responding solely to their olfactory state, with no sense
+of space nor models of the odor cues. Learning can be quantified by
+monitoring the cumulative reward which continuously improves with
+further training episodes (Figure D, left). Improved reward corresponds
+to agents learning how to reach the source more quickly and reliably
+with training. Indeed, it is easy to show that the expected cumulative
+reward *MATH*, where *MATH* is a random variable corresponding to time to reach the
+source and *MATH* is the discount factor, with
+the time step *MATH* (see Materials and Methods). Large rewards
+arise when (i) a large fraction *MATH* of agents successfully reaches
+the source and (ii) the agents reach the source quickly, which
+maximizes *MATH*. Indeed *MATH*, where *MATH* and
+*MATH*. *MATH* is the horizon of the agent i.e. the maximum time the agent is allowed
+to search, and after which the search is considered failed. Note that
+agents starting closer to the target receive larger rewards purely
+because of their initial position. To monitor performance independently
+on the starting location, we introduce the inverse time to reach the
+source relative to the shortest-path time from the same initial
+location, which goes from 0 for failing agents to 1 for ideal agents
+*MATH*, independently on their starting
+location. Note that this is not the quantity that is optimized for. One
+may specifically target this perfomance metrics, which is agnostic on
+the duration of an agent&apos;s path, by discounting proportionally to
+*MATH*.
+
+
+All four measures of performance plateau to a maximum, suggesting
+learning has achieved a nearly optimal policy
+(Figure D). Once training is completed, we
+simulate the trajectory of test-agents starting from any of the about 43
+000 admissible locations within the plume and moving according to the
+optimal policy. We will recapitulate performance with the cumulative
+reward *MATH* averaged over the test-agents and dissect it into speed
+*MATH*, convergence *MATH* and relative time *MATH*.
+
+
+FIGURE
+
+
+Optimal memory. 
+
+
+By repeating training using different values of *MATH* we find that
+performance depends on memory and an optimal memory *MATH* exists
+(Figure A). Why is there an optimal memory? The shortest
+memory *MATH* corresponds to instantaneous olfactory states: the
+instantaneous contour maps of the olfactory states are convoluted and
+the void state is pervasive (Figure C, top). As a consequence, agents often activate
+recovery even when they are within the plume, the policy almost always
+leads to the source ( *MATH*) but follows lengthy convoluted
+paths ( *MATH*, Figure A, bottom). As memory increases, the olfactory
+states become smoother and agents encounter less voids
+(Figure C, center), perform straighter trajectories
+( *MATH*) and reach the source reliably ( *MATH*),
+Figure C, bottom. Further increasing memory leads to
+even less voids within the plume and even smoother olfactory states.
+However -- perhaps surprisingly -- performance does not further improve
+but slightly decreases (at *MATH*, *MATH* and
+*MATH*). A long memory is deleterious
+because it delays recovery from accidentally exiting the plume, thus
+increases the number of voids outside of the plume
+(Figure C, bottom). Indeed, agents often leave the plume
+accidentally as they measure their olfactory state while they move.
+They receive no warning, but realize their mistake after *MATH* steps, when
+they enter the void state and activate recovery to re-enter the plume.
+The delay is linear with memory when agents recover by backtracking, but
+it depends on the recovery strategy (see discussion below and
+Supplementary Figure 1).
+
+
+Thus short memories increase time in void within the plume, whereas
+long memories increase time in void outside the plume: the optimal
+memory minimizes the overall chances to experience the void
+(Figure B). Intuitively, *MATH* should match the typical
+duration *MATH* of blanks encountered within the plume, so that voids
+within the plume are effectively ignored without delaying recovery
+unnecessarily. Consistently, *MATH* averaged across
+all locations and times within the plume is
+*MATH*, comparable with the optimal
+memory *MATH* (Figure A).
+
+
+Adaptive memory. 
+
+
+There is no way to select the optimal memory *MATH* without comparing
+several agents or relying on prior information on the blank durations.
+In order to avoid prior information, we venture to define memory
+adaptively along each agent&apos;s path, using the intuition outlined above.
+We define a buffer memory *MATH*, and let the agent respond to a sensing
+window *MATH*. Ideally we would like to set
+*MATH*. With this choice, blanks shorter than
+the average blank are ignored, as they are expected within the plume,
+whereas blanks longer than average initiate recovery, as they signal
+that the agent exited the plume. However, agents do not have access to
+*MATH* hence we set *MATH*, where *MATH* is
+the most recent blank experienced by the agent. With this choice, the
+sensing memory *MATH* fluctuates considerably along an agent&apos;s path, due to
+turbulence ([*REF*] and
+Figure A-B). Note that blanks are estimated along
+paths, thus the statistics of *MATH* only qualitatively matches the
+Eulerian statistics of *MATH*. Despite the fluctuations, performance
+using the adaptive memory nears performance with the optimal memory
+(Figure C). This result confirms our intuition that
+memory should match the blank time. The advantage of the adaptive memory
+is that it relies solely on experience, with no prior information
+whatsoever. This is unlike *MATH* which can only be selected using prior
+information, with no guarantee of generalization to other plumes.
+
+
+FIGURE
+
+
+Learning to recover. 
+
+
+So far, our agents combine a learned policy from non-void states to a
+heuristics from the void state, which we called the recovery strategy.
+We have considered a biologically-inspired heuristics where searchers
+make it back to locations within the plume by retracing their path
+backward. Similar results are obtained for Brownian recovery with a
+different optimal memory (see Materials and Methods and Supplementary
+Figure 1). To further strip the algorithm of heuristics, we ask whether
+the recovery strategy may be learned, rather than fixed a priori. To
+this end, we split the void state in many states, labeled with the time
+elapsed since first entering the void. The counter is reset to *MATH*
+whenever the searcher detects the odor. The definition of the 15
+non-void states *MATH* remains unaltered. Interestingly, with
+this added degree of freedom, the agent learns an even better recovery
+strategy as reflected by all our measures of performance
+Figure D. Note that the learned recovery strategy
+resembles the casting behavior observed in flying insects [*REF*], as
+discussed below.
+
+
+FIGURE
+
+
+[Characterization of the optimal policies.] To understand
+how different recoveries affect the agent&apos;s behavior, we characterize
+the optimal policies obtained using the three recovery strategies. We
+visualize the probability to encounter each of the 16 olfactory states,
+or occupancy (circles in Figure), and the spatial distribution of the
+olfactory states. In the void state, the agent activates the recovery
+strategy. Recovery from the void state affects non-void olfactory states
+as well: their occupancy, their spatial distribution, and the action
+they elicit (Figure and Supplementary Figure 3). This is
+because the agent computes its olfactory state online, according to its
+prior history which is affected by encounters with the void state.
+However, for all recoveries, non-void states are mostly encountered
+within the plume and largely elicit upwind motion
+(Figure , top, center). Thus macroscopically, all
+agents learn to surge upwind when they detect any odor within their
+memory, and to recover when their memory is empty. This suggests a
+considerable level of redundancy which may be leveraged to reduce the
+number of olfactory states, thus the computational cost.
+
+
+The void state shows the most relevant differences: for both heuristic
+recoveries, 40% or more of the agents are in the void state and they are
+spatially spread out. In contrast, in the case of learned recovery, the
+optimal policy limits occurrence of the void state to 26% of the agents,
+confined to a narrow band near the edge of the plume. From these
+locations, the agents quickly recover the plume, explaining the boost in
+performance discussed above. Note that, exclusively for the learned
+recovery, the optimal policy is enriched in actions downwind to avoid
+overshooting the source. Indeed, from positions beyond the source, the
+learned strategy is unable to recover the plume as it mostly casts
+sideways, with little to no downwind action. Intuitively, the precise
+locations where agents move downwind may be crucial to efficiently avoid
+overshooting. Thus the policy may depend on specific details of the odor
+plume, consistent with poorer generalization of the learned recovery
+(discussed next).
+
+
+Tuning for adaptation to different environments. 
+
+
+Finally, we test performance of the trained agents on six environments,
+characterized by distinct fluid flows and odor plumes
+(Figure [1] and Materials and Methods). Environment
+1 is the native environment, where the agents were originally trained;
+Environment 2 is obtained by increasing the threshold of detection,
+which makes the signals considerably more sparse with longer blanks.
+Environments 3 and 4 are closer to the lower surface of the simulated
+domain, where the plume is smaller and fluctuates less. Environment 5 is
+a similar geometry, but obtained for a smaller Reynolds number and a
+different way to generate turbulence. Finally Environment 6 has an even
+larger Reynolds number, a longer domain and a smaller source, which
+creates an even more dramatically sparse signal. We consider agents with
+adaptive memory and compare the three recovery strategies discussed
+above -- Brownian, backtracking and learned, see
+Figure [1]B. Comparing performance across
+environments we find that: (i) although performance is degraded when
+testing in non native environments, all agents with adaptive memory are
+still extremely likely to find the source; (ii) Brownian recovery has
+lowest performance and generalization across all environments; (iii)
+backtracking provides good performance and generalization; (iii) the
+learned recovery strategy performs best in all environments by all
+performance metrics. In the most intermittent Environment 6 a striking
+91% of agents succeeds in finding the source, with trajectories less the
+twice as long as the shortest path to the source. The upshot of
+generalization is that agents may navigate distinct turbulent plumes
+using a baseline strategy learned in a specific plume. Importantly, even
+if performance (mildly) degrades, most agents still do reach the source,
+suggesting that fine-tuning this strategy may enable efficient
+adaptation to different environments. Further work is needed to
+establish how much fine-tuning is needed to fully adapt the baseline
+strategy to different environments.
+
+
+Discussion 
+
+
+In this work, we showed that agents exposed to a turbulent plume learn
+to associate salient features of the odor time trace -- the olfactory
+state -- to an optimal move that guides them to the odor source. The
+upshot of responding solely to odor is that the agent does not navigate
+based on where it believes the target is and thus needs no map of
+space nor prior information about the odor plume, which avoids
+considerable computational burden. On the flip side, in our
+stimulus-response algorithm, agents need to start from within the plume,
+however sparse and fragmented. Indeed, far enough from the source,
+Q-learning agents are mostly in the void state and they can only recover
+the plume if they have previously detected the odor or are right outside
+the plume. In contrast, agents using a map of space can navigate from
+larger distances than are reachable by responding directly to odor cues.
+Indeed, in the map-based POMDP setting, absence of odor detection is
+still informative and it enables agents to first find the plume, and
+then refine the search to localize the target within the
+plume [*REF*; *REF*].
+
+
+We show that because turbulent odor plumes constantly switch on and off,
+navigation must handle both absence and presence of odor stimuli. We
+address this fundamental issue by alternating between two distinct
+strategies: (i) Prolonged absence of odor prompts entry in the void
+state and triggers a recovery strategy to make contact with the plume
+again. We explored two heuristic recoveries and found that back-tracking
+to where the agent last detected odor is much more efficient than
+Brownian recovery. An even more efficient recovery can be learned that
+resembles cross-wind casting and limits the void state to a narrow
+region right outside of the plume. Casting is a well-studied
+computational strategy [*REF*; *REF*] also
+observed in animal behavior, most famously in flying insects [*REF*].
+Intriguingly, cast and surge also emerges in algorithms making use of a
+model of the odor, whether for Bayesian updates or for policy
+optimization [*REF*; *REF*; *REF*].
+Whether natural casting behavior is learned, as in Q-learning, or is
+hard-wired in a model of the odor plume remains a fascinating question
+for further research. (ii) Odor detections prompt entry in non-void
+olfactory states, which predominantly elicit upwind surge. Blanks
+shorter than the sensing memory are ignored, i.e. agents do not enact
+recovery but respond to stimuli experienced prior to the short blank.
+Further work may optimize these non-void olfactory states by feature
+engineering, e.g. testing different discretizations to reduce redundancy
+or screening a large library of features using supervised learning as
+in [*REF*] to potentially improve performance.
+Alternatively, feature engineering may be bypassed altogether by the use
+of recurrent neural networks (RNNs) as recently proposed
+in [*REF*], possibly at the expense of interpretability. A
+systematic comparison using a common dataset is needed to elucidate how
+other heuristic and normative model-free algorithms handle odor presence
+vs odor absence.
+
+
+To switch between the odor-driven strategy and the recovery strategy, we
+introduce a timescale *MATH*, which is an explicit form of temporal memory.
+*MATH* delimits a sensing window extending in the recent past, prior to the
+present time. All odor stimuli experienced within the sensing window
+affect the current response. By using fixed memories of different
+duration, we demonstrate that an optimal memory exists and that the
+optimal memory minimizes the occurrence of the void state. On the one
+hand, long memories are detrimental because they delay recovery from
+accidentally exiting the plume. On the other hand, short memories are
+detrimental because they trigger recovery unnecessarily, i.e. even for
+blanks typically experienced within the turbulent plume. The optimal
+memory thus matches the typical duration of the blanks. To avoid using
+prior information on the statistics of the odor, we propose a simple
+heuristics setting memory adaptively equal to the most recent blank
+experienced along the path. The adaptive memory nears optimal
+performance despite dramatic fluctuations dictated by turbulence.
+Success of the heuristics suggests that a more accurate estimate of the
+future blank time may enable an even better adaptive memory; further
+work is needed to corroborate this idea.
+
+
+Thus in Q-learning, memory is a temporal window matching odor blanks and
+distinguishing whether agents are in or out of the plume. The role of
+memory for olfactory search has been recently discussed in
+ref. [*REF*]. In POMDPs, memory is stored in a
+detailed belief of agent position relative to the source. In finite
+state controllers, memory denotes an internal state of the agent and was
+linked to a coarse grained belief of the searcher being within or
+outside of the plume, similar to our findings. In recurrent neural
+networks memory is stored in the learned weights. A quantitative
+relationship between these different forms of memory and their
+connection to spatial perception remains to be understood.
+
+
+We conclude by listing a series of experiments to test these ideas in
+living systems. First, olfactory search in living systems displays
+memory ([*REF*; *REF*] and refs. therein).
+In insects, temporal scales can be measured associated to memory.
+Indeed, for flying insects loss of contact with a pheromone plume
+triggers crosswind casting and sometimes even downwind
+displacement [*REF*; *REF*]. Interestingly, the onset
+of casting is delayed with respect to loss of contact with the plume,
+but this delay is not understood [*REF*; *REF*]. In
+walking flies, the timing of previous odor encounters biases
+navigation [*REF*]. (How) do these temporal timescales depend
+on the waiting times between previous detections? Using
+optogenetics [*REF*; *REF*; *REF*; *REF*] or olfactory virtual
+reality with controlled odor delivery [*REF*] experiments may
+measure memory as a function of the full history of odor traces. For
+insects, one may monitor memory by tracking the onset of cross wind
+casting with respect to the loss of the plume. More in general, a
+temporal memory may be defined by monitoring how far back in the past
+should two odor traces be identical in order to elicit the same
+repertoire of motor controls.
+
+
+Second, our algorithm learns a stimulus-response strategy that relies
+solely on odor cues. The price to pay is that the agent must follow the
+ups and downs of the odor trace in order to compute averages and
+recognize blanks. A systematic study may use our algorithm to test the
+requirements of fidelity of this temporal representation, and how it
+depends on turbulence. How does turbulence affect the fidelity of odor
+temporal representation in living systems? Crustaceans provide excellent
+model system to ask this question, as they are known to use bursting
+olfactory receptor neurons to encode temporal information from olfactory
+scenes [*REF*; *REF*]. Temporal information is also encoded in
+the olfactory bulb of mammals [*REF*; *REF*]. Organisms
+with chemo-tactile systems like the octopus [*REF*] may
+serve as a comparative model, to ask whether touch-chemosensation
+displays a sloppier temporal response, reflecting that surface-bound
+stimuli are not intermittent.
+
+
+Third, our Q-learning algorithm requires the agent to receive olfactory
+information, thus start near or within the odor plume. In contrast,
+algorithms making use of a spatial map and prior information on the odor
+plume may first search for the plume (in conditions of near zero
+information) and then search the target within the
+plume [*REF*; *REF*; *REF*]. Animals are
+known to use prior information to home into regions of space where the
+target is more likely to be found; but they can switch to navigation in
+response to odor (see e.g. [*REF*; *REF*; *REF*; *REF*]). What
+triggers the switch from navigation driven by spatial perception to
+navigation driven by odor? For mice, the need for spatial perception may
+be tested indirectly by comparing paths in light vs dark, noting that
+neuronal place fields, that mediate spatial perception, are better
+stabilized by vision than olfaction [*REF*; *REF*]. Thus in the
+light, animals have the ability to implement both map-less and map-based
+algorithms, whereas in the dark they are expected to more heavily rely
+on map-less algorithms. To make sure animals start searching for the
+odor target even before sensing odor, operant conditioning can be
+deployed so that animals associate an external cue (e.g. a sound) to the
+beginning of the task.
+
+
+The reinforcement learning view of olfactory navigation offers an
+exciting opportunity to probe how living systems interact with the
+environment to accomplish complex real-world tasks affected by
+uncertainty. Coupling time varying odor stimuli with spatial perception
+is an instance of the broader question asking how animals combine prior
+knowledge regarding the environment with reaction to sensory stimuli. We
+hope that our work will spark further progress into connecting these
+broader questions to the physics of fluids.
