@@ -1,0 +1,210 @@
+Visual Reinforcement Learning with Imagined Goals
+
+
+Introduction
+
+
+Reinforcement learning (RL) algorithms hold the promise of allowing autonomous agents, such as robots, to learn to accomplish arbitrary tasks. However, the standard RL framework involves learning policies that are specific to individual tasks, which are defined by hand-specified reward functions. Agents that exist persistently in the world can prepare to solve diverse tasks by setting their own goals, practicing complex behaviors, and learning about the world around them.
+In fact, humans are very proficient at setting abstract goals for themselves, and evidence shows that this behavior is already present from early infancy [*REF*], albeit with simple goals such as reaching. The behavior and representation of goals grows more complex over time as they learn how to manipulate objects and locomote.
+How can we begin to devise a reinforcement learning system that sets its own goals and learns from experience with minimal outside intervention and manual engineering?
+
+
+In this paper, we take a step toward this goal by designing an RL framework that jointly learns representations of raw sensory inputs and policies that achieve arbitrary goals under this representation by practicing to reach self-specified random goals during training. To provide for automated and flexible goal-setting, we must first choose how a general goal can be specified for an agent interacting with a complex and highly variable environment. Even providing the state of such an environment to a policy is a challenge. For instance, a task that requires a robot to manipulate various objects would require a combinatorial representation, reflecting variability in the number and type of objects in the current scene. Directly using raw sensory signals, such as images, avoids this challenge, but learning from raw images is substantially harder. In particular, pixel-wise Euclidean distance is not an effective reward function for visual tasks since distances between images do not correspond to meaningful distances between states [*REF*; *REF*].
+Furthermore, although end-to-end model-free reinforcement learning can handle image observations, this comes at a high cost in sample complexity, making it difficult to use in the real world.
+
+
+We propose to address both challenges by incorporating unsupervised representation learning into goal-conditioned policies. In our method, which is illustrated in Figure [1], a representation of raw sensory inputs is learned by means of a latent variable model, which in our case is based on the variational autoencoder (VAE) [*REF*]. This model serves three complementary purposes. First, it provides a more structured representation of sensory inputs for RL, making it feasible to learn from images even in the real world. Second, it allows for sampling of new states, which can be used to set synthetic goals during training to allow the goal-conditioned policy to practice diverse behaviors. We can also more efficiently utilize samples from the environment by relabeling synthetic goals in an off-policy RL algorithm, which makes our algorithm substantially more efficient. Third, the learned representation provides a space where distances are more meaningful than the original space of observations, and can therefore provide well-shaped reward functions for RL. By learning to reach random goals sampled from the latent variable model, the goal-conditioned policy learns about the world and can be used to achieve new, user-specified goals at test-time.
+
+
+The main contribution of our work is a framework for learning general-purpose goal-conditioned policies that can achieve goals specified with target observations. We call our method reinforcement learning with imagined goals (RIG). RIG combines sample-efficient off-policy goal-conditioned reinforcement learning with unsupervised representation learning. We use representation learning to acquire a latent distribution that can be used to sample goals for unsupervised practice and data augmentation, to provide a well-shaped distance function for reinforcement learning, and to provide a more structured representation for the value function and policy. While several prior methods, discussed in the following section, have sought to learn goal-conditioned policies, we can do so with image goals and observations without a manually specified reward signal. Our experimental evaluation illustrates that our method substantially improves the performance of image-based reinforcement learning, can effectively learn policies for complex image-based tasks, and can be used to learn real-world robotic manipulation skills with raw image inputs. Videos of our method in simulated and real-world environments can be found at WEBSITE. 
+
+
+FIGURE 
+
+
+WEBSITE 
+
+
+Related Work
+
+
+While prior works on vision-based deep reinforcement learning for robotics can efficiently learn a variety of behaviors such as grasping [*REF*; *REF*; *REF*], pushing [*REF*; *REF*; *REF*], navigation [*REF*; *REF*], and other manipulation tasks [*REF*; *REF*; *REF*], they each make assumptions that limit their applicability to training general-purpose robots. *REF* uses time-varying models, which requires an episodic setup that makes them difficult to extend to non-episodic and continual learning scenarios. *REF*  proposed a similar approach that uses goal images, but requires instrumented training in simulation. *REF* uses fully model-free training, but does not learn goal-conditioned skills. As we show in our experiments, this approach is very difficult to extend to the goal-conditioned setting with image inputs. Model-based methods that predict images [*REF*; *REF*; *REF*; *REF*] or learn inverse models [*REF*] can also accommodate various goals, but tend to limit the horizon length due to model drift.
+To our knowledge, no prior method uses model-free RL to learn policies conditioned on a single goal image with sufficient efficiency to train directly on real-world robotic systems, without access to ground-truth state or reward information during training.
+
+
+Our method uses a goal-conditioned value function [*REF*] in order to solve more general tasks [*REF*; *REF*]. To improve the sample-efficiency of our method during off-policy training, we retroactively relabel samples in the replay buffer with goals sampled from the latent representation. Goal relabeling has been explored in prior work [*REF*; *REF*; *REF*; *REF*; *REF*].
+*REF* and *REF* use goal relabeling for sparse rewards problems with known goal spaces, restricting the resampled goals to states encountered along that trajectory, since almost any other goal will have no reward signal. We sample random goals from our learned latent space to use as replay goals for off-policy Q-learning rather than restricting ourselves to states seen along the sampled trajectory, enabling substantially more efficient learning. We use the same goal sampling mechanism for exploration in RL. Goal setting for policy learning has previously been discussed [*REF*] and recently *REF*  have also proposed using unsupervised learning for setting goals for exploration. However, we use a model-free Q-learning method that operates on raw state observations and actions, allowing us to solve visually and dynamically complex tasks.
+
+
+A number of prior works have used unsupervised learning to acquire better representations for RL. These methods use the learned representation as a substitute for the state for the policy, but require additional information, such as access to the ground truth reward function based on the true state during training time [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*], expert trajectories [*REF*], human demonstrations [*REF*], or pre-trained object-detection features [*REF*]. In contrast, we learn to generate goals and use the learned representation to obtain a reward function for those goals without any of these extra sources of supervision. *REF* combine unsupervised representation learning with reinforcement learning, but in a framework that trains a policy to reach a single goal. Many prior works have also focused on learning controllable and disentangled representations [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+We use a method based on variational autoencoders, but these prior techniques are complementary to ours and could be incorporated into our method.
+
+
+Background
+
+
+Our method combines reinforcement learning with goal-conditioned value functions and unsupervised representation learning. Here, we briefly review the techniques that we build on in our method.
+
+
+Goal-conditioned reinforcement learning.
+
+
+In reinforcement learning, the goal is to learn a policy *MATH* that maximizes expected return, which we denote as *MATH*, where *MATH* and the expectation is under the current policy and environment dynamics. Here, *MATH* is a state observation, *MATH* is an action, and *MATH* is a discount factor. Standard model-free RL learns policies that achieve a single task. If our aim is instead to obtain a policy that can accomplish a variety of tasks, we can construct a goal-conditioned policy and reward, and optimize the expected return with respect to a goal distribution: *MATH*, where *MATH* is the set of goals and the reward is also a function of *MATH*. A variety of algorithms can learn goal-conditioned policies, but to enable sample-efficient learning, we focus on algorithms that acquire goal-conditioned Q-functions, which can be trained off-policy. A goal-conditioned Q-function *MATH* learns the expected return for the goal *MATH* starting from state *MATH* and taking action *MATH*. Given a state *MATH*, action *MATH*, next state *MATH*, goal *MATH*, and correspond reward *MATH*, one can train an approximate Q-function parameterized by *MATH* by minimizing the following Bellman error *MATH*  where *MATH* indicates that *MATH* is treated as a constant.
+Crucially, one can optimize this loss using off-policy data *MATH* with a standard actor-critic algorithm [*REF*; *REF*; *REF*].
+
+
+Variational Autoencoders.
+
+
+Variational autoencoders (VAEs) have been demonstrated to learn structured latent representations of high dimensional data [*REF*]. The VAE consists of an encoder *MATH*, which maps states to latent distributions, and a decoder *MATH*, which maps latents to distributions over states. The encoder and decoder parameters, *MATH* and *MATH* respectively, are jointly trained to maximize *MATH* where *MATH* is some prior, which we take to be the unit Gaussian, *MATH* is the Kullback-Leibler divergence, and *MATH* is a hyperparameter that balances the two terms. The use of *MATH* values other than one is sometimes referred to as a *MATH* -VAE [*REF*]. The encoder *MATH* parameterizes the mean and log-variance diagonal of a Gaussian distribution, *MATH*. The decoder *MATH* parameterizes a Bernoulli distribution for each pixel value.
+This parameterization corresponds to training the decoder with cross-entropy loss on normalized pixel values. Full details of the hyperparameters are in the Supplementary Material.
+
+
+Goal-Conditioned Policies with Unsupervised Representation Learning
+
+
+To devise a practical algorithm based on goal-conditioned value functions, we must choose a suitable goal representation. In the absence of domain knowledge and instrumentation, a general-purpose choice is to set the goal space *MATH* to be the same as the state observations space *MATH*. This choice is fully general as it can be applied to any task, and still permits considerable user control since the user can choose a &quot;goal state&quot; to set a desired goal for a trained goal-conditioned policy. But when the state space *MATH*  corresponds to high-dimensional sensory inputs such as images  learning a goal-conditioned Q-function and policy becomes exceedingly difficult as we illustrate empirically in Section [5].
+
+
+Our method jointly addresses a number of problems that arise when working with high-dimensional inputs such as images: sample efficient learning, reward specification, and automated goal-setting. We address these problems by learning a latent embedding using a *MATH* -VAE. We use this latent space to represent the goal and state and retroactively relabel data with latent goals sampled from the VAE prior to improve sample efficiency. We also show that distances in the latent space give us a well-shaped reward function for images. Lastly, we sample from the prior to allow an agent to set and &quot;practice&quot; reaching its own goal, removing the need for humans to specify new goals during training time.
+We next describe the specific components of our method, and summarize our complete algorithm in Section [4.5].
+
+
+Sample-Efficient RL with Learned Representations
+
+
+One challenging problem with end-to-end approaches for visual RL tasks is that the resulting policy needs to learn both perception and control.
+Rather than operating directly on observations, we embed the state *MATH*  and goals *MATH* into a latent space *MATH* using an encoder *MATH* to obtain a latent state *MATH* and latent goal *MATH*. To learn a representation of the state and goal space, we train a *MATH* -VAE by executing a random policy and collecting state observations, *MATH*, and optimize Equation *MATH*. We then use the mean of the encoder as the state encoding, i.e. *MATH*.
+
+
+After training the VAE, we train a goal-conditioned Q-function *MATH* and corresponding policy *MATH* in this latent space. The policy is trained to reach a goal *MATH* using the reward function discussed in Section [4.2]. For the underlying RL algorithm, we use twin delayed deep deterministic policy gradients (TD3) [*REF*], though any value-based RL algorithm could be used. Note that the policy (and Q-function) operates completely in the latent space. During test time, to reach a specific goal state *MATH*, we encode the goal *MATH* and input this latent goal to the policy.
+
+
+As the policy improves, it may visit parts of the state space that the VAE was never trained on, resulting in arbitrary encodings that may not make learning easier. Therefore, in addition to procedure described above, we fine-tune the VAE using both the randomly generated state observations *MATH* and the state observations collected during exploration. We show in Section [9.3] that this additional training helps the performance of the algorithm.
+
+
+Reward Specification 
+
+
+Training the goal-conditioned value function requires defining a goal-conditioned reward *MATH*. Using Euclidean distances in the space of image pixels provides a poor metric, since similar configurations in the world can be extremely different in image space. In addition to compactly representing high-dimensional observations, we can utilize our representation to obtain a reward function based on a metric that better reflects the similarity between the state and the goal. One choice for such a reward is to use the negative Mahalanobis distance in the latent space: *MATH* where the matrix *MATH* weights different dimensions in the latent space. This approach has an appealing interpretation when we set *MATH* to be the precision matrix of the VAE encoder, *MATH*. Since we use a Gaussian encoder, we have that *MATH* In other words, minimizing this squared distance in the latent space is equivalent to rewarding reaching states that maximize the probability of the latent goal *MATH*. In practice, we found that setting *MATH*, corresponding to Euclidean distance, performed better than Mahalanobis distance, though its effect is the same --- to bring *MATH* close to *MATH* and maximize the probability of the latent goal *MATH*  given the observation. This interpretation would not be possible when using normal autoencoders since distances are not trained to have any probabilistic meaning. Indeed, we show in Section [5] that using distances in a normal autoencoder representation often does not result in meaningful behavior.
+
+
+Improving Sample Efficiency with Latent Goal Relabeling 
+
+
+To further enable sample-efficient learning in the real world, we use the VAE to relabel goals. Note that we can optimize Equation using any valid *MATH* tuple. If we could artificially generate these tuples, then we could train our entire RL algorithm without collecting any data. Unfortunately, we do not know the system dynamics, and therefore have to sample transitions *MATH*  by interacting with the world. However, we have the freedom to relabel the goal and reward synthetically. So if we have a mechanism for generating goals and computing rewards, then given *MATH*, we can generate a new goal *MATH* and new reward *MATH* to produce a new tuple *MATH*. By artificially generating and recomputing rewards, we can convert a single *MATH* transition into potentially infinitely many valid training datums.
+
+
+For image-based tasks, this procedure would require generating goal images, an onerous task on its own. However, our reinforcement learning algorithm operates directly in the latent space for goals and rewards.
+So rather than generating goals *MATH*, we generate latent goals *MATH* by sampling from the VAE prior *MATH*. We then recompute rewards using Equation. By retroactively relabeling the goals and rewards, we obtain much more data to train our value function. This sampling procedure is made possible by our use of a latent variable model, which is explicitly trained so that sampling from the latent distribution is straightforward.
+
+
+In practice, the distribution of latents will not exactly match the prior. To mitigate this distribution mismatch, we use a fitted prior when sampling from the prior: we fit a diagonal Gaussian to the latent encodings of the VAE training data, and use this fitted prior in place of the unit Gaussian prior.
+
+
+Retroactively generating goals is also explored in tabular domains by *REF* and in continuous domains by *REF*  using hindsight experience replay (HER). However, HER is limited to sampling goals seen along a trajectory, which greatly limits the number and diversity of goals with which one can relabel a given transition.
+Our final method uses a mixture of the two strategies: half of the goals are generated from the prior and half from goals use the &quot;future&quot; strategy described in *REF*. We show in Section [5] that relabeling the goal with samples from the VAE prior results in significantly better sample-efficiency.
+
+
+ALGORITHM 
+
+
+Automated Goal-Generation for Exploration
+
+
+If we do not know which particular goals will be provided at test time, we would like our RL agent to carry out a self-supervised &quot;practice&quot; phase during training, where the algorithm proposes its own goals, and then practices how to reach them. Since the VAE prior represents a distribution over latent goals and state observations, we again sample from this distribution to obtain plausible goals. After sampling a goal latent from the prior *MATH*, we give this to our policy *MATH* to collect data.
+
+
+Algorithm Summary 
+
+
+We call the complete algorithm reinforcement learning with imagined goals (RIG) and summarize it in Algorithm. We first collect data with a simple exploration policy, though any exploration strategy could be used for this stage, including off-the-shelf exploration bonuses [*REF*; *REF*] or unsupervised reinforcement learning methods [*REF*; *REF*]. Then, we train a VAE latent variable model on state observations and finetune it over the course of training. We use this latent variable model for multiple purposes: We sample a latent goal *MATH* from the model and condition the policy on this goal. We embed all states and goals using the model&apos;s encoder. When we train our goal-conditioned value function, we resample goals from the prior and compute rewards in the latent space using Equation. Any RL algorithm that trains Q-functions could be used, and we use TD3 [*REF*] in our implementation.
+
+
+FIGURE 
+
+
+Experiments 
+
+
+Our experiments address the following questions: 1. How does our method compare to prior model-free RL algorithms in terms of sample efficiency and performance, when learning continuous control tasks from images? 2. How critical is each component of our algorithm for efficient learning? 3. Does our method work on tasks where the state space cannot be easily specified ahead of time, such as tasks that require interaction with variable numbers of objects? 4. Can our method scale to real world vision-based robotic control tasks?
+
+
+For the first two questions, we evaluate our method against a number of prior algorithms and ablated versions of our approach on a suite of the following simulated tasks. Visual Reacher: a MuJoCo [*REF*] environment with a 7-dof Sawyer arm reaching goal positions. The arm is shown the left of Figure [2]. The end-effector (EE) is constrained to a 2-dimensional rectangle parallel to a table. The action controls EE velocity within a maximum velocity. Visual Pusher: a MuJoCo environment with a 7-dof Sawyer arm and a small puck on a table that the arm must push to a target push. Visual Multi-Object Pusher: a copy of the Visual Pusher environment with two pucks. Visual Door: a Sawyer arm with a door it can attempt to open by latching onto the handle.
+Visual Pick and Place: a Sawyer arm with a small ball and an additional dimension of control for opening and closing the gripper.
+Detailed descriptions of the environments are provided in the Supplementary Material. The [environments] WEBSITE and [algorithm implementation] WEBSITE are available publicly.
+
+
+Solving these tasks directly from images poses a challenge since the controller must learn both perception and control. The evaluation metric is the distance of objects (including the arm) to their respective goals. To evaluate our policy, we set the environment to a sampled goal position, capture an image, and encode the image to use as the goal.
+Although we use the ground-truth positions for evaluation, we do not use the ground-truth positions for training the policies. The only inputs from the environment that our algorithm receives are the image observations. For Visual Reacher, we pretrained the VAE with 100 images.
+For other tasks, we used 10,000 images.
+
+
+FIGURE
+
+
+We compare our method with the following prior works. L&amp;R: Lange and Riedmiller [*REF*] trains an autoencoder to handle images.
+DSAE: Deep spatial autoencoders [*REF*] learns a spatial autoencoder and uses guided policy search [*REF*] to achieve a single goal image. HER: Hindsight experience replay [*REF*] utilizes a sparse reward signal and relabeling trajectories with achieved goals. Oracle: RL with direct access to state information for observations and rewards.
+
+
+To our knowledge, no prior work demonstrates policies that can reach a variety of goal images without access to a true-state reward function, and so we needed to make modifications to make the comparisons feasible.
+L&amp;R assumes a reward function from the environment. Since we have no state-based reward function, we specify the reward function as distance in the autoencoder latent space. HER does not embed inputs into a latent space but instead operates directly on the input, so we use pixel-wise mean squared error (MSE) as the metric. DSAE is trained only for a single goal, so we allow the method to generalize to a variety of test goal images by using a goal-conditioned Q-function. To make the implementations comparable, we use the same off-policy algorithm, TD3 [*REF*], to train L&amp;R, HER, and our method. Unlike our method, prior methods do not specify how to select goals during training, so we favorably give them real images as goals for rollouts, sampled from the same distribution that we use to test.
+
+
+FIGURE
+
+
+We see in Figure [3] that our method can efficiently learn policies from visual inputs to perform simulated reaching and pushing, without access to the object state. Our approach substantially outperforms the prior methods, for which the use of image goals and observations poses a major challenge. HER struggles because pixel-wise MSE is hard to optimize. Our latent-space rewards are much better shaped and allow us to learn more complex tasks. Finally, our method is close to the state-based &quot;oracle&quot; method in terms of sample efficiency and performance, without having any access to object state. Notably, in the multi-object environment, our method actually outperforms the oracle, likely because the state-based reward contains local minima. Overall, these result show that our method is capable of handling raw image observations much more effectively than previously proposed goal-conditioned RL methods. Next, we perform ablations to evaluate our contributions in isolation. Results on Visual Pusher are shown but see the Supplementary Material (section [9]) for experiments on all three simulated environments.
+
+
+Reward Specification Comparison
+
+
+We evaluate how effective distance in the VAE latent space is for the Visual Pusher task. We keep our method the same, and only change the reward function that we use to train the goal-conditioned valued function. We include the following methods for comparison: Latent Distance, which uses the reward used in RIG, i.e. *MATH* in Equation; Log Probability, which uses the Mahalanobis distance in Equation, where *MATH* is the precision matrix of the encoder; and Pixel MSE, which uses mean-squared error (MSE) between state and goal in pixel space. In Figure, we see that latent distance significantly outperforms log probability. We suspect that small variances of the VAE encoder results in drastically large rewards, making the learning more difficult. We also see that latent distances results in faster learning when compared to pixel MSE.
+
+
+Relabeling Strategy Comparison
+
+
+FIGURE
+
+
+As described in section [4.3], our method uses a novel goal relabeling method based on sampling from the generative model. To isolate how much our new goal relabeling method contributes to our algorithm, we vary the resampling strategy while fixing other components of our algorithm. The resampling strategies that we consider are: Future, relabeling the goal for a transition by sampling uniformly from future states in the trajectory as done in *REF*; VAE, sampling goals from the VAE only; RIG, relabeling goals with probability *MATH* from the VAE and probability *MATH* using the future strategy; and None, no relabeling. In Figure, we see that sampling from the VAE and Future is significantly better than not relabeling at all. In RIG, we use an equal mixture of the VAE and Future sampling strategies, which performs best by a large margin. Appendix section [9.1] contains results on all simulated environments, and section [9.4] considers relabeling strategies with a known goal distribution.
+
+
+FIGURE
+
+
+Learning with Variable Numbers of Objects
+
+
+A major advantage of working directly from pixels is that the policy input can easily represent combinatorial structure in the environment, which would be difficult to encode into a fixed-length state vector even if a perfect perception system were available. For example, if a robot has to interact with different combinations and numbers of objects, picking a single MDP state representation would be challenging, even with access to object poses. By directly processing images for both the state and the goal, no modification is needed to handle the combinatorial structure: the number of pixels always remains the same, regardless of how many objects are in the scene.
+
+
+We demonstrate that our method can handle this difficult scenario by evaluating on a task where the environment, based on the Visual Multi-Object Pusher, randomly contains zero, one, or two objects in each episode during testing. During training, each episode still always starts with both objects in the scene, so the experiments tests whether a trained policy can handle variable numbers of objects at test time.
+Figure shows that our method can learn to solve this task successfully, without decrease in performance from the base setting where both objects are present (in Figure [3]. Developing and demonstrating algorithms that solve tasks with varied underlying structure is an important step toward creating autonomous agents that can handle the diversity of tasks present &quot;in the wild.&quot;
+
+
+FIGURE 
+
+
+Visual RL with Physical Robots
+
+
+RIG is a practical and straightforward algorithm to apply to real physical systems: the efficiency of off-policy learning with goal relabeling makes training times manageable, while the use of image-based rewards through the learned representation frees us from the burden of manually design reward functions, which itself can require hand-engineered perception systems [*REF*]. We trained policies for visual reaching and pushing on a real-world Sawyer robotic arm, shown in Figure [4]. The control setup matches Visual Reacher and Visual Pusher respectively, meaning that the only input from the environment consists of camera images.
+
+
+We see in Figure [4] that our method is applicable to real-world robotic tasks, almost matching the state-based oracle method and far exceeding the baseline method on the reaching task. Our method needs just 10,000 samples or about an hour of real-world interaction time to solve visual reaching.
+
+
+Real-world pushing results are shown in Figure [5]. To solve visual pusher, which is more visually complicated and requires reasoning about the contact between the arm and object, our method requires about 25,000 samples, which is still a reasonable amount of real-world training time.
+Note that unlike previous results, we do not have access to the true puck position during training so for the learning curve we report test episode returns on the VAE latent distance reward. We see RIG making steady progress at optimizing the latent distance as learning proceeds.
+
+
+Discussion and Future Work
+
+
+In this paper, we present a new RL algorithm that can efficiently solve goal-conditioned, vision-based tasks without access to any ground truth state or reward functions. Our method trains a generative model that is used for multiple purposes: we embed the state and goals using the encoder; we sample from the prior to generate goals for exploration; we also sample latents to retroactively relabel goals and rewards; and we use distances in the latent space for rewards to train a goal-conditioned value function. We show that these components culminate in a sample efficient algorithm that works directly from vision. As a result, we are able to apply our method to a variety of simulated visual tasks, including a variable-object task that cannot be easily represented with a fixed length vector, as well as real world robotic tasks. Algorithms that can learn in the real world and directly use raw images can allow a single policy to solve a large and diverse set of tasks, even when these tasks require distinct internal representations.
+
+
+The method we presented can be extended in a number of ways. First, an exciting line of future work would be to combine our method with existing work on exploration and intrinsic motivation. In particular, our method already provides a natural mechanism for autonomously generating goals by sampling from the prior. Modifying this procedure to not only be goal-oriented but also, e.g., be information seeking or uncertainty aware could provide better and safer exploration. Second, since our method operates directly from images, a single policy could potentially solve a large diverse set of visual tasks, even if those tasks have different underlying state representations. Combining these ideas with methods from multitask learning and meta-learning is a promising path to creating general-purpose agents that can continuously and efficiently acquire skills. Lastly, while RIG uses goal images, extending the method to allow goals specified by demonstrations or more abstract representations such as language would enable our system to be much more flexible in interfacing with humans and therefore more practical.

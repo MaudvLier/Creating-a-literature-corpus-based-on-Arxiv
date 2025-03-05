@@ -1,0 +1,396 @@
+Benchmarking projective simulation in navigation problems
+
+
+Introduction
+
+
+Projective simulation (PS) is a physical approach to agency and
+artificial intelligence [*REF*], which was first
+introduced in ref. [*REF*]. The PS model has been
+successfully applied to problems in reinforcement learning
+(RL) [*REF*; *REF*], ranging from textbook problems [*REF*; *REF*] to
+applications of complex skill learning in advanced 
+robotics [*REF*; *REF*]. The model was also successfully
+used in a domain of quantum physics problems: for adaptive quantum
+computation [*REF*] and for designing complex quantum experiments [*REF*].
+
+
+The PS model is considered to be promising for several reasons. First,
+the internal deliberation dynamics is entirely based on a process of
+random walks on graphs [*REF*]. This process is
+well-studied in probability theory and physics, as well as in the
+context of randomized algorithms [*REF*], which
+makes it easier to analytically analyze the convergence properties of
+the model in certain environments [*REF*]. The
+stochastic internal dynamics of the PS model also highlights the
+possibility of physical, rather than computational, realizations of
+learning agents. Second, the PS approach provides a clear route for the
+construction of quantum-enhanced reinforcement learning
+agents [*REF*; *REF*]. This route is based on
+mapping the random walk deliberation dynamics within the PS agent to a
+quantum walk dynamics [*REF*; *REF*; *REF*].
+The quantum dynamics allows quantum parallel processing in the sense
+that the excitation in the PS agent&apos;s memory walks in superposition. As
+it was shown in ref. [*REF*], the quantum walk dynamics of
+the PS agent leads to a quadratic speed-up in deliberation time when
+compared to a behaviourally equivalent classical PS agent. The
+possibility of constructing these enhanced agents in physical systems
+was theoretically shown for quantum systems of trapped
+ions [*REF*] and superconducting circuits [*REF*]. The described quantum enhancement was
+recently demonstrated experimentally using a small-scale quantum
+information processor based on trapped ions [*REF*].
+
+
+In parallel with the advancement of the quantum-mechanical PS model, it
+is important to study the relation of the model to other RL models, and
+to benchmark its performance. This study will also allow us to identify
+practically relevant applications, such as complex skill learning in
+robotics, which could be dramatically enhanced by quantum processing. In
+this paper we consider the reinforcement learning PS model and compare
+it to the standard RL models of Q-learning [*REF*] and
+SARSA [*REF*]. For comparison, we have chosen two
+standard navigation problems that are commonly used for benchmarking:
+the grid world [*REF*] and the mountain car
+problem [*REF*]. A preliminary study of these navigation
+problems using PS was reported in [*REF*].
+
+
+The paper is organized as follows. In Section [2] we give a summary of the PS model and describe
+its basic features. Next, in Sections [3] and [4] we analyze the performance of the PS agent
+in the grid world and the mountain car problem in detail. In addition,
+we compare its performance to the performance of the standard basic RL
+algorithms -- Q-learning and SARSA. Then, in Section [5] we summarize the results of the paper.
+
+
+The PS model 
+
+
+PS is a framework for learning agents that interact with task
+environments. The interaction with a task environment is visualized
+schematically in Fig. [1]: the agent receives a percept from the
+environment as input (blue) and, after processing this input, outputs an
+action. Then, the environment evaluates the action by giving a certain
+reward as a part of the next input. PS differs from other learning
+models, such as, e.g. Q-learning and SARSA, in the way inputs (percepts,
+rewards) are processed. The PS agent processes percepts in a network of
+clips (shown at the bottom of Fig. [1]), which are units of the episodic memory. Clips
+represent remembered percepts, actions or some sequence thereof. Clips
+are connected via directed edges that represent possible transitions.
+The probability of a transition from clip *MATH* to clip *MATH* is a
+function of the edge-specific weight *MATH*: *MATH* where *MATH* 
+is the number of neighbours of the clip *MATH*. In addition, 
+in this paper we also use the softmax function (also known as Boltzmann distribution)
+*MATH* with *MATH* corresponding to the inverse temperature; we set *MATH* throughout the paper.
+
+
+FIGURE 
+
+
+The described network of clips is used for deliberation in the following
+way. The moment the PS agent receives a percept, the clip that
+corresponds to this percept is excited (blue arrow in Fig. [1]).
+Subsequently, the excitation hops in the network of clips
+probabilistically until it hits an action clip. An exemplary path of
+excitation propagation is highlighted in green in Fig. [1]. The
+excitation that hits an action clip finally triggers a real action on
+the environment (red arrow in Fig. [1]).
+
+
+The learning of the PS agent is implemented by dynamic modifications of
+the network of clips, both by changing the topology of the PS network
+and by adjusting the weights of the edges. For the problems that we
+consider in this paper, the dynamic modifications include creation of
+new percept clips and adjustments of the *MATH* -values. The *MATH* -value are
+adjusted after each round of interaction with the environment according
+to the following learning rule: *MATH* where *MATH* is a damping parameter that is
+responsible for forgetting, which is an important feature in changing
+environments [*REF*; *REF*; *REF*]. *MATH* is a reward value that is issued by the environment at
+time step *MATH*. The so-called edge glow values *MATH*, are responsible for
+the ability to internally reward a sequence of actions instead of only
+the last single action. The *MATH* -values are updated at every step of a
+random walk for every edge *MATH* with *MATH* being the edge glow damping
+parameter. The edge glow is essential in environments with delayed
+rewards (such as the grid world and the mountain car problem), in which
+case the *MATH* parameter should be set to a value smaller than *MATH*.
+*MATH* -values determine the extent to which the previously traversed PS
+network edges are strengthened by the reward. As discussed in
+Ref. [*REF*], the edge glow mechanism is operationally
+similar to the discount factor of value-based tabular RL models.
+
+
+The two parameters of the PS model, *MATH* and *MATH* are usually set
+to constant values, and it is also the case in this work. Nonetheless,
+the agent can benefit from having time-dependent model parameters, which
+can be learned autonomously by the meta-learning PS agent, which is easy
+to implement in the PS framework [*REF*], however at the expense of an increased learning time.
+
+
+The grid world problem 
+
+
+The grid world problem is a problem of navigation through a maze, which
+was originally described in ref. [*REF*] and later
+modified in many other works, see, e.g., refs [*REF*; *REF*; *REF*].
+In this paper, we consider the original maze of size *MATH* shown
+in Fig. [2](a). Although the original maze is of a small
+size, with the help of it, several important features of an RL algorithm
+can be evaluated: a possibility to deal with delayed rewards and a
+convergence to the maximum reward per time step. The grid world
+environment is specified by the following rules. The agent starts in the
+position *MATH* of the grid at the beginning of each trial. It can
+make a decision to go one step up, down, left, or right. This decision
+brings the agent to a new location, the coordinates of which are
+perceived at the next time step. If the agent hits the border of the
+grid, or one of the walls (shaded locations in Fig. [2](a)), the position of the agent will not be
+changed, however a time step will be counted. The described navigation
+ends the moment the agent arrives at the *MATH* position of the grid
+(marked as the star). After the agent moves to the *MATH* location it
+receives a reward of *MATH*, the trial ends, and the agent starts the next
+trial from the initial *MATH* position. The performance of the agent
+in this problem is measured by the number of steps that are made in each
+trial. A good learning agent is on average expected to improve after
+each trial and eventually use one of the shortest paths to reach the
+location with the reward.
+
+
+FIGURE 
+
+
+We have solved the described grid world problem using the PS agent. The
+design of the underlying clip network is shown in Fig. [2](b). It consists 
+of two types of clips: percept clips (blue) and action clips (red). At the very beginning,
+before the first trial, only action clips (left, up, right, down) exist.
+After the PS agent perceives its new *MATH* coordinates -- a new
+percept clip is created and is connected to all actions by directed
+edges with initial weights *MATH* and zero glow values
+*MATH*. Effectively, this procedure creates a two-layered PS
+network with a layer of percepts and a layer of actions. Due to the
+simple two-layered architecture of the clip network in the grid world problem, *MATH*.
+
+
+FIGURE
+
+
+We simulated the described basic PS agent in the grid world environment
+during *MATH* trials. Each trial starts by placing the agent at the
+initial position and ends by the agent reaching the goal position, or by
+reaching the maximum number of steps in the trial, set to *MATH* (such a
+large number ensures that the agent can reach the reward for all
+practical purposes, even by randomly walking in the maze). The results
+of the simulations are shown in Fig. [3], where the average number of steps the
+agent needed in the *MATH* -th trial to find the rewarded site is plotted
+as a function of the *MATH* parameter. We observe that PS with the
+softmax probability function (blue curve) from Eq. (magenta curve), for the entire range of
+considered *MATH* parameters. This observation is explained by the fact
+that the softmax function enhances a small reward of *MATH* that
+introduces a relatively small change in the *MATH* -values. Hence two edges
+*MATH* and *MATH* with small difference between the weights
+will have a larger difference in probabilities *MATH* and
+*MATH* in the case of Eq., compared to Eq.
+
+
+The performance of PS agents with different values for the *MATH* 
+parameter in Fig. [3] indicates that there is an optimal
+*MATH* parameter range for the grid world problem of the
+defined size. If the size of the grid world were larger, then the
+optimal *MATH* parameter would have a lower value, given that the
+maximum number of trials is the same. The lower *MATH* value would lead
+to a larger *MATH* term for the path of length *MATH*, which
+should be quantitatively comparable to the *MATH* term in the
+smaller grid world with the optimal path of length *MATH* [^2]. In other
+words, by changing the glow parameter one can adjust the performance of
+the PS agent to grid world environments of different sizes. Moreover,
+the glow mechanism has additional flexibility to adjust the learning
+time by changing the *MATH* parameter, which is demonstrated in
+Fig. [4]. With *MATH* the agent learns relatively fast: within *MATH* trials
+it converges to *MATH* steps per trial. However, a better final
+performance can be achieved by increasing *MATH* given that more than
+*MATH* trials are available to the agent. For example, *MATH* in
+Fig. [4] shows a better average final performance of *MATH* steps. If one would
+allow more than *MATH* trials to the PS agent, the agent would show an
+even better performance with *MATH*. In the opposite case, when
+less than *MATH* trials are available to the agent, then decreasing glow
+parameter to a value of *MATH* will yield an even better
+performance. However, the smallest possible nonzero *MATH* is not going
+to give the steepest learning curve: as one can see in Fig. [4],
+a small *MATH* is not giving the fastest convergence. These
+simulations suggest that there is a trade-off between learning time and
+achieved performance after this time. Notably, depending on developer
+priorities, learning time or asymptotic performance can be optimized
+with the help of a single *MATH* parameter.
+
+
+FIGURE 
+
+
+Next we compare the performance of the PS agent with those of the
+Q-learning and SARSA agents. Q-learning [*REF*] is a standard
+tabular off-policy RL algorithm that learns by estimating action values
+*MATH* for all states *MATH* and actions *MATH*. The *MATH* -values are updated
+by the following learning rule: *MATH* SARSA [*REF*] is an on-policy
+tabular RL algorithm that, similar to Q-learning, estimates *MATH* -values,
+but is defined by the following learning rule: *MATH*. Both Q-learning and SARSA have the same set of
+parameters in their learning rules: *MATH* is the
+learning rate, *MATH* is the discount factor and *MATH* 
+is the initial action value for all state-action *MATH* 
+pairs. For these learning algorithms we consider the *MATH* -greedy
+policy: with probability *MATH* the action *MATH* is random,
+otherwise the action is chosen greedily according to the rule *MATH*.
+
+
+Figure (a) shows the results of simulations of the
+Q-learning agent in the grid world environment. The average number of
+steps needed to find the rewarded site was determined after *MATH* trials
+for different values for the *MATH* and *MATH* 
+parameters. We first observe that the initial action values of
+*MATH* (the right column of Figure (a)) are much better compared to the values of
+*MATH*. The reason lies in the correlation of *MATH* with the
+reward function: most of the time the agent gets no reward, which makes
+*MATH* -values of explored actions go down to zero, and separates explored
+actions from unexplored ones. Such a choice of *MATH* effectively
+reduces the time needed to find the goal state for the first time. We
+next see that the greedy policy with *MATH* demonstrates the
+best performance, which also makes the Q-learning agent mostly
+independent of the learning rate *MATH*. However, for such a
+performance the discount factor should be set to a value *MATH*.
+
+
+The performance of the second standard tabular RL agent that we consider
+in our paper, the SARSA agent, is shown in Fig.(b). The dependence of the performance on
+different values of model parameters is similar to the Q-learning case,
+but is slightly worse for a non-optimal set of parameters. The best
+performance of the SARSA agent is achieved for *MATH* and
+*MATH* like in the case of Q-learning. This, in fact, makes the
+two models equivalent for that choice of parameters because
+Eq. and Eq. are equivalent given that the policy is greedy.
+
+
+The best parameter values that were found by simulations in
+Fig. [3] and Fig. for PS, Q-learning and SARSA, respectively,
+lead to the learning curves plotted in Fig. [5]. These learning curves show that all
+three types of RL agents improve their performance gradually and
+converge to the optimal behavior with *MATH* steps per trial. To be more
+specific, PS finishes the *MATH* -th trial with the average path length of *MATH*, 
+Q-learning and SARSA do it in *MATH* steps. One can see that Q-learning (red) and SARSA (green) converge to
+the shortest path faster than PS (blue). This however was possible only
+after an extensive parameter search procedure that included checking the
+performance of *MATH* different agents, both for Q-learning (see
+Fig.(a)) and SARSA (see Fig.(b)), compared to just *MATH* different agents for PS (see Fig. [3]).
+
+
+FIGURE
+
+
+The mountain car problem 
+
+
+The second navigation problem that we consider is the mountain car
+problem, which was first introduced in Ref. [*REF*] and is
+a part of a modern benchmarking framework [*REF*]. In this
+problem an agent is tasked to drive a car shown in
+Fig. [6](a) and reach the goal at position *MATH*. The agent starts 
+with the zero velocity at the position *MATH* close to the bottom in 
+between two hills. The agent perceives the coordinate and the velocity 
+of the car at each time step, *MATH*, and is able to control the car by
+choosing between three available actions: accelerate to the left,
+accelerate to the right, or do not accelerate. An action changes the
+position and the velocity of the car according to the following
+rule [*REF*]: *MATH* where *MATH* is the action
+chosen at time step *MATH*. The velocity of the car is limited such that
+*MATH*. In case the velocity exceeds the absolute value
+of *MATH*, this value is set to *MATH*  [*REF*]. The
+position is also bounded so that *MATH*. If the car tries
+to pass the left end of the position space, the position is set to
+*MATH* and velocity is reset to zero, as if the car is stopped by a wall.
+
+
+FIGURE
+
+
+FIGURE
+
+
+The clip network that is built up by PS in the mountain car problem is
+shown in Fig. [6](b). The network is similar to the
+one from the grid world problem and consists of layers of percepts
+(blue) and actions (red). In order to keep the percept space finite, we
+discretize the possible values of *MATH* pairs by dividing both the
+position and the momentum range into *MATH* equal intervals. This division
+limits the maximum number of clips in the PS network to *MATH* percept
+clips and *MATH* action clips. The performance of the PS agent in the
+mountain car problem as a function of the *MATH* parameter is shown in
+Fig. [7]. As expected, for *MATH*, the performance is similar to the performance of
+the random agent, because all percept-action edges are internally
+enhanced starting from the time when they are visited. The best average
+performance of the PS agent is achieved for *MATH*, which is lower
+than the optimal value *MATH* in the grid world problem. This is due
+to the fact that the shortest sequence of actions in the mountain car
+problem is roughly *MATH* times longer and a stronger glow is required to
+remember the first actions in a longer sequence.
+
+
+FIGURE
+
+
+The parameter optimization for the Q-learning and SARSA algorithms is
+more involved. As it requires significantly more computational time to
+optimize parameters in the mountain car problem than in the grid world
+problem, we sampled from the *MATH* and *MATH* parameter intervals for
+values of *MATH* and *MATH*. The dependence of the agents&apos;
+performance on model parameters is shown in Fig. [8] for Q-learning (left) and SARSA
+(right). One can see that the region of optimal parameters is where the
+learning rate *MATH* is relatively small, which is different from the
+optimal range of the *MATH* parameter in the grid world problem (see Fig.).
+
+
+Fig. [9] shows a comparison of learning curves of the PS (blue), Q-learning (red)
+and SARSA (green) agents, for the best set of model parameters that were
+found in each case. We see that the PS agent achieves the best result
+among all three types of agents with an average performance of *MATH* 
+steps and a mean squared deviation of *MATH* steps. Q-learning and SARSA
+achieve a performance of *MATH* and *MATH* steps with mean squared
+deviation of *MATH* and *MATH* steps, respectively.
+
+
+FIGURE 
+
+
+Summary and Discussion 
+
+
+In this paper, we studied the model of projective simulation, which we
+numerically tested in two benchmarking problems: the grid world and the
+mountain car problem. In both problems a reinforcement learning agent
+was tasked to navigate in the space of environment parameters --
+*MATH* in case of the grid world environment and *MATH* in case of
+the mountain car environment. In both navigation problems we observed
+that the PS agent improves its performance after each trial, which is
+seen from simulations in Figs. [5] and [9]. The optimal performance of the 
+PS agent was obtained by choosing the glow parameter *MATH*, which is 
+responsible for internally enhancing the weights of sequences of actions 
+that lead to a reward. We have demonstrated that there is a straightforward 
+way to choose this *MATH* parameter, and gave heuristics of how the optimal *MATH* depends on the
+maximum number of trials and the size of the problem. In addition, we
+showed that there is a tradeoff between the best average performance and
+the learning rate. As we demonstrated in Fig. [4], both can be achieved 
+by choosing a value for the *MATH* parameter appropriately.
+
+
+We have compared the performance of PS agent with Q-learning and SARSA
+in both benchmarking problems. The simulations of all *MATH* types of
+agents suggest that the performance is qualitatively similar, as one can
+see in Figs. [5] and [9]. Quantitatively, in the grid world problem we observed that Q-learning
+and SARSA converge to one of the optimal paths faster than the PS agent
+does. In the mountain car problem, we observed that the PS agent found a
+better solution compared to both Q-learning and SARSA. Importantly, the
+obtained performance of the Q-learning and SARSA agents was achieved by
+optimizing over *MATH* parameters in the case of the grid world problem and
+*MATH* parameters in the case of the mountain car problem. This can be
+compared to just *MATH* parameter with a simple operational meaning in the
+case of PS. We demonstrated that optimizing parameters in the case of
+Q-learning and SARSA is much more demanding -- it required more than
+*MATH* times more agent trials in the case of the grid world and *MATH* 
+times more agent trials in the case of the mountain car problem, which
+is a difference of more than one order of magnitude. Our results hence
+demonstrate that the PS agent is easy to set up, which is of importance
+in complex tasks where model parameter optimization is very costly.

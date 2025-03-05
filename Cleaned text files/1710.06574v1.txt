@@ -1,0 +1,501 @@
+Introduction
+
+
+In reinforcement learning (RL), the agent observes a stream of
+experiences and uses each experience to update its internal beliefs. For
+example, an experience could be a tuple of (state, action, reward, new
+state), and the agent could use each experience to update its value
+function via TD-learning. In standard RL algorithms, an experience is
+immediately discarded after it&apos;s used for an update. Recent
+breakthroughs in RL leveraged an important technique called experience
+replay (ER), in which experiences are stored in a memory buffer of
+certain size; when the buffer is full, oldest memories are discarded. At
+each step, a random batch of experiences are sampled from the buffer to
+update agent&apos;s parameters. The intuition is that experience replay
+breaks the temporal correlations and increases both data usage and computation efficiency [*REF*].
+
+
+Combined with deep learning, experience replay has enabled impressive
+performances in AlphaGo [*REF*], Atari games
+[*REF*], etc. Despite the apparent importance of having a
+memory buffer and its popularity in deep RL, relatively little is
+understood about how basic characteristics of the buffer, such as its
+size, affect the learning dynamics and performance of the agent. In
+practice, a memory buffer size is determined by heuristics and then is
+fixed for the agent.
+
+
+Prioritized experience replay (pER) is a modification of ER whereby
+instead of uniformly choosing experiences from the buffer to use in
+update, the agent is more likely to sample experiences that are
+&quot;surprising&quot; [*REF*] [*REF*]. pER is
+empirical shown to improve the agent&apos;s performance compared to the
+regular ER, but we also lack a good mathematical model of pER.
+
+
+Contributions.
+
+
+In this paper, we perform a first rigorous study of how the size of the
+memory buffer affects the agent&apos;s learning behavior. We develop an ODE
+model of experience replay and prioritized replay. In a simple setting,
+we derive analytic solutions characterizing the agent&apos;s learning
+dynamics. These solutions directly quantify the effects of memory buffer
+size on the learning rate. Surprisingly, even in this simple case with
+no value function model mismatch, memory size has a non-monotonic effect
+on learning rate. Too much or too little memory both can slow down
+learning. Moreover, prioritized replay could also slow down learning. We
+confirm these theoretical predictions with experiments. This motivated
+us to develop a simple adaptive experience replay (aER) algorithm to
+automatically learn the memory buffer size as the agent is learning its
+other parameters. We demonstrate that aER consistently improves agent&apos;s performance.
+
+
+Related works.
+
+
+The memory replay technique has been widely implemented in RL
+experiments currently and is shown to have a good performance for
+different algorithms such as actor-critic RL algorithms
+[*REF*], deep Q-Network (DQN) algorithms
+[*REF*; *REF*], and double Q-learning algorithms
+[*REF*]. To further make good use of experience, prioritized
+methods are proposed for RL algorithms
+[*REF*; *REF*]. The main idea of
+prioritization is to sample transitions that lead to larger value change
+in RL more frequently. The probability of selecting an experience is
+determined by the relative magnitude of the temporal difference error
+(TD-error). This has been reported to be effective in many experiments
+[*REF*; *REF*; *REF*].
+Measures other than TD-error are also in literature to weight
+experience; examples include rewards [*REF*] and the
+transition property [*REF*].
+
+
+The performance of RL with experience replay is similar to the batch RL
+but in an incremental way [*REF*; *REF*; *REF*].
+Another approach to reuse data in RL is called model-learning or Dyna
+architecture, which builds a model to simulate and generate new data
+[*REF*; *REF*]. This method, however, induces
+both extra computation cost and modeling error for the data.
+
+
+A Dynamical System Model of Experience Replay 
+
+
+In an RL task, an agent takes actions *MATH*, observes states *MATH* and
+receives rewards *MATH* in sequence during its interaction with the
+environment. The goal is to learn a strategy which leads to best
+possible reward. A standard learning framework for the agent is to use
+the action-value function to learn optimal behavior and perform action
+selection. The optimal action-value *MATH* is defined as the maximum
+expected return when the agent starts from state *MATH* and takes first
+action *MATH*. It satisfies *MATH*, where *MATH* is the reward function, *MATH* 
+(*MATH*) denotes the discount factor, and *MATH* 
+is the state transition probability kernel, defined as the probability
+of moving from state *MATH* to state *MATH* under action *MATH*.
+
+
+In practice, the state space is usually large and the function
+approximation is adopted to estimate the action-value function
+*MATH*; deep Q-Network (DQN) is an example of this approach.
+At learning step *MATH*, the commonly-used TD-learning method updates the
+weight *MATH* according to *MATH*, where *MATH* is the step size. Here the data
+collected at learning step *MATH* is utilized to do the TD update. For
+standard RL algorithms, only the most recent transition is visited and
+*MATH*, while for the ER approach, experience data are reused and *MATH*.
+
+
+ALGORITHM
+
+
+The effect of the memory buffer can not be extracted from the ER
+algorithm itself, and the hidden mechanism is hard to perceive only with
+experiments in a black box. Thus we derive an ODE model to simulate the
+learning process. General results are obtained numerically and even
+analytically, confirmed as good matches with experiments. This analytic
+approach enables us to systematically analyze how the replay memory
+affects the learning process and what is the principle behind it.
+
+
+The ODE model corresponds to a continuous interpolation of the discrete
+learning step *MATH* (*MATH*). This continuous approximation
+works well when the step size *MATH* is not too large, i.e., there is
+no dramatical change for the weights within a few steps. This criterion
+is often met in real experiments. More details of the ODE derivation is
+in the Appendix.
+
+
+Under the continuous approximation, the dynamic equation for the weights
+is *MATH*.
+
+
+The agent&apos;s state evolution can also be estimated as *MATH*. 
+
+
+Here the action *MATH* is selected according to a policy *MATH* 
+*MATH*.
+
+
+Together with Eq. FORMULA, the state evolving trajectory can be depicted. For
+instance, with an *MATH* greedy policy, the state movement obeys *MATH*.
+
+
+In ER, recent transitions are stored in a replay memory with the
+capacity *MATH*, and a minibatch of data is randomly chosen for
+TD-learning. The parameter dynamics under experience replay is
+*MATH*, where *MATH* is the minibatch size and *MATH* 
+is the memory size. Eq. FORMULA can be viewed as giving the expected
+gradient value of the parameter updates at each time step.
+
+
+Now we are able to analyze the learning process, more specifically, the
+weights *MATH* and state *MATH* as a function of learning step,
+based on Eq. FORMULA and Eq. FORMULA. No experiment is needed and the
+influence of the memory buffer or other parameters can be analyzed
+explicitly from the analytical solutions. Our theoretical model is
+further validated by experiments based on ER algorithms.
+
+
+Prioritized replay (pER) proposes to speed up the learning process by
+sampling the experience transitions according to a non-uniform
+probability distribution. One commonly used model is to parametrize the
+probability for selecting transition *MATH* as
+*MATH*, where *MATH* is a constant exponent and *MATH* 
+is the TD-error. The only difference between ER and pER is in how to sample experiences.
+
+
+Taking *MATH* as an instance, the dynamic equation for weights under
+pER is given by *MATH*, where *MATH*.
+
+
+Analysis of Memory Effects in a Simple Setting 
+
+
+Starting from a toy game we call LineSearch, we analytically solve the
+ODEs FORMULA and FORMULA to get the learning dynamics and
+quantify the effects of memory. We further characterize settings when
+pER helps or hinders learning tasks compared to ER. Finally, we show
+that our theoretical predictions have excellent agreement with experiments.
+
+
+Model setup.
+
+
+We first define a simple game LineSearch, for which the space of agent
+state *MATH* is one dimensional, the reward function is linear
+*MATH*, and the action is binary
+*MATH*, where *MATH* is a constant. In a transition, the next
+state is determined by adding the action value to the current state,
+i.e., *MATH*. When the discount factor *MATH* is set
+as 0 (non-zero *MATH* setting gives similar agent&apos;s behavior and will
+be addressed later), the real action-value function is
+*MATH*. When there is no model mismatch, the action-value
+function of the agent is *MATH*.
+At *MATH*, *MATH* and *MATH* are randomly initialized. As the
+agent performs TD update, we are interested in how quickly the
+*MATH* &apos;s approach the true *MATH* &apos;s. A natural evaluation metric is
+*MATH* and *MATH* defined as *MATH*. 
+The agent learns well if *MATH* and *MATH* 
+approach *MATH*, and performs badly when *MATH* or
+*MATH* is large. Under a greedy policy, the evolution of the
+agent&apos;s state is *MATH*.
+
+
+FIGURE
+
+
+With the initial state denoted as *MATH*, the evolution of the two
+metrics is derived from Eqs. FORMULA as *MATH*, *MATH* 
+where *MATH*, *MATH*, *MATH*, *MATH*, *MATH*, and
+*MATH*. Here our discussion is set in the *MATH* region, similar study could be carried out when *MATH*.
+Throughout this section, we choose the initial state *MATH*, the
+action amplitude *MATH*, and the initial metrics *MATH* and *MATH*.
+
+
+The learning process in theory can then be calculated based on the
+dynamic equations of the metrics, i.e., Eq. FORMULA and Eq. FORMULA.
+It should be noted that the weights *MATH* 
+are obtained at the same time as *MATH* 
+and *MATH*. The detailed analytical
+solution and discussion for the ODEs Eq. FORMULA and Eq. FORMULA are given in Appendix.
+
+
+The theoretical learning curves for both RL and pRL settings are
+depicted in Fig. 1 and Fig. 2, with the minibatch size *MATH* being *MATH* 
+and the step size *MATH* being *MATH*. The two metrics
+*MATH* and *MATH* are represented by the solid
+blue and orange curve, respectively.
+
+
+To demonstrate the validity of our theoretical solution, we also
+performed experiments on LineSearch following ER and pER algorithms. For
+illustration, we plot the experimental results in Fig. 1
+and Fig. 2, where the blue dots stand for
+*MATH* and the orange square denotes *MATH*. Our
+theoretical prediction has excellent agreement with experiment results.
+
+
+Effects of memory size.
+
+
+By solving the ODEs, we found that the memory setting has a
+non-monotonic effect on the RL performance. We are able to extract the
+mechanism behind this phenomenon from the analytic expressions.
+
+
+With *MATH* being fixed as the real value *MATH*,
+the metric *MATH* is solved analytically *MATH*. 
+The metric converges exponentially to 0, but the rate of
+convergence (the exponent) has non-monotonic dependence on the memory size *MATH*.
+
+
+In contrast, when *MATH* is fixed to the correct value,
+*MATH*, the metric *MATH* evolves
+according to *MATH*. In this case,
+the choice of memory size has no effect on the learning behavior.
+Detailed explanation and analysis are in Appendix.
+
+
+Now we turn to a more general situation when the updates of the two
+weights are coupled together. To examine the performance, we define a
+measure *MATH*, i.e., the sum of the two metrics absolute values at the learning step 1000,
+the end of the game. The smaller the measure *MATH* is, the better the
+agent learns. Fig. 4 plots the dependence of *MATH* on the memory size
+*MATH* and the minibatch size *MATH*, with the step size *MATH*.
+
+
+The learning performance is affected non-monotonically by the memory
+size for *MATH*, while a monotonic relation is observed for *MATH*, as
+shown in Fig. 4. For example, an optimal memory size around *MATH* 
+exists for *MATH*, denoted by the red curve in Fig. 3. In contrast, the measure *MATH* 
+experiences a monotonic decrease with the growth of memory size for
+*MATH*, plotted by the blue curve in Fig. 3.
+
+
+The influence of the memory setting in RL arises from the trade-off
+between the overshooting and the weight update. Here the term
+overshooting describes the phenomenon when some of the weights are
+updated in the wrong direction. For example, in
+Fig. 1, *MATH* actually moves further away
+from *MATH* during times 200 to 500; *MATH* also overshoots at
+*MATH* and incurs negative bias. We first address the settings with
+small minibatches. When the memory size is also small, the learning
+process is more likely to overshoot because of the limited memory
+capacity. When the replay memory is enlarged, the overshooting effect is
+mitigated. With the increase of the memory size, the averaged weight
+update first becomes slowly then slightly accelerates. The balance
+between these two contributions leads to the non-monotonic nature. When
+*MATH* is large, there is still a trade-off between overshooting and
+increasing weight update. However, the latter can not counteract the
+former because of the quick convergence induced by the large TD update.
+Analytical expressions and numerical results are combined for illustrations in Appendix.
+
+
+Performance of prioritized replay.
+
+
+We further compare pER and ER, and discuss how the memory buffer affects
+pER based on our theoretical model. Fig.
+2 plots the learning curve for pER, which
+exhibits a similar property as for ER in Fig. 1. We compare the performance of RL and pRL algorithms in Fig. 5,
+where blue (red) regions stand for cases when ER (pER) is better, and
+white areas represent situations when the two algorithms perform
+similarly. It is shown that pER performs relatively worse when the
+memory size is small, particularly when the minibatch size is not large.
+This is also attributed to the trade-off between the overshooting and
+quick weight update. For small memory size, the overshooting effect is
+more serious under the prioritized sampling, while for a large memory,
+the prioritized agents update the weight quicker which leads to a faster
+convergence. Demonstrations are given in Appendix.
+
+
+Nonzero discount factor.
+
+
+The discount factor is set as 0 in the previous subsections for
+simplicity. Here we show that the learning dynamics with *MATH* is
+qualitatively similar to the case when *MATH* in the LineSearch
+game. With a nonzero discount factor *MATH*, i.e., considering the
+long-term effect, the real action-value function under the greedy policy
+is *MATH*, where *MATH* stands for the total training steps afterwards
+before the game ends. The approximation in Eq. FORMULA is valid for large *MATH* and *MATH*.
+For instance, with the discount factor *MATH*, the contribution
+of the term *MATH* after 100 steps is *MATH*.
+
+
+When there is no model mismatch, the action-value function of the agent
+is *MATH*. 
+
+
+Then the evolution of the two weights are derived together with Eqs.
+FORMULA-FORMULA as *MATH*, *MATH*, where *MATH*, *MATH*, *MATH*,
+*MATH*, *MATH*, and *MATH*. The learning curve is attached in Appendix.
+
+
+We find that the ODEs for *MATH* have similar form as
+*MATH*. Correspondingly, the results obey similar principles, as
+shown in Fig. 6. Here the step size is *MATH*, the
+real weights *MATH* and *MATH* are 0.1 and 0.5, and the
+initial weights *MATH* and *MATH* are 0 and 1.
+
+
+ALGORITHM
+
+
+Adaptive Memory Size Algorithm
+
+
+The analysis from the previous section motivated us to develop a new
+algorithm that allows the agent to adaptively adjust the memory size
+while it is learning other parameters.
+
+
+Intuition.
+
+
+The lesson from Section 3 is that an useful adaptive algorithm should
+increase the memory capacity when the overshooting effect dominates and
+shrink the memory buffer if the weight update becomes too slow.
+
+
+We use the change in absolute TD error of the oldest memories in the
+buffer as a proxy for whether the agent is overfitting to more recent
+memories. The intuition is that if the TD error magnitude for the oldest
+transitions in the buffer starts to increase -- i.e. the old data violate
+the Bellman equation more severely as the agent learns -- then this is a
+sign that the agent might be overshooting and overfitting for the more
+recent experiences. In this case, we increase the memory buffer to
+ensure that the older experiences are kept longer to be used for future
+updates. On the other hand, if the TD error magnitude for the oldest
+transitions in the buffer starts to decrease over time, then the older
+memories are likely to be less useful and the agent decreases the memory
+buffer to accelerate the learning process.
+
+
+Algorithm description.
+
+
+The memory size is adaptively changed according to the TD error
+magnitude change of the oldest transitions, characterized by
+*MATH*. Here *MATH* and *MATH* are defined as
+the sum of the absolute TD errors of the old *MATH* 
+transitions in memory, where *MATH* is a hyperparameter
+which denotes the number of old data we choose to examine.
+*MATH* is first calculated. After *MATH* steps, we
+derive *MATH* and compare it with
+*MATH*. More specifically, every *MATH* steps, if the
+change of absolute TD error magnitude sum for the old transitions
+decreases, i.e., *MATH*, the memory shrinks, otherwise increases, as given in Algorithm 2, denoted as aER.
+
+
+Performance on LineSearch.
+
+
+FIGURE
+
+
+FIGURE
+
+
+We first analyze how aER works for the LineSearch game. With the
+minibatch size *MATH* and the step size *MATH*, the agent
+adaptively adjusts its memory capacity from 100 as depicted in Fig. 8. Compared to the setting with
+fixed memory size as *MATH*, the agent updates weights more effectively
+and the overshooting effect is mitigated, indicated by Fig. 7.
+
+
+Performance on OpenAI Games with DQN.
+
+
+We further evaluated the algorithm on three standard RL benchmarks that
+we downloaded from OpenAI Gym, which are CartPole, MountainCar and Acrobot.
+
+
+We used DQN with fully connected neural network (NN) for the value
+function approximation, where the NN is one layer for CartPole and two
+layers for MountainCar and Acrobot. Here we randomly initialize the
+weights, and set the minibatch size *MATH* and memory adjustment
+internal *MATH*. The checked old transitions cover half of the initial
+memory size, out of which we randomly sample 50 (1000) experiences to
+approximate *MATH* for CartPole (MountainCar and
+Acrobot). The discount factor *MATH* is set to be *MATH* for CartPole
+and *MATH* for MountainCar and Acrobot. The step size *MATH* is
+*MATH*, *MATH* and *MATH* for CartPole, MountainCar and Acrobot.
+
+
+The adaptive memory algorithm achieved better performance compared to
+having a fixed-size replay buffer in all three games.
+
+
+First, for the CartPole game which starts with an initial memory size of
+100, the agent speeds up its learning from adaptive adjustments of the
+memory size, as shown in Fig. [10](fig: Cartpole){reference-type=&quot;ref&quot;
+reference=&quot;fig: Cartpole&quot;} and Fig. 13 where each curve is averaged for 100
+new games. Here a larger static memory is always better and the best
+performance is achieved when no experience is discarded, corresponding
+to the full size *MATH*. With the aER, the agent correctly learns to
+increase its memory size from a small initial size of 100. We note that
+in 71% of the trials the aER outperforms the averaged static memory strategy.
+
+
+In the second example, MountainCar, we found that the optimal fixed
+memory size is around 50,000, as indicated by Fig.
+11 and Fig. 14 where the result is averaged for 100
+new games. Both smaller and larger static memory sizes reduce learning.
+In this setting, aER learns to increase the memory size if the initial
+memory is small and it also learns to decrease the capacity if the
+initial memory is too large. 62% and 86% trials with aER outperforms the
+averaged fixed memory results for the initial size of 20,000 and
+150,000, respectively. We note that the dynamical change of memory size
+from 150,000 also enables the agent to even perform better than the best static result.
+
+
+Last, aER also demonstrates good performance in the Acrobot game where a
+relatively smaller fixed memory is preferred, as plotted in Fig. 12 and
+Fig. 15 where each curve is averaged for 100 new
+games. When the initial buffer size is 25,000 and 100,000, aER
+outperforms the averaged fixed memory approach in 100% and 95% of the
+experiments, respectively. Here the agent learns to accelerate its
+learning by dynamically decreasing the memory size.
+
+
+Additional considerations
+
+
+Little extra computation cost is needed to carry out the aER. Taking the
+CartPole game for example, only every 20 steps, we need to compute one
+or two forward passes of neural network without backpropogation. The
+examined batch is in the same size as the sampling minibatch for TD update.
+
+
+The simple aER algorithm has a tendency to shrink the memory, but
+already shows good performance in experiments. The goal of the TD
+learning process is to diminish the TD error amplitude for all data, so
+the updated *MATH* is more likely to be less than
+*MATH* in average sense. One possible solution is to
+change the criterion for shrinking the memory buffer to be
+*MATH*, where *MATH* could be a predefined constant, or learned online such as
+from the averaged TD error amplitude change through the whole dataset
+and the previous *MATH* value.
+
+
+Discussion
+
+
+Our analytic solutions, confirmed by experiments, demonstrate that the
+size of the memory buffer can substantially affect the agent&apos;s learning
+dynamics even in very simple settings. Perhaps surprisingly, the memory
+size effect is non-monotonic even when there is no model mismatch
+between the true value function and the agent&apos;s value function. Too
+little or too much memory can both slow down the speed of agent&apos;s
+learning of the correct value function. We developed a simple adaptive
+memory algorithm which evaluates the usefulness of the older memories
+and learns to automatically adjust the buffer size. It shows consistent
+improvements over the current static memory size algorithms in all four
+settings that we have evaluated. There are many interesting directions
+to extend this adaptive approach. For example, one could try to
+adaptively learn a prioritization scheme which improves upon the
+prioritized replay. This paper focused on simple settings in order to
+derive clean, conceptual insights. Systematic evaluation of the effects
+of memory buffer on large scale RL projects would also be of great interest.

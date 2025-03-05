@@ -1,0 +1,481 @@
+Deep Optimistic Planning with Approximate Value Function Evaluation 
+
+
+Introduction  
+
+
+Action planning in robotics is a complex task due to unpredictabilities
+of the physical world, uncertainties in the observations, and rapid
+explosions of the state dimensionality. For example, hyper-redundant
+manipulators are typically affected by the curse of dimensionality
+problem when planning in large state spaces. Similarly, in multi-robot
+collaborative tasks, each robot has to account for both the state of the
+environment and other robots&apos; states. Due to the curse of
+dimensionality, generalization and policy generation are time consuming
+and resource intensive. While deep learning approaches led to improved
+generalization capabilities and major successes in reinforcement
+learning [*REF*; *REF*; *REF*] and robot
+planning [*REF*; *REF*], most techniques require huge
+amounts of data collected through agent&apos;s experience. 
+
+
+FIGURE 
+
+
+In robotics, this is often achieved by spawning multiple
+simulations [*REF*] in parallel to feed a single neural network.
+During simulation, however, the robot explores its huge search space,
+with little or no prior knowledge. While encoding prior information in
+robot behaviors is often desirable, this is difficult when using neural
+networks and it is mostly achieved through imitation
+learning [*REF*; *REF*] with little performance
+guarantees. To overcome this issue, decision theoretical planning
+techniques, such as Monte-Carlo tree search [*REF*], have been
+applied in literature. Unfortunately, these methods fail in generalizing
+and show limitations in relating similar states [*REF*] (i.e.
+nodes of the search tree). 
+
+
+As in prior work [*REF*], we attack the generalization problem in
+policy generation by enhancing the Upper Confidence Tree (UCT)
+algorithm [*REF*] -- a variant of Monte-Carlo tree search -- with
+an external action-value function approximator, that selects admissible
+actions and consequently drives the node-expansion phase during episode
+simulation. In particular, in this paper, we extend the algorithm
+in [*REF*] to use a more powerful representation, based on deep
+learning, that enables better generalization and supports higher
+dimensional problems. In fact, [DOP] (Deep Optimistic
+Planning), is based on Q-learning and allows agents to plan complex
+behaviors in scenarios characterized by discrete action spaces and large
+state spaces. As shown in Figure [1], to model action values, we use a
+convolutional neural network (CNN) that is iteratively refined by
+aggregating [*REF*] samples collected at every timestep.
+Specifically, [DOP] generates action policies by running a
+Monte Carlo tree search [*REF*] and incrementally collecting new
+samples that are used to improve a deep *MATH* -network approximating action
+values. 
+
+
+We aim at demonstrating that [DOP] can efficiently be used
+to generalize policies and restrict the search space to support learning
+in high-dimensional state spaces. To this end, we address applications
+that involve multi and hyper-redundant robots by evaluating
+[DOP] over three complex scenarios: a cooperative navigation
+task of 3 Pioneer robots in a simple environment, a fetching task with a
+7-DOF KUKA arm, and an handover task with a humanoid NAO robot. The
+experimental evaluation shows the effectiveness of using deep learning
+to represent action values that are exploited in the search process,
+resulting in improved generalization capabilities of the planning
+algorithm -- that make it suitable also for multi-agent domains. Our
+main contributions consist in (1) an extension of prior
+work [*REF*] to use deep learning and improve both the focused
+exploration and generalization capabilities, and (2) an extended
+experimental evaluation of the representation and the algorithm, that
+shows the usability of [DOP] in complex high-dimensional and
+multi-robot domains. 
+
+
+The reminder of the paper is organized as follows.
+Section [2] reports recent research on (deep) reinforcement learning and planning,
+and Section [3] describes the [DOP] representation and algorithm. Finally,
+Section [4] describes our experimental setup, as well as
+the obtained results, and Section [5] discusses final remarks, limitations and
+future directions. 
+
+
+Related Work  
+
+
+Recent trends in reinforcement learning have shown improved
+generalization capabilities, by exploiting deep learning techniques. For
+example, Mnih et al. [*REF*] use a deep *MATH* -network to learn
+directly from high-dimensional visual sensory inputs on Atari 2600
+games. Silver et al. [*REF*; *REF*] use deep value networks
+and policy networks to respectively evaluate board positions and select
+moves to achieve superhuman performance in Go. In [*REF*], instead,
+the authors execute multiple agents in parallel, on several instances of
+the same environment, to learn a variety of tasks using actor-critic
+with asynchronous gradient descent. Similar advancements have been shown
+in the robotics domain. For instance, Levine et al. [*REF*]
+represent policies through deep convolutional neural networks, and train
+them using a partially observed guided policy search method on
+real-world manipulation tasks. Moreover, Rusu et al.[*REF*] use deep
+learning in simulation, and propose progressive networks to bridge the
+reality gap and transfer learned policies from simulation to the real
+world. Unfortunately, planning and learning with deep networks is
+computationally demanding (i.e., requires a huge number of heavy
+simulations). For this reason, Weber et al. [*REF*] introduce I2As
+to exploit outcome of virtual policy executions, in the Sokoban domain,
+learned with a deep network. 
+
+
+During simulation, the robot uninformedly explores its search space, and
+attempts to find an optimal policy. To facilitate this task, several
+approaches initialize robot policies with reasonable behaviors collected
+from human experts (e.g., through the aid of expert
+demonstrations [*REF*; *REF*]). For example, in [*REF*]
+the authors rely on a Deep Deterministic Policy Gradient approach to
+exploit expert demonstration in object insertion tasks. These methods,
+however, generally require a considerable number of training examples,
+and are not easily applicable to complex domains, such as multi-agent
+scenarios and highly redundant robots. While traditional decision
+theoretic planning methods, such as Monte-Carlo tree
+search [*REF*; *REF*], enable easier injection of prior
+knowledge in generated behaviors, they do not provide sufficient
+generalization capabilities, that are required in common robotics
+problems, where large portions of the state space are rarely or never
+explored. 
+
+
+In this paper, we address generalization at learning time by introducing
+[DOP], an iterative algorithm for policy generation that
+makes use of deep *MATH* -networks to drive a focused exploration.
+[DOP] relies on previous work [*REF*] and extends it
+with a different representation to obtain improved generalization
+capabilities over higher dimensional problems. In particular, we
+approximate the *MATH* function using *MATH* -learning with a deep
+convolutional neural network. Similar to *MATH* -CP [*REF*] and
+TD-search [*REF*], we aim at reducing the variance of value
+estimates during the search procedure by means of temporal difference
+learning. However, as in [*REF*], [DOP] extends
+TD-search by constructing upper confidence bounds on the value function,
+and by selecting optimistically with respect to those, instead of
+performing *MATH* -greedy exploration. Thanks to the generalization
+capabilities of deep networks, [DOP] improves over *MATH* -CP
+both in terms of policy and exploration. Our representation, in fact,
+not only enables the algorithm to explore more informative portions of
+the search space [*REF*; *REF*], but also is able to
+generalize better among them with positive effects on the overall policy
+and search space expansion. 
+
+
+[DOP]  
+
+
+We describe [DOP] by adopting the standard Markov Decision
+Process (MDP) notation, in which the decision-making problem is
+represented as a tuple *MATH* where *MATH* is the set of states of the
+environment, *MATH* represents the set of discrete actions
+available to the agent, *MATH* is the stochastic transition 
+function that models the probabilities of transitioning from state 
+*MATH* to *MATH* when an action is executed, *MATH* is the reward
+function. In this setting, actions are chosen according to a policy
+*MATH* (or more simply *MATH*), that maps states to actions. Given
+an MDP, the goal of the agent consists in finding a policy *MATH* that
+maximizes its future reward with a discount factor *MATH*. 
+
+
+Under this framework, [DOP] builds on [*REF*] and
+iteratively evolves by (1) running a Monte-Carlo tree search, where
+admissible actions are selected through *MATH* -value estimates learned
+through a deep neural network and (2) incrementally collecting new
+samples that are used to improve *MATH* -value estimates. In this section,
+we first describe our representation for the *MATH* function; then, we
+present an explanation of the algorithm. 
+
+
+FIGURE  
+
+
+As in previous literature [*REF*; *REF*], we choose to change
+the representation adopted in [*REF*] and approximate the action
+values using a deep neural network. In particular, we adopt a deep
+neural network (implemented in Caffe2), composed by a convolutional
+layer, followed by a max pooling operator and two fully connected
+layers, one with ReLU activations, the other linear. The input of the
+network is an image capturing the state of the environment, and its
+output is the *MATH* value for each action. In our work, we always assume
+one single frame to be sufficient to fully represent the state *MATH* at
+each timestep, and we store in our dataset transitions *MATH*. 
+
+
+Differently from DQN, we do not explicitly make use of an experience
+replay buffer, and we replace it with a data aggregation [*REF*]
+procedure, where all the transitions are iteratively collected,
+aggregated and used at training time. Specifically, at each iteration
+*MATH* of [DOP] we collect a dataset *MATH* of transitions experienced 
+by the agent, and we aggregate it into *MATH*, that is used
+for learning. In practice, this results in a very similar mechanism that
+enables data decorrelation and facilitates learning. In fact, the
+network is always re-trained using mini-batches of samples randomly
+selected within *MATH*, until the dataset is exhaustively
+used. Hence, each mini-batch is less affected by the non-i.i.d structure
+of the dataset, and this procedure closely resembles the more standard
+replay mechanism. 
+
+
+The aggregated dataset is finally used to minimize the *MATH* -loss:
+*MATH* where *MATH* are the current parameters of the
+network. The optimization is performed using an Adam [*REF*]
+optimizer with a learning rate *MATH* selected according to the task. 
+
+
+Algorithm  
+
+
+[DOP] builds on *MATH* -CP [*REF*], which is an iterative
+algorithm that, at each iteration *MATH*, (1) generates a new policy
+*MATH* which improves *MATH* and (2) learns action values that are
+used at planning time to reduce the search space. In this section, we
+briefly describe the algorithm by adapting its discussion to the
+representation adopted in [DOP]. Specifically, at every
+iteration the agent executes an UCT search, where admissible actions are
+selected through *MATH* value estimates, and incrementally collects new
+samples that are used to improve *MATH* value estimates as described in
+previous section. 
+
+
+More in detail (see Algorithm), [DOP] takes as input an initial
+policy *MATH* and, at each iteration *MATH*, evolves as
+follows:
+1. the agent follows its policy *MATH* for *MATH* timesteps,
+generating a set of *MATH* states *MATH*;
+2. for each generated state *MATH*, the agent runs a modified UCT
+search [*REF*] with depth *MATH*. Specifically, at each
+*MATH*, the search algorithm
+1. evaluates a subset of &quot;admissible&quot; actions
+*MATH* in *MATH*, that
+are determined according to *MATH*. In
+particular, differently from vanilla UCT, we only allow actions
+*MATH* such that *MATH* where *MATH* is typically initialized to
+*MATH* and increases with the number of iterations *MATH*. Through
+*MATH*, a certain amount of exploration is guaranteed;
+2. selects and executes the best action *MATH* according to *MATH* 
+where *MATH* is a constant that multiplies and
+controls the exploration term *MATH*, and *MATH* is
+the number of occurrences of *MATH* in *MATH*. To use
+[DOP] on robotic applications with images as state
+representations, we define a comparison operator that introduces
+a discretization by computing whether the difference of two
+states is smaller than a given threshold *MATH*;
+3. runs *MATH* simulations (or roll-outs), by executing an
+*MATH* -greedy policy based on *MATH* until a terminal
+state is reached. [DOP] uses UCT as an expert and collects, a dataset
+*MATH* of *MATH* transitions experienced in simulation.
+3. *MATH* is aggregated into *MATH* [*REF*; *REF*], and the dataset is
+used to perform updates of the *MATH* -network, as illustrated in
+previous section.
+4. once *MATH* is updated, the policy is generated as to maximize
+the action values: *MATH*. 
+
+
+ALGORITHM  
+
+
+FIGURE  
+
+
+Experimental Evaluation  
+
+
+One of the main contributions of this paper consists in an extended
+experimental evaluation of the representation and the algorithm, that
+shows the usability of [DOP] in complex high-dimensional and
+multi-agent domains. In particular, we evaluate [DOP]
+against multiple algorithms over a set of 3 different tasks, as shown in
+Figure. Specifically, we run our experiments
+on three high-dimensional problems, where either a robot is
+hyper-redundant, or multiple robots are involved: (1) a cooperative
+navigation application, where three robots have to coordinate in order
+to find the minimum path to their respective targets in a simple
+environment; (2) a fetching task, where a 7-DOF robotic arm has to
+fetch an object while avoiding an obstacle in the environment; and (3) a
+handover task among a NAO (humanoid) robot and a human. 
+
+
+To report our results, we compare against DQN [*REF*],
+TD-search [*REF*] and both a vanilla-UCT and random-UCT
+implementations. We refer to vanilla-UCT as the standard UCT algorithm
+that, at each iteration, expands every possible action in *MATH*, for
+every agent *MATH*. Random-UCT, instead, is a naive algorithm where at
+each step of the Monte-Carlo search one action is randomly expanded.
+Moreover, in the handover (Figure) scenario, we compare the performance of
+[DOP] against the base *MATH* -CP algorithm [*REF*] and,
+we present the cumulative reward obtained by transferring the learned
+policy on a real NAO. 
+
+
+Experimental Setup  
+
+
+Experiments have been conducted using the V-REP simulator running on a
+single Intel Core core, with CPU *REF*.70GHz and 16GB of RAM. For
+all the scenarios, unless otherwise specified, the algorithm was
+configured with the same meta-parameters. The UCT horizon is set to
+*MATH* to trade-off between usability and performance of the search
+algorithm; the number of roll-outs is set to be *MATH*, while
+admissible actions are evaluated with an initial *MATH*, and
+*MATH*, guaranteeing good amounts of exploration. The *MATH* constant in
+Eq. is set to *MATH*. The learning rate *MATH* is set to *MATH*, 
+while the discount factor *MATH* is equal to *MATH*. The state space, 
+the set of actions and the reward functions
+are finally chosen and implemented depending on the robots and
+applications. In each of the proposed applications, stochastic actions
+are obtained by randomizing their outcomes with a *MATH* probability. We
+evaluate the cumulative reward obtained during different executions of
+[DOP] against the number of explored states and iterations
+of the algorithms. In our environments, we adopt a shaped reward
+function, thus providing a reward to the agent at each of the visited
+states. 
+
+
+Cooperative Navigation  
+
+
+FIGURE 
+
+
+In this scenario, three robots have to perform a cooperative navigation
+task in a simple world composed by 16 reachable squares distributed on a
+4x4 grid (see Figure ). The goal is assigned individually to
+each robot and consists in finding the minimum collision-free path to
+target square matching the their color (highlighted in the figure). The
+state is represented through an image collected from the top by an
+overlooking camera (i.e., all the robots are visible), while the set of
+discrete actions is composed by *MATH* noop, up, down, right, left *MATH*. 
+The reward function is normalized between *MATH* and is shaped to be inversely proportional
+to the sum of the minimum path steps from the robot positions and
+targets. Figure [3] shows the results obtained by [DOP]
+against *MATH* -CP [*REF*], TD-search, DQN, random-UCT and
+vanilla-UCT. Figure reports the average cumulative reward
+and standard deviation (line width) over 10 iterations -- averaged over
+10 runs -- for each of the implemented algorithms.
+Figure, reports the number of states explored per iteration. 
+Bars represent the number of states explored until the
+*MATH* th iteration, and the top gray bar highlights the amount of states
+expanded during iteration *MATH* against the number of states explored
+until *MATH*. The results show different behaviors for each of the
+algorithm: random-UCT reports a low number of explored states -- since
+it only expands one random action at each UCT iteration -- but, as
+expected, it performs poorly. Similarly, TD-search and DQN show a good
+trade-off between number explored states and cumulative reward, however,
+they are not able to generate competitive policies with few iterations
+and a reduced number of training samples. On the other hand, if we
+consider vanilla-UCT and [DOP] the algorithms report
+comparable cumulative rewards. However, our algorithm is able to
+generate a competitive policy with a reduced number of explored states
+-- typically half the number of vanilla-UCT
+(*MATH* lower). *MATH* -CP obtains a lower cumulative
+reward while visiting a slightly reduced number of states with respect
+to [DOP]. In fact, its reduced representational power does
+not enable the algorithm to immediately generalize informative states
+that need to be explored to obtain a better policy. Finally, it is worth
+highlighting that, even if both DQN and TD-search present a good
+trade-off between number of explored states and performance, they are
+not able to complete the task since initial iterations. 
+
+
+Fetching Task 
+
+
+FIGURE 
+
+
+Here, the 7-DOF KUKA lightweight arm has to learn to fetch an object
+(e.g. a glass, Figure) while avoiding an obstacle (a plant). In
+this scenario, the state space is again represented through an image
+collected by an overlooking camera, and the discretization of the state
+space is realized as described in Section [3.2]. The robot can perform 10 actions:
+*MATH* &apos;arm-up&apos;, &apos;arm-down&apos;, &apos;arm-forward&apos;, &apos;arm-backward&apos;,
+&apos;arm-right&apos;, &apos;arm-left&apos;, &apos;pitch-turn-left&apos;, &apos;pitch-&apos;\
+&apos;turn-right&apos;, &apos;yaw-turn-left&apos;, &apos;yaw-turn-left&apos; *MATH*. Rotations on
+the roll angle have been removed as they do not influence the desired
+orientation of the fetched object. The reward function is in *MATH* 
+and it is computed as a weighted sum of four components: the first is
+inversely proportional to the Euclidean distance of the end-effector to
+the target, the second it proportional to the distance to the virtual
+center of the obstacle, the third and the fourth are inversely
+proportional to the pitch and yaw angle respectively. In this way the
+reward function promotes states that are near the target, far from the
+obstacle, and with the end-effector oriented upwards. This is
+implemented to succeed in the fetching task of objects that are to be
+carried with a preferred orientation (e.g. a glass full of water). As
+for the cooperative navigation scenario,
+Figure [4] shows the performance of [DOP], DQN, TD-search, random-UCT
+and vanilla-UCT. This scenario is key to highlight that our
+contribution is more suitable and practical in robotic tasks with large
+state space. In fact, since first iterations and with a reduced set of
+training samples, [DOP] is able to outperform other
+algorithms that need a huge training set to learn competitive policies,
+e.g. DQN. Still, vanilla-UCT shows comparable rewards, but the number
+of explored states for this algorithm is *MATH* larger than [DOP]. 
+
+
+Human-Robot Handover 
+
+
+FIGURE 
+
+
+The last scenario is characterized by two agents performing a
+human-robot interaction. The robot has to complete an handover by
+receiving an object which is hold by a human. In this setting, the state
+is represented through the images collected by the cameras of the robot.
+Moreover, the agent can perform a set of 25 actions:
+*MATH* &apos;body-noop&apos;, &apos;body-forward&apos;, &apos;body-backward&apos;,
+&apos;body-turn-left,&apos;\ &apos;body-turn-right&apos;, &apos;head-up&apos;, &apos;head-down&apos;, &apos;head-right&apos;, &apos;head-left&apos;,
+&apos;right-arm-up&apos;, &apos;right-arm-down&apos;, &apos;right-arm-left&apos;, &apos;right-arm-&apos;\
+&apos;right&apos;, &apos;right-arm-forward&apos;, &apos;right-arm-backward&apos;, &apos;left-arm-up&apos;,
+&apos;left-arm-down&apos;, &apos;left-arm-left&apos;, &apos;left-arm-right&apos;, &apos;left-arm-fo-&apos;\
+&apos;rward&apos;, &apos;left-arm-backward&apos;, &apos;open-right-hand&apos;, &apos;open-left-hand&apos;,
+&apos;close-right-hand&apos;, &apos;close-left-hand&apos; *MATH*. 
+
+
+The (shaped) reward function is in *MATH* and it is implemented as a
+weighted sum of 6 components: the first component is inversely
+proportional to the distance between the robot and the handed object,
+the second and third are inversely proportional to the distance from the
+object to the left and right hand respectively, the fourth component is
+inversely proportional to the distance between the ball and the center
+of the robot camera computed directly in the image frame, and the fifth
+and sixth components model the desired status of the hands, promoting
+states that with open hands near the handed object. For this task, we
+choose a learning rate *MATH*. 
+
+
+The purpose of this experimental evaluation is to highlight both the
+quality of the learned policy when transferred in a real setting and the
+improvements of our representation with respect to *MATH* -CP. Hence, we
+compare the results obtained by [DOP] against *MATH* -CP and
+vanilla-UCT. As in previous scenarios, the two plots represent the
+obtained cumulative average reward and the number of explored states
+(Figure [5]). As expected, [DOP] preserves the same improvements over the
+vanilla-UCT and, also in this case, our algorithm generates an
+effective policy with a remarkably reduced number of training examples.
+Differently, when comparing [DOP] against *MATH* -CP we notice a
+similar number of explored states while [DOP] obtains higher
+cumulative rewards. This shows the improved generalization capabilities
+of our representation, that is able to significantly improve performance
+while preserving sample complexity of the original algorithm. Finally,
+[DOP]-real shows the rewards obtained by transferring and
+rolling out the policy in real settings. In this case, the reward values
+show that, even though the robot does not perform as well as in
+simulation, it is still able to complete the task being robust to the
+noise of the real-world deployment. In fact, we consider the reduced
+cumulative reward values to be mostly due to noise in both the
+perception pipeline and motor encoders of the real NAO robot. 
+
+
+Conclusion  
+
+
+In this paper we introduced [DOP], an iterative algorithm
+that uses action values learned through a deep *MATH* -network to guide and
+reduce the exploration of the state space in different high-dimensional
+scenarios. Our key contribution consists in an extension of
+*MATH* -CP [*REF*] to use deep learning and improve both the focused
+exploration and the generalization of the algorithm. Thanks to the
+better generalization capabilities, [DOP] can be used in
+domains with high-dimensional states, such as multi-agent scenarios. For
+this reason, we evaluated both the representation and the algorithm on
+three different tasks that involve multiple or hyper-redundant robots.
+To better analyze the quality of the adopted representation, we also
+transferred a learned policy from simulation to real-world. 
+
+
+Unfortunately, [DOP] still needs a predefined simulation
+environment. This is not always available, and does not properly capture
+the dynamics of the world, making our algorithm less appealing in highly
+interactive scenarios. To address this issue, we aim at learning the
+dynamics of the world at robot operation time, and simultaneously
+improving its policy based on the learned model [*REF*]. 

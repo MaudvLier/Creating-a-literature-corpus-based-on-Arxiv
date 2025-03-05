@@ -1,0 +1,1341 @@
+Introduction
+
+
+Motivation
+
+
+If we consider the development of new technologies as a collective
+learning process, we can distinguish between different interlaced
+processes. While basic research focuses on exploration characterised by
+a search for potential alternatives to established methods, the more
+promising an approach appears, the more likely it becomes subject to
+subsequent exploitation, where it is optimised and matured with the
+ultimate hope to supersede what is available. An example of explorative
+activity are early efforts to solve problems by artificial intelligence
+(AI), such as inventing unconventional heuristic techniques. AI has
+recently regained interest [*REF*; *REF*],
+which may be a consequence of new approaches to computation
+[*REF*; *REF*] as well as improved capacities of classical
+computing and networking. The present work aims at drawing a connection
+between the recently suggested scheme of PS [*REF*; *REF*] and quantum
+control theory [*REF*; *REF*], restricting attention to
+example problems analogous to those considered in the basic classical PS
+schemes [*REF*; *REF*; *REF*; *REF*], rather than a treatment of
+practically relevant but large-scale applications of, e.g., machine
+learning. A discussion of scalability, quantum speed up, or practical
+implementability [*REF*; *REF*; *REF*] is beyond the scope of this work.
+
+
+We consider a class of schemes, where a quantum agent learns from cyclic
+interactions with an external environment via classical signals. The
+learning can be considered as an internal quantum navigation process
+of the agent&apos;s &quot;hardware&quot; or &quot;substrate&quot; that forms its memory of past
+experience. For notational convenience, we describe the memory operation
+as a unitary *MATH* involving (information carrying and other)
+controllable and uncontrollable degrees of freedom (such as a &quot;bath&quot;),
+where the latter are not necessarily identical with the environment, on
+which the agent operates. While conceptually, the memory may hence be
+seen as an open quantum system [*REF*], the numerical examples
+considered in the present work restrict to closed system dynamics. This
+navigation of agent memory *MATH* must be distinguished from the
+evolution of quantum states in which, following external or internal
+stimulus, the memory is excited [*REF*; *REF*]. Learning as an
+internal navigation process corresponds to the colloquial notion of a
+learner desiring to quickly &quot;make progress&quot; rather than &quot;marking time&quot;.
+For the agent&apos;s internal dynamics, we talk of a navigation process
+rather than a navigation problem that is to be solved, since ultimately,
+the agent responds to its environment that is generally unknown and
+subject to unpredictable changes.
+
+
+While the proposed PS-model is characterised by an episodic &amp;
+compositional memory (ECM), we here ignore the clip network aspect and
+restrict attention to a parameter updating that is motivated from the
+basic scheme [*REF*; *REF*], which we apply to simple learning tasks
+involving an agent equipped with a quantum memory. We specifically
+reconsider some of the examples discussed in [*REF*; *REF*; *REF*] in
+order to investigate to what extent the results can be reproduced. In
+contrast to the classical scheme, where the parameters are weights in a
+clip network, we here refrain from ascribing a particular role, they
+could play (e.g., in a quantum walk picture mentioned in [*REF*]).
+Here, the parameters are simply controls, although in our examples, they
+are defined as interaction strengths in a stack of layers constituting
+the agent memory *MATH*. This choice of construction is however not
+essential for the main principle. From the viewpoint of the
+network-based classical PS, drawing a connection to quantum control
+theory opens the possibility to apply results obtained in the latter
+field over the last years [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+On the other hand, classical PS is similar to RL
+[*REF*; *REF*], which considers a type of
+problems, where an &quot;agent&quot; (embodied decision maker or &quot;controller&quot;)
+learns from interaction with an environment (controlled system or
+&quot;plant&quot;) to achieve a goal. The learning consists in developing a
+(generally stochastic) rule, the agent&apos;s &quot;policy&quot;, of how to act
+depending on the situation it faces, with the goal to accumulate
+&quot;reward&quot; granted by the environment. In RL, the environment is anything
+outside of control of this decision making. The reward could describe
+for example pleasure or pain felt by an individual. It is generated
+within the individual&apos;s body but is beyond it&apos;s control, and therefore
+considered originating in the agent&apos;s environment. Historically, RL,
+which must be distinguished from supervised learning, originates from
+merging a trait in animal psychology with a trait in control theory.
+Although dynamic programming as the basis of the latter is well
+understood, limited knowledge of the environment along with a vast
+number of conceivable situations, an RL-agent may face, render a direct
+solution impossible in practice. Analogous to RL growing out of dynamic
+programming by refining the updates of values, in a quantum context, one
+could think of refining quantum control schemes with algorithmic
+elements that enhance their resource efficiency.
+
+
+Another aspect is embodiment. A historical example is
+application-specific classical optical computing with a 4F-optical
+correlator. A more recent effort is neuromorphic computing, which aims
+at a very-large-scale integration (VLSI)-based physical implementation
+of neural networks, whose simulation with a conventional computer
+architecture is inefficient. This becomes even more crucial for quantum
+systems, which may be implemented as superconducting solid state
+devices, trapped ions or atoms, or wave guide-confined optical fields.
+Given the availability of a controllable quantum system, it is hence
+tempting to transform quantum state-encoded sensory input and select
+actions based on measurement outcomes. While the parameter update is
+typically done by some standard linear temporal difference (TD)-rule,
+the selection of actions is in classical algorithms governed by a
+separate stochastic rule that tries to balance exploration and
+exploitation. This stochastic rule is described in terms of a policy
+function, that determines, how the probabilities for choosing the
+respective actions depend on the value functions in RL, edge strengths
+in PS, or controls in direct policy approaches. Examples are the
+*MATH* -greedy and the softmax-rule. The quantum measurement here
+serves as a direct physical realisation of an action-selection, whose
+uncertainty allows to incorporate both exploration and exploitation
+[*REF*]. In our context, the resulting measurement-based (and hence
+effectively quadratic) policy forms an intermediate between the linear
+stochastic function used in [*REF*] and the exponential
+softmax-function applied in [*REF*]. A measurement-based policy can
+moreover be tailored on demand by the way in which classical input is
+encoded as a quantum state. One could, e.g., apply mixtures of a pure
+state and a maximally mixed state to mimic an *MATH* -greedy
+policy function, or one could use thermal input states to mimic an
+exponential function. In contrast to the value function-based RL, our
+approach amounts to a direct policy search, where the agent-environment
+interaction employs a general state preparation *MATH* transformation
+*MATH* measurement scheme, that reflects the kinematic structure of quantum mechanics.
+
+
+RL as a reward-driven navigation of the agent memory
+
+
+Consider the specific task of mapping input states *MATH* by
+means of a controllable unitary *MATH* to outputs *MATH*.
+Under the (restrictive) assumption, that for each input there is exactly
+one correct output, the task is to learn this output from interaction
+with an environment. In our context, the *MATH* (*MATH*)
+are regarded as encoded percepts (actions), while *MATH* acts as
+memory of the learned information and can finally accomplish the mapping
+as an embodied &quot;ad hoc&quot; computer or an &quot;oracle&quot;, which is similar to
+learning an unknown unitary [*REF*].
+
+
+Consider (i) the case where there is only one possible input state
+*MATH*. If the task is the navigation of the output state *MATH* *MATH* *MATH* by
+means of *MATH* to a desired destination state *MATH*, a
+learning agent has to realize the maximisation of the conditional
+probability *MATH* *MATH* *MATH* by
+tuning *MATH*. The intuition behind this is that *MATH* is bounded and
+if *MATH* depends analytically on some control vector
+*MATH*, the gradient with respect to *MATH* must vanish at the
+maximum of *MATH*. To give a simple example, we assume that *MATH* 
+depends (rather than on *MATH*) on a single real parameter *MATH* in a
+continuous and differentiable way such that it obeys the Schrödinger equation *MATH* *MATH* 
+*MATH* with the state boundary conditions *MATH* *MATH* *MATH* and
+*MATH* *MATH* *MATH*. This gives *MATH*. Any algorithm that
+results in a *MATH* such that *MATH* approaches 1 accomplishes this task.
+
+
+Assume now that (ii) we are required to transform a given orthonormal
+basis (ONB) *MATH* into another given ONB *MATH* 
+of a vector space of same dimension, but we are not told which state is
+to be transformed into which other state. We could build a quantum
+device that implements some unitary *MATH* such that
+*MATH* *MATH* *MATH*. Preparing the
+system in state *MATH* and measuring in the second basis gives
+outcome *MATH*. One may consider the problem as a (trivial)
+learning task, namely that of an identical mapping of the state-indices
+*MATH*. However, if we do not know from the beginning what kind of mapping
+the solution is, we have to learn it. In our quantum device, we would
+tune *MATH* until it gives the desired measurement statistics.
+Inspired by [*REF*], we call this task &quot;invasion game&quot;. To solve it, we
+initialize the device in states *MATH* chosen randomly from the
+given ONB, while the measurement is done in the second ONB formed by the
+*MATH*. The algorithm will drive *MATH* to some unitary *MATH*, where *MATH* 
+(*MATH*) are undetermined unitaries which are diagonal in
+the basis *MATH* (*MATH*).
+
+
+If (iii) the percept states are random, this phase freedom is removed up
+to a global phase. In the simplest case, we draw the initial states of
+the device from an &quot;overcomplete&quot; basis, where the set of all possible
+states is linearly dependent. For a *MATH* -level system, this can be
+accomplished by (randomly) choosing *MATH* SU(*MATH*)-unitaries. During each
+state initialisation, we then take one *MATH* from this
+set, a random *MATH* from our first ONB, and then prepare the
+device in a state *MATH*. Consequently, the
+measurement is done in a transformed basis formed by the *MATH* 
+rather than the *MATH* themselves.
+
+
+In this sense, the navigation of (i) a given input state, (ii) a given
+ONB, and (iii) random states can be described as a navigation of
+unitaries *MATH* with a varying amount of freedom. While formally,
+all three cases (i)-(iii) can be considered as special cases of a
+navigation of *MATH* to a point FORMULA, where a
+percept statistics-based fidelity FORMULA becomes maximum, practically they can be accomplished
+in RL by means of the mentioned reward signal, independently of the
+availability of analytic solutions. In what follows, we consider
+*MATH* as a memory of an RL-agent, that solves tasks arising from its
+interaction with an environment.
+
+
+A cybernetic perspective
+
+
+The scheme is depicted in Fig. 1.
+
+
+FIGURE 1
+
+
+The agent is equipped with some quantum channel that acts as its memory
+whose properties can be modified by control parameters denoted by a
+vector *MATH*. Examples of memory structures are listed in Fig. 2.
+
+
+FIGURE 2
+
+
+In Fig. 2 and in what
+follows, we refer to the memory operation by means of some unitary
+*MATH* for notational simplicity. Since any quantum process can be
+treated as unitary on an enlarged space, this is not a conceptual
+restriction. The agent interacts with an external environment in
+discrete cycles *MATH*. At the beginning of a cycle, the agent receives
+(via sensors) some percept *MATH*, which it encodes as a quantum state
+*MATH*, in which its memory is prepared. After
+transformation of *MATH* by the memory channel, a quantum
+measurement is performed, where we assume for simplicity that the
+positive operator valued measure (POVM) *MATH* describing this
+measurement is fixed. Depending on the outcome of this measurement, an
+action *MATH* is selected and performed on the environment (via actuators),
+which completes the cycle. The environment reacts with a new percept and
+a reward *MATH*, which are perceived by the agent during the following
+cycle. Depending on the reward, some adjustments are made on the control
+parameters, which modify the properties of the memory channel (i.e., its
+&quot;hardware&quot;). This feedback loop is adapted from the classical schemes in
+[*REF*] and [*REF*], where the percepts *MATH* in
+Fig. 1 correspond to the
+states in [*REF*]. The agent&apos;s interaction with the
+environment is here considered classical in the sense that percepts,
+actions and rewards are classical signals. The environment itself is not
+specified, it could represent, e.g., an experiment performed on a
+quantum system. Note that the environment in
+Fig. 1 is not to be
+confused with the bath in Fig. 2, which affects the memory channel but is not
+considered part of the agents &quot;habitat&quot;.
+
+
+In addition to the external loop, we may also equip the agent with two
+types of internal feedback loops, which allow the agent to undertake
+what corresponds to &quot;planning steps&quot; in RL and &quot;reflection&quot; in PS. One
+type is similar to the external loop in that it involves state
+initialisations and measurements on the memory channel, but exploits
+that percepts, actions and rewards can be recorded and reproduced as a
+consequence of their classicality. The second type of internal loop does
+not involve state evolutions but requires some mathematical model of the
+memory channel itself, which is used to directly calculate a numerical
+objective (NO), whose value is used to alter the control parameters.
+Fig. 1 does not imply that all of these loops need to be simultaneously present, they are
+rather thought of either subprocesses within an overall agent scheme or
+possible modes of its operation. The numerical examples in this work
+will exclusively apply the external loop.
+
+
+All three loops involve a parameter update *MATH*. In a
+&quot;first-order&quot; update, *MATH* is proportional to some quantity
+that depends on the gradient *MATH* of *MATH* with
+respect to *MATH*. This gradient can either be computed directly from
+a memory model *MATH* (i.e., from some symbolic expression of
+*MATH* if available) or estimated from measurements. These
+&quot;measurements&quot; can be physical (POVM in Fig. 1) or numerical (NO in Fig. 1). For the
+estimation, one varies the components of *MATH* by a small amount and
+records the changes in the measured POVM or computed NO. Here are some
+elementary examples: (1a) A simulation of an external loop with a
+given model-based (i.e. analytic) *MATH* is performed in
+Sec. (Fig. 5) for the case Fig. 2(c), in
+Sec. (Figs. 7-8) for the case Fig. 2(a), and
+in Sec. (Figs. 11 and 12) for the case Fig. 2(c). (1b) A
+simulation of an external loop with a POVM measurement-based
+*MATH* is carried out in [*REF*] (Fig. 6) for the case
+Fig. 2(b). (2) A NO-based internal loop with a model-based *MATH* is
+considered in [*REF*] for the case Fig. 2(b) and in
+[*REF*] (Figs. 2-4) for the case Fig. 2(a). (3) The POVM-based internal loop in
+Fig. 1 can be used to estimate *MATH* in the absence of a model
+*MATH* of the agent memory. To this end, one of the agent&apos;s
+possibilities consists in inserting a number of internal cycles between
+each external cycle, where it repeatedly prepares its memory in the
+latest percept state and observes how a variation *MATH* affects
+the measurement statistics. A discussion of this will be given in
+Sec. 6. Beyond these examples, all three loops can be interlaced with each other in
+various ways, analogous to the wealth of approaches reviewed in [*REF*].
+
+
+Update rule in parameter space
+
+
+For the cycle-wise update of the control parameters *MATH* of the
+memory channel *MATH*, we apply a rule *MATH*, inspired by the
+basic model of PS [*REF*; *REF*]. The number of components *MATH* can
+range from one (*MATH* scalar) to infinity (*MATH* may represent a
+function or a vector of functions), and the *MATH* can be assumed to be
+real-valued without loss of generality. In [*REF*; *REF*], the
+components of *MATH* are the edge strengths of a directed graph
+representing a network of clips (the graph&apos;s vertices). While these
+clips are considered sequences of remembered percepts and actions, the
+network itself abstracts from the clip&apos;s internal contents. Our view of
+*MATH* as a control vector is one further simplification and
+generalization that may allow for but does not require the view of the
+memory as a network.
+
+
+In FORMULA, *MATH* and *MATH* are the control vectors before and after the update at
+cycle *MATH*, respectively. *MATH* *MATH* *MATH* is a (typically small)
+learning rate, and *MATH* is the reward given at cycle *MATH*. *MATH* 
+*MATH* *MATH* is a relaxation rate towards some equilibrium value
+*MATH* in the absence of rewards. This allows for what
+corresponds to the &quot;forgetting&quot; process suggested in [*REF*; *REF*] to
+account for dissipation in an embodied implementation and deal with
+time-dependent environments. A natural possibility is to identify the
+value *MATH*, with which the memory is initialised before the first
+cycle, with *MATH*. This could be the zero vector *MATH* 
+*MATH* *MATH* yielding, e.g., the identity, *MATH* *MATH* 
+*MATH* *MATH* *MATH*. The learning process will then
+be a reward-driven and generally stochastic navigation in parameter
+space *MATH* away from the zero vector *MATH*. Lifted to
+*MATH*, this navigation starts at the identity *MATH* 
+*MATH* *MATH*, that relaxes back to it in the prolonged absence of
+rewards. In this work, we consider static environments as in [*REF*],
+and hence always set *MATH* *MATH* *MATH*. *MATH* is a difference
+vector. While some options for finite difference choices of *MATH* are
+outlined in Sec. 6, in all numerical examples within this work we
+restrict to the case, where *MATH* *MATH* *MATH* is a
+short-hand notation for the gradient *MATH*, with components
+*MATH* at cycle *MATH*. *MATH* 
+is the probability of the obtained measurement outcome *MATH* under the
+condition of the respective cycle&apos;s percept state *MATH*,
+where *MATH* *MATH* *MATH* denotes the expectation value
+with respect to this state, and *MATH* is the member of the
+POVM that corresponds to measurement outcome *MATH*. The latter determines
+the action performed by the agent, and we use the same symbol for both.
+*MATH* *MATH* *MATH* describes a backward-discount rate, which we have
+defined via a parameter *MATH* *MATH* *MATH* to allow comparison
+with the glow mechanism introduced in [*REF*]. As mentioned above, the
+unitary transformation of the respective percept states
+*MATH* by the memory *MATH* *MATH* 
+*MATH* at cycle *MATH* in FORMULA refers in
+general to a larger (dilated) space. The dynamical semigroup of CPT maps
+proposed in [*REF*] is included and can be recovered by referring to
+Fig. 2(d) [or alternatively Fig. 2(b)] and the assumption that *MATH*, where the physical memory evolution time
+*MATH* may depend on the cycle *MATH* for a chosen
+parametrisation *MATH* and must be distinguished from the
+agent response time that can additionally be affected by the potential
+involvement of internal loops in Fig. 1. The superoperator *MATH* *MATH* 
+*MATH*, whose effect on *MATH* *MATH* 
+*MATH* is defined as a sum *MATH* \label
+\mathcal\hat=-\mathrm[\hat,\hat]+L\hat, *MATH* 
+generates in [*REF*] a quantum walk and is given by a Hamiltonian
+*MATH* *MATH* *MATH* *MATH* *MATH* *MATH* 
+*MATH* and a Lindbladian *MATH* *MATH* 
+*MATH* *MATH*, with *MATH* *MATH* *MATH* performing
+transitions between clip states *MATH* *MATH* 
+*MATH* along a graph *MATH* *MATH* *MATH* 
+consisting of a set *MATH* of vertices and a set *MATH* of edges. Since on the
+one hand, we here do not intend to necessarily represent *MATH* by a
+clip network, and on the other hand do not want to exclude from the
+outset situations involving time-dependent or non-Markovian bath effects
+[*REF*], we use the dilated *MATH* for simplicity instead. The set
+of all probabilities *MATH* in
+FORMULA, i.e, the whole conditional distribution then defines the agent&apos;s policy.
+
+
+A reward given by the environment at time *MATH* raises the question of the
+extent to which decisions made by the agent in the past have contributed
+to this respective reward. A heuristic method is to attribute all past
+decisions, but to a lesser degree the further the decision lies in the
+past. (Considering the agent&apos;s life as a trajectory of subsequent
+percepts and actions, we could imagine the latest event trailing a
+decaying tail behind.) A detailed description of this idea is presented
+in [*REF*] in form of the eligibility traces, which can be
+implemented as accumulating or replacing traces. In the context of PS, a
+similar idea has been introduced as glow mechanism that can be
+implemented as edge or clip glow [*REF*; *REF*]. In our context
+FORMULA, we realise it
+by updating the control vector by a backward-discounted sum of gradients
+*MATH* referring to percepts and actions involved in cycles
+that happened *MATH* steps in the past. A sole update by the present
+gradient is included as limit *MATH* *MATH* *MATH*, for which
+FORMULA reduces to *MATH* *MATH* *MATH*. This
+special case is sufficient for the invasion game, which we will consider
+in Sec. 4, because at each cycle, the environment provides a feedback on the
+correctness of the agent&apos;s decision by means of a non-zero reward. After
+that, we apply the general update FORMULA to a grid world task, where the agent&apos;s goal cannot be
+achieved by a single action, and where the long term consequences of its
+individual decisions cannot be foreseen by the agent.
+
+
+Relation to existing methods
+
+
+In this section, we ignore the embodied implementation of our method as
+a quantum agent and briefly summarise and compare the update rules of
+the methods considered from a computational point of view. It should be
+stressed that RL is an umbrella term for problems that can be described
+as agent-environment interactions characterised by percepts/states,
+actions, and rewards. Hence all methods considered here are approaches
+to RL-problems. For notational convenience however, we here denote the
+standard value function-based methods as &quot;RL&quot; in a closer sense, keeping
+in mind that alternatives such as direct policy search deal with the
+same type of problem. The standard RL-methods successively approximate
+for each state or state action pair the expected return *MATH* *MATH* 
+*MATH*, i.e., a sum of future rewards
+*MATH*, forward-discounted by a discount rate *MATH*, that the
+agent is trying to maximise by policy learning. Corrections to the
+current estimates can be done by shifting them a bit towards actual
+rewards observed during an arbitrarily given number *MATH* of future
+cycles, giving rise to &quot;corrected *MATH* -step truncated returns&quot;
+*MATH* *MATH* *MATH* *MATH* *MATH* *MATH* 
+*MATH* *MATH* *MATH* *MATH* 
+*MATH*, where *MATH* is the value function of the
+respective future state *MATH* (analogous considerations hold for
+state action pairs). A weighted average of these gives the
+*MATH* -return *MATH* *MATH* 
+*MATH*, where *MATH* is a parameter. In an equivalent &quot;mechanistic&quot;
+backward view, this gives rise to so-called eligibility traces. Since
+the glow mechanism of PS is closely related to this, we base our
+comparison on the *MATH* -extension of one-step RL. *MATH* *MATH* 
+*MATH* describes the limit of shallow sample backups of single-step
+learning, whereas the other limit *MATH* *MATH* *MATH* refers to the
+deep backups of Monte Carlo sampling, cf. Fig. 10.1 in [*REF*].
+
+
+It would be a futile task to try a mapping of the numerous variations,
+extensions, or combinations with other approaches that have been
+discussed or are currently developed for the methods mentioned, such as
+actor-critic methods or planning in RL, or emotion, reflection,
+composition, generalization, or meta-learning in PS. In particular, our
+notion of basic PS implies a restriction to clips of length *MATH* *MATH* 
+*MATH*, which reduces the edge strengths in the ECM clip network Fig. 2
+in [*REF*] to values *MATH* of state-action pairs. Furthermore, in
+this section, we restrict attention to the basic versions that are
+sufficient to treat the numerical example problems discussed in this
+work. We may think of tasks such as grid world, where actions lead to
+state transitions, until a terminal state has been reached, which ends
+the respective episode, cf. Sec. 4.
+
+
+Tabular RL
+
+
+In tabular RL, the updates are performed according to *MATH*, 
+where *MATH* *MATH* *MATH* is a state value function in
+TD(*MATH*), cf. Fig. 7.7 in [*REF*], whereas *MATH* *MATH* 
+*MATH* is an action value function in SARSA(*MATH*), cf. Fig.
+7.11 in [*REF*]. *MATH* *MATH* *MATH* [or
+*MATH* *MATH* *MATH*] refers to the value of the
+subsequent state or state action pair. *MATH* *MATH* *MATH* [*MATH* 
+*MATH* *MATH*] denote the eligibility trace in TD(*MATH*)
+[SARSA(*MATH*)]. They can be updated by accumulating (*MATH* 
+*MATH* *MATH* *MATH* *MATH*) or replacing (*MATH* *MATH* 
+*MATH*) them in FORMULA (ignoring other options such as clearing traces
+[*REF*]). *MATH* is a learning rate, *MATH* is the reward, and
+*MATH* the discount rate. Note that there are alternatives to
+FORMULA-(FORMULA). One of them is Q-learning, which can be derived from
+SARSA=SARSA(*MATH*) by updating *MATH* off-policy, which
+simplifies a mathematical analysis. Since a Q(*MATH*)-extension of
+Q-learning is less straightforward, and there are convergence issues
+with respect to the gradient-ascent form discussed below (cf. Sec. 8.5
+in [*REF*]), while the methods discussed here update
+on-policy, we restrict attention to FORMULA-(FORMULA).
+
+
+Gradient-ascent RL
+
+
+Tabular RL is a special case of gradient-ascent RL, where *MATH* is in the
+latter defined as in FORMULA-(FORMULA), except that it is given by a number of parameters
+*MATH*, which are combined to a vector *MATH*. This
+parametrisation can be done arbitrarily. In the linear case, the
+parameters could be coefficients of, e.g., some (finite) function
+expansion, where the functions represent &quot;features&quot;. Hence *MATH* *MATH* 
+*MATH*, and the components of the gradient *MATH* 
+are *MATH*, giving rise to a vector
+*MATH* of eligibility traces. The updates
+FORMULA-(FORMULA) now generalize to *MATH*, cf. Sec. 8 in [*REF*]. While the eligibility
+traces are initialised with zero, the value functions (by means of their
+parameters) can be initialised arbitrarily in tabular and gradient-ascent RL.
+
+
+PS
+
+
+Classical PS is a tabular model. By tabular we mean that the percepts
+and actions (and ultimately also clips of length *MATH* *MATH* *MATH* in the
+ECM) form discrete (i.e., countable) sets, with the consequence, that
+the edge strengths *MATH* can be combined to a table (matrix). Let us hence
+write the updates as summarised in
+App.  in a form allowing comparison with FORMULA-(FORMULA): *MATH* \. 
+In FORMULA-FORMULA, we intentionally adopted the notation of PS. The glow
+parameter *MATH* in FORMULA-FORMULA corresponds to a replacing trace *MATH* in
+FORMULA-(FORMULA), with *MATH* *MATH* *MATH* in
+FORMULA corresponding to
+*MATH* in (FORMULA), and *MATH* in FORMULA corresponds to
+the reward *MATH* in FORMULA. The discount rate *MATH* in
+FORMULA-(FORMULA) must not be confused with the dissipation or damping
+rate *MATH* in FORMULA. To avoid confusion, we denote the former by
+*MATH* and the latter by *MATH* for
+the remainder of this paragraph. If we disregard the absence of a
+learning rate in FORMULA-FORMULA [we may set *MATH* *MATH* *MATH* in
+FORMULA-(FORMULA)], we can obtain PS from tabular SARSA(*MATH*) by
+replacing the action value function *MATH* with the connection weight
+*MATH*, and the update of *MATH* corresponding to the r.h.s. of FORMULA,
+*MATH*, with the update of *MATH* given by the r.h.s. of FORMULA,
+*MATH*. In FORMULA-(FORMULA), RL is equipped with forward- and
+backward-discounting mechanisms, as becomes apparent in the product
+*MATH* in FORMULA. Disabling
+the accumulation of forward-discounted future rewards (that give rise in
+RL to the return mentioned above) by setting *MATH* 
+*MATH* *MATH* reduces FORMULA to *MATH* *MATH* *MATH* *MATH* *MATH*,
+while setting *MATH* *MATH* *MATH* reduces
+FORMULA to *MATH* *MATH* *MATH* *MATH* *MATH*. These
+expressions are very similar, except that in PS, the constant
+*MATH* has taken the place of *MATH* in RL, so that *MATH* 
+*MATH* *MATH* determines the range of
+backward-discounting in FORMULA. Since in FORMULA, it is the respective past excitations (glowing
+rewards) *MATH* *MATH* *MATH*, rather than the rewards
+*MATH* themselves, which is summed up, damping and glow play a
+similar role. On the other hand, the factor *MATH* *MATH* *MATH* takes
+in PS the place of *MATH* in FORMULA, which
+becomes zero together with *MATH*, as mentioned.
+
+
+Method presented here
+
+
+The update rule FORMULA
+is implemented as *MATH*, which can be obtained from gradient-ascent
+SARSA(*MATH*) by replacing in FORMULA-FORMULA the action value function *MATH* with the
+conditional probability *MATH*, renaming *MATH* as *MATH*,
+replacing *MATH* in FORMULA with *MATH* *MATH* *MATH*, and replacing in
+FORMULA the term *MATH* *MATH* 
+*MATH* with *MATH* *MATH* *MATH*.
+The latter replacement is similar to the change from
+FORMULA to FORMULA, where *MATH* in FORMULA corresponds to *MATH* in
+FORMULA. Analogous to
+the comments following FORMULA and FORMULA, in the case *MATH* *MATH* *MATH*, the update
+corresponding to the r.h.s. of FORMULA becomes *MATH* *MATH* *MATH* *MATH* 
+*MATH*, whereas for *MATH* *MATH* *MATH*, the r.h.s.
+of FORMULA reduces to *MATH* *MATH* *MATH* *MATH* *MATH*. Similar to the
+tabular case, the constant damping rate *MATH* has in our method taken
+the place of *MATH* in gradient-ascent RL.
+
+
+Can PS be recovered from our approach?
+
+
+Our method FORMULA-FORMULA replaces a value function with a conditional
+probability FORMULA, whereas the edge strengths in PS remain value
+function-like quantities. While tabular RL can be recovered from
+gradient-ascent RL, one hence cannot expect to recover the basic PS
+update rule FORMULA-FORMULA as a special case of our scheme, despite replacements
+analogous to FORMULA-FORMULA. To understand the difference, we restrict
+attention to an invasion game - like case as shown in
+Fig. 3 as the simplest example, cf. also Sec. 4 for details.
+
+
+FIGURE 3
+
+
+Since here, each episode lasts one cycle, we disable both the
+eligibility trace/glow mechanism by setting *MATH* *MATH* *MATH* in
+FORMULA-FORMULA and FORMULA-FORMULA. As shown in Fig. 3, we are given a set of states
+*MATH*, each of which allows one out of a set of
+actions *MATH*. Consider a cycle, where from state
+*MATH*, an action *MATH* is selected. If the transition probabilities
+*MATH*, are given by some policy function *MATH*, then the components of the
+r.h.s. of FORMULA read *MATH*, with which the
+components of the update FORMULA become *MATH*, 
+where we have renamed *MATH* as *MATH*. An
+observer ignorant of the transitions *MATH* *MATH* *MATH* and the
+corresponding probabilities *MATH* notices no change,
+*MATH*. In the special case *MATH* *MATH* 
+*MATH*, we can simplify FORMULA to *MATH*. From
+FORMULA we see that in the gradient method, the strengthening of the *MATH* -edge is
+accompanied with a weakening of those edges *MATH* connecting the
+respective state *MATH* *MATH* *MATH* with different actions *MATH* *MATH* 
+*MATH*. As a consequence, the *MATH* may become negative, even if
+*MATH* *MATH* *MATH* and the rewards are non-negative.
+This weakening is absent in basic PS FORMULA, where the
+corresponding update is independent of the policy function *MATH* and
+given by *MATH*. Hence, *MATH* *MATH* *MATH* as long as the rewards
+are non-negative. In any case, choice of a non-negative policy function
+*MATH* renders the methods independent of a need of positive
+edge strengths. [Note that a similar problem occurs if the parameters
+in a memory consisting of alternating layers such as *MATH* *MATH*, cf. App., 
+refer to non-negative physical quantities *MATH*. In
+[*REF*], this has been solved by using an exponential function such as
+*MATH* *MATH* *MATH* for parametrisation in terms of the
+controls *MATH*. In this work, we identify the *MATH* directly with the
+*MATH* for simplicity, which, if the *MATH* are to be interpreted as
+non-negative quantities, doubles the set of physically applied
+Hamiltonians from *MATH* to *MATH*.]
+
+
+Discussion
+
+
+The relations between the different methods are summarised in Fig. 4.
+
+
+FIGURE 4
+
+
+If one considers the ECM as the core element of PS rather than a
+specific update rule, one could alternatively adopt, e.g., the tabular
+SARSA(*MATH*)-update rule. The picture of a random walk in clip space
+does not contradict the general framework of RL-problems. One may
+understand the clips as the agent&apos;s states (which must be distinguished
+from the percepts). The same holds for the gradient-ascent
+generalization, which, in physical terms, could be considered as
+&quot;continuous variable RL&quot;. On the one hand, we could equally well apply,
+e.g., the gradient-ascent SARSA(*MATH*)-update instead of our rule.
+On the other hand, before trying to create algorithmic extensions such
+as those mentioned at the beginning of this section for tabular RL and
+PS, one should first investigate whether and how such extensions are
+accomplished in any existing gradient-ascent RL variants.
+
+
+Examples 
+
+
+Invasion game
+
+
+In what follows, we consider a simple invasion game as treated in
+[*REF*]. An attacker randomly chooses one out of two possible symbols
+*MATH* which signals the direction in which it
+intends to move. The chosen symbol may represent, e.g., a head turn and
+is visible to the defender, whose task is to learn to move in the same
+direction, which is required to block the attacker. We approach this
+learning task as an external loop in Fig. 1 with a closed
+system (i.e., bath-less) memory [cases (a) and (c) in Fig. 2], described
+within a 4-dimensional Hilbert space. The control parameters are updated
+according to FORMULA in
+the absence of relaxation (*MATH* *MATH* *MATH*) and gradient glow
+(*MATH* *MATH* *MATH*). The update is done with an analytic *MATH* as described in
+App., where the memory consists of alternating layers, *MATH* *MATH*. At
+the beginning of the first cycle, the memory is initialised as identity.
+For the two Hamiltonians *MATH* and *MATH*, we
+distinguish (I) a general case, where *MATH* and
+*MATH* are two given (randomly generated) 4-rowed Hamiltonians
+acting on the total Hilbert space and (II) a more specialised case, in
+which they have the form *MATH*, where *MATH*,
+*MATH*, *MATH*, *MATH* are four given (randomly generated) 2-rowed
+Hamiltonians acting on the percept (S) and action (A) subsystems,
+respectively, with *MATH* denoting the identity. The latter case (II)
+refers to a physical implementation of Fig. 2(c) as a
+bath-mediated interaction of the S and A subsystems that is obtained
+from the setup Fig. 2(d)
+by eliminating the bath [*REF*]. It has been included here to
+demonstrate that this special structure as considered in [*REF*] may be
+applied in the present context, but this is not mandatory. While the
+Hamiltonians have been chosen in both cases (I) and (II) at random to
+avoid shifting focus towards a specific physical realization, in an
+experimental setup, the respective laboratory Hamiltonians will take
+their place (assuming that they generate universal gates in the sense of
+[*REF*], which is almost surely the case for a random choice).
+
+
+2 percepts *MATH* 2 actions
+
+
+We start with a basic version of the game with 2 possible percepts (the
+two symbols shown by the attacker) and 2 possible actions (the two moves
+of the defender). For each percept, there is hence exactly one correct
+action, which is to be identified. The memory applied is shown in
+Fig. 2(c), and the different input states are *MATH*, where *MATH* *MATH* 
+*MATH* *MATH* *MATH* is given by the
+number of actions. *MATH* and *MATH* can both be one of the
+two orthonormal states *MATH* or *MATH* of the S and A
+subsystem, respectively. The POVM consists of the elements *MATH*. 
+Choosing the correct (wrong) action [i.e. *MATH* *MATH* *MATH* (*MATH* *MATH* 
+*MATH*)] in FORMULA and
+FORMULA returns a reward of *MATH* *MATH* *MATH* (*MATH* *MATH* *MATH*).
+
+
+Fig. 5 shows the average
+reward *MATH* received at each cycle, where the averaging is
+performed over an ensemble of *MATH* independent agents.
+
+
+FIGURE 5
+
+
+*MATH* is hence an estimate of the defender&apos;s probability
+to block an attack. Referring to pure states in
+FORMULA, Fig. 5(a) shows the
+increase of learning speed with the number of controls. Significant
+learning progress begins only after some initial period of stagnation.
+From the viewpoint of control theory, the identity, in which the memory
+is initialised, may lie on a &quot;near-flat ground&quot; (valley), which must
+first be left before progress can be made [*REF*]. Asymptotically,
+perfect blocking can be achieved once the memory becomes controllable,
+i.e., if the number of controls equals (or exceeds) the number of group generators. Fig. 5(b)
+demonstrates the need of a pure input state *MATH* 
+in FORMULA of the
+action subsystem A rather than an incoherent mixture. After the agent in
+Fig. 5(b) had some time
+to adapt to the attacker, the meaning of the symbols is suddenly
+interchanged, and the agent must now learn to move in the opposite
+direction. This relearning differs from the preceding learning period in
+the absence of the mentioned initial stagnation phase, which supports
+the above hypothesis of the proposed valley, the agent has left during
+the initial learning. This plot is motivated by Fig. 5 in [*REF*]
+describing classical PS. Although the different behaviour in the
+classical case suggests that this is an effect specific to quantum
+control, the phenomenon, that a dynamically changing environment can
+facilitate learning in later stages appears to be more general [*REF*].
+While Figs. 5(a,b) refer
+to case (I) described before FORMULA, Fig. 5(c) refers to the restricted case (II), which appears
+to impede learning. In the simulations of the following
+Sec. , which all refer to case (II), this is resolved by
+applying a 10 times larger negative reward for each wrong action. This
+demonstrates the flexibility in approaching RL problems offered by the
+freedom to allocate rewards in a suitable way.
+
+
+4 percepts *MATH* 4 or 2 actions
+
+
+We now consider a version with 4 percepts, referring to an attacker
+presenting each of its two symbols in two colors at random. Since we
+want to keep the Hilbert space dimension unchanged (rather than doubling
+it by adding the color category) for better comparison of the effect of
+the number of controls on the learning curve, we must apply a memory as
+shown in Fig. 2(a). The 4 percepts are encoded as tensor products of orthonormal projectors
+*MATH*, where *MATH* *MATH* *MATH* (*MATH* *MATH* *MATH*) refers to the symbol
+(color). The POVM operators are the 4 projectors *MATH*, where *MATH* is a
+given (randomly generated) 4-rowed target unitary acting on the total
+system. The memory in Fig. 2(a) is hence still composed of two subsystems referring
+to the two percept categories &apos;symbol&apos; and &apos;color&apos;, but both subsystem&apos;s
+initial state depends on the respective percept, and both are measured
+afterwards. The differences between the setup discussed in the previous
+Sec. and the two setups discussed in the present
+Sec. are summarised in Fig. 6.
+
+
+FIGURE 6
+
+
+Fig. 7 shows the average
+reward *MATH* received at each cycle, where the averaging is
+performed over an ensemble of *MATH* independent agents, analogous to Fig. 5.
+
+
+FIGURE 7
+
+
+Note that in this Sec., all figures refer to case (II) described by
+FORMULA and FORMULA, where S and A now
+denote symbol and color, respectively. To account for this [cf. the
+comments on Fig. 5(c) above], a reward of *MATH* *MATH* *MATH* (instead of -1) is now given for
+a wrong action. The estimate of the defender&apos;s probability to block an
+attack is hence now *MATH*.
+
+
+In Fig. 7(a), the
+defender can choose between 4 moves, where for each percept, there is
+exactly one correct action [i.e., detecting *MATH* 
+(*MATH* *MATH* *MATH*) for
+*MATH* in FORMULA and FORMULA returns a reward of *MATH* *MATH* *MATH* (*MATH* *MATH* 
+*MATH*)]. After *MATH* cycles, symbol *MATH* and color *MATH* are read
+as symbol *MATH* and color *MATH*, respectively, similar to the
+manipulations in Fig. 5 in [*REF*]. In
+Fig. 7(b), the defender
+can choose between 2 moves, where for each symbol (relevant category),
+there is exactly one correct action, irrespective of its color
+(irrelevant category) [i.e., detecting *MATH* *MATH* 
+*MATH* (*MATH* *MATH* *MATH*) for *MATH* in
+FORMULA and FORMULA returns a reward
+of *MATH* *MATH* *MATH* (*MATH* *MATH* *MATH*)]. The second color is added
+only after *MATH* cycles, analogous to Fig. 6 in [*REF*]. [Note
+that the mentioned initial stagnation phase in Fig. 5 is not visible in Fig. 7, which is
+attributed to the choice of parameters (rewards), accelerating the initial learning.]
+
+
+Figs. 5(b) and 7 are all motivated by
+Figs. 5 and 6 in [*REF*] and confirm that the agent&apos;s adaptation to
+changing environments is recovered in our quantum control context. In
+addition, Figs. 5(a) and
+7 show the behaviour of
+an underactuated memory, where the number of controls is insufficient
+for its full controllability. Since a *MATH* -matrix is determined by
+*MATH* real parameters, and a global phase can be disregarded (so that we
+can restrict to SU(*MATH*)-matrices), *MATH* *MATH* *MATH* controls are
+sufficient, i.e., 15 for our invasion game, as mentioned above.
+
+
+In FORMULA, the measurements are made in a basis rotated by a randomly given unitary
+*MATH*, which serves two purposes. On the one hand, it
+is required to ensure that the agent starts at the beginning of the
+first cycle with a policy that does not give exclusive preference to
+certain actions that follow from symmetries of the (identity-)
+initialised memory. This is a flaw of
+Fig. 2(a) and can be overcome by using Fig. 2(c) instead (cf. a more detailed discussion in the grid
+world example below). On the other hand, *MATH* serves
+as a given target in our discussion Sec. 3, where we
+consider the agent learning as a navigation of its memory *MATH*, cf. also Fig. 6(b).
+Fig. 8 compares the case, where the agent is always fed with percept states drawn from one
+single ONB defined via FORMULA with the case, where the percept states are drawn
+randomly, i.e., taking *MATH* 
+with a random unitary *MATH* as explained in
+Sec. 3 instead of FORMULA. Note that in
+Fig. 8, we generate a new random *MATH* at each cycle, although a fixed set of
+dim *MATH* (4 in our case) such *MATH* is
+sufficient as mentioned in Sec. 3.
+
+
+FIGURE 8
+
+
+Fidelity *MATH* and squared distance *MATH* are defined in
+FORMULA and FORMULA, where *MATH* 
+represents the agent memory and *MATH* the target
+unitary. Each cycle&apos;s update constitutes a single navigation step in the
+unitary group [U(4) in our example]. If, for a single ONB, after a
+number of cycles, the average reward has approached unity, *MATH* has
+reached a close neighbourhood of any unitary of the form *MATH*, where
+*MATH* *MATH* *MATH* with
+*MATH* and *MATH* being undetermined 4-rowed unitary matrices
+diagonal in the common eigenbasis of the *MATH* (i.e., the
+&quot;computational basis&quot;). Fig. 8(a) shows that for a solution of the invasion game, a
+fixed ONB is sufficient. Drawing the percept states randomly, so that
+the set of all percept states is linearly dependent, does not affect the
+agent&apos;s ability to achieve perfect blocking efficiency, but slows down
+the learning process. The single ONB case allows for a larger set of
+*MATH* *MATH* *MATH* with
+respect to *MATH*, as becomes evident in Fig. 8(b), so that
+navigation of *MATH* from the identity to a member of this set takes
+less time (as measured in cycles). The only freedom left in the case of
+multiple ONBs is a global phase of *MATH*, which remains undefined:
+navigation of *MATH* towards *MATH* with respect to
+the squared Euclidean distance *MATH* is not required for the learning
+tasks discussed, as evidenced by Fig. 8(c).
+
+
+Neverending-color scenario
+
+
+In Sec.  we considered the case, where the symbols are
+presented in two different colors, as depicted in
+Fig. 6(b). The original motivation for introducing colors as an additional percept category was
+to demonstrate the agent&apos;s ability to learn that they are irrelevant
+[*REF*]. In contrast, [*REF*] present a &quot;neverending-color scenario&quot;,
+where at each cycle, the respective symbol is presented in a new color.
+It is shown that while the basic PS-agent is in this case unable to
+learn at all, it becomes able to generalize (abstract) from the
+colors, if it is enhanced by a wildcard mechanism. The latter consists
+in adding an additional (wildcard &quot; *MATH* &quot;) value to each percept
+category, and inserting between the input layer of percept clips and the
+output layer of action clips hidden layers of wildcard percept clips, in
+which some of the percept categories attain the wildcard value. The
+creation of these wildcard clips follows predefined deterministic rules,
+and the transitions from percept to action clips take then place via the
+hidden layers. (The notion of layers in the general ECM clip network
+Fig. 2 in [*REF*] follows from restricting to clips of length *MATH* *MATH* *MATH*).
+
+
+Since the use of wildcard clips is an integrated mechanism within PS
+(inspired by learning classifier systems), the question is raised how
+similar ideas could be implemented in our context. For a memory
+Fig. 2(c), we could, e.g., attribute one of the levels (such as the respective ground state)
+of the quantum system of each percept category *MATH* to the
+wildcard-level *MATH*, so that the percept space
+*MATH* *MATH* *MATH* is enlarged to *MATH* *MATH* 
+*MATH* *MATH* *MATH*, where the *MATH* are one-dimensional.
+
+
+Instead of this, let us simply make use of the built-in generalization
+capacity of a quantum agent resulting from its coding of percepts as
+quantum states, which is much in the sense of Sec. 8 in
+[*REF*], where the percepts can be arbitrarily real-valued
+rather than being drawn from a countable or finite value set. Consider
+the setup shown in Fig. 6(c), whose percept system includes a symbol and a color
+category and refers to a memory structure
+Fig. 2(c). To allow for infinite colors, we could apply a color quantum system with infinite
+levels *MATH* (such as an oscillator-type system), which
+is initialized at each cycle in a new state drawn from a fixed ONB (such
+as a higher number state for an oscillator-type system). While such a
+scheme becomes more challenging to control, because the control vector
+*MATH* has an infinite number of components [we may replace it with a
+continuous control function *MATH*], it still ignores the fact that
+colors (as most percept categories in general) are not countable. With
+this in mind, we can take the notion of colors literally and, to put it
+simply, code them in some appropriate color space such as RGB, where
+three parameters correspond to the red-, green-, and blue-signals of the
+agent&apos;s eye sensors. This suggests to encode a color as a mixed state of
+a two-level system, which is also given by three real-valued parameters
+(determining its location in the Bloch ball). The generalization from
+two colors to all RGB-colors then corresponds to the generalization from
+a classical to a quantum bit. In our setup, it is hence sufficient to
+apply a two-level system for the color category and initialize it at
+each cycle in a randomly chosen mixed state
+*MATH* (for neverending colors) rather than a
+(pure) state randomly drawn from a single ONB (for two colors), whereas
+no changes are required on the agent&apos;s memory configuration itself.
+Fig. 9 demonstrates the learning process.
+
+
+FIGURE 9
+
+
+Similar to Fig. 8, random initialization slows down the learning process, so that we
+restrict to a single agent in Fig. 9, rather than an ensemble average. As illustrated in
+Fig. 9(a), the agent&apos;s response becomes near-deterministic after about *MATH* cycles,
+irrespective of the color. Fig. 9(b) illustrates in the example of the Euclidean length
+of the control vector *MATH* *MATH* 
+*MATH*, that the navigation, which
+starts at *MATH* *MATH* *MATH*, eventually comes to rest. While
+the random *MATH* are drawn such that a positive
+probability is attributed to every volume element in the Bloch ball, we
+did not care about drawing them with a uniform probability density,
+since mapping of an RGB-space of color (as a perceptual property) to the
+Bloch ball is not uniquely defined.
+
+
+The ability to learn to distinguish between relevant
+*MATH* and an arbitrary number of irrelevant
+percept categories *MATH* as discussed in [*REF*]
+is of particular relevance for a quantum agent, where the irrelevant
+percept categories can be understood as adopting the role of a bath as
+shown in Figs. 2(b) and (d). Here, a formal solution consists in a decoupled
+*MATH* *MATH* *MATH* *MATH* *MATH*.
+
+
+Grid world
+
+
+In what follows, we consider an arrangement of 8 grid cells as shown in Fig. 10.
+
+
+FIGURE 10
+The agent&apos;s task is to find the shortest route to a goal cell G, where
+at each step, only moves to an adjacent cell in four directions (left,
+right, up, down) are allowed. If the agent hits a boundary of the grid
+or the black cell, which is considered an obstacle, its location remains unchanged.
+
+
+This external classical navigation task constitutes a learning problem,
+because situations/percepts (present location) must be mapped to
+decisions/actions (direction to go). The agent only perceives whether or
+not it has arrived at the goal cell. It has no access to a &quot;bird&apos;s
+perspective&quot; which would allow immediate exact location of the goal. It
+also has no access to a measure of goal distance or fidelity (as in the
+case of the internal NO-based loop regarding its own quantum memory in
+Fig. 1), which prevents the use of external gradient information that could be obtained by
+testing the nearest neighbourhood of the present location. One can thus
+distinguish two objectives: (a) locating the goal and (b) finding a
+shortest route to it. This task constitutes a RL type problem, whose
+composite &quot;two-objective&quot; structure is approached by nesting iterations.
+The individual action selections, i.e., choices of moves, correspond to
+the cycles in Fig. 1.
+Sequences of cycles form episodes, which are terminated only once
+objective (a) has been solved. Objective (b) is solved by sequences of
+episodes, which allow the agent to gradually solve objective (a) more
+efficiently and find an optimal policy. In
+Fig. 10, the policy consists of a set of four probabilities for each cell, with which a
+corresponding move should be made from there. The optimal policy
+corresponding to the shortest route to G is indicated by the arrows in Fig. 10.
+
+
+This grid world extends the above decision game in two aspects: (a) The
+optimal policy is in contrast to the decision game not deterministic, as
+indicated by the double arrows in the upper left and middle cell in
+Fig. 10. (b) Depending on where the agent starts, more than a single move is required to reach
+G in general, preventing the agent from obtaining an immediate
+environmental feedback on the correctness of each individual move it
+makes. This second aspect leads to the mentioned notion of episodes. In
+what follows, we always place the agent at a fixed start cell S at the
+beginning of each episode, which is sufficient for learning the shortest
+path from S to G. While in the invasion game, episodes and cycles are
+synonyms, here, an episode is longer than a single cycle, since at least
+four moves are required to reach G from S.
+
+
+When designing the agent&apos;s memory structure in the sense of
+Fig. 2, we must take into account that the unitarity of the state transformation
+*MATH* in Fig. 2(a) places restrictions on the percept-encodings and
+the action-measurements, since *MATH* maps an ONB into
+another one. If we encode in Fig. 10 each cell location as a member of a given ONB in an
+8-dimensional system Hilbert space *MATH* and perform a naive
+symmetric *MATH* *MATH* *MATH* *MATH* 
+*MATH* *MATH* *MATH* *MATH* 
+*MATH* -measurement for action selection, where the four
+2-dimensional subspaces correspond to right, down, left and up moves, we
+cannot properly ascribe the upper left and upper middle cells, because
+the right and downward pointing actions are already ascribed to the
+remaining 4 white cells. One may either try to construct a learning
+algorithm that exploits the fact that the two mentioned cells are off
+the optimal path from S to G so that the agent quickly ceases to visit
+them or construct a new POVM such as a *MATH* *MATH* 
+*MATH* *MATH* *MATH* *MATH* 
+*MATH* *MATH* *MATH* -measurement, where two
+3-dimensional subspaces correspond to right and down, and two
+1-dimensional subspaces correspond to left and up moves. These
+possibilities require insight into the specifics of this problem and are
+not generalizable. In addition to that,
+Fig. 2(a) requires initialisation of the agent memory in a random unitary to ensure it
+starts with a policy that does not give exclusive preference to certain
+actions that follow from symmetries of the initial
+*MATH* (such as the identity *MATH* 
+*MATH* *MATH*). If we want to avoid invoking a bath as
+in Fig. 2(b), we hence must resort to Fig. 2(c), which here implies a factorisation *MATH* 
+*MATH* *MATH* *MATH* *MATH* of *MATH* into an 8-dimensional
+*MATH* for encoding the grid cells and a
+4-dimensional *MATH* for encoding the four actions.
+If we encode the cells and actions as members of some ONB in S and A,
+then initialising the agent&apos;s memory as identity,
+*MATH* *MATH* *MATH*, and the initial
+action states as in FORMULA
+ensures that the agent starts at the beginning of the first episode with
+a policy that assigns the same probability to all possible actions.
+
+
+In Figs. 11 and 12 we investigate the
+episode length which is defined as the number of cycles per episode.
+Rather than performing an ensemble average, we consider individual
+agents. These agents are described by
+FORMULA with a learning rate of *MATH* *MATH* *MATH*, absence of relaxation (*MATH* 
+*MATH* *MATH*), and varying amounts of gradient glow (*MATH* *MATH* 
+*MATH*). The number of episodes equals the number of times the agent is
+allowed to restart from S, whereas the time passed equals the sum of
+episode lengths. The episode length can be infinite but not smaller than
+four, the length of the shortest path from S to G.
+
+
+Fig. 11 shows evolutions of episode lengths with the number of episodes, where we have
+set a maximum of *MATH* episodes. As explained, each episode starts at S
+and ends only when G has been reached.
+
+
+FIGURE 11
+
+
+Fig. 11(f) shows for comparison the lengths of *MATH* random walks through the grid of an
+agent whose learning has been disabled by always setting the reward to
+0. The average number of 54.1 steps to reach G from S is shown in
+Figs. 11 and 12 as a dashed line
+for comparison. In Figs. 11(a-e), a positive reward of *MATH* *MATH* *MATH* is given
+for hitting G. While in Fig. 11(a), the reward is always zero before G has been hit,
+in Fig. 11(c) hitting a boundary is punished with a negative reward of *MATH* *MATH* *MATH*,
+which slightly improves the agent&apos;s performance. [Note that all plots
+are specific to the respective learning rate (here *MATH* *MATH* 
+*MATH*), which has been chosen by hand to observe an improvement
+within our *MATH* episode-window and at the same time minimising the
+risk of oversized learning steps. While in general, the learning rate is
+gradually decreased (cf. the conditions Eq. (2.8) in [*REF*]
+to ensure convergence), this is not strictly necessary. In our numerical
+examples we have kept *MATH* constant for simplicity. Implementation
+of a dynamic adaptation of the learning rate as was done in [*REF*]
+and [*REF*] in the present context is left for future work.] The
+transitions Fig. 11(a *MATH* b) and Fig. 11(c *MATH* d) show the effect of enabling gradient glow,
+i.e. *MATH* *MATH* *MATH* in FORMULA. Gradient glow
+provides a mechanism of gradual backpropagation of the policy change
+from the nearest neighbourhood of G to cells more distant from G as the
+number of episodes increases. In Fig. 11, the agent settles in the optimal policy in cases (b), (d) and (e).
+
+
+The policy resulting after *MATH* episodes in case
+Fig. 11(d) is given in Fig. 10, where the
+numbers in each cell present the probability to move in the respective
+direction. While the agent finds the optimal policy for all cells
+forming the shortest path, it remains ignorant for the remaining cells.
+As the agent finds and consolidates the shortest path, then episode over
+episode, it soon visits the off-path cells less frequently, so that the
+transition probabilities from these cells do not accumulate enough
+iterations and are &quot;frozen&quot; in suboptimal values. This is characteristic
+of RL and can also be observed in learning to play games such as
+Backgammon [*REF*], where it is sufficient to play well only
+in typical rather than all possible constellations of the game. Since
+for large games, the former often form a small subset of the latter,
+this can be seen as a strategy to combat with large state spaces (such
+as number of possible game constellations). To find an optimal policy
+for all cells in Fig. 10, we may start each episode from a random cell,
+analogous to initialising the agent in an overcomplete basis as
+explained in Fig. 8. The red numbers in parentheses shown in
+Fig. 10 present a new policy obtained after *MATH* episodes in this way. In contrast to
+the old policy, it is optimal or nearly optimal for all cells, with the
+difference between 1 and the sum of these numbers quantifying the
+deviation from optimality for each cell
+*MATH*. Since on average, the agent
+starts from a given cell only in 1/7-th of all episodes, the learning is
+slowed down, analogous to Fig. 8(a).
+
+
+Fig. 12 summarises the effect of gradient glow illustrated in
+Fig. 11 for the two rewarding strategies.
+
+
+FIGURE 12
+
+
+To limit the numerical effort, we have averaged the episode lengths over
+the last 500 episodes in Fig. 11 for individual agents as a &quot;rule of thumb&quot;-measure of
+the agent&apos;s performance for the strategy chosen. For a deterministic
+calculation we must instead average the length of each episode (and for
+each *MATH*) over a sufficiently large ensemble of independent agents
+for as many episodes as needed to reach convergence. Despite these
+shortcomings, the results indicate a qualitatively similar behaviour as
+Fig. 4(a) in [*REF*]. Figs. 11 and 12 demonstrate that gradient glow improves the agent
+performance, irrespective of whether or not it receives information on
+false intermediate moves by means of negative rewards, although the
+latter reduce the required length of glow. It is expected that for an
+ensemble average, an optimal value of *MATH* can be found, with which
+the fastest convergence to the shortest path can be achieved.
+Fig. 11 distinguishes two qualitatively different modes of convergence. If *MATH* is larger
+than optimal, a gradual improvement is observed, as seen by the damping
+of spikes in Fig. 11(d). If *MATH* is smaller than optimal, then an abrupt
+collapse to the optimal policy without visible evidence in the preceding
+statistics that would provide an indication is observed, cf.
+Fig. 11(e). If *MATH* is decreased further, this transition is likely to happen later, to the
+point it will not be observed within a fixed number of episodes. This
+results in the steep increase in episode length shown in
+Fig. 12, which would be absent if the ensemble average was used instead. This sudden
+transition as shown in Fig. 11(e) can also be observed for individual agents in
+[*REF*] (not shown there), which applies a softmax-policy function
+along with edge glow. It is surprising that the quadratic
+measurement-based policy simulated here exhibits the same phenomenon.
+Note however, that convergence does not imply optimality. In tabular RL
+and PS, such an abrupt transition can be observed if the
+*MATH* -parameter and hence the &quot;correlation length&quot; is too large (in
+RL) or if the *MATH* -parameter is too small, so that the glow lasts too
+long (in PS). The policies obtained in this way are typically
+sub-optimal, especially in larger scale tasks such as bigger grid
+worlds, for which the agent learns &quot;fast but bad&quot; in this case. It is
+hence expected that a similar behaviour can be observed for our method
+if we increased the size of the grid.
+
+
+Finite difference updates
+
+
+This work&apos;s numerical experiments rely on a symbolic expression
+FORMULA for the gradient *MATH* in FORMULA for
+simplicity, which is usually not available in practice, also keeping in
+mind the variety of compositions Fig. 2, so that the agent&apos;s memory *MATH* is
+generally unknown. As explained in the discussion of
+Fig. 1, the agent may then apply a measurement-based internal loop by repeatedly preparing its
+memory in a state that corresponds to the last percept *MATH*, and
+register whether or how often the last measurement outcome *MATH* can be
+recovered. This approach can be done with either infinitesimal or finite
+changes in the control vector *MATH*, where we can distinguish between
+expectation value- and sample-based updates, depending on how many
+internal cycles are performed between consecutive external cycles. It
+should be stressed that the external cycles in
+Fig. 1 represent the agent-environment interaction, resulting in sequences of state-action
+pairs and corresponding rewards. While in an elementary optimal control
+problem, a given objective is to be optimized, here the environment
+poses at each external cycle a separate and generally unpredictable
+control problem, all of which must be addressed by the agent simultaneously.
+
+
+Due to the small learning rate *MATH*, the update rule
+FORMULA is in all cases
+local in parameter space, which reflects the assumption, that a physical
+agent cannot completely reconfigure its &quot;hardware&quot; in a single instant.
+While it is then consistent to apply a gradient *MATH* *MATH* 
+*MATH* as a local quantity in
+FORMULA, from a computational perspective, it has a few drawbacks, however. One is that
+the direction of steepest accent at the current control vector
+*MATH* does not need to coincide with the direction *MATH* *MATH* 
+*MATH* *MATH* *MATH* towards the optimum *MATH*, as
+illustrated in Fig. 13.
+
+
+FIGURE 13
+
+
+Another aspect is the vanishing of the gradient. Consider for example
+the initialisation of the action system in a mixed state
+FORMULA as done in
+Fig. 5(b). In particular, the graph with *MATH* *MATH* *MATH* does not
+display any learning ability. Substituting the corresponding
+*MATH* *MATH* *MATH* in FORMULA and *MATH* 
+*MATH* *MATH* into FORMULA, we see that the reason is the vanishing
+gradient, *MATH* *MATH* *MATH* 
+*MATH* *MATH*. On the other hand, the corresponding setup
+Fig. 6(a) reveals that in this case, substituting a SWAP-gate between S and A for *MATH* 
+provides an optimal solution (along with an X-gate if the meaning of the
+symbols is reversed) for any *MATH*, that is
+obviously not found in Fig. 5(b). This failure occurs despite the fact that the
+agents explore, as indicated by the fluctuations in
+Fig. 5(b). To understand
+the difference, note that we may generate an *MATH* -greedy policy
+function by replacing in FORMULA an (arbitrarily given) state *MATH* 
+with *MATH*, where *MATH* *MATH* *MATH* *MATH* *MATH* and *MATH* *MATH* 
+*MATH*. The term with *MATH* then gives to
+FORMULA a contribution *MATH*, that is
+independent of *MATH*. At the same time, it does not contribute in
+FORMULA to the gradient, *MATH* *MATH* *MATH*. If
+*MATH* *MATH* *MATH* *MATH* *MATH* for all *MATH* in
+FORMULA, the agent&apos;s learning comes to rest, however. Finite difference and sample-based
+updates here offer a possibility to explore in parameter space the
+neighbourhood of the present location *MATH* (or, colloquially, the
+&quot;state&quot;) of the agent&apos;s memory, as a consequence of asymmetries in the
+control landscape or statistical fluctuations in the samples.
+
+
+Of particular relevance is a final fixpoint
+FORMULA. Intuitively, one would assume that (despite the compactness of the (S)U(*MATH*)-groups,
+that is in contrast to the potentially unbounded values of *MATH* in RL or
+*MATH* in PS) once an agent has settled in a point
+FORMULA, due to the vanishing gradient, it won&apos;t be able to react quickly, if the
+environment suddenly changes its allocation of rewards (without
+confronting the agent with percepts it has not perceived before).
+However, the learning curves for controllable memories (16 and 32
+controls) in Fig. 7(a)
+demonstrate that relearning after *MATH* cycles is not affected. A
+study of individual agents with 32 controls in
+Fig. 7(a) reveals that
+the Euclidean length of the numerical gradient rises from *MATH* at
+cycle 5000 to a value *MATH* in only 15 cycles. Better understanding of
+this is left for future study. In what follows, we outline the mentioned
+alternatives in some more detail.
+
+
+Expectation value-based updates
+
+
+If the time consumed by the internal cycles is uncritical with respect
+to the external cycles, the agent can obtain estimates of *MATH* 
+from a sufficiently large number of internal binary measurements. With
+these, it can either approximate the components
+*MATH* *MATH* *MATH* *MATH* 
+*MATH* of the local gradient *MATH* 
+*MATH* *MATH*, which is then substituted as
+*MATH* *MATH* into FORMULA. Alternatively, it can perform a global search for the
+location *MATH* of the maximum of *MATH*. A possible
+algorithm for the latter is differential evolution, which relies on
+deterministic values *MATH* rather than noisy samples. Once
+an estimate for *MATH* has been found, the difference *MATH* 
+*MATH* *MATH* *MATH* *MATH* is used in FORMULA.
+
+
+Sample-based updates
+
+
+Reliance on expectation values may give away potential speed gains
+offered by a quantum memory, which poses the question, whether a finite
+number of sample measurements is sufficient. Since individual updates in
+FORMULA are made with a
+small fraction *MATH* of the whole *MATH*, the assumption is that
+the individual statistical errors in the sampled *MATH* cancel out
+in the long run.
+
+
+As for the expectation value-based updates discussed above, samples can
+be used to either create discrete estimates *MATH* 
+*MATH* *MATH* *MATH* *MATH* 
+for the components *MATH* of the local gradient *MATH* *MATH* 
+*MATH*, where *MATH* *MATH* *MATH* 
+*MATH* *MATH* depending on whether the outcome of the binary
+measurement *MATH* is positive or not. Alternatively, for
+finite difference updates, one may consider a neural gas
+[*REF*; *REF*] inspired approach depicted in Fig. 14.
+
+
+FIGURE 14
+
+
+In this approach, the differences *MATH* between the
+sampled centers of positive [*MATH* *MATH* *MATH* *MATH* *MATH*,
+i.e., *MATH* *MATH* *MATH*] and negative outcomes (*MATH* 
+*MATH* *MATH* *MATH* *MATH*, i.e., *MATH* *MATH* 
+*MATH*) of the binary measurements *MATH* are then
+applied in FORMULA. Although one could store a current estimate *MATH* for each
+observed state-action pair *MATH* and merely update it according to
+FORMULA with each new
+measurement point *MATH*, this would give away the
+generalization capability described in Sec..
+One would hence need to perform *MATH* internal cycles with the POVM-based
+internal loop between each external cycle. The *MATH* could be
+drawn, e.g., from a Gaussian centered around the respective *MATH*.
+The variance of this Gaussian could be gradually decreased with the
+number of external cycles to increase the locality (local resolution) of the cloud.
+
+
+Fig. 13 gives the misleading impression that finite difference updates are superior to
+gradient-based methods. To give an illustrative counterexample, one
+could think of a two-dimensional *MATH* *MATH* *MATH* and a
+control landscape *MATH* modelled by the monotonically increasing
+height *MATH* along the length *MATH* of a tape of paper bent into a spiral
+and placed onto the dashed line in
+Fig. 13, such that one
+end with *MATH* *MATH* *MATH* is located at *MATH* and the other one
+at *MATH*. Here, a gradient-based method would safely follow the
+long path on the tape&apos;s upper edge, whereas a finite difference method
+would trade a potential speedup with the risk of missing the paper at
+all trials. Since a comparison of state of the art optimal control
+methods based on noisy samples for the agent&apos;s learning would go beyond
+the scope of this work, we here restrict ourselves to these sketchy
+lines of thought, whose numerical study is pending, and leave open the
+question of what the best method is for a given task.
+
+
+A characteristic shared by the loops of
+Fig. 1 and optimal control setups is the need of an experimental &quot;mastermind&quot; who controls
+the controls. An agent which is supposed to act autonomously would be
+required to accomplish this by itself, ideally in a &quot;natural&quot; or
+&quot;organic computing&quot; sense. An elementary example from everyday life are
+&quot;desire paths&quot; which form or dissipate, depending on their usage and
+without a designated planner.
+
+
+Summary and outlook
+
+
+In summary, we have adopted an update rule from the basic PS scheme,
+equipped it with gradient glow, and applied it to small-scale invasion
+game and grid world tasks. The numerical results show that similar
+results can be obtained for a quantum agent, as long as the memory is
+not underactuated. This is not obvious, because of the fundamental
+difference in the number of free parameters. If *MATH* and *MATH* denote the
+number of possible percepts and actions, respectively, then in classical
+tabular action value RL-methods, the estimated values of all
+percept-action pairs are combined to a *MATH* -matrix, i.e., we
+have *MATH* real parameters. If we encoded in our scheme each percept
+and action category by a separate subsystem, whose dimensionalities
+correspond to the number of values, the respective category can adopt,
+then *MATH* is an at least *MATH* -matrix for which we are faced
+with *MATH* real parameters. Note that this work is unrelated to the
+reflecting PS agents, which are discussed in [*REF*]. While the scheme
+[*REF*] allows a proof of quantum speedup, our approach complements the
+latter in that it is simple, flexible in its construction, and does not
+involve specific analytic quantum gates. The learning of a good policy
+only for percepts which are &quot;typical&quot; and have thus been encountered
+sufficiently often in the past shares features with &quot;soft computing&quot;,
+where it is sufficient to find a good rather than an exact solution,
+which would here consist in a policy that is optimal for all possible
+percepts. One may think of, e.g., simplifying a symbolic mathematical
+expression: while all transformation steps themselves must be exact,
+there are no strict rules, as far as the best way of its formulation is
+concerned. In future work, it may be worth to incorporate recent
+extensions of the classical PS scheme such as generalization [*REF*].

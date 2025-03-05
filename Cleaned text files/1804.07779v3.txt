@@ -1,0 +1,467 @@
+PEORL: Integrating Symbolic Planning and Hierarchical Reinforcement Learning for Robust Decision-Making
+
+
+Introduction
+
+
+Reinforcement learning (RL) [*REF*] and symbolic
+planning [*REF*] have both been used to build autonomous agents that
+behave intelligently in the real world. An *RL agent* relies on
+interactions with the environment to achieve its optimal behavior,
+without the need of prior knowledge. Building upon the model of Markov
+Decision Process (MDP), the *policy*, i.e., a mapping from a state to an
+action, can be learned via a number of trial-and-error. With the recent
+development of deep learning, such methods can lead to a highly adaptive
+and robust agent [*REF*], but may often rely on an unfeasibly
+huge amount of experience. On the other hand, a large body of work on
+symbolic task planning of mobile robots exists [*REF*; *REF*; *REF*], 
+where a *planning agent* carries prior knowledge of the dynamic system,
+represented in a formal, logic-based language such as PDDL
+[*REF*] or an action language [*REF*] that relates to
+logic programming under answer set semantics (answer set programming)
+[*REF*]. The agent utilizes a symbolic planner, such as a PDDL planner
+[FastDownward] [*REF*] or an answer set solver
+[Clingo] [*REF*] to generate a sequence of actions to
+achieve its goal. The pre-defined, manually crafted symbolic
+representation may not completely capture all domain details, and domain
+uncertainties and execution failures are handled by execution monitoring
+and re-planning. A planning agent does not require a large number of
+trial-and-error (which is quite expensive for real robots) to behave
+reasonably well, but it may not be robust enough to domain
+uncertainties, change and some reward structure that is only available
+through execution and learning. As planning and reinforcement learning
+are important and complementary aspects of intelligent behavior,
+combining the two paradigms to bring out the best of both worlds is
+quite attractive. In this paper, we focus on developing such a framework
+where an agent (i) utilizes a symbolic representation to generate plans
+that guide reinforcement learning, and (ii) leverages learned
+experience to enrich symbolic knowledge and improve planning.
+
+
+Topics (i) and (ii) above have been studied separately by researchers
+from different communities. (i) has been studied in a broader sense by
+the RL community based on the notion of hierarchical reinforcement
+learning (*HRL*) [*REF*]. The HRL framework has
+a two-level structure: the lower level is called the (primitive) action
+level, with the primitive actions as defined in the MDP setting, and the
+higher level is called the task level, or termed as the *option*
+level [*REF*]. An option is a temporal abstraction of
+actions specified by a policy and a termination condition, and guides
+learning such that at any state, only the primitive actions specified by
+the option are considered. Symbolic plans play similar roles
+[*REF*; *REF*], but these work does not
+embrace the hierarchical aspect of options: symbolic actions are 1-1
+corresponding to primitive actions in the underlying MDP. Nor do they
+dynamically discover new plans and options to improve learning. For
+(ii), basic learning models such as relational decision trees
+[*REF*] or weighted exponential average [*REF*] were used to
+improve planning through execution experiences, but they are not as
+expressive or general as a general RL framework.
+
+
+Aiming at building an agent that can unify planning and RL for robust
+decision-making, this paper advances both lines of research by
+integrating symbolic planning using action language *MATH* [*REF*]
+with hierarchical R-learning [*REF* *REF*] through a
+*Planning -- Execution -- Observation -- Reinforcement-Learning* (PEORL)
+framework. R-learning is an important family of reinforcement learning
+paradigm that characterizes finite horizon average reward, and is shown
+to be particularly suitable for planning and scheduling tasks. In PEORL,
+we use *MATH* to represent commonsense knowledge of actions and
+constraint answer set solver Clingcon [*REF*] to
+generate a symbolic plan, given an initial state and a goal. The
+symbolic plan is then mapped to a deterministic sequence of stochastic
+options to guide RL. R-learning iterates on two values: the
+average-adjusted reward *MATH* and the cumulative average reward, or termed
+as the gain reward *MATH*. While *MATH* -values indicate the learned policy,
+*MATH* -values can be effectively used by Clingcon to generate an
+improved symbolic plan with better quality, in terms of the cumulative
+gain reward. The improved plan is mapped to new options, which further
+guide R-learning to continue, until no better symbolic plan can be
+found. The framework is empirically evaluated on two benchmarks: Taxi
+domain [*REF*] and Gridworld [*REF*]. In our experiments, when the algorithm
+terminates, the optimal symbolic plan is returned.
+
+
+The contribution of this paper is summarized as follows:
+- To advance learning capability of agents, to the best of our
+knowledge, this is the first work using symbolic planning for option
+discovery in HRL. The PEORL agent outperforms RL agent and HRL agent
+by returning policies of significantly larger cumulative reward.
+- To advance planning capability of agents, to the best of our
+knowledge, this is the first work where symbolic planning leverages
+R-learning to improve its robustness. The PEORL agent outperforms
+planning agent by discovering a new state that leads to extra reward
+and reducing the number of execution failure.
+The paper is organized as follows. After a brief review of action
+language *MATH* and HRL in Section [2], we present the framework formulation in
+Section [3] and the main algorithm in Section [4]. Experimental evaluation results are shown in
+Section [5]. Related work is discussed in Section [6].
+
+
+Preliminaries 
+
+
+**Action Language and Symbolic Planning.** An *action description* *MATH* 
+in the language *MATH* [*REF*] includes two kinds of symbols,
+*fluent constants* that represent the properties of the world, denoted
+as *MATH*, and *action constants*, denoted as *MATH*. A
+fluent atom is an expression of the form *MATH*, where *MATH* is a fluent
+constant and *MATH* is an element of its domain. For boolean domain, denote
+*MATH* as *MATH* and  *MATH* as *MATH*. An action
+description is a finite set of *causal laws* that describe how fluent
+atoms are related with each other in a single time step, or how their
+values are changed from one step to another, possibly by executing
+actions. For instance, *MATH* is a *static
+law* that states at a time step, if *MATH* holds then *MATH* is
+true. Another static law *MATH* states that by
+default, the value of *MATH* equals  *MATH* at any time step.
+*MATH* is a *dynamic law*, stating that at any time step, if *MATH* holds, by
+executing action *MATH*,  *MATH* holds in the next step.
+*MATH* states that at any step, if *MATH* holds, action *MATH* is not executable.
+Finally, the dynamic law *MATH* states that by
+default, the value of fluent *MATH* does not change from one step to
+another, formalizing the *commonsense law of inertia* that addresses the frame problem.
+
+
+An action description captures a dynamic transition system. A *state*
+*MATH* is a complete set of fluent atoms, and a transition is a tuple
+*MATH* where *MATH* are states and  *MATH* is a
+(possibly empty) set of actions. The semantics of *MATH* is defined by a
+translation into a set of answer set programs  *MATH*,
+for an integer  *MATH* stating the maximal steps of transition. It is
+shown that all answer sets of *MATH* correspond to all
+states in the transition system, and all answer sets of
+*MATH* correspond to all transition paths *MATH* of
+length *MATH*, of the form *MATH* (or equivalently, *MATH*)
+[*REF* Theorems 1, 2]. Let *MATH* and *MATH* be states. The triple *MATH* 
+is called a planning problem. *MATH* has a plan of length *MATH* iff
+there exists a transition path of length *MATH* such that *MATH* and
+*MATH*. Throughout the paper, we use *MATH* to denote both the plan and
+the transition path by following the plan.
+
+
+Due to the semantic definition above, automated planning with an action
+description in *MATH* can be achieved by an answer set solver, and
+the output answer sets encode the transition paths that solve the planning problem.
+
+
+**R-learning for Average Reward.** A Markov Decision Process (MDP) is
+defined as a tuple *MATH*, where *MATH* and *MATH* are the sets of symbols denoting
+states and actions, the transition kernel *MATH* specifies the
+probability of transition from state *MATH* to state
+*MATH* by taking action *MATH*, *MATH* is a reward 
+function bounded by *MATH*, and *MATH* is a discount
+factor. A solution to an MDP is a policy *MATH* that maps a state to an action. RL
+concerns on learning a near-optimal policy by executing actions and
+observing the state transitions and rewards, and it can be applied even
+when the underlying MDP is not explicitly given, a.k.a, model-free policy learning.
+
+
+To evaluate a policy *MATH*, there are two types of performance measures:
+the expected discounted sum of reward for infinite horizon problems and
+the expected un-discounted sum of reward for finite horizon problems. In
+this paper we adopt the latter metric defined as *MATH*.
+We define the *gain reward* *MATH* reaped by policy *MATH* 
+from *MATH* as *MATH*. *MATH* R-learning [*REF* *REF*] is a model-free value
+iteration algorithm that can be used to find the optimal policy for
+average reward criteria. At the *MATH* -th iteration
+*MATH*, update: *MATH* where *MATH* are the learning rates, and
+*MATH* denotes the update law as *MATH*.
+
+
+**Hierarchical Reinforcement Learning.** Compared with regular RL,
+hierarchical reinforcement learning (HRL) [*REF*] specifies on real-time-efficient
+decision-making problems over a series of tasks. An MDP can be
+considered as a flat decision-making system where the decision is made
+at each time step. On the contrary, humans make decisions by
+incorporating temporal abstractions. An option is temporally extended
+course of action consisting of three components: a policy
+*MATH*, a termination condition  *MATH*, and an
+initiation set *MATH*. An option  *MATH* is available in state *MATH* iff *MATH*.
+After the option is taken, a course of actions is selected according
+to  *MATH* until the option is terminated stochastically according to the
+termination condition *MATH*. With the introduction of options, the
+decision-making has a hierarchical structure with two levels, where the
+upper level is the option level (also termed as task level) and the
+lower level is the (primitive) action level. Markovian property exists
+among different options at the option level.
+
+
+PEORL Framework 
+
+
+In this section we formally define PEORL framework. A PEORL theory is a
+tuple  *MATH*. It contains the elements from a symbolic planning problem, an MDP and how
+they are linked with each other:
+- *MATH* form a symbolic planning problem, where *MATH* is the initial
+state, *MATH* is a *PEORL goal* that consists of a goal state condition
+and a linear constraint, and *MATH* is a *PEORL action description* in the language of *MATH*.
+- *MATH* form part of an MDP.
+*MATH* is a set of action symbols in MDP space. We use small
+letters with tilde, such as *MATH* to denote its element, and
+assume *MATH*.  *MATH* is a set of state symbols in MDP space. It contains *simple state* symbols of
+form *MATH* which are 1-1 correspondent to (symbolic) states of  *MATH*.
+Due to such correspondence, we also use a state of *MATH*, i.e., a
+set of fluent atoms in  *MATH* to denote a simple state symbol
+in *MATH*. Furthermore, *MATH* also contains the *MDP
+state symbols*, denoting a state obtained by applying MDP action
+*MATH*. *MATH* is a reward function such that *MATH*. *MATH* is a discount factor.
+- A *symbolic transition--option* mapping *MATH* that
+translates a symbolic transition path *MATH* into a set of options.
+Some components are further explained as follows.
+
+
+Symbolic Planning Problem
+
+
+A *PEORL action description* *MATH* is written in *MATH* and contains
+a specific set of causal laws formulating *plan quality* accrued from
+executing a course of actions:
+- For any state of *MATH* that contains atoms *MATH*,
+*MATH* contains static laws of the form *MATH*
+- Introduce new fluent symbols of the form *MATH* to denote the
+gain reward at state *MATH* following action *MATH*. *MATH* contains a static
+law stating by default, the gain reward is a sufficiently large
+number, denoted as  *MATH*, to promote exploration when necessary: *MATH* 
+- Use fluent symbol *MATH* to denote the cumulative
+gain reward reward of a plan, termed as *plan quality*. *MATH* contains
+dynamic laws of the form *MATH*
+- *MATH* contains a (possibly empty) set *MATH* of facts of the form *MATH*.
+
+
+A *PEORL initial state* contains a state *MATH*. In particular, the initial
+plan quality is 0. A *PEORL goal* *MATH* where *MATH* is a goal state,
+and *MATH* is a linear constraint of the form *MATH* 
+where *MATH* is an integer. The negation of *MATH* is defined in the usual way.
+
+
+The triple *MATH* forms a symbolic planning problem with linear
+constraints: the plan is encoded by a transition path of *MATH* that
+starts from state *MATH* and ends in state *MATH* with *MATH* satisfied. A plan
+*MATH* of *MATH* is *optimal* iff *MATH* is maximal among all plans.
+However, note that reward function *MATH* is not a part of the planning
+problem because we assume that reward is part of the specific domain
+details not captured as prior knowledge. We later use PEORL learning
+algorithm to interact with the environment and generate optimal plan
+when the algorithm terminates.
+
+
+Solving the planning problem follows the method of translating *MATH*, *MATH* 
+and *MATH* into the input language of [Clingo] [*REF*].
+However, in this paper, we use a slightly different but equivalent
+translation into the input language of [Clingcon] to handle
+linear constraints more efficiently.
+
+
+From Symbolic Transitions to Options
+
+
+FIGURE 
+
+
+We assume that in the transition system *MATH*, for each transition
+*MATH*, *MATH* contains exactly one action symbol,
+i.e, concurrent execution of actions is not allowed. *MATH* maps
+a symbolic transition *MATH* to an option in the sense of [*REF*].
+*MATH* where *MATH*, *MATH*, and *MATH*. In particular, we enforce that
+option *MATH* is available for transition *MATH* iff *MATH* This
+condition guarantees that the right option is chosen to realize the
+symbolic transition *MATH* at its starting state, and
+terminates when it fulfills the symbolic transition.
+
+
+We further build one more deterministic layer by mapping a transition
+path defined by a symbolic plan to a set of options. For a transition
+path *MATH*, *MATH*. It is easy to see that the execution of a symbolic plan is
+deterministically realized by executing their corresponding options
+sequentially. Such hierarchical mapping is illustrated in Figure [1].
+
+
+Example: Grid World 
+
+
+We use the Grid World adapted from [*REF*] as an
+example. In a *MATH* grid, there is an agent that needs to
+navigate to (9,10), which can only be entered through (9,9). At (9,9)
+there is a door that the agent needs to activate first, and then push to
+enter. The action description consists of causal laws formulating
+effects of *MATH* where *MATH*, *MATH* and *MATH*, for instance, *MATH*.
+The following causal laws are instantiation of *MATH*. They
+formulate the effects on plan quality by executing *MATH* 
+for a particular state, and similar causal laws can be defined for
+*activate* and *push*: *MATH*. *MATH* Assuming initially the agent is located at *MATH* with
+door closed and inactive, the action description *MATH*, initial state
+*MATH* and goal state *MATH* are translated into the input language of [Clingcon] and a
+plan is *MATH*. Now we map symbolic transitions  *MATH* to options.
+As options talk about the realization of symbolic actions in terms of
+MDP actions, we assume that each symbolic action *MATH* 
+for a direction *MATH* is executed in the same way in MDP, denoted as
+*MATH*. Symbolic action *MATH* can be
+executed in a variety of ways: the agent needs to use proper force to
+push the door such that the door can be opened without any damage.
+Therefore, *MATH* is executed in finite number of options,
+denoted as *MATH* where *MATH*. Executing symbolic action *activate*
+as an option involves two steps: first, the agent needs to grab the
+doorknob using proper force, denoted by *MATH*, where
+*MATH*. Second, after the door knob is successfully grabbed, it can be turned either clockwise or
+counter-clockwise, and turning it clockwise can activate the door. This
+action is denoted as *MATH* for *MATH*. The mapping from  
+*MATH* to options is demonstrated as Figure [2]. 
+
+
+PEORL Learning 
+
+
+Given any transition *MATH* in a plan *MATH*, hierarchical R-learning 
+involves the updates of *MATH* and *MATH* in two steps. 
+Since every symbolic transition is 1-1 correspondence to its
+option *MATH*, we also use *MATH* to denote the option. Before an option terminates, execute
+actions following the option, and for any transition *MATH* where *MATH*, update
+*MATH* where *MATH* and *MATH* are learning rates for *MATH* 
+and *MATH*, *MATH* denotes the cumulative reward accrued by executing
+option mapped from symbolic action *MATH*. Given a plan *MATH*, the
+quality of *MATH* is defined by summing up all gain rewards for the transitions in *MATH*. 
+
+
+ALGORITHM 
+
+
+Given a PEORL theory *MATH*, its learning algorithm is
+shown in Algorithm. While previous results show that R-learning converges, most properties
+of option-based hierarchical R-learning remain unknown and therefore it
+remains an open question that option-based hierarchical R-learning
+converges to optimal over a finite number of options. For this reason,
+we leave the theoretical study of Algorithm for our future work, but will empirically show its
+effectiveness on two benchmark domains in next section.
+
+
+FIGURE 
+
+
+Experiment 
+
+
+Taxi Domain
+
+
+We first use Taxi domain [*REF*] which is a
+benchmark domain for studying HRL. Scenario 1 is based on Taxi-v1 in
+OpenAI Gym. A Taxi starts at any location in a 5 *MATH* grid map
+(Figure [7]), navigates to a passenger, picks up the
+passenger, navigates to the destination and drops off the passenger,
+with randomly chosen locations for passenger and destination from marked
+grids. Every movement has a reward -1. Successful drop-off receives
+reward 20. Improper pick-up or drop-off receive reward -10. All actions
+are deterministic and always successful. In our experiment, we randomly
+set *MATH* initial configurations and compare the cumulative rewards
+received by a standard Q-learning RL-agent, a HRL-agent based on
+hierarchical Q-learning using the manually crafted options specified in
+[*REF*], a standard planning agent (P-agent) using [Clingo] to generate plans and execute, and a
+PEORL-agent. For all learning rates *MATH* is annealed from 1 to 0.01,
+and for PEORL agent, *MATH*. The result (Figure [5]) shows the cumulative reward of PEORL agent
+significantly surpasses the RL-agent and is also superior to HRL-agent.
+Guided by its symbolic plan, PEORL agent has a clear motivation to
+achieve its goal. For this reason, it never commits actions that violate
+its commonsense knowledge, such as an improper pick-up or drop-off, or
+run into the walls. For this reason, the penalty of -10 never occurs to
+PEORL agent, so the variance of the cumulative reward is a lot smaller
+than RL-agent and HRL-agent. PEORL-agent starts with the shortest plans
+but gradually explores longer ones. After around *MATH* episodes,
+symbolic plans of PEORL-agent converge back to the shortest, indicating
+that the shortest plans are the overall optimal ones. P-agent also
+benefits from symbolic plans by not committing improper actions.
+Furthermore, since ASP-based symbolic planning is usually used to
+generate shortest plan, P-agent has the steadily largest cumulative
+reward which happens to be optimal. This result suggests that ASP-based
+planning can perform very well in deterministic domains where shortest
+plans are the most desirable.
+
+
+In Scenario 2, inspired by [*REF*], we require that if the taxi arrives at the goal with (4,4) visited, it
+gets reward 30. The only information present in symbolic knowledge is
+when (4,4) is visited, the fluent *rewardvisited* is set to be true, so
+that the state representation in RL maps correctly to symbolic space.
+Again, PEORL-agent outperforms all others (Figure [6]). It starts by trying the shortest
+plan but during exploration of longer alternatives, it discovers the
+extra reward, and finally converge to the optimal. Figure [4] showed one solution in this scenario. By
+comparison, since visiting (4,4) is not a necessary condition to drop
+off the passenger, throughout 10 randomly generated configurations,
+P-agent never visits that state, behaving the same way with Scenario 1
+by sticking to its shortest plan. HRL-agent and RL-agent fail to figure
+out the extra reward either. This scenario shows that PEORL-agent can
+discover state with extra reward, and its symbolic plans have leveraged
+the learned information from RL and become more robust and adaptive to
+the change of domain details.
+
+
+Grid World
+
+
+The Grid World domain is shown in Figure [7]. Adding to the description in Section
+[3.3], we further assume there are both horizontal and vertical bumpers where
+the agent receives a penalty of -30 (grids marked as red), and -15 for
+grids marked with yellow, and -1 for all other grids. Actions *grab* and
+*push* have an integer parameter *MATH*, ranging from 0 to 60, and only if
+*MATH* can the execution be successful. Every execution failure
+causes a -10 penalty. The initial state is chosen from the marked grids
+in the first column, and goal state is (9,10). We use this example to
+show that aided by RL, symbolic plans can be learned to avoid bumpers,
+and can be reliably executed.
+
+
+We set up RL-agent using Q-learning, PEORL-agent and P-agent. Bumper
+information is not captured by symbolic knowledge since we assume these
+are domain details that need to be learned. Learning rates are chosen as
+the same with Taxi domain. The learning curve is shown in Figure [10] 
+across 1000 episodes. Similar to the Taxi domain, PEORL-agent has smaller 
+variance in its cumulative rewards (zoomed in by Figure [10]), and achieves the optimal behavior:
+it avoids the bumper at its best, and reliably activates and pushes the
+door (e.g., Figure [8]), surpassing RL-agent. For P-agent,
+the shortest plans, in this case, are not ideal plans. Since P-agent has
+no learning capability and only relies on its symbolic knowledge, it performs the worst.
+
+
+Figure [9] shows that facing domain uncertainty, the robustness of symbolic plan of PEORL agents is improved
+using RL, indicated by the reduced number of execution failure. As
+options mapped from *activate* and *push* lead to smaller RL problems,
+the underlying R-learning quickly learned the right way to execute the
+options such that the need to replan is significantly reduced. By
+contrast, relying on replanning, P-agent can recover from failure and
+eventually achieve its goal, but it cannot improve its execution
+reliability from learning, leading to poor plan robustness with a
+relatively large number of execution failures.
+
+
+Related Work 
+
+
+Integrating symbolic planning and RL has been an active research topic
+recently. Pre-complied symbolic plans or paths from a finite-state
+machine play similar roles as options [*REF*; *REF*; *REF*].
+Recent work also uses ASP to generate longer symbolic plans
+[*REF*]. In these approaches, symbolic planning is used
+to help RL through a one-shot plan generation and compilation. By
+contrast, in our work, planning is interleaved with and constantly
+updated by RL, and therefore new options can be explored and more
+meaningful ones will be selected leveraging learning. Our work is also
+related to automatic option discovery. Various methods have been used,
+including clustering [*REF*] and Laplacian Eigenmap [*REF*]. To the best of our knowledge,
+this is the first work using symbolic planning for automatic option
+discovery. Our work is also motivated by improving symbolic planning
+through learning. Different learning models have been adopted in earlier
+work such as relational decision tree [*REF*] or weighted
+exponential average [*REF*]. RL is also used to improve task
+decomposition in HTN planning [*REF*]. Finally, integrating
+planning with probabilistic planning on POMDP was investigated [*REF*].
+
+
+Conclusion and Future Work 
+
+
+In this paper we proposed the PEORL framework, where symbolic planning
+and HRL simultaneously improve each other, leading to rapid policy
+search and robust symbolic planning. Future work involves formal study
+on hierarchical R-learning, using PEORL framework to solve more
+complicated domains, and integrating symbolic planning 
+with deep RL for interpretable end-to-end solutions.

@@ -1,0 +1,339 @@
+Introduction
+
+
+Understanding the mechanisms of learning and maintenance of effective
+behavior in stochastic environments with complex hierarchy of goals is
+one of key issues in the study of neural processing and for the
+development of bio-inspired artificial intelligence. However, these
+mechanisms are better understood if history of their development is taken into account.
+
+
+Fields of machine learning and adaptive behavior have been rapidly
+developing in the recent decades. One of the most popular approaches in
+these areas is reinforcement learning (RL) [*REF*] and its
+modifications. It can be effectively used for learning of autonomous
+agents in many domains. However, problem spaces with multiple goals
+require execution of alternative behavioral strategies that are not
+possible for RL algorithms, since the behavior of the agent is
+determined by the single value function. Also, it is not always possible
+to define appropriate value function a priori. To address this issue
+approaches for the generation of reinforcement values using evolutionary
+algorithms are currently under development [*REF*].
+
+
+Other algorithms are also unable to produce effective solution for the
+environments with hierarchy of goals [*REF*]. The various
+methods designed for the generation of behavioral sequences
+[*REF*; *REF*] in most cases cannot
+effectively work in situations with a large number of goals present in
+the environment and when an agent has to autonomously explore them.
+Neuroevolutionary approaches have been successfully used for the
+synthesis of autonomous agent&apos;s controllers in low-formalized tasks [*REF*; *REF*].
+
+
+To solve the problem of alternative behaviors the algorithm should
+implement non-Markov decision process in opposite to reinforcement
+learning [*REF*]. In other words for selection of different
+actions at the same state of the environment an agent should have memory
+of previous actions. Short-term memory (STM) is extensively covered in
+the area of recurrent neural networks research in terms of the signal
+reverberation [*REF*] and serial order recall
+[*REF*]. Theorists suggested reverberation phenomenon as
+significant mechanism for STM [*REF*]. Nevertheless neural
+principles underlying generation of the behavior as a non-linear
+integration of the sensory information and internal state of the network
+are not yet discovered. As well the question of the role STM plays in
+the adaptive behavior with alternative actions is still underexplored.
+
+
+In this paper we present a model of an agent situated in an environment
+with hierarchy of goals. The behavior of the agent is controlled by
+recurrent neural network. We simulated evolution of agents in the model
+world and studied emergence of short-term memory and its role in adaptive behavior.
+
+
+Environment with Hierarchy of Goals
+
+
+In the current study a state of an environment in which an autonomous
+agent &quot;lives&quot; is represented by binary vector: *MATH*.
+
+
+At any discrete time step the agent may change a single bit of this
+vector to the opposite. Thus, environmental structure is a
+*MATH* -dimensional hypercube. Every dimension of this
+hypercube might be interpreted as some feature of the real environment,
+for instance temperature, pressure, etc. Competing goals of different
+complexity are prespecified in the environment as an ordered set of
+single bit changes of the environmental state vector: *MATH*, where *MATH* is a number of target bit of the state vector, 
+*MATH* is target value of the bit, *MATH* is a complexity of the goal. Goals of
+varying complexity are defined in the environment, together forming a
+branched hierarchical structure. We have generated structure of the
+environment by, firstly, composing hierarchy of full goals and then each
+goal was divided into sequence of subgoals. To determine the complexity
+of a particular environment we introduce occupancy based on a
+probabilistic approach: *MATH*, where *MATH* is the number of goals in an environment,
+*MATH* is the number of unique bits of the state vector, changed
+during the process of achieving a goal (single bit can be changed
+several times). The value, which is opposite to the occupancy, we shall
+call the difficulty of the environment: *MATH*. 
+
+
+Reward is associated with each goal in the environment and directly
+proportional to the complexity of corresponding goal. After the agent
+reached goal, level of accruing reward associated with this goal is
+reset and then linearly recovers to the original value over the time *MATH*.
+
+
+Environment can be either deterministic or non-deterministic. In the
+later changes of the state vector occur not only when the agent performs
+actions, but also stochastically according with a fixed probability.
+
+
+Agent&apos;s Behavior and Evolutionary Algorithm
+
+
+Agent&apos;s behavior in the environment is controlled by artificial neural
+network (ANN) of arbitrary topology, which develops through the
+evolutionary process. ANN is divided into input, output and number of
+hidden layers. The network consists of McCulloch-Pitts neurons with
+nonnegative logistic activation function. Signal passes through the
+synapse only when output value of a presynaptic neuron is above a
+certain activation threshold (was set to 0.5 in all simulations). Thus,
+we introduce two possible states for each neuron: active (when output is
+above a threshold) and inactive (otherwise). The current state vector of
+the environment is directly fed to the neurons of input layer of the
+network. Hidden layers allow existence of recurrent connections with
+delayed transmission. Pair of the most active neurons of output layer
+encodes agent&apos;s action at the current time step. Each pair stands for a
+particular bit of the state vector and target value. Thereby transfers
+of a bit from 0 to 1 and vice versa are encoded by different pairs of
+the output neurons. The agent could produce ineffective actions, when
+attempts to change a state of a bit to one in which it already is.
+
+
+Population of agents evolves in the hypercube environment described in
+previous section. Every individual is separately placed in the
+environment to evaluate fitness. For a given time the agent operates in
+the environment, reaching goals and accumulating reward. Value of
+accumulated reward is inaccessible to the agent and total reward affects
+its reproductive success.
+
+
+To evolve agents&apos; ANNs we used neuroevolutionary algorithm based on
+duplication of neurons. This algorithm is similar to well-known NEAT
+[*REF*] as it makes possible evolution of neural network
+topology but in more natural way by duplicating neurons with attached
+connections. Specifically we use neuron&apos;s duplication mutation when
+duplicated neuron inherits from parent the whole synaptic structure
+instead of add node mutation of NEAT. Incoming connections of the
+descendant and parent neurons retain its previous weights, while weights
+of outgoing connections divided in half for both neurons. Thus, two
+neurons in the aggregate perform the former function, but later in
+evolution the descendant neuron could diverge into a separate structure.
+To optimize evolution by dynamically reducing dimensionality of the
+search space we also introduced delete connection mutation, which
+performed in the same manner as add connection mutation. Neurons that
+lost all their connections are being deleted from the network. We did
+not use any crossover algorithm, since preliminary results of comparison
+between two versions of evolutionary algorithm (with crossover and
+without) have not showed significantly difference.
+
+
+The structure of the agents&apos; networks in initial population consists of
+input and output layers and one additional interneuron, which will be an
+ancestor for all future interneurons. This initial interneuron is fully
+connected to input layer (by incoming connections) and to output layer,
+herewith there are no initial direct connections between input and
+output neurons.
+
+
+We used the following parameters of the artificial environment in all
+simulations: dimensionality of the hypercube environment
+*MATH* -- 8 bits; agent lifetime duration
+*MATH* -- 250 time steps; reward&apos;s recovery time
+*MATH* -- 30 time steps; probability of random change of the
+state vector&apos;s bit *MATH* -- 0.0085 (for each bit).
+Evolutionary algorithm was running with parameters: population
+*MATH* -- 250 agents; period of evolution *MATH* --
+5000 generations; probability of the synaptic weight mutation
+*MATH* -- 0.6 (for each synapse); variance of the synaptic
+weight mutation *MATH* -- 0.08; probability of adding the
+synapse *MATH* -- 0.1 (for whole network); probability of
+deleting the synapse *MATH* -- 0.05 (for whole network);
+probability of neuron&apos;s duplication *MATH* -- 0.007 (for whole network).
+
+
+Behavioral Evolution
+
+
+As the first step we studied how occupancy of the environment affects
+efficiency of evolved behavior in deterministic and stochastic
+environments. As expected the simulation results show the growth of an
+average cumulative reward with increase of the occupancy, reflecting
+that a task is easier when the environment is more densely populated
+with goals (Fig. 1).
+
+
+Agents evolved in non-deterministic environments behave significantly
+more successfully (Fig. 1) in terms of average accumulated reward
+and in most cases have richer repertoires of behavior. Such phenomenon
+can be explained by the fact that during the &quot;life&quot; in an environment
+which could suddenly change the agent with a wider spectrum of
+behavioral policies should be more successful. Thus stochasticity of the
+environment contributes to the selection of agents with more flexible
+and robust behavior, allowing them to reach greater number of goals from
+different initial position. However, with increasing probability of
+random changes in the environment one can observe a sharp decline in the
+efficiency of the evolution (data not shown) due to the destabilization
+of all policies caused by excessively frequent changes in the
+environment.
+
+
+We then analyzed evolution of behavioral sequences of the agents in the
+environment of intermediate goal occupancy. Typical evolved behavior
+usually consists of two phases: preliminary phase of converging to the
+main behavioral cycle and then residing on it. In a particular
+behavioral run both of these phases depend on the initial state of the
+environment, from which the agent has been started. We shall call the
+main behavioral cycle (sequence of actions or attained goals) a
+behavioral strategy.
+
+
+FIGURE
+
+
+Results of simulations demonstrate that sharp increase in the average
+cumulative reward among the population usually coincides with emergence
+of a large number of new cycles and their dynamic competition.
+Corresponding periods are the most interesting in the study of
+behavioral evolution. On the
+Fig. 2 we give an example of such period.
+
+
+One can observe competition between different behavioral strategies
+during a very limited evolutionary period. Herewith new strategies are
+appearing as an extension of previously evolved cycles. Extension can be
+implemented not only as simple addition of a new part to an old one, but
+also as complex compilation of two strategies. Eventually one of the
+strategies wins the competition and dominates in the behavior of the
+most of the population. Then evolution occurs through increase in number
+of states, from which it could be implemented.
+
+
+FIGURE
+
+
+Alternative Behavior and Short-Term Memory
+
+
+The analysis of behavioral strategies emerging in the simulated
+evolution shows that the agents acquire ability to store short-term
+memory due to reverberation in the neural network by recurrent
+connections. The evidence for short-term memory comes from the fact that
+agents can implement policies based on alternative actions. Agents
+usually can perform different actions from one state of the environment
+depending on the previous history of behavior. State transition diagram
+for the exemplar evolved behavior with three alternative actions is
+shown on the Fig. 3. Such phenomenon would not been
+possible in the case of reactivity work of the neural network.
+Corresponding behavior is generated by a neural network consists of 30
+neurons with only 15 interneurons and 611 synaptic connections.
+
+
+Only a small number of neurons significantly change output and affect
+the decision making at states associated with alternative situations.
+This group of neurons is specialized on particular alternative actions.
+The majority of neurons remain at the same level of activity, while
+neurons which determine a behavior change their activity from zero to
+maximum level.
+
+
+FIGURE
+
+
+Based on the various behavioral policies the deepest short-term memory
+we found was at least 4 past states (lower bound). Such conclusion was
+made after considering situations in which alternative actions are
+performed with the same history of behavior and, thus, the lower bound
+can be determined as the first different action of the two behavioral
+sequences.
+
+
+The ability to use short-term memory makes possible implementation of
+much more complex behavior and accumulation of more reward during the
+agent&apos;s &quot;life&quot;. Example of a behavioral strategy, based on the
+alternation of two cycles of actions, is shown on the
+Fig. 4. Since after the goal is reached it
+restores the reward for a fixed number of time steps, such a strategy
+allows goals that were reached on the first cycle to restore their
+value, while the agent passes the second cycle. Behavior on the
+Fig. 4 can be implemented using short-term memory
+with depth of two states.
+
+
+Primitive alternative behavior in the model could also be supported by
+slow neurodynamical process
+(Fig. 5). In this case the &quot;memory&quot;, required to
+perform alternative actions, could be up to 30 previous states. The
+mechanism underling this type of behavior is oscillatory dynamic of the
+neuron&apos;s output. While output of a neuron is above threshold, and
+therefore transmitted by outgoing connections, agent performs the first
+part of behavior. At some point output falls below the transmission
+threshold and the neuron no longer inhibits the other neuron, which
+activity is essential for the second branch of behavior.
+
+
+FIGURE
+
+
+FIGURE
+
+
+Conclusion
+
+
+In our study we have explored possibility of evolutionary emergence of
+short-term memory in recurrent neural networks controlling agents&apos;
+behavior in multi-goal environments. On the first stage we analyzed
+overall dynamics of a model. As expected, performance of agents was
+worse when the number of goals in environment was smaller. On the other
+hand it turned out surprisingly that in stochastic environments agents
+with more flexible and stable behavioral policies evolve and able to
+accumulate more reward in comparison to agents in the same environment
+but without noise. This phenomenon is quite unusual for machine learning
+algorithms [*REF*], since in the case of non-deterministic
+environment the performance is usually worse.
+
+
+Detailed investigation of evolutionary dynamics revealed that the
+evolution of agents consisted of two stages: rapid emergence/development
+of new behavioral strategies and their propagation among the population.
+Formation of new strategies was usually manifested as complex
+integration of few already existed.
+
+
+On the level of individual behavior we found that evolution develops
+strategies, which are based on alternative actions. That happens due to
+acquisition of ability to operate with short-term memory and, therefore,
+to select actions taking into account previous history of behavior.
+
+
+Evolution discovered two different neuronal mechanisms for
+implementation of alternative actions: first one is based on integration
+of sensory information and internal signal, which is reverberating
+through recurrent connections; and the second is based on slow
+neurodynamical oscillatory processes. In fact, there is no need to
+recruit synaptic plasticity during the agent&apos;s &quot;life&quot; to have an
+effective use of short-term memory. It is important to notice that
+emergence of the ability to operate with short-term memory in our model
+occurs without any artificial prerequisites in the structure of an
+evolutionary algorithm.
+
+
+The next stage of presented study is introduction of learning during
+agent&apos;s &quot;life&quot;, since it makes significant contribution into development
+of adaptive behavior. The main mechanism of learning algorithm is
+detection on the neuronal level of problems for the whole organism
+situated in environment. Possible approach to the construction of such
+algorithm is the use of research in the theoretical neuroscience [*REF*; *REF*].

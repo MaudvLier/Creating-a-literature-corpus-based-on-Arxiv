@@ -1,0 +1,1612 @@
+Introduction
+
+
+Artificial intelligent agents are playing an increasingly important role
+in our modern life. Different from ordinary computers, intelligent
+agents are designed to operate autonomously in complex and possibly
+unknown environments. Intelligence is thereby understood as the agent&apos;s
+capability of acting in its environment in a rational and flexible way
+that maximizes its chance of success [*REF*]. Applications of
+artificial agents include robots that interact with humans, operate in
+remote space, or search the internet (netbots), while in biology, the
+study of artificial agents may also provide new perspectives to model
+animal behavior. Comprehensive introductions can be found in modern
+textbooks [*REF*; *REF*; *REF*].
+
+
+In this paper we study a novel approach to artificial intelligence
+(AI) which was first introduced recently [*REF*] and which we
+call projective simulation (PS). Projective simulation constitutes a
+model of information processing for artificial agents, in which the
+agent effectively projects itself into potential future scenarios,
+according to its previous experience. The model is based on simple
+stochastic processes, thus providing a physically grounded approach
+toward an embodied agent design. The model can be naturally applied to
+problems in reinforcement learning, where the agent learns via
+interaction with some rewarding environment
+[*REF*; *REF*]. At the same time, the notion of PS is
+more general and can also be seen as a principle and building block for
+complete agent architectures and computational intelligence [*REF*].
+
+
+A central component of the PS scheme is a specific type of memory, which
+we denote as episodic &amp; compositional memory (ECM). The ECM is
+structured as a directed, weighted network (graph), and we refer to each
+node of this network as a clip. The &quot;clips\&quot; are the basic units of
+memory and correspond to short episodic experiences. They consist
+e.g. of remembered percepts, or actions, or simple combinations thereof.
+In everyday life, examples of such clips could be &quot;seeing a red ball&quot;,
+&quot;kicking a ball&quot;, or its combination &quot;seeing a red ball and kicking it&quot;.
+A clip in ECM can be excited through some perceptual stimulus from the
+environment, and this excitation then hops to an adjacent clip with
+probability that is correlated to the strength of the directed edge
+between these two clips. Perceptual input thereby leads to a random
+walk through memory, organized as a network of clips. This random walk
+finally reaches its end once the excitation of a so-called &quot;action
+clip\&quot; couples out -- also probabilistically in general -- and leads to
+a corresponding real action of the agent in its environment.
+
+
+&quot;Learning\&quot; is effectively achieved through dynamic changes of the ECM
+network. The network is continuously adjusted, through experience,
+according to rewards obtained from the environment. This adjustment may
+take place in terms of both the clips themselves as well as the weights
+of the edges connecting different clips. At the beginning, the PS agent
+is situated in an environment as a tabula rasa, meaning that its ECM
+network shows no preferences toward any kind of action, or behavior.
+Then, in subsequent time steps, the agent&apos;s actions are rewarded by the
+environment. These rewards are directly translated into corresponding
+changes within the ECM according to simple prescribed rules. The changes
+in the ECM may then result in the PS agent taking different actions,
+thus initiating a new feedback loop. A snapshot of the ECM at each time
+step thus reflects the past experience of the PS agent with respect to
+its actions and rewards. When successful, the resulting ECM allows the
+PS agent to take actions that maximize, on average, the rewards it
+obtains from the environment.
+
+
+We note that the model of projective simulation can also be generalized
+to quantum mechanical operation. This leads to the concept of a quantum
+agent which employs the principles of quantum mechanics, such as
+quantum superposition and parallelism, for processing its episodic
+memory [*REF*]. Even though it is not the topic of this
+paper, the possibility of a quantum generalization can be seen as a
+unique feature of the model. Research along this line will be published
+in a separate work.
+
+
+This paper provides, in addition to a thorough analysis of the PS model,
+three main contributions: First, the PS agent is situated in a variety
+of novel scenarios, each of which confronts the agent with a different
+kind of challenge, thereby enabling us to evaluate the agents learning
+abilities and demonstrate its flexibility. Second, a new &quot;glowing\&quot;
+mechanism is introduced to the model, which builds up correlations
+between ECM excitations that were activated at different times. This is
+shown to have a dramatic effect on the PS performance in certain
+scenarios. Last, we conduct a detailed comparison between the PS model
+and two well established approaches to reinforcement learning problems,
+namely, Q-learning and learning classifier systems (see below). This
+comparison is twofold: on one, more technical, level, the models are
+repeatedly compared with respect to their qualitative performance,
+whereas on a more conceptual level, the models are compared with respect
+to their simplicity, an important trait of any artificial intelligent
+agent and of embodied agents in particular.
+
+
+The paper is structured as follows: section 2 is devoted to formal aspects
+of PS, basic notions and features. In particular, we start in section with a formal description of PS;
+Afterwards, in section we introduce our simplest toy model, for which we
+analyze the performance of PS analytically in section, where closed expressions are obtained for
+the asymptotic efficiency of the PS agent and the initial slope of its
+learning curve; In section 2.4 we then describe the role of damping in PS;
+Last, we define a notion of &quot;learning time\&quot; in section, and study its scaling properties when
+increasing the number of inputs and/or actions.
+
+
+In sections, we then examine the ability of the PS
+agent to handle more advanced kinds of scenarios, where each scenario is
+of completely different nature. We show, for each case, how simple
+changes in the update rules of the ECM may lead to better performances,
+thereby making the agent more flexible. In particular, section considers scenarios in which rewards may
+depend not only on present actions, but also on actions taken in the
+past. Such scenarios, to which we refer as temporal correlations,
+require some mechanism to correlate between actions taken at different
+times. We show that the PS scheme can be extended to account for such
+correlations, by allowing a slower decay of the excitations in the ECM,
+which we denote as afterglow. Next, in section we study
+scenarios in which it is beneficial to notice similarities between
+inputs and to associate the corresponding percepts. We show how the ECM
+can be automatically shaped to allow for such associations between
+percept-clips, and denote this capability as associative memory. Last,
+in section we aim at scenarios where composite actions
+are needed, i.e. where it is beneficial to combine known actions into
+new ones. We show how the PS scheme allows the agent to &quot;try out\&quot; such
+composite actions within the ECM. These new action clips are then
+available to the agent, increasing its adapting and learning capabilities.
+
+
+To put the PS scheme in perspective with respect to existing models of
+AI, we perform a detailed comparison throughout the paper between PS and
+other AI models, whenever such a comparison is sensible. Out of many
+possible existing AI schemes we chose to focus on two representatives,
+namely Q-learning (QL)[*REF*; *REF*; *REF*; *REF*] (with and without
+Dyna-style planning [*REF*; *REF*] extension) which is a
+well known model in reinforcement learning, and on extended learning
+classifier systems (XCS) [*REF*] that is an advanced variant of
+standard learning classifier systems (LCS)
+[*REF*; *REF*; *REF*]. Both are shortly
+described in appendices 8 and 9, respectively. We chose to focus on these two
+models for two main reasons: first, both models are popular and well
+studied, and second, because they are known to perform well on our set
+of learning scenarios. In particular, QL is used as a reference model in
+the context of &quot;temporal correlations\&quot; (section), whereas the XCS is used for comparison in
+the context of &quot;associative memory\&quot; and &quot;composite actions\&quot; (sections).
+
+
+Last, in section we study the PS model in terms of its
+simplicity, that is, we look at the resources it requires, and
+estimate their complexity. This is an important aspect, as PS ultimately
+aims at providing a framework of embodied agent design
+[*REF*], grounded only on physical processes, rather than
+computational ones. Here we study the essential resources of PS in terms
+of required parameters, basic data structure, and inherent processes.
+The PS is then compared to both QL and XCS in this context. Section concludes the paper.
+
+
+Basic notions and features 
+
+
+The PS agent is conceived as an entity situated in a (partially unknown)
+environment, which receives inputs via its sensors and can perform
+different actions. The actions of the agent are rewarded by the
+environment, which affects the internal structure of its memory. The PS
+agent has, however, no explicit model of the environment which predicts
+the next state or reward and in that sense the PS is &quot;model-free\&quot;
+[*REF*]. From the point of view of an external observer, the
+agent may be described by a conditional probability *MATH* of
+performing an action *MATH* given a percept *MATH* (denoted elsewhere as the
+agent&apos;s &quot;stochastic policy\&quot; [*REF*]). Yet, a complete
+description of the agent connects *MATH* with the internal state
+of the agent&apos;s memory at time *MATH*, and specifies how its memory is
+modified as the agent interacts with the environment.
+
+
+The model of projective simulation provides such a description in terms
+of stochastic processes, as will be specified in the next subsection.
+
+
+The PS formalism 
+
+
+In what follows we list the main formal points that constitute the PS model:
+- The ECM is the central component of PS, defined as a directed,
+weighted network (graph). Each node of this network is called a clip.
+- Clips represent fragments of episodic experiences, which are
+defined as *MATH* -tuples *MATH*. Each of
+*MATH* is an internal representation of either a percept
+(*MATH*), or an action (*MATH*), where both are defined
+below. In this paper, we consider only clips composed of length *MATH*.
+- Percepts (&quot;inputs\&quot;) are defined as *MATH* -tuples *MATH*,
+where the number of possible percepts is given by *MATH*. The
+structuring of the input into subspaces is usually naturally given,
+for example when considering robots: *MATH* might represent a
+visual sensor, *MATH* may account for an acceleration sensor,
+and so forth. The notation in the original
+proposal [*REF*] differentiates between the immediate
+physical percept (sensory input) caused by the environment denoted
+by *MATH* and its representation in memory, i.e.  a percept clip
+denoted by *MATH*. Here we employ the notation *MATH* both for the percept
+and for the percept clip, as long as there is no danger of confusion.
+- Actions (&quot;outputs\&quot;) are given as *MATH* -tuples: *MATH*,
+where the number of possible actions is given by *MATH*. The action
+space is also structured using subspaces, which could be, e.g. 
+moving, beeping, touching, etc. Similar to percepts, real actions
+*MATH* are conceptually different from remembered actions, i.e.  action
+clips, which were denoted by *MATH* in the original proposal
+[*REF*]. Again, in the present work we will employ the
+notation *MATH* both for the real action and for the action clip.
+- Each edge, connecting clip *MATH* to clip *MATH*, has a dynamic
+weight *MATH*, which changes over time, and is denoted
+as the *MATH* -value of this edge. Initially, at time *MATH*, there
+exist edges directed from each percept-clip to each action-clip. The
+*MATH* -values of the edges are initialized to *MATH*, and
+obey *MATH* at each time *MATH*.
+- The hopping probability according to which an excitation hops
+from clip *MATH* to clip *MATH* is given by
+*MATH* where the sum is over all clips *MATH* connected to clip *MATH*.
+- &quot;Emotion\&quot; tags are degrees of freedom which can be assigned
+internally to percept-action edges to indicate e.g. whether or not
+the corresponding transition has been rewarded the last time it was
+taken. These tags can be used to memorize the most recent reward on
+a given transition, thereby enabling the detection of short-time
+changes in the environment. Formally, the emotion tags are given by *MATH*,
+where here we restrict ourselves to the case where *MATH* and *MATH*.
+- Reflection is the mechanism that exploits the emotion tags:
+before an action *MATH* is coupled out as a response to an excitation
+of percept clip *MATH*, the emotional tag *MATH* is checked. If it is
+positive (*MATH*) the action is performed, but if it is negative
+(*MATH*) the random walk process is restarted. This allows the
+agent to reconsider, so to speak, its choice. The maximum number of
+random walks per decision is limited by a predefined &quot;reflection
+time\&quot; parameter *MATH*, whose default value *MATH* means no reflection.
+- The interface between the PS agent and the external environment
+is realized via its sensors and actuators and their connection to
+memory. An external percept *MATH* excites a certain percept clip *MATH* 
+according to *MATH*, an input-coupling probability
+function. Similarly, an action-clip couples out to perform a real
+action *MATH* according to an output-coupling probability function
+*MATH*. The coupling functions connect the internal random
+walk, described by the hopping probabilities *MATH*,
+with the external behavior of the agent, described by
+*MATH*. To be more explicit, in the simplest case, the
+probability that a percept *MATH* will initiate a specific random walk
+through clips *MATH* (including possible repetitions), which will eventually lead to
+action *MATH*, is given by *MATH*.
+The external conditioned probability *MATH* is then given by
+summing up the probabilities over all such possible paths inside the
+clip network. Here we consider only the case where *MATH* 
+and *MATH* are simple Kronecker delta functions. This
+corresponds to the simplification that a percept always excites the
+corresponding percept-clip and an action-clip always couples out to
+produce the corresponding action.
+
+
+The basic process underlying the PS model is a stochastic one. Each time
+step *MATH* begins with a percept coming from the environment (an input)
+and exciting a memory clip *MATH* inside the network according to
+*MATH*. Next, the excitation hops from clip *MATH* to one of its
+neighboring clips, *MATH*, with the hopping probability
+*MATH*. This hopping process then continues in a random walk
+manner, allowing the excitation to propagate through the clip network.
+The hopping process then reaches its end, once an action clip is
+encountered and couples out to an action in the real-world according to *MATH*.
+
+
+When an action is performed, the agent gets a reward *MATH* 
+from the environment. As a result, the *MATH* -values of all edges are
+updated according to the following two rules: (i) The *MATH* -values of all
+activated edges, i.e. edges that were traversed during the last random
+walk, are updated according to *MATH*, 
+where *MATH* is the current time step, *MATH* (*MATH*) is a
+damping parameter (see also section 2.4), and
+*MATH* quantifies the reward given by the environment. (ii) The
+*MATH* -values of all other edges of the network are merely damped,
+described by the rule *MATH*.
+This update of the ECM network concludes a single time step.
+
+
+At each time step all the *MATH* -values are therefore reduced, by a factor
+of *MATH*, whereas only edges that were actively used in the
+last step, are given the reward *MATH*. When the PS-agent obtains a
+positive reward, the edges that were visited during the random walk that
+led to the correct action are then strengthened, thereby increasing the
+probability that they will be used again in the future. On the other
+hand, when a wrong action is taken and no reward is given,
+i.e.  *MATH*, all edges are merely damped, including those that
+were used in the current step, thus reducing the probability to use them in the future.
+
+
+Last, we remark that
+Eq. FORMULA is a simple, yet obviously not the only
+possible update rule for the network, where different behaviors may
+emerge from choosing different update rules. This makes PS a very
+flexible framework. Throughout this paper, this flexibility will be
+examined and demonstrated.
+
+
+Toy model: The invasion game
+
+
+For an initial analysis of the PS model we use a game we call the
+&quot;invasion game\&quot; [*REF*] as our simplest toy model (for more
+advanced scenarios see sections). The game is composed of an attacker, a
+defender and several doors. The agent has the role of the defender,
+whose task is to block the attacker. At the beginning of each time step,
+the attacker and defender are facing each other at the same door. The
+attacker then shows a symbol indicating where it will appear next
+(e.g. left or right arrow), and the defender makes a move. The defender
+has thus to learn the meaning of the symbols to take the correct action.
+If it managed to move to the correct door and block the attacker, it
+will receive a reward *MATH*, whereas no reward is otherwise
+obtained. The percept space here is a set of symbols indicating the
+direction of the attacker&apos;s motion. In the simplest version, where the
+attacker has only two symbols to show, this would amount to
+e.g.  *MATH*. The action space is a
+set of possible actions. In the simplest case, only two actions are
+allowed: one step to the left and one to the right, therefore *MATH*.
+
+
+A typical learning curve of the PS in the invasion game is depicted in
+red in Fig. 1. The game is played by an ensemble of *MATH* 
+agents, for *MATH* time steps. At time *MATH* all agents are similarly
+initialized to show no preference toward any action (their *MATH* -values
+are all set to 1). Then, at every time step, each of the agents is
+confronted with a random symbol, takes an action, and is possibly
+rewarded, followed by the update of its ECM according to
+Eq. FORMULA. A particular network will then develop
+for each of the individual agents, resulting with a different blocking
+efficiency of the different agents. A trajectory of a single agent
+consists of a sequence of blocking and non-blocking actions, as shown in
+Fig. 2. In what follows, we always use at
+least *MATH* agents, unless stated otherwise. We further define the
+efficiency of each time step as the ratio *MATH*, where *MATH* is
+the number of agents that blocked the attacker at this time step. An
+efficiency of *MATH* therefore means, that out of the *MATH* agents,
+8500 blocked the attacker, and 1500 did not.
+
+
+To make sure that the choice of *MATH* agents is sufficient for
+meaningful statistics, we also calculated the error bars, as shown in
+Fig. 1. To that end, we calculated 100
+efficiency curves (with each being averaged over *MATH* agents). Then
+out of this ensemble we calculated the averaged efficiency and the
+standard deviation for each time step. The error bars we show are of
+*MATH* width, centered at the mean efficiency value.
+Fig. 1 shows that the errors are of the same
+order as the fluctuations. Therefore, in following plots, we omit the
+error bars, as they are indirectly given by the fluctuations.
+
+
+FIGURE 1
+
+
+FIGURE 2
+
+
+The PS learning curve: A heuristic analysis 
+
+
+In this section, we analyze the learning curve of PS (such as shown,
+e.g.  in Fig. 1) from an analytical perspective. In
+particular, we develop closed and compact expressions which approximate
+the initial slope of the efficiency and its asymptotic value. These are
+most relevant properties: the initial slope provides a first indication
+for the agent learning time, whereas the asymptotic efficiency indicates
+the averaged maximal efficiency that can be achieved.
+
+
+Obtaining analytical expressions for the learning curve is usually not
+easy, and may even be impossible, in general, as the underlying
+equations are non-linear. We therefore limit our investigation to a
+restricted invasion-game, where for each percept *MATH* 
+there exist a single, unique, rewarded action, *MATH*, such that
+*MATH* is the only rewarded edge for this percept. In addition, we
+assume that percepts are shown one-by-one in a fixed order, starting
+with a randomly chosen percept at time *MATH*. Let us denote with *MATH* 
+the (random) time between *MATH* and *MATH* when the specific percept *MATH* 
+is shown for the first time.
+Fig. 3 illustrates the clip network as
+it develops for such a scenario. Here, percept-clips and action-clips
+are shown in the first and second rows, respectively, and thick edges
+denote the rewarded edges. It is seen that the resulting configuration
+is highly structured (yet at each time step the strengths of the
+rewarded edges slightly vary, according to the order in which the
+percept are shown). This allows us to treat all percepts in the same
+manner, thereby simplifying our analysis.
+
+
+FIGURE 3
+
+
+First, we find an expression for the asymptotic value of the learning
+curve. For a single agent, the blocking efficiency at time *MATH*, which we
+denote by *MATH*, is given by *MATH*, where *MATH* is the probability that the attacker
+shows the *MATH* symbol (thereby exciting percept *MATH*) and *MATH* 
+is the hopping probability from percept *MATH* to the rewarded action *MATH* 
+as defined in section. In our restricted invasion game, where
+percepts are shown in a fixed order (&quot;regular training&quot;), we have
+*MATH*. For large times,
+*MATH*, the agent then evolves into a cyclically steady state
+described by *MATH* and a corresponding
+blocking efficiency *MATH*, where *MATH* refers to the percept presented to the agent
+at time *MATH* and *MATH* to the corresponding rewarded action. Note
+that *MATH* and *MATH* depend on the random time variable *MATH* 
+described above. In the second equality, we denote the *MATH* -value of the
+corresponding rewarded edge simply by *MATH* and take into account that all
+unrewarded edges are of weight 1.
+
+
+In the following, we will consider an ensemble of many agents, each of
+which is trained by the same percept history but may develop a different
+clip network. We are interested in the averaged blocking efficiency,
+i.e.  *MATH*, and its asymptotic value, where the average is
+taken over the ensemble of agents. From FORMULA we obtain
+the corresponding expression *MATH*. In the second step, we have made the essential
+approximation, which only holds if the distribution of the *MATH* -values is
+sufficiently narrow. This requires that the weight of an edge does not
+change too much between subsequent rewards. In particular, the damping
+should not change the *MATH* -value of an edge significantly while the *MATH* 
+other percepts are shown, i.e.  *MATH*. 
+To first order in *MATH*, this regime is characterized by *MATH*.
+
+
+With the approximation made in
+Eq. FORMULA, finding an expression for
+*MATH* boils down to finding an expression for *MATH*,
+i.e. the value of the rewarded edge at the cyclic steady state, averaged
+over many agents. To express *MATH* we first rewrite the update
+rule, given in Eq. FORMULA to get: *MATH*, where the reward *MATH* is assigned only to edges
+that were traversed during the last random walk. Importantly, we note
+that when averaging over many agents, the rewarded edge is updated on
+average with a reward of *MATH*,
+that is by the reward times the probability to take the correct action.
+The average of a rewarded edge, of a certain percept *MATH*, is therefore
+updated according to *MATH*, whenever the corresponding percept *MATH* is encountered.
+We recall that in our restricted invasion game, the percepts are shown
+one by one, in a fixed order, such that each percept *MATH* is shown
+exactly once every *MATH* time steps. The reward is therefore applied every
+*MATH* time steps, and at the same time, the mere damping is applied *MATH* 
+times in between. In the asymptotic limit, the average value
+*MATH* thus reaches a (cyclically) steady state, where the
+average reward compensates the damping terms. This leads to the
+following recursion relations: *MATH*. For the steady state we have
+*MATH*, which finally leads to (shown also in the original proposal
+[*REF*]): *MATH*, a quadratic equation that can be solved for
+*MATH*. Note that, due to the ordered percept excitation, there
+is still a cyclic time dependence in *MATH*. For a given edge,
+the *MATH* -value obtained from FORMULA
+refers to the times when a percept *MATH* is shown that connects to this edge.
+
+
+In Fig. 4 we show a comparison between the
+numerical learning curves for the invasion game (as described in section and
+Fig. 2) and the approximate asymptotic value
+as computed from Eq. FORMULA. It can be seen that the predicted asymptotic
+efficiencies are quite accurate, even though the numerical curves refer
+to a game with random percept training while the analytic values are
+obtained within our simplified scenario of regular percept training.
+
+
+FIGURE
+
+
+We now turn to the study of the initial slope of the PS learning curve.
+To that end we take into account the initial *MATH* -value, *MATH*, and
+estimate the derivative of the efficiency curve at *MATH*. Formally, we
+obtain from FORMULA the expression *MATH*.
+
+
+To express *MATH* we look at the increase of the average
+*MATH* -value of a rewarded edge over *MATH* time steps. As before, we consider
+an ordered percept stimulation, meaning we hit one percept after the
+other in sequence.
+
+
+To begin with, we focus on a specific (but arbitrary) rewarded edge. We
+assume, as mentioned earlier, that the percept which connects to this
+edge is shown for the first time at *MATH*, somewhere from *MATH* to *MATH*.
+This leads, on average, to an update of the *MATH* -value of this
+percept-action edge given by: *MATH*. During the subsequent
+*MATH* steps, different percepts will be shown, resulting in *MATH* 
+damping steps for our particular *MATH* -value. Following the same set of
+equations as given in FORMULA, together with the initial condition
+*MATH*, we arrive at: *MATH*. This describes the increase of the *MATH* value over a
+cycle, starting at time *MATH* and ending at time *MATH*. Consider now
+the time *MATH* as a random variable, distributed equally between *MATH* and
+*MATH*, corresponding to an ensemble of (regularly trained) agents with
+different initial percepts. The initial &quot;slope&quot; of the learning curve,
+as estimated by *MATH*,
+will depend on *MATH* and thus be different for the different
+sub-ensembles. Averaging over *MATH* gives rise to an effective *MATH*,
+which can be approximated by a more compact (but less accurate)
+expression *MATH*. Together with
+FORMULA and FORMULA this provides the following heuristic
+approximation: *MATH*.
+
+
+In Fig. 4 we plot the lines *MATH* for different
+parameters of *MATH*, and *MATH*. Here we used the expression
+of *MATH*, given in Eq. FORMULA as the slope, and took into account that
+the initial value of the efficiency is given by *MATH*. It is seen that
+in all three cases, the resulting lines are approximately tangential to
+the numerical learning curves in the initial time steps. The analytic
+approximations are a useful tool to predict the qualitative change in
+the agent&apos;s learning behavior when the different parameters are changed,
+and to check the plausibility of the numeric results.
+
+
+The damping parameter *MATH*. 
+
+
+The constant damping of the *MATH* -values can be interpreted as an ongoing
+&quot;forgetting\&quot; over time. This important feature of the PS model allows
+for a weakening of connections between clips, and thereby making it
+possible for the agent to adapt to changing environments. Using a
+positive *MATH* (in this work typical values are around *MATH*) is
+further motivated from the point of view of an embodied agent:
+physically, it assures finite *MATH* -values of the edges, and biologically,
+as said, it represents a natural forgetting over time.
+
+
+We note, however, that the use of damping affects the overall
+performance of the PS agent. For example, we note that when *MATH* is
+positive the asymptotic efficiency of the PS agent is not optimal, as
+can be seen e.g. in Fig. 1 and Fig. 4. Without damping (*MATH*), the
+asymptotic efficiency is equal to unity. This is a general property of
+PS, which will be encountered many times throughout this paper.
+
+
+The effect of the damping is even more pronounced as the size of the ECM
+network is increased: the more edges there are, the more damping steps
+occur on average between two successive rewarding steps. This is
+demonstrated in Fig. [4], where increasing the dimension *MATH* 
+and/or *MATH* results in a decreased asymptotic efficiency. The negative
+effect of the damping can, however, be tackled in various ways: The
+simplest way would be to reduce the value of *MATH*. When *MATH* is
+made smaller, the asymptotic value can be made arbitrarily high. Another
+possibility is to increase the reward *MATH*. This directly increases
+the *MATH* -values, thereby compensating for the damping and increasing the
+efficiency. The third possibility is to increase the reflection time *MATH* 
+to boost the asymptotic efficiency, as shown below.
+
+
+Finally we note that, even though the use of a damping term is well
+motivated, it is not a necessary ingredient in the general scheme of
+projective simulation, which may be implemented with many different learning rules.
+
+
+Scaling of learning times
+
+
+In what follows we examine the scaling properties of PS learning times,
+when increasing the number of possible percepts and/or actions. We
+emphasize that while in section we studied the initial slope of the learning
+curve as a first indicator for the learning time, here we are interested
+in the actual learning time, which we define as:
+
+
+Learning time: The number of steps needed for the averaged efficiency to reach a
+certain threshold fraction of its asymptotic value, for the first time.
+
+
+In the remainder of this paper, we set the threshold fraction to be 0.9.
+
+
+We note that this definition of the learning time may allow situations
+in which the learning time turns out to be misleadingly short, merely
+because the asymptotic efficiency is very low (hence reaching the
+threshold by statistical fluctuations only). To avoid such situations,
+we either set *MATH* or rescale it properly, as explained in section. 
+This way the asymptotic value is either
+equal to unity or sufficiently high (*MATH*).
+
+
+We start with the scaling of the learning time when the number of
+possible percepts is increased.
+Fig. 5 shows the learning time as a function
+of the size *MATH* of percept space, for different values of the reward
+*MATH*. The number of actions *MATH* is kept fixed, and there is
+exactly one rewarded action per percept. It is seen that the learning
+time scales linearly with increasing *MATH*. This linear scaling arises
+because each percept has to be encountered the same number of times to
+allow the agent to learn the rewarded action. It is further seen that
+increasing the reward reduces the learning time as hinted at by
+Eq. FORMULA. This is because fewer steps are needed
+before the higher steady state *MATH* -value is achieved. Here we set
+*MATH* to compensate for the decrease in asymptotic
+efficiency. We remark that when compared to QL, we observe a similar
+trend of the learning time with respect to increasing the reward (not shown).
+
+
+FIGURE 6
+
+
+In Fig. 6 we examine the effect of changing the
+reflection number *MATH* (see definition in section) on the learning time. We set *MATH*,
+so no damping occurs. It is seen that increasing the number of
+reflections does not effect the scaling behavior, which stays linear,
+but that it reduces the overall learning time, in a similar effect to an
+increase in the reward. This beneficial behavior of using multiple
+reflection is very general within the PS scheme, as it (in most cases)
+boosts the entire performance in terms of both the asymptotic efficiency
+as well as the learning time of an agent.
+
+
+FIGURE 7
+
+
+FIGURE 8
+
+
+Fig. 7 shows the learning time as a function of
+the size of the input space, as performed by QL (accompanied with
+Dyna-style planning) and XCS. It is seen that with these schemes too,
+the learning time scales linearly with the size of the input space.
+Moreover, it is shown that increasing the number of planning steps, *MATH*,
+for the Dyna-style planning scheme, reduces the learning time, with a
+similar effect as increasing the reflection parameter, *MATH*, in PS (one
+should note, however, that using more planning steps does not lead to an
+increase in the asymptotic efficiency, whereas using a higher reflection
+parameter, *MATH*, does [*REF*]).
+
+
+Last, we studied the scaling of the PS learning time when both input
+space *MATH* and action space *MATH* are increased together, such that *MATH*.
+We found that the learning time scales quadratically, implying a linear
+scaling when *MATH* alone is increased. A similar quadratic behavior was
+also observed for QL and XCS. We thus conclude that in such simple
+scenarios, all three models behave qualitatively in a similar way with
+respect to the scaling of the learning time when increasing the problem
+size (input and/or action dimensions).
+
+
+Temporal correlations
+
+
+In this section we investigate the performance of PS in situations that
+are far more complicated than those presented until now. In particular,
+we study scenarios in which the rewards the agent receives may depend
+not only on the particular action it takes at present, but also on
+actions it made previously, that is we use non-Markovian rewarding
+schemes. To such situations we refer as temporal correlations.
+
+
+&quot;Afterglow&quot; mechanism 
+
+
+The PS scheme, as it was introduced so far, has no efficient mechanism
+to handle situations of the form of &quot;temporal correlations&quot;. It does,
+however, provide a flexible paradigm that can be naturally extended.
+Here, we generalize the excitation process, i.e. the dynamics of
+excitation propagation in the ECM, to account for temporally correlated
+scenarios. It is expedient to associate a certain state of &quot;excitation&quot;
+also with edges that have been used during the random walk. We refer to
+such an excitation informally as &quot;edge glow&quot;. An excited or glowing edge
+indicates that this edge should be strengthened if the subsequent action
+is rewarded. In what follows, we allow edge excitations to decay slowly,
+step by step, instead of fully decaying after a single step only. This
+means that an edge that was not used during the latest random walk may
+nevertheless be still (partially) excited, because it was visited in
+previous time steps. The edges are then strengthened in straight
+correlation to the level of their excitation: the stronger the
+excitation, the larger is the reward. As before, edges that are not
+excited at all get no reward. We refer to this slow decay of edge excitation as afterglow.
+
+
+Formally, the afterglow is implemented using a new degree of freedom: a
+parameter *MATH* called &quot;glow&quot;, which is attached to each of the edges in
+the clip network. Initially, *MATH* is set to zero for all edges. Then,
+once an edge is visited during the random walk, its glow parameter is
+set to *MATH*. In subsequent steps *MATH* is damped at each time step toward
+zero with rate *MATH*, according to: *MATH*, and the update rule of
+Eq. FORMULA is modified to: *MATH*, where *MATH* stands for the *MATH* value of the
+edge connecting clip *MATH* to clip *MATH* at time *MATH*. As before, only
+excited edges may be strengthened when a reward *MATH* is given. The
+difference is that the edges may now be partially excited, allowing for
+a partial reward, according to the strength of their excitation.
+Therefore, an unrewarded edge (i.e. an edge associated with an
+unrewarded transition) may eventually be rewarded if subsequent actions
+are sufficiently rewarded, thus enabling a non-greedy choice of actions.
+We note that *MATH* amounts to no &quot;afterglow&quot;. Accordingly, all plots
+shown previously can be obtained within the afterglow scheme, by simply setting *MATH*.
+
+
+Finally, we remark that the use of reflection (*MATH*, see section) 
+may sometimes conflict with the afterglow
+scheme. This is because reflection leads to a pseudo-greedy strategy:
+with it the agent is inhibited to take any action that was unrewarded in
+the previous step, even if it is more beneficial in the long run. No
+unrewarded paths can thus be explored, which would limit the effect of
+afterglow. In what follows we set *MATH*, i.e. no reflection is used.
+
+
+The *MATH* -ship game
+
+
+To examine the utility of afterglow we employ the *MATH* -ship game, a
+variant of the invasion game. It consists of a single door and several
+attacking ships. The defender-agent can take one of two actions: to
+block and to not-block. The attacking ships arrive in sequence and for
+each of them the agent has to decide whether it should block it or not.
+Temporal correlations are introduced to the game by using a
+time-dependent rewarding scheme. This means that an action is
+rewarded/not-rewarded according to both present actions and actions
+taken at previous time steps.
+
+
+In the simplest version of the *MATH* -ship game, only two ships arrive,
+i.e.  *MATH*. A temporal correlation is then implemented through the
+following rewarding scheme: if the agent blocks the first ship, it gets
+a small reward *MATH*, but will not get any reward for neither
+blocking nor not-blocking the second. On the other hand, if it does not
+block the first ship, it will get a larger reward
+*MATH* for blocking the second. Thus the agent has to
+learn to let the first ship pass, despite being rewarded for blocking
+it, and aim at blocking only the second ship.
+
+
+FIGURE 9
+
+
+Fig. 8 shows the performance of the PS agent in
+the simplest 2-ship game. Here, each game is composed of two time steps
+and the games follow each other continuously. We emphasize that from the
+point of view of the agent there is no notion of a distinct game, so
+that all it perceives is a continuing process with ships number one and
+two following one another. The sum of rewards given for both ships is
+plotted as a function of the number of games. One can see that without
+afterglow (*MATH*) the agent cannot reach the high reward, because
+most of the time it greedily blocks the first ship. However, when *MATH* 
+is decreased, the afterglow is turned on, and a higher average reward is
+achieved. This indicates that using the afterglow is indeed beneficial
+for temporally correlated scenarios.
+
+
+Fig. 8 further indicates that below a certain
+value of *MATH*, the performance of the agent deteriorates. This can be
+seen by comparing *MATH* (in blue) to *MATH* (in red). The
+success of afterglow thus depends on the *MATH* parameter (see
+Eq. FORMULA): when *MATH* is too large no memory of edge
+excitations is carried forward to successive steps, whereas when it is
+too small the excitations are never damped. In the later case,
+excitations from all previous steps persist (including previous games!),
+leading to an undesirable circumstance of over memorizing and rewarding
+all clip transitions taken in the past, even though they may be
+unrelated, resembling a state of &quot;confusion\&quot;.
+
+
+FIGURE 10
+
+
+We next consider a general *MATH* -ship game. Here the environment rewards
+the blocking of any of the first *MATH* ships with a small reward of
+*MATH*, but rewards the blocking of the last ship with a large
+reward if and only if all previous ships were let pass.
+Fig. 9 illustrates this rewarding scheme for *MATH*. It can be seen that the
+number of possible paths grows exponentially with *MATH*, which makes the
+problem very hard. We remark that in the *MATH* -ship game we rescale the
+large reward *MATH* so that it remains
+beneficial to block only the last ship. In what follows we use *MATH* and *MATH*.
+
+
+Fig. 10 shows in solid lines the
+performance of PS in the *MATH* -ship game for *MATH*, accompanied with
+dashed lines at 5, 10, and 15, respectively, to indicate the maximal
+achievable reward for each *MATH*. As before, each game is composed of *MATH* 
+time steps, one for each ship. The sum of all rewards given by the *MATH* 
+ships is then plotted as a function of the number of games. For each
+curve, an optimal *MATH* parameter was used. It is seen that for each of
+these curves the asymptotic reward is higher than *MATH* which is the
+maximal achievable reward when a naive greedy strategy is used (and much
+higher than the averaged reward achieved by an untrained agent with
+equiprobable action choice, see caption). This indicates that most of
+the PS agents successfully adopt a non-greedy strategy, even when *MATH* increases.
+
+
+FIGURE 11
+
+
+Fig. 10 further indicates the
+learning time for each *MATH*. It is seen that the learning time roughly
+doubles for each additional layer. Indeed the learning time of PS scales
+exponentially with *MATH* (not shown). This is however to be expected, as
+the problem of merely finding the most rewarded series of actions
+becomes exponentially hard as *MATH* increases (see Fig. 9).
+
+
+The success of PS to learn in temporally correlated scenarios owes
+itself to the afterglow mechanism, which introduces an implicit notion
+of time to the agent&apos;s memory (with no need of an explicit &quot;time
+counter\&quot;). To illustrate better the underlying process, we show in
+Fig. 11 a schematic drawing of the clip
+network, as it is built up during many 3-ship games (see also
+Fig. 9). Percept clips, shown on top, indicate
+the ships numbers, whereas action clips (NB, B), shown at the
+bottom, indicate non-blocking, and blocking actions, respectively. The
+number of clips is thus given by *MATH*: at each round only a single
+percept is encountered and the agent is not supplied with the history of
+its previous actions. A dashed black arrow marks the weakest edge, which
+is never rewarded. Solid black edges are stronger (not necessarily
+equal). They are always rewarded, albeit with small reward *MATH*.
+Last, blue edges are the strongest (not necessarily equal), thereby
+effecting the agent the most. It is seen that for the first two ships
+the edge to the non-blocking action is stronger than the edge to the
+blocking action, even though the blocking action is the rewarded one.
+This is desirable and achieved via strengthening the non-blocking edges
+indirectly after blocking the third ship and getting a large reward.
+It is thus the strength of these two blue edges, whose emergence is not
+trivial and allows the agent to take non-greedy actions that are more
+beneficial in the long run.
+
+
+FIGURE 12
+
+
+The afterglow scheme is however not optimal.
+Fig. 10 also indicates that the
+performance of PS deteriorates as *MATH* increases: more and more agents
+fail to learn to avoid the greedy actions, as reflected in the reduced
+asymptotic values of the achievable rewards, relative to the maximal
+ones. This is because the time length of correlations between different
+actions becomes longer and longer, making it difficult for the PS to
+construct and maintain an optimal clip network. Moreover, when temporal
+correlations extend along many steps, the excitation should persist
+longer before decaying. Hence, we expect an inverse relation between the
+optimal *MATH* value and the length of the temporal correlation.
+
+
+To understand the dependence over the *MATH* parameter in a quantitative
+manner, we plotted the asymptotic averaged reward of the PS agent as a
+function of the *MATH* parameter, for the 2-,3-, and 4-ship game, as
+shown in Fig. 12. We see that indeed an optimal *MATH* value
+exists. It is further seen that each *MATH* -ship game, has a different
+optimal *MATH*, which decreases when *MATH* is increased, as expected.
+
+
+FIGURE 13
+
+
+For comparison, we turn now to study the performance of QL and XCS in
+temporally correlated scenarios (see Appendices 8 and 9,
+respectively). The QL scheme relies on a temporal-difference
+mechanism [*REF*] which allows it to propagate rewards to
+earlier time steps. This makes QL a natural reference scheme to begin
+with. We therefore implemented a QL agent and let it play the *MATH* -ship
+game. To that end we used a Q-function that has *MATH* state-action
+entries, i.e.  for each time step the corresponding ship number is given
+as a state of the environment, for which the agent may take one of two
+actions. The size of the Q-function thus grows linearly with *MATH* in this
+setup. Further, we have chosen QL parameters that are (nearly) optimal
+for that problem, given by a learning rate of *MATH* and a
+discount factor of *MATH* (for parameter definitions see Appendix 8).
+
+
+We found that the QL agent does not perform well in the *MATH* -ship game.
+In particular, the scaling of the maximal reward
+*MATH* is not sufficient and the QL agent
+clings to the less beneficial greedy strategy. This, however, can be
+overcome by rescaling the maximal reward *MATH* even further.
+Fig. 13 shows the averaged
+reward obtained by QL for the *MATH* -ship game with *MATH* where the
+maximal reward is scaled as
+*MATH*. It is seen that
+the QL performance resembles that of PS as shown in
+Fig. 8. QL differs, however, by achieving a
+nearly optimal performance, yet at the cost of very large learning
+times. The scaling of the learning time in QL is exponential too (not
+shown), by an approximated factor of ten for each additional ship (see
+learning times for *MATH* in Fig. 13).
+
+
+FIGURE 14
+
+
+XCS shares many parallels with QL regarding the performance in the
+*MATH* -ship game. The learning curves are qualitatively similar to those of
+QL for the same reward scheme and learning parameters (not shown). For
+our implementation we have used a population of *MATH* classifiers, and
+disabled the genetic algorithm as it only degraded performance.
+Similarly to QL, the XCS requires the scaling up of the reward to learn the non-greedy strategy.
+
+
+Before concluding, we remark that the performance of all three models
+can of course be significantly improved by providing the entire history
+of previous actions to the agent, i.e. by having an explicit
+representation of the past in the agent&apos;s memory. In particular, one can
+associate each possible path of states and actions (see
+Fig. 9) with a percept, a state, or a classifier.
+However, this approach, which is exponentially expensive in space for PS
+and QL, is against the spirit of an embodied (and thus finite) agent
+architecture and trivializes the problem in a way we want to avoid.
+
+
+We conclude that all three models perform qualitatively the same in the
+*MATH* -ship problem. Specifically, in terms of space and time requirements
+they all scale similarly: linear with space and exponential with time.
+Quantitatively, both QL and XCS achieve an optimal efficiency but are
+relatively slow. In addition, the reward must be significantly scaled
+upward to allow for meaningful learning. PS, on the other hand, cannot
+achieve a fully optimal efficiency, due to forgetting, but learns very
+fast due to the afterglow mechanism, as explained above.
+
+
+The *MATH* -ship game with *MATH* actions
+
+
+To add a further complication to the *MATH* -ship game, we now allow for the
+more general case of *MATH* different actions (instead of just two),
+whenever a ship arrives. Against the first ship, all actions are
+rewarded with a small reward *MATH*, except of a single action
+*MATH* which is not rewarded at all. Then for the second ship, half of
+the actions are never rewarded, whereas half of the actions are highly
+rewarded with *MATH*, but only if the unrewarded action *MATH* 
+was previously taken (otherwise, they are not rewarded either). The
+idea, as before, is that in order to maximize the long-term reward, the
+agent must avoid making any of the rewarded actions in the first round,
+to eventually obtain a much larger reward in the second round. The
+agent, however, has now many optional actions at its disposal, making it
+much more difficult and unlikely to make the smart choice per chance and
+act with the single unrewarded action *MATH* against the first ship.
+
+
+In Fig. 14 (top) we show the performance of
+the PS agent for the 2-ship game with *MATH*. Here, each game is
+composed of *MATH* time steps and the sum of all rewards given for both
+ships is plotted as a function of the number of games. It is seen that
+in all cases the asymptotic value is reached within less than 1000
+games, and that more games are needed as the number of available actions
+*MATH* is increased. A dashed line marks the maximum achievable reward of
+15, and it is seen that the asymptotic averaged reward decreases when
+increasing *MATH*. Fig. 14 (middle) shows that this decrease
+of the asymptotic averaged reward is approximately linear for
+*MATH*. For each value of A the asymptotic averaged reward is
+given by averaging over the last 50 games (here averaged over 1000
+agents). In Fig. 14 (bottom) we further show the
+learning time of PS (calculated using 5000 agents) as a function of the
+number of actions, *MATH*. Last, we remark that a single value of *MATH* 
+was used for all *MATH*. This is because in the *MATH* -ship game, for each *MATH* 
+there is a single optimal value of *MATH*, irrespective of *MATH*, since it
+is the value of *MATH* that determines the time length of the correlation.
+Here, where *MATH*, the optimal value of *MATH* turns out to be *MATH*.
+
+
+FIGURE 15
+
+
+Before ending this section we show the performance of QL for the same
+scenario. Here a Q-function of 2 *MATH* entries was used to represent all
+2 *MATH* state-action pairs. The values of *MATH* and *MATH* 
+parameters were chosen to be (nearly) optimal ones.
+Fig. 15 (top) shows the performance of QL
+for the *MATH* -ship game with *MATH*. As before, each game is
+composed of *MATH* time steps and the sum of the two rewards is plotted
+as a function of games. The averaged asymptotic reward is shown in
+Fig. 15 (middle) and the learning time is
+shown as a function of *MATH* in Fig. 15 (bottom).
+
+
+When compared with the performance of PS as shown in
+Fig. 14, it is noted that the asymptotic
+reward decreases in QL rather fast. For example, at *MATH* it is already
+below 7, whereas it is still above 12 for PS. As *MATH* increases further
+the asymptotic average reward decreases toward one, i.e. toward a greedy
+behavior. Because QL achieves very low rewards for large *MATH*, its
+corresponding learning times, as defined in section are no longer indicative. For example, for
+*MATH* the averaged reward of an untrained QL agent is 1.07, reached
+within zero time steps. For this reason we show in
+Fig. 15 (bottom) the corresponding learning
+times only up to *MATH*. It is seen that the learning time of QL
+increases rapidly and reaches almost *MATH* steps for *MATH*,
+whereas it is still below *MATH* for PS. In fact, the learning time of
+PS does not reach *MATH* steps even for *MATH*. This implies
+that even though QL allows for reward to propagate backward to previous
+actions (see Appendix 8), it encounters difficulties when confronted with
+the 2-ship game with increasing number of actions.
+
+
+FIGURE 16
+
+
+Associative memory
+
+
+In this section we investigate the capability of PS to exhibit a notion
+of associative memory, i.e. to relate similar percept-clips to each
+other, and to use these relations to enable a more efficient learning.
+This is a natural feature of PS, whose basic idea has already been
+introduced in the original proposal [*REF*]. Here, we develop
+this idea further. We start with formulating the underlying mechanism of
+&quot;associative memory&quot;. Then, we present scenarios in which efficient
+realization of associative memory is beneficial. We demonstrate the
+success of PS in such scenarios and show that it may perform even better
+when the mechanism of associative memory is combined with a modified
+excitation scheme, which we call &quot;clip glow&quot;. Last, we compare the
+performance of PS to the one of XCS. This comparison is of value because
+the XCS is a method designed specifically to handle problems in which
+similarity in input-space may be exploited (e.g. in classification problems [*REF*]).
+
+
+Basic notion and features 
+
+
+Within PS the notion of associative memory is realized by introducing
+new edges between percept-clips that are considered to be &quot;similar&quot;.
+This is a dynamic process, where edges can be created &quot;on the fly&quot;, at
+each time step. A schematic visualization of a clip network after such
+associative memory has been built is shown in
+Fig. 16. In this simple illustration, it is
+seen that all &quot;left-arrow&quot; (&quot;right-arrow&quot;) percept clips are considered
+similar and are therefore connected to each other (irrespective of their
+color). The entire clip network is then better connected, allowing for
+learning to be shared between the similar percept clips.
+
+
+In what follows we consider two percept clips to be similar, if they
+differ by exactly a single component. In addition, to avoid a situation
+of &quot;prolific association&quot;, i.e. a situation in which associative edges
+are built between clips whose similarity exists along irrelevant
+properties (such as the color property in
+Fig. 16), we provide the PS with a
+predefined &quot;similarity mask\&quot;, that indicates for each component in the
+percept space whether it is a relevant property for association or
+not.
+
+
+FIGURE 17
+
+
+To check the performance of PS when association is enabled, we situated
+the PS agent in an invasion-game in which percepts are given as
+combinations of both shapes and colors, i.e.  *MATH*.
+At each step the agent is confronted with one of four combinations of a
+colored arrow and has to decide whether to go right or left. The hidden
+rewarding scheme is such that only shape matters, regardless of their
+color. Associating percepts with similar shapes but different colors
+might thus be beneficial.
+
+
+Fig. 17 shows the blocking efficiency of the
+PS agent as a function of time steps for this scenario, where at time
+step t=150 the meaning of the symbols is inverted, such that a right
+(left) arrow (colors are of no importance) then indicates that the
+attacker is going to move to the left (right). Three different kinds of
+PS agents are considered: without association (in red), with association
+(in black), and with association + &quot;clip glow\&quot; (in blue). We delay our
+discussion on the concept of &quot;clip glow\&quot; to section
+4.2 and focus here on the performance of the
+first two agent types. It is seen that, as usual (see also section 2.4), the
+asymptotic efficiency is not optimal, due to the use of a non-vanishing
+damping parameter *MATH*. It is, however, interesting to note that the
+asymptotic efficiency is higher when association is enabled, indicating
+that it is indeed useful for the agent. It is further observed that the
+slope of the learning curve is higher when association is used, implying
+that the use of association allows for a shorter leaning time, as
+discussed below. This improvement in the performance is due to the fact
+that when association is enabled the length of the random walk is
+extended, so that more edges may be strengthened at each time step,
+thereby compensating better the effect of the damping (when association
+is not used only a single percept-action edge may be strengthened at a
+time). Last, we note that the better performance obtained when
+association is enabled, persists also when the meaning of the symbols is
+inverted, and has to be relearned.
+
+
+FIGURE 18
+
+
+It turns out that the effect of association is even more pronounced when
+more colors are used by the attacker (meaning that more percept-clips
+can be associated to each other). To see that we show in
+Fig. 18 the resulting learning time as a
+function of color number, where shapes are kept fixed to left- and
+right-arrows. The same three kinds of agents are shown as before, where
+we once again focus only on two kinds, namely with association (in
+black) and without (in red). It is seen that without association, the PS
+learning time scales linearly, whereas for agents with association the
+learning time scaling appears somewhat slower than linear, sufficient to
+exhibit a dramatic reduction in the resulting learning times. We remark
+that the no-association curve obtained here for *MATH* color *MATH*,
+color *MATH* color *MATH* is the same learning curve (up to
+statistical variations) obtained in section
+, when increasing the percept space
+*MATH* shape *MATH*, shape *MATH* shape *MATH* directly (see,
+e.g. the black curve of Fig. 6). The reason for this similarity is
+that when association cannot be exploited, all the percept have to be
+learned independently, regardless of their similarity.
+
+
+FIGURE 19
+
+
+The desirable performance of association comes with a price: more edges
+exist in the ECM network, thus enlarging the random walk process, which
+effectively causes the agent to spend more time on its internal
+simulation before making an action. We denote this internal time as
+&quot;deliberation time&quot; and define it as the number of transitions in the
+clip network taken during the random walk process. When no association
+is exploited, the deliberation time stays constant when increasing the
+color space. However, when association is used, the deliberation time
+increases only linearly with the number of colors (not shown). This is a
+positive finding for the PS, because it suggests that, at least in such
+scenarios, the deliberation time is always finite and that the agent
+never gets stuck in its &quot;internal world&quot;, caught inside an endless loop.
+It is, however, a good practice to set a maximal deliberation time
+beyond which all processing is immediately stopped and a random action
+is chosen, to avoid an undesirably long simulation process. For all
+calculations reported in this paper, the maximal deliberation time was
+set to *MATH*, and was never reached. We further remark that by rewarding
+percept-percept (association) edges stronger than percept-action edges,
+higher efficiency and shorter learning times may be achieved, at the
+price of longer deliberation times. This option was studied previously
+[*REF*] and will not be pursued here.
+
+
+Clip glow 
+
+
+In what follows we show that it is possible to boost the performance of
+the associative memory even further, by introducing a simple
+modification to the update rule of the ECM network (see Eq. FORMULAS), which we denote as clip glow.
+
+
+The idea behind clip-glow is to strengthen not the excited edges
+(i.e. the edges that have been used in a previous random walk process)
+as we have done so far, but rather to reward edges that connect excited
+clips. This is formally realized by assigning a glow parameter
+*MATH* to each clip (instead of edges). At the beginning, *MATH* is
+initialized to zero, and whenever a clip is encountered, its glow
+parameter is set to *MATH*. The corresponding update rule is then given
+by: *MATH*, where *MATH*, and *MATH* are the glow
+parameters assigned to clips *MATH* and *MATH*, respectively. This means
+that a reward is applied to an edge if and only if it connects two
+glowing clips, i.e. clips whose *MATH* values are positive. In principle,
+the glowing value *MATH* may be damped slowly via the same damping rule
+given in Eq. FORMULA. However, since &quot;temporal correlations\&quot; are
+not considered here, we let the clip-glows to completely decay after
+each time step, by setting the corresponding damping parameter *MATH* to one.
+
+
+An important consequence of using clip-glow is that an edge might be
+rewarded even if it was not visited during the random walk! According to
+Eq. FORMULA it is only sufficient that the clips
+connecting these edges were hit. Consider, for example, that during the
+invasion-game with the percept space given by *MATH* 
+the attacker shows a red left arrow. Assume further that the random walk
+takes the following sequence of clips: red left *MATH* blue left
+*MATH* green left *MATH* move left. This sequence is
+rewarded because the correct &quot;left\&quot; action was finally reached. With
+the clip-glow scheme each of these clips is glowing and the reward is
+assigned to all of the following edges:
+
+
+DESCRIPTION
+
+
+which are five more edges than with the edge-glow scheme (where the only
+rewarded edges are: red left *MATH* blue left, blue left
+*MATH* green left, green left *MATH* move left, red left
+*MATH* move left). These additional rewards have significant
+effects on the agent&apos;s performance, especially when the clip-network
+increases.
+
+
+To demonstrate the effect of the clip-glow scheme, we show in
+Figs. 17 and 18 the performance of an agent equipped
+with both associative memory and clip glow (in blue).
+Fig. 17 shows that the resulting asymptotic
+efficiency is higher, whereas
+Fig. 18 shows that learning time is then
+reduced even further. Moreover, the performance is significantly better,
+as the new scaling is much slower than linear: the increase of the
+learning time becomes slower as the color space becomes larger. This is
+because using the clip-glow scheme allows for even more edges to be
+updated and rewarded at each time step, so that the damping is
+compensated further.
+
+
+To further explore the effect of combining the association scheme with
+the notion of clip glow, we put the agent in a scenario of
+ever-increasing percept space: while the number of shapes is kept fixed
+(left and right arrow), the color space is increased after every 200
+steps. Can the agent learn at some point that the color is of no
+importance? Will it learn faster due to its experience with previous
+different colors? Is clip glow of any use in this scenario?
+Fig. 19 shows the performance in such a scenario
+for three different kinds of PS agents: an agent with no associative
+memory (in red), an agent without associative memory but without the use
+of clip glow (in black), and an agent with both associative memory and
+clip glow (in blue). The efficiency of each scheme is shown as a
+function of time steps. It is seen that when association is disabled,
+the efficiency of the agent drops with each additional color, due to the
+use of a non-vanishing damping parameter *MATH*. The agent whose
+associative learning is enabled already does better, reaching much
+higher asymptotic efficiencies. Yet, when the agent can exploit the
+combination of both associative memory and clip glow its performance is
+the best. In particular, the asymptotic efficiency hardly decreases
+after the fifth color and the learning time required for each new color,
+becomes shorter. This desirable behavior is due to the fact that the
+positive effect of the associative network and the clip glow becomes
+more significant, the more colors there are, since learning is then
+shared more efficiently between similar clips.
+
+
+FIGURE 20
+
+
+Comparing to XCS 
+
+
+Extended classifier systems, XCS, is a particularly suitable model for
+scenarios of the type considered in this section, in which associating
+between different inputs is beneficial. This is because XCS can
+generalize inputs, by means of matching the inputs to conditions that
+use &quot;wildcards\&quot;, as shortly described in
+appendix 9. We thus compare the performance of PS, as shown in
+Fig. 19 for the ever-increased percept space
+scenario, where we add an additional color every 200 time steps, to the
+performance of XCS under the same scenario.
+Fig. 20 shows the resulting efficiency of XCS. It
+can be seen that the introduction of additional colors does not
+influence the asymptotic efficiency, but only temporarily disrupts the
+learning and partially causes a relearning for the newly added color.
+This leads the XCS to increasingly disregard color information in the
+input. By the introduction of the third color, the XCS has almost
+reached its asymptotic efficiency and the (re-)learning time for new
+colors is already negligible. This means that by this point the
+classifiers are general enough to handle all colors by means of
+wildcards. We thus conclude that in this scenario the PS performs worse
+than XCS for the lack of a notion of a &quot;wildcard clip\&quot;.
+
+
+FIGURE 21
+
+
+Composition
+
+
+In this section we study the composition aspect of the episodic &amp;
+compositional memory (ECM). Composition is a dynamic process which
+accounts for structural changes in the ECM. In particular, it allows for
+spontaneous formation of new clips in the ECM network, created via
+combinations or variations of existing clips. These new clips may
+represent fictitious episodes that were never perceived before, thereby
+extending the variety of conceivable events and actions that exist in
+the ECM. As a result, the network is less bounded by the actual past of
+the agent. This effectively allows the agent to generate alternative
+options to those it had so far encountered, thereby making it more capable and flexible.
+
+
+The composition feature can be exploited in many different ways. In this
+paper, however, we focus on compositions of action clips only. For
+illustration, consider the problem of a 2-dimensional invasion game,
+where the agent moves on a 2D grid by means of horizontal and vertical
+motors. Assume that at first, the agent is provided only with four basic
+action clips representing &quot;left\&quot;, &quot;right\&quot;, &quot;down\&quot;, and &quot;up\&quot; actions.
+The agent can thus block attackers that move either up/down or
+left/right. Assume further that the attackers can, nevertheless, go
+along diagonal directions and that the agent is partially rewarded when
+it performs one of the four basic actions toward the correct quarter of
+the attacker (e.g. goes left when the attacker goes left and up). Can
+the agent learn under these circumstances to go diagonal and block the attacker?
+
+
+It is interesting to note that from a mechanical perspective there is no
+limitation, and the agent could move in diagonal directions, simply by
+activating both of its motors simultaneously. Nevertheless, the agent
+has no means to even conceive of the mere possibility of doing that, for
+the lack of a corresponding action clip. The composition feature then
+remedies this situation by allowing the creation of new action clips
+corresponding to diagonal motion.
+
+
+There are various possibilities of defining clip merging and variation.
+Here we generalize the procedure suggested in the original proposal
+[*REF*], where composition of 2-dimensional action clips was
+studied, and define composition mechanism for *MATH* -dimensional action
+clips, as formally described below:
+- Two action clips *MATH* and
+*MATH* are composed into new action
+clips if and only if: (a) Both corresponding actions were
+sufficiently rewarded for the same percept; and (b) Action clips
+*MATH* and *MATH* differ by exactly two components. Formally,
+condition (a) implies that action clips *MATH* and *MATH* are both
+connected to the same percept clip, with edges of large enough
+*MATH* -value, i.e.  *MATH* and
+*MATH* for a given threshold value *MATH*.
+- When the parental action clips *MATH* and *MATH* differ in their
+*MATH* and *MATH* components, the composition can result in two
+composed clips: *MATH* and *MATH*.
+- A new clip is created only if it is not already present in the ECM.
+- New action clips are to be connected to the corresponding percept
+clip *MATH* with *MATH* -values that are given by the sum of the original *MATH* -values: *MATH*.
+In addition, the new action clips will be connected (at the
+receiving end), to all other percept clips with an initial *MATH* -value
+of 1.
+
+
+In what follows we study the performance of composition in a 4D invasion
+game. Here, the action space is composed of 4 motors *MATH* 
+where each motor *MATH* can go forward (+1), backward (-1) or stay still
+(0), yielding a *MATH* action space of 81 possible
+actions. There are 8 actions, which we denote as basic actions, for
+which only one of the motors is active (i.e. with value of *MATH*). At
+the beginning, the attacker shows any of eight possible symbols
+*MATH*, denoted &quot;basic symbols\&quot; as they indicate motions along
+one coordinate only. The defender is supplied with eight basic
+action-clips with which it can successfully block the attacker. Consider
+now a scenario in which the attacker suddenly changes strategy and
+starts to show an unfamiliar symbol, which indicates its subsequent
+motion along the *MATH* diagonal, that is, a forward movement in
+all dimensions. What will the agent do?
+
+
+We assume that once the attacker has changed its strategy, it shows only
+the new &quot;diagonal symbols\&quot; in all subsequent rounds (this assumption is
+made for simplicity - removing it would make the learning process less
+transparent, yet with no significant qualitative insight). We further
+assume that the rewarding scheme (summarized in Table 1) accounts also for partial success
+of the agent: first, all the basic four &quot;forward actions\&quot; (i.e. with
+one of the *MATH* being *MATH*) are rewarded with *MATH*; and second,
+all composite actions (i.e. non-basic actions), are rewarded
+proportionally to the sum of their motions, given by
+*MATH*. This ensures that actions that are partially
+successful are rewarded in direct proportionality with their success,
+corresponding to similar scenarios in real-life where combined sets of
+actions are rewarded more than their subsets, as is the case, for
+example, in the darts game, where the agent must aim its arrow both
+horizontally and vertically, on top of being close enough to the target plate.
+
+
+Fig. 21 illustrates parts of the ECM network
+as built up, using composition for this rewarding scheme. Four different
+strengths of edges are depicted: weakest (dashed arrow), pointing to the
+four basic backward action clips; stronger (thin black), pointing to the
+four basic forward action clips; even stronger (thick black), pointing
+to composite partially successful action clips; and the strongest (in
+blue), pointing to the most rewarded &quot;diagonal\&quot; action clip. It is
+illustrated that when *MATH*, only rewarded edges are enabled to
+combine into new composite action clips.
+
+
+FIGURE 22
+
+
+Fig. 22 shows the average reward reached by
+PS as a function of the number of time steps, immediately after the
+attacker started to show the &quot;diagonal\&quot; symbol. When composition is
+disabled (in black) the agent is only able to perform the basic 8
+actions, which allows for obtaining (occasionally) a maximal reward of
+only   *MATH*, therefore resulting with a low average reward. Allowing
+composition with a minimal threshold of *MATH* (in blue) results
+with a much higher average reward. However, using the minimal threshold
+of *MATH*, causes the creation of all possible composite actions
+from the very beginning, that is, before the new &quot;diagonal\&quot; percept is
+even perceived. This excessive mode of composition has two distinct
+drawbacks: first, it requires the creation of all (exponentially many)
+action clips, which may not be feasible for larger spaces; and second,
+too many unrewarded action-clips are being created, leading potentially
+to a non-optimal average reward.
+
+
+Fig. 22 further shows that a higher average
+reward is achieved by setting *MATH* (and *MATH*, in
+green). To that end any *MATH* will do. Adding *MATH* 
+prevents a default creation of &quot;second order\&quot; composite clips (composed
+of composite clips), and reduces the number of non-rewarded actions that
+are being composed. In fact, it turns out that when a threshold of
+*MATH* is used, only about 10 action clips are created on
+average. This is a significant reduction compared to *MATH* action clips
+that are immediately created when the minimal threshold *MATH* is
+employed. In more involved scenarios, where larger action space are
+exploited, a selective clip-composition may become vital. We remark that
+a too high threshold *MATH* would deteriorate the agent&apos;s performance
+with respect to the achievable reward (not shown), implying the
+existence of an optimal value for the composition threshold *MATH*.
+Fig. 22 further indicates that the desirable
+features of selective clip-composition when using *MATH* come at
+the cost of longer learning times. This is inevitable, as the process of
+selective composition is done according to the agent&apos;s experience, which
+takes time. This implies that there is a trade-off between higher
+reward, economical space usage, and learning time.
+
+
+TABLE
+
+
+Finally, we note that when *MATH* is set to zero, i.e. when no damping
+is involved, the average reward drops down (in red). This is because the
+agent is being rewarded for actions that are only partially successful.
+In the absence of damping, the edges leading to this partially
+successful action-clips can only be strengthened but never damped. This
+means that the probability to choose these actions increases with time,
+to the extent that eventually no other actions are chosen. In
+particular, when the threshold is higher then *MATH*, the &quot;diagonal\&quot;
+action clip is never created, and the agent&apos;s performance is effectively
+stuck in a local minima. This is an interesting feature as it emphasizes
+once again the importance of damping, also for rewarded edges (see
+section 2.4).
+
+
+FIGURE 23
+
+
+FIGURE 24
+
+
+Finally we compare the composition feature to XCS. The genetic
+algorithm, which is part of the XCS, is capable of performing a role
+similar to that of composition in the PS by mutating and combining well
+performing input-actions pairs, thereby creating new ones. We remark,
+however, that in our reference implementation, mutations are the only
+way allowed for creating new actions (crossover of actions is not
+employed because here the genetic algorithm acts on the &quot;action set&quot;).
+Thereby, in a successful input-action pair, new composite actions can be
+obtained by randomly changing (mutating) the individual motor actions
+*MATH* of the composite action. For the same reward scheme as used for
+the PS in Fig. 22, the XCS performs similarly, with
+comparable learning times and efficiencies as shown in Fig. 23.
+
+
+Last, we remark that in the XCS the population size of classifiers is
+limited, so that unsuccessful classifiers are eventually removed. This
+feature of removing unrewarded actions may straightforwardly be adopted to PS.
+
+
+Model simplicity 
+
+
+The PS approach is distinct in its aim for a physical (and embodied)
+realization rather than a computational one. Ultimately, all
+computational steps are to be realized by stochastic processes, and the
+underlying mechanism should be as simple as possible.
+
+
+In this section we thus compare PS with the models of QL and XCS in
+terms of their conceptual and procedural simplicity. In particular, we
+focus on the number of parameters involved in each scheme, the basic
+data structures that have to be realized, and the inherent processes
+that should be carried out.
+
+
+Starting with the number of parameters involved in each scheme, Table 2
+lists all the required parameters that have to be set for PS. Here we
+also consider different choices that have to be made, e.g. &quot;edge-glow\&quot;
+vs. &quot;clip-glow\&quot; for PS. Although not a parameter in the strict sense,
+one has still to decide, which option should be used for a certain
+problem. It is seen that all in all PS has 6 parameters. QL is more
+economical with only 3-4 parameters (see appendix 8), whereas XCS
+requires the tuning of about 13 parameters (see appendix 9), out of which
+6 are the most problem-dependent.
+
+
+TABLE
+
+
+The realization of each model on a computer would require the
+implementation of different kinds of data structures and computational
+processes. Within PS, the basic ingredient is the ECM network. In
+particular, a dynamic network of connected clips has to be implemented.
+Two main processes are then to be realized to perform a single time
+step: (a) a random walk through the ECM network, to reach an action
+after observing a percept, and (b) updating the strength of all involved
+edges in the ECM, once receiving a reward. From a complexity point of
+view, the number of operations involved at each time step is of the
+order of the number of edges that exist in the ECM.
+
+
+The QL approach relies on the Q-function, i.e. an array or a table, as
+its main data structure. At each time step the choice of an action
+according to a softmax or a greedy policy has to be implemented,
+preferably using a binary search, and once a reward is given, single
+entry in the Q-function should be updated, as well as all the
+state-action probabilities *MATH* for the current state *MATH*.
+Complexity-wise these amounts to the order of *MATH* operations at each
+time step, where *MATH* is the number of available actions.
+
+
+Last, the XCS scheme is based upon the availability of many (hundreds or
+more, for the simple problems we have studied here) individual
+classifiers, where to perform a single time step, all classifiers have
+to be checked, whether they match or not. This results in a so called
+&quot;matching set\&quot; that is potentially large. The selection process then
+takes several parameters of each classifier in the matching set into
+account (e.g. fitness, predicted reward, accuracy, etc.) and chooses a
+single action, which determines the &quot;action set\&quot;. When reward is
+assigned, the entire action set is updated, changing all the parameters
+of these classifiers. Afterwards, a genetic algorithm may be invoked,
+performing parent selection from the action set and creation of new
+classifiers by means of mutation and crossover. In total, each time step
+of XCS requires number of operations that is of the order of the number
+of classifiers being used.
+
+
+This simple analysis implies that while QL is a direct and economical
+approach, the XCS model is (by far) more involved. We argue that, from a
+complexity point of view, PS positions itself in between QL and XCS, yet
+closer to QL, in terms of simplicity and required resources. Its concept
+of an ECM network is more complicated and requires more space than a
+plain Q-function, and yet it is much simpler than the notion of
+classifiers. The random walk process, that is inherent to PS, is also
+relatively simple and straightforward. We therefore believe that PS
+provides an appropriate platform for an embodied realization of an AI agent.
+
+
+Conclusion
+
+
+In this paper we studied the model of PS, as a novel approach to
+artificial intelligence: we analyzed its learning features in a variety
+of scenarios and compared its performance with those of QL and XCS.
+
+
+In our investigation we first focused on the learning features of the
+model, namely its asymptotic efficiency and its learning times. In
+particular, we were able to analytically estimate the asymptotic
+efficiency and the initial slope of the learning curves, for simple
+problems such as the invasion game. In addition, we studied the scaling
+behaviour of the model, where we showed that the learning time of PS
+scales linearly with either the input or action spaces, for the same
+problem.
+
+
+Next we confronted the PS agent with different classes of prototypical
+scenarios, each of its own nature, thus demonstrating different aspects
+of its learning capabilities. Three types of scenarios were studied: (a)
+temporal correlation scenarios, where present rewards may depend on
+actions done in the past; (b) scenarios for which similarities between
+different percepts can be exploited; and (c) scenarios for which the
+environment varies, in such a way that new actions are required to
+maximize the reward. For each of these three different learning classes
+we showed that the PS agent can reach a satisfactory level of success.
+In addition, for each class, we challenged the agent with learning tasks
+of increasing difficulty. There too, we could show that the PS agent
+performs well. This result is encouraging.
+
+
+It is important to note, that irrespective of specific scenario, the
+basic mechanism of the learning process is always the same: a random
+walk over network of clips connected with edges whose strength changes
+dynamically, due to environmental reward. This is a computationally
+simple, yet flexible mechanism that can be easily modified and extended.
+Indeed, to allow the agent to perform well in the above learning
+scenarios, several such extensions were made. First, we have introduced
+the notion of afterglow, with which edge excitations in the ECM may
+decay slowly, thereby allowing rewards to propagate backward in time.
+The PS agent can then correlate between actions of different times and
+achieve higher rewards in temporally correlated scenarios, that is
+problems of the first class. Next, we have demonstrated how associative
+memory, i.e. the ability to spontaneously create edges between similar
+percept clips, provides the PS agent with the ability to associate
+between similar percepts to speed up learning. This ability is of value
+for scenarios of the second class. Moreover, it was shown that combining
+associative memory with the notion of clip glow, according to which
+edges between all visited clips are rewarded, can boost the agent&apos;s
+performance even further. Last, the notion of composition was
+explored. Here, the agent is equipped with a mechanism that allows the
+formation of new, potentially better rewarded, action clips, by
+combining old ones. This formation is done dynamically, thereby
+providing the agent with means for surviving in varying environments,
+where new or more complex actions may be needed.
+
+
+Throughout the paper, we compared the performance of PS with those of QL
+and XCS, where we put our focus on achievable asymptotic efficiencies
+and learning times. Initially we showed that for simple scenarios such
+as the invasion game, the performances of all three models are
+comparable. We then compared the performances of the models for each
+type of the above learning scenarios, where between QL and XCS, only the
+leading model was used as a reference.
+
+
+For problems of class (a) (&quot;temporal correlations\&quot;), all models showed
+a learning behavior that was qualitatively same. Yet, important
+quantitative differences were noticed: First, for the *MATH* -ship game,
+both QL and XCS were relatively slow and required a significant
+rescaling of the reward to allow for meaningful learning. PS, on the
+other hand, was fast but could not achieve a complete optimal
+performance, due to its forgetfulness. Second, for the *MATH* -ship game
+with *MATH* actions, the asymptotic reward of QL (with optimal parameters)
+decreased rapidly and the learning times increased very fast. The
+performance of PS in this case is therefore quantitatively the best.
+
+
+For problems of class (b) (&quot;associative memory\&quot;), XCS performs better
+than PS. Nevertheless, PS can reach an almost optimal efficiency,
+despite using a non-vanishing forgetting parameter, and performs very
+well (better than linear) with respect to learning times. Last, problems
+of class (c) (&quot;composition\&quot;), both PS and XCS are qualitatively the
+same. We note that for both association and composition problems, QL
+lacks a suitable machinery and hence cannot perform well.
+
+
+We conclude that except of the case of association problems (class (b)),
+where XCS performs better than PS, the performance of PS is found to be
+comparable to the other models, and even quantitatively better as is
+shown for the 2-ship game with *MATH* actions. Importantly, we note that
+there is no single model that outperforms the other models in all cases,
+and that except of PS, only the XCS model is flexible enough to
+well-perform in all three scenarios, wheras QL is more rigid and cannot
+perform well in problems of classes (b) and (c).
+
+
+Last, but not least, we showed that in terms of simplicity, PS is a
+promising model. With at most six tunable parameters, relatively
+primitive network structure, and a direct random walk process, it is
+only a bit more involved than the QL model, but much simpler than the XCS approach.
+
+
+We thus conclude that projective simulation, a model for AI that aims at
+a physical realization in embodied agents, has its own strengths and
+limitations. In particular, it stands out as a competitive AI model for
+solving reinforcement learning problems, that is both simple and
+flexible at the same time.

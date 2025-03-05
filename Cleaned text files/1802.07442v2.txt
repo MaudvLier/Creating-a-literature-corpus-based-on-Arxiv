@@ -1,0 +1,611 @@
+Learning to Play With Intrinsically-Motivated, Self-Aware Agents
+
+
+Introduction
+
+
+Truly autonomous artificial agents must be able to discover useful
+behaviors in complex environments without having humans present to
+constantly pre-specify tasks and rewards. This ability is beyond that of
+today&apos;s most advanced autonomous robots. In contrast, human infants
+exhibit a wide range of interesting, apparently spontaneous, visuo-motor
+behaviors --- including navigating their environment, seeking out and
+attending to novel objects, and engaging physically with these objects
+in novel and surprising ways [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+In short, young children are excellent at playing --- &quot;scientists in the
+crib&quot; [*REF*] who create, intentionally, events that
+are new, informative, and exciting to them [*REF*; *REF*]. 
+Aside from being fun, play behaviors are an active learning process
+[*REF*], driving self-supervised learning of representations underlying 
+sensory judgments and motor planning [*REF*; *REF*; *REF*].
+
+
+FIGURE 
+
+
+But how can we use these observations on infant play to improve
+artificial intelligence? AI theorists have long realized that playful
+behavior in the absence of rewards can be mathematically formalized via
+loss functions encoding intrinsic reward signals, in which an agent
+chooses actions that result in novel but predictable states that
+maximize its learning [*REF*]. These ideas rely
+on a virtuous cycle in which the agent actively self-curricularizes as
+it pushes the boundaries of what its world-model-prediction systems can
+achieve. As world-modeling capacity improves, what used to be novel
+becomes old hat, and the cycle starts again.
+
+
+Here, we build on these ideas using the tools of deep reinforcement
+learning to create an artificial agent that learns to play. We construct
+a simulated physical environment inspired by infant play rooms, in which
+an agent can swivel its head, move around, and physically act on nearby
+visible objects (Fig. 1). Akin to challenging video game tasks
+[*REF*], informative interactions in this environment
+are possible, but sparse unless actively sought by the agent. However,
+unlike most video game or constrained robotics environments, there is no
+extrinsic goal to constrain the agent&apos;s action policy. The agent has to
+learn about its world, and what is interesting in it, for itself.
+
+
+In this environment, we describe a neural network architecture with two
+interacting components, a world-model and a self-model, which are
+learned simultaneously. The world-model seeks to predict the
+consequences of agent&apos;s actions, either through forward or inverse
+dynamics estimation. The self-model learns explicitly to predict the
+errors of the world-model. The agent then uses the self-model to choose
+actions that it believes will adversarially challenge the current state
+of its world-model.
+
+
+Our core result is the demonstration that this intrinsically-motived
+self-aware architecture stably engages in a virtuous reinforcement
+learning cycle, spontaneously discovering highly nontrivial cognitive
+behaviors - first understanding and controlling self-generated motion
+of the agent (&quot;ego-motion&quot;), and then selectively paying attention to,
+and eventually organizing, objects. This learning occurs through an
+emergent active self-supervised process in which new capacities arise at
+distinct &quot;developmental milestones&quot; like those in human infants.
+Crucially, it also learns visual encodings with substantially improved
+transfer to key visual scene understanding tasks such as object
+detection, localization, and recognition and learns to predict physical
+dynamics better than a number of strong baselines. This is to our
+knowledge the first demonstration of the efficacy of active learning of
+a deep visual encoding for a complex three-dimensional environment in a
+purely self-supervised setting. Our results are steps toward
+mathematically well-motivated, flexible autonomous agents that use
+intrinsic motivation to learn about and spontaneously generate useful
+behaviors for real-world physical environments.
+
+
+Related Work Our work connects to a variety of existing ideas in
+self-supervision, active learning, and deep reinforcement learning.
+Visual learning can be achieved through self-supervised auxiliary tasks
+including semantic segmentation [*REF*], pose estimation [*REF*], 
+solving jigsaw puzzles [*REF*], colorization [*REF*], and rotation 
+[*REF*]. Self-supervision on videos frame prediction [*REF*] is
+also promising, but faces the challenge that most sequences in recorded
+videos are &quot;boring&quot;, with little interesting dynamics occurring from one
+frame to the next.
+
+
+In order to encourage interesting events to happen, it is useful for an
+agent to have the capacity to select the data that it sees in training.
+In active learning, an agent seeks to learn a supervised task using
+minimal labeled data [*REF*; *REF*]. Recent methods
+obtain diversified sets of hard examples [*REF*; *REF*], 
+or use confidence-based heuristics to determine when to query for more 
+labels [*REF*]. Beyond selection of examples from a pre-determined set, 
+recent work in robotics [*REF*; *REF*; *REF*; *REF*]
+study learning tasks with interactive visuo-motor setups such as robotic
+arms. The results are promising, but largely use random policies to
+generate training data without biasing the robot to explore in a
+structured way.
+
+
+Intrinsic and extrinsic reward structures have been used to learn
+generic &quot;skills&quot; for a variety of tasks [*REF*; *REF*; *REF*].
+*REF* demonstrated that reasonable exploration-exploitation
+trade-offs can be achieved by intrinsic reward terms formulated as
+information gain. *REF* use information gain maximization
+to implement artificial curiosity on a humanoid robot.
+*REF* combine intrinsic motivation with hierarchical
+action-value functions operating at different temporal scales, for
+goal-driven deep reinforcement learning. *REF* formulate
+surprise for intrinsic motivation as the KL-divergence of the true
+transition probabilities from learned model probabilities.
+*REF* use a generator network, which is optimized using
+adversarial training to produce tasks that are always at the appropriate
+level of difficulty for an agent, to automatically produce a curriculum
+of navigation tasks to learn. *REF* show that
+target tasks can be improved by using auxiliary intrinsic rewards.
+
+
+Oudeyer and colleagues
+
+
+[*REF*; *REF*; *REF*] have explored formalizations of curiosity as maximizing
+prediction-ability change, showing the emergence of interesting
+realistic cognitive behaviors from simple intrinsic motivations. Unlike
+this work, we use deep neural networks to learn the world-model and
+generate action choices, and co-train the world-model and self-model,
+rather than pre-training the world-model on a separate prediction task
+and then freezing it before instituting the curious exploration policy.
+*REF* uses curiosity to antagonize a future prediction signal
+in the latent space of a inverse dynamics prediction task to improve
+learning in video games, showing that intrinsic motivation leads to
+faster floor-plan exploration in a 2D game environment. Our work differs
+in using a physically realistic three-dimensional environment and shows
+how intrinsic motivation can lead to substantially more sophisticated
+agent-object behavior generation (the &quot;playing&quot;). Underlying the
+difference between our technical approach is our introduction of a
+self-model network, representing the agent&apos;s awareness of its own
+internal state. This difference can be viewed in RL terms as the use of
+a more explicit model-based architecture in place of a model-free setup.
+
+
+Unlike previous work, we show the learned representation transfers to
+improved performance on analogs of real-world visual tasks, such as
+object localization and recognition. To our knowledge, a self-supervised
+setup in which an explicitly self-modeling agent uses intrinsic
+motivation to learn about and restructure its environment has not been
+explored prior to this work.
+
+
+Environment and Architecture 
+
+
+Interactive Physical Environment. Our agent is situated in a
+physically realistic simulated environment (black in Fig.)
+built in Unity 3D (Fig.). Objects in the environment interact according
+to Newtonian physics as simulated by the PhysX engine
+[*REF*]. The agent&apos;s avatar is a sphere that swivels in
+place, moves around, and receives RGB images from a forward-facing
+camera (as in Fig.). The agent can apply forces and torques in all
+three dimensions to any objects that are both in view and within a fixed
+maximum interaction distance *MATH* of the agent&apos;s position. We say
+that such an object is in a play state, and that a state with such an
+object is a play state. Although the floor and walls of the
+environment are static, the agent and objects can collide with them. The
+agent&apos;s action space is a subset of *MATH* . The first *MATH* 
+dimensions specify ego-motion, restricting agent movement to
+forward/backward motion *MATH* and horizontal planar rotation
+*MATH*, while the remaining *MATH* dimensions specify the forces
+*MATH* and torques *MATH* applied to *MATH* objects sorted from the 
+lower-leftmost to the upper-rightmost object
+relative to the agent&apos;s field of view. All coordinates are bounded by
+constants and normalized to be within *MATH* for input into models
+and losses. In this setup, both the observation space (images from the
+3d rendering) and action space (ego-motion and object force application)
+are continuous and high-dimensional, complicating the challenges of
+learning the visual encoding and action policy.
+
+
+Agent Architecture. Our agent consists of two simultaneously-learned
+components: a world-model and a self-model (Fig.). The world-model 
+seeks to solve one or more dynamics prediction problems based on 
+inputs from the environment. The self-model seeks to estimate the 
+world-model&apos;s losses for several timesteps into the future, as a 
+function both of visual input and of potential agent actions. 
+An action choice policy based on the self-model&apos;s output chooses 
+actions that are &quot;interesting&quot; to the world-model. In this work, 
+we choose perhaps the simplest such motivational mechanism, using 
+policies that try to maximize the world-model&apos;s loss. In part as 
+a review of the key issues of prediction error-based curiosity
+[*REF*; *REF*; *REF*; *REF*], we now formalize these ideas mathematically.
+
+
+FIGURE
+
+
+World-Model: At the core of our architecture is the world-model
+--- e.g. the neural network that attempts to learn how dynamics in the
+agent&apos;s environment work, especially in reaction to the agent&apos;s own
+actions. Finding the right dynamics prediction problem(s) to set as the
+agent&apos;s world-modeling goal is a nontrivial challenge.
+
+
+Consider a partially observable Markov Decision Process (POMDP) with
+state *MATH*, observation *MATH*, and action *MATH* . In our agent&apos;s
+situation, *MATH* is the complete information of object positions,
+extents, and velocities at time *MATH*; *MATH* is the images rendered by the
+agent-mounted camera; and *MATH* is the agent&apos;s applied ego-motion,
+forces and torques vector. The rules of physics are the dynamics which
+generate *MATH* from *MATH* and *MATH* . Agents make decisions about
+what action to take at each time, accumulating histories of observations
+and actions. Informally, a dynamics prediction problem is a pairing of
+complementary subsets of data --- &quot;inputs&quot; and &quot;outputs&quot; --- generated
+from the history. The goal of the agent is to learn a map from inputs to
+outputs. More precisely, adopting the notation *MATH* and similarly
+for actions and states, we let D (the &quot;data&quot;) be fixed-time-length
+segments of history *MATH*. A dynamics prediction problem
+(Figure) is then defined by specifying (possibly time-varying) maps
+*MATH* and *MATH* for some specified input and output spaces 
+In and Out, forming a triangular diagram.
+
+
+FIGURE
+
+
+Also given as part of the dynamics prediction problem is a loss *MATH* for
+comparing ground-truth versus estimated outputs. The agent&apos;s
+world-model at time *MATH* is a map *MATH* 
+whose parameters are updated by stochastic gradient descent in order to
+lower *MATH* . In words, the agent&apos;s world-model (blue in
+Fig.) tries to learn to reconstruct the true-value
+from the input datum. Note that batches of data on which this update
+occurs are not drawn from any fixed distribution since they come from
+the history of an agent as it executes its policy, and hence this
+learning process does not correspond to a traditional statistical
+learning optimization.
+
+
+Since we are focused on agents learning from an environment without
+external input, the maps *MATH* and *MATH* should in general be easy
+for the agent to estimate at low cost from its &quot;sense data&quot; --- what is
+sometimes called self-supervision [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+For example, perhaps the most natural dynamics problem to assign to the
+agent as the goal of its world-model is forward dynamics prediction,
+with input *MATH* and true-value *MATH* . In
+words, the agent is trying to predict the next (several) observation(s)
+given past observations and a sequence (past and present) of actions. In
+3-D physical domains such as ours, the outputs correspond to *MATH* bitmap
+image arrays of future frames, and the loss function *MATH* may be
+*MATH* loss on pixels or some discretization thereof. Despite recent
+progress on the frame prediction problem [*REF*; *REF*], it remains 
+quite challenging, in part because the dimensionality of the true-value space is so large.
+
+
+In practice, it can be substantially easier to solve inverse dynamics
+prediction, with input *MATH* and true-value *MATH* . In other words, 
+the agent is trying to &quot;post-dict&quot; the
+action needed to have generated the observed sequence of observations,
+given knowledge of its past and future actions. Here, the loss function
+*MATH* is computed on (what is generally the comparitively
+low-dimensional) action space, a problem that has proven tractable
+[*REF*; *REF*].
+
+
+One major concern in intrinsic motivation, in particular when the
+agent&apos;s policy attempts to maximize the world-model&apos;s loss, is when the
+dynamics prediction problem is inherently unpredictable. This is
+sometimes referred to (perhaps in less generality than in what we
+proceed to define) as the white-noise problem *REF* 
+[*REF*]. In cases where the agent&apos;s policy attempts to maximize the 
+world-model&apos;s loss, the agent is motivated to
+fixate on the unlearnable. Within the above framework, this problem
+manifests in that there is no requirement that *MATH* and *MATH* 
+actually induce a well-defined mapping *MATH* that makes the 
+diagram above commute. We refer to the existence of policies for which
+there are obstructions to such a commuting diagram, with nonzero
+probability, as degeneracy in the dynamics prediction problem. In
+fact, the inverse dynamics problem can suffer from substantial
+degeneracy. Consider the case of an agent pressing an object straight
+into the ground: no matter what the downward force is, the object does
+not move, so the vision and action input information is insufficient to
+determine the true-value.
+
+
+To avoid both of these pixel space and degeneracy difficulties, one can
+instead try forward dynamics prediction, but in a latent space --- for
+example, the latent space determined by an encoder for inverse dynamics
+problem [*REF*]. In this case, we begin with a system solving
+the inverse dynamics prediction problem and assume that its
+parametrization of world-model factors into a composition
+*MATH* where *MATH* and *MATH* are non-overlapping sets of parameters.
+We call *MATH* the encoding and the range of *MATH* the latent space 
+*MATH* of the ID problem. On top, we define (time-varying) *MATH* as the
+1-time-step future prediction problem on trajectories in *MATH* 
+given by the time-varying encoding, i.e. by *MATH* and
+*MATH* . The problem is then supervised by *MATH* loss. 
+The inverse-prediction world-model *MATH* and latent-space world-model 
+*MATH* evolve simultaneously. If *MATH* is sufficiently low 
+dimensional, this may be a good compromise task that represents 
+only &quot;essential&quot; features for prediction.
+
+
+In this work, we explore both inverse dynamics and latent space future
+prediction tasks.
+Explicit Self-Model: In the strategy outlined above, the agent&apos;s
+action policy goal is to antagonize its world-model. If the agent
+explicitly predicts its own world-model loss *MATH* incurred at
+future timesteps as a function of visual input and current action, a
+simple antagonistic policy could simply seek to maximize *MATH* 
+over some number of future timesteps. Embodying this idea, the
+self-model *MATH* (red in Fig.) is given *MATH* and a proposed next
+action *MATH* and predicts *MATH* where *MATH* is the probability that the loss
+incurred by the world-model at time *MATH* will equal *MATH* . For
+convenience of optimization, we discretize the losses into loss bins
+*MATH*, so that each *MATH* is a probability distribution
+over discrete classes *MATH* . *MATH* is penalized
+with a softmax cross-entropy loss for each *MATH* and averaged over
+*MATH* . All future losses aside from the first one
+depend on future actions taken, and the self-model hence needs to
+predict in expectation over policy. Each *MATH* 
+can be interpreted as a map over action space which turns out to be
+useful for intuitively visualizing what strategy the agent is taking in
+any given situation (see Figure).
+
+
+Adversarial Action Choice Policy: The self-model provides, given
+*MATH* and a proposed next action *MATH*, *MATH* probability
+distributions *MATH* . The agent uses a simple mechanism to convert this
+data to an action choice. To summarize loss map predictions over times
+*MATH*, we add expectation values: *MATH* The agent&apos;s action policy 
+is then given by sampling with respect to a Boltzmann distribution
+*MATH* with fixed hyperparameter *MATH* .
+
+
+FIGURE 
+
+
+Architectures and Losses: We use convolutional neural networks to
+learn both world-models *MATH* and self-models *MATH* .
+In the experiments described below, these have an encoding structure
+with a common architecture involving twelve convolutional layers,
+two-stride max pools every other layer, and one fully-connected layer,
+to encode observations into a lower-dimensional latent space, with
+shared weights across time. For the inverse dynamics task, the top
+encoding layer of the network is combined with actions
+*MATH*, fed into a two-layer fully-connected
+network, on top of which a softmax classifier is used to predict action
+*MATH* . For the latent space future prediction task, the top
+convolutional layer of *MATH* is used as the latent
+space *MATH*, and the latent model *MATH* is parametrized by a 
+fully-connected network that receives, in addition to past encoded 
+images, past actions. In the ID-only case (ID-SP), we optimize *MATH* . In
+the LF case (LF-SP), we optimize *MATH* . See supplementary for details.
+
+
+Experiments
+
+
+We randomly place the agent in a square 10 by 10 meter room, together with up to two other objects
+with which the agent can interact, setting the maximum interaction
+distance *MATH* to 2 meters. The objects are drawn from a set of 16
+distinct geometric shapes, e.g. cones, cylinders, cuboids, pyramids, and
+spheroids of various aspect ratios. Training is performed using 16
+asynchronous simulation instances [*REF*], with different
+seeds and objects. The scene is reinitialized periodically, with time of
+reset randomly chosen between *MATH* to *MATH* steps. Each
+simulation maintains a data buffer of 250 timesteps to ensure stable
+training [*REF*]. For model updates two
+examples are randomly sampled from each of the 16 simulation buffers to
+form a batch of size 32. Gradient updates are performed using the Adam
+algorithm [*REF*], with an initial learning rate of *MATH* .
+See the supplement for tests of the stability of all results to
+variations in interaction radius *MATH*, room size, and agent speed,
+as well as per-object-type behavioral breakdowns.
+
+
+For each experiment, we evaluate the agents&apos; abilities with three types
+of metrics. We first measure the (i) spontaneous emergence of novel
+behaviors, involving the appearance of highly structured but
+non-preprogrammed events such as the agent attending to and acting upon
+objects (rather than just performing mere self-motion), engaging in
+directed navigation trajectories, or causing interactions between
+multiple objects. Finding such emergent behaviors indicates that the
+curiosity-driven policies generate qualitatively novel scenarios in
+which the agent can push the boundaries of its world-model. For each
+agent type, we also evaluate (ii) improvements in dynamic task
+prediction in the agents&apos; world-models, on challenging held-out
+validation data constructed to test learning about both ego-motion
+dynamics and object physical interactions. Finding such improvements
+indicates that the data gleaned from the novel scenarios uncovered by
+intrinsic motivation actually does improve the agents&apos; world-modeling
+capacities. Finally, we also evaluate (iii) task transfer, the ability
+of the visual encoding features learned by the curious agents to serve
+as a general basis for other useful visual tasks, such as object
+recognition and detection.
+
+
+Control models: In addition to the two curious agents, we study
+several ablated models as controls. ID-RP is an ablation of ID-SP in
+which the world-model trains but the agent executes a random policy,
+used to demonstrate the difference an active policy makes in world-model
+performance and encoding. IDRW-SP is an ablation of ID-SP in which the
+policy is executed as above but with the encoding portion of the
+world-model frozen with random weights. This control measures the
+importance of having the action policy inform the deep internal layers
+of the world model network. IDRW-RP combines both ablations.
+
+
+Emergent behaviors
+
+
+Using metrics inspired by the developmental psychology literature, we
+quantify the appearance of novel structured behaviors, including
+attention to and acting on objects, navigation and planning, and ability
+to interact with multiple objects. In addition to sharp stage-like
+transitions in world-model loss and self-model evaluations, to quantify
+these behaviors we measure play state frequency and (in the case of
+multiple objects) the average distance between the agent and objects. We
+compute these quantities by averaging play state count and distance
+between objects, respectively, over the three simulation steps per batch
+update. Quantities presented below are aggregates over all 16 simulation
+instances unless otherwise specified.
+
+
+Object attention. Fig. 1a shows the total training loss curves
+of the ID-SP, LF-SP models and baselines. Upon initialization, all
+agents start with behaviors indistinguishable from the random policy,
+choosing largely self-motion actions and rarely interacting with
+objects. For learned-weight agents, an initial loss decrease occurs due
+to learning of ego-motion, as seen in Fig. 1a. For the curious agents, this initial
+phase is robustly succeeded by a second phase in which loss increases.
+As shown in Fig. 1b, this loss increase corresponds to
+the emergence of object attention, in which the agent dramatically
+increases the play state frequency. As seen by comparing 1c-d, object 
+interactions are much harder to predict than simple ego-motions, and thus are enriched by the
+curious policy: for the ID-SP agent, object interactions increase to
+about *MATH* of all frames. In comparison, frequency of object
+interaction increases much less or not at all for control policy agents.
+
+
+FIGURE
+
+
+Navigation and planning. The curiousity-driven agents also exhibit
+emergent navigation and planning abilities. In Figure we visualize ID-SP self-prediction
+maps projected onto the agent&apos;s position for the one-object setup. The
+maps are generated by uniformly sampling *MATH* actions *MATH*, evaluating
+*MATH* and applying a post-processing smoothing
+algorithm. We show an example sequence of 12 timesteps. The
+self-prediction maps show the agent predicting a higher loss (red) for
+actions moving it towards the object to reach a play state. As a result,
+the intrinsically-motivated agents learn to take actions to navigate
+closer to the object.
+
+
+Multi-object interactions. In experiments with multiple objects
+present, initial learning stages mirror those for the one object
+experiment (Fig. 2a) for both ID-SP and LF-SP. The loss
+temporarily decreases as the agent learns to predict its ego-motion and
+rises when its attention shifts towards objects, which it then interacts
+with. However, for ID-SP agents with sufficiently long time horizon
+(e.g. *MATH*), we robustly observe the emergence of an additional stage
+in which the loss increases further. This stage corresponds to the agent
+gathering and &quot;playing&quot; with two objects simultaneously, reflected in a
+sharp increase in two-object play state frequency (Fig. 2c), and a decrease in the average
+distance between the agent and the both objects (Fig. 2d). We do not observe this additional
+stage either for ID-SP of shorter time horizon (e.g. *MATH*) or for the
+LF-SP model even with longer horizons. The ID-SP and LF-SP agents both
+experience two object play slightly more often than the ID-RP baseline,
+having achieved substantial one object play time. However, only the
+ID-SP agent has discovered how to take advantage of the increased
+difficulty and therefore &quot;interestingness&quot; of two object configurations
+(compare blue with green horizontal line in Fig. 2a).
+
+
+FIGURE 
+
+
+Dynamics prediction tasks
+
+
+We measure the inverse dynamics prediction performance on two held-out
+validation subsets of data generated from the uncontrolled background
+distribution of events: (i) an easy dataset consisting solely of
+ego-motion with no play states, and (ii) a hard dataset heavily
+enriched for play states, each with 4800 examples. These data are
+collected by executing a random policy in sixteen simulation instances,
+each containing one object, one for each object type. The hard dataset
+is the set of examples for which the object is in a play state
+immediately before the action to be predicted, and the easy dataset is
+the complement of this. This measures active learning gains, assessing
+to what extent the agent self-constructs training data for the hard
+subset while retaining performance on the easy dataset.
+
+
+Ego-motion learning. All aside from random-encoding agents IDRW-RP
+and IDRW-SP learn ego-motion prediction effectively. The ID-RP model
+quickly converges to a low loss value, where it remains from then on,
+having effectively learned ego-motion prediction without an antagonistic
+policy since ego-motion interactions are common in the background random
+data distribution. The ID-SP and LF-SP models also learn ego-motion
+effectively, as seen in the initial decrease of their training losses
+(Fig. 1a) and low loss on the easy ego-motion
+validation dataset (Fig. 1c).
+
+
+Object dynamics prediction. Object attention and navigation lead SP
+agents to substantially different data distributions than baselines. We
+evaluate the inverse dynamics prediction performance on the held-out
+hard object interaction validation set. Here, the ID-SP and LF-SP agents
+outperform the baselines on predicting the harder object interaction
+subset by a significant margin, showing that increased object attention
+translates to improved inverse dynamics prediction (see Fig.1d and Table). 
+Crucially, even though ID-SP and LF-SP have substantially decreased the 
+fraction of time spent on ego-motion interactions (Fig.1c), 
+they still retain high performance on that easier sub-task.
+
+
+Task transfers
+
+
+We measure the agents&apos; abilities to solve visual tasks for which they
+were not directly trained, including (i) object presence, (ii)
+localization, as measured by pixel-wise 2D centroid position, and (iii)
+16-way object category recognition. We collect data with a random policy
+from sixteen simulation instances (each with one object, one for each
+object). For object presence, we subselect examples so as to have an
+equal number with and without an object in view. For localization and
+category identity (discerning which of the sixteen objects is in view),
+we take only frames with the object in a play state. These data are
+split into train (16000 examples), validation (8000 examples), and test
+(8000 examples) sets. On train sets, we fit elastic net
+regression/classification for each layer of both worldand self-model
+encodings, and we use validation sets to select the best-performing
+model per agent type. These best models are then evaluated on the test
+sets. Note that the test sets contain substantial variation in position,
+pose and size, rendering these tasks nontrivial. Self-model driven
+agents substantially outperform alternatives on all three transfer
+tasks, As shown in Table, the SP (*MATH*) agents outperform baselines
+on inverse dynamics and object presence metrics, while ID-SP outperforms
+LF-SP on localization and recognition. Crucially, the ID-RP ablation
+comparison shows that without an active learning policy, the encoding
+learned performs comparitively poorly on transfer tasks. Interestingly,
+we find that training with two objects present improves recognition
+transfer performance as compared to one object scenarios, potentially
+due to the greater complexity of two-object configurations (Table). 
+This is especially notable for the ID-SP (*MATH*) agent that constructs 
+a substantially increased percentage of two-object events.
+
+
+Table
+
+
+Discussion
+
+
+We have constructed a simple self-supervised mechanism that
+spontaneously generates a spectrum of emergent naturalistic behaviors
+via an active learning process, experiencing &quot;developmental milestones&quot;
+of increasing complexity as the agent learns to &quot;play&quot;. The agent first
+learns the dynamics of its own motion, gets &quot;bored&quot;, then shifts its
+attention to locating, moving toward, and interacting with single
+objects (*MATH* in Fig. 1 and Fig.2). Once these are better understood
+(*MATH* in Fig. 1 and Fig. 2), the agent transitions to gathering
+multiple objects and learning from their interactions (*MATH* in
+Fig. 1). This increasingly challenging self-generated curriculum 
+leads to performance gains in the agent&apos;s world-model and improved 
+transfer to other useful visual tasks on which the system never 
+received any explicit training signal. Our ablation studies show 
+that without this active learning policy, world-model
+accuracy remains poor and visual encodings transfer much less well.
+These results constitute a proof-of-concept that both complex behaviors
+and useful visual features can arise from simple intrinsic motivations
+in a three-dimensional physical environment with realistically large and
+continuous state and action spaces.
+
+
+FIGURE
+
+
+In future work, we seek to generate much more sophisticated behaviors
+than those seen here, including the creation of complex planned
+trajectories and the building of useful environmental structures. Beyond
+the objective of building more robustly learning AI, we seek to build
+computational models that admit precise quantitiative comparisons to the
+developmental trajectories observed in human children (Figure 2). 
+To this end, our environment will need better graphics and physics, 
+more varied visual objects, and more realistically embodied 
+robotic agent avatars with articulated actuators and haptic sensors. 
+From a core algorithms approach, we will need to improve our 
+approach to handling the inherent degeneracy (&quot;white-noise problem&quot;) 
+of our dynamics prediction problems. The LF-SP agent employs, as discussed in
+Section [2], the technique in [*REF*] aimed at this. It was, however, unclear whether this
+method fully resolved the issue. It will likely be necessary to improve
+both the formulation of the world-model dynamics prediction tasks our
+agent solves as well as the antagonistic action policies of the agent&apos;s
+self-model. One approach may be improving our formulation of curiosity
+from the simple adversarial concept to include additional notions of
+intrinsic motivation such as learning progress [*REF*; *REF*; *REF*].
+More refined future prediction models (e.g. [*REF*]) may
+also ameliorate degeneracy and lead to more sophisticated behavior.
+Finally, including other animate agents in the environment will not only
+lead to more complex interactions, but potentially also better learning
+through imitation [*REF*]. In this scenario, the self-model
+component of our architecture will need to be not only aware of the
+agent itself, but also make predictions about the actions of other
+agents --- perhaps providing a connection to the cognitive science of
+theory of mind [*REF*].

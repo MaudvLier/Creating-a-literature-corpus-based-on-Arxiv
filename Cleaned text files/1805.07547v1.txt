@@ -1,0 +1,142 @@
+Autonomous discovery of the goal space to learn a parameterized skill 
+
+
+Introduction 
+
+
+A parameterized skill offers a way to accomplish multiple similar tasks by reusing the same skill, more formally, a parameterized skill is a function that maps each task parameters to the parameters of a policy that when executed can achieve it. Here we focus in particular on tasks that can be defined in terms of goals, i.e. final states that have to be accomplished by the agent within a limited amount of time (&apos;trial&apos;).
+Existing works in the literature show how such a parameterized skill can be acquired given a task space that defines all the possible achievable goals [*REF*; *REF*; *REF*; *REF*].
+However, if we want to develop an autonomous open-ended learning agent, aiming to autonomously acquire an ample repertoire of goals and policies not defined by the experimenter [*REF*; *REF*; *REF*; *REF*], it may be difficult to define the task space of the achievable goals at design time. 
+
+
+One easy way to define a task space which will encompass all possible goals is to define the goal space as being the sensor space defined by the agent sensors. As an example, we may define the goal space as all the possible readings from the robot cameras (sensor space). In this way, anything that the robot can perceive might be considered as a possible goal. This will ensure that all achievable goals, as long as the robot can see them, form a subset of such sensor space. However, the sensor space may be huge in comparison to the actual (achievable) goal space: a 320x240 pixel camera image has more than 80000 dimensions and most of the possible camera readings that one may construct from those pixels are not images that the agent can actually accomplish with its actions. As we will show, current algorithms for learning parameterized skills do not work well in such highly dimensional spaces where the achievable goals form a small subset of the whole sensor space (see Sec. [2]). 
+
+
+We thus propose here a new algorithm that actively learns the manifold of the achievable goals embedded in the sensor space by building a graph representation of the achieved goals. As it focuses on the manifold of achievable goals, our algorithm escapes the curse of dimensionality and outperforms current approaches, making it possible to use a &quot;generic&apos; a priori goal space defined on the basis of the sensors space such as the image space. We validate the algorithm by employing it in multiple different simulated scenarios where the agent actions achieve different types of goals (moving an arm to desired postures, pushing an object to desired locations, changing the color of an object to specific colors). 
+
+
+Open-ended autonomous learning of parameterized skills  
+
+
+The objective 
+
+
+Let us consider an agent with sensors readings that lie on a sensor space *MATH*. The agent interacts with an environment through a policy *MATH* parameterized with *MATH* and terminating after a certain amount of time has elapsed. The world state resulting from the performance of the policy will be a perceived outcome *MATH*, with *MATH* and *MATH* (note we say &quot;outcomes&quot; to refer to action consequences, and &quot;goals&quot; to refer to &quot;desired states&quot;, but the two belong to the same space *MATH*). The objective of the agent is to learn the parameterized skill *MATH* that maps every outcome *MATH* to a policy parameter set, *MATH*, so that we can later ask the agent to achieve any goal *MATH*. In particular, we test the agent&apos;s performance *MATH*, probing the quality of the parameterized skill *MATH*, by asking it to reach *MATH* goals randomly sampled from *MATH* where *MATH* is a function that returns 1 if the achieved outcome *MATH* is sufficiently similar to the desired goal *MATH* and 0 otherwise. 
+
+
+Previous approaches 
+
+
+Current approaches such as [*REF*; *REF*; *REF*; *REF*; *REF*] assume knowing the outcome set *MATH*. However, if we do not know *MATH*  beforehand, we might have to substitute it with the sensor space *MATH*  instead. If not all sensor readings are achievable as outcomes, *MATH* is going to be a much larger set than *MATH* and sampling from *MATH* would produce many goals that the agent cannot achieve. This would make an approach such as [*REF*] unfeasible since it assumes that all drawn tasks are solvable by policy optimization. Even adding some mechanism that &quot;gives up&quot; policy optimization after a few trials would not help if most goals drawn from *MATH* are not achievable, as in the case *MATH* represents images from a robot camera: the algorithm would spend most of its time pursuing goals represented by images formed by random pixels. Both [*REF*] and [*REF*] do not sample *MATH*  uniformly but use mechanisms to bias the sampling towards the most promising regions first, those where the algorithm expects to make most progress. In theory this could help to avoid the non achievable part of *MATH*, but it would still need to sample some achievable goals first which is practically impossible with large spaces such as the camera image space. 
+
+
+An interesting approach is proposed in [*REF*] where the agent does not learn on a predefined goal space but tries to first learn a latent space from raw sensor space observations and then use this latent space as its outcome. However, in [*REF*] the raw sensor space observations are provided to the agent by an unspecified external process which samples all possible outcomes (possibly also some unachievable ones) and feeds the corresponding sensor readings to the agent. So while the agent is not provided with an engineered goal space, the knowledge on such space is still needed to make the approach to work. 
+
+
+In contrast with these approaches, [*REF*]&apos;s skill babbling does not require sampling directly from the whole *MATH*. Skill babbling instead starts from a single *MATH* pair and gradually explores the outcome space by perturbing the known outcomes and their corresponding policies. A similar approach to discover new outcomes was also used in [*REF*], although in that case the focus was on the discovery of discrete outcomes and policies rather than on learning a continuous goal-policy parameterized skill. However, as we will see in the following experiments, the exploration strategy proposed by [*REF*] has limitations when dealing with camera images due to the inability of exploring such a high-dimensional sensor space. Due to the similarity to our approach, which also starts from a seed and then gradually builds up the goal/policy repertoire, we will use skill babbling as a baseline to evaluate our algorithm. 
+
+
+The algorithm: Active Goal Manifold Exploration (AGME) 
+
+
+To avoid the problems due to using *MATH* instead of *MATH*, we propose an algorithm that gradually builds a repertoire of known (achieved) outcomes *MATH* by trying to progressively discover the manifold *MATH*  inside *MATH* (see Algorithm. The algorithm keeps track of all achieved outcomes *MATH* and at each trial chooses one of them as a basis goal to discover new outcomes. The algorithm makes the assumption that goals near each other have similar policies, so it tries to discover new goals by perturbing the policy corresponding to the basis goal. The choice of the basis goal for each trial is based on the idea that the system should favor goals that are more likely to have undiscovered outcomes near them. In particular, the algorithm builds a k-neighbor graph on *MATH* (previously achieved outcomes) and then measures the average distance of each outcome of *MATH* from its k-neighbors. The outcome that has the maximum average distance from its k-neighbors is the basis goal.
+The reason for choosing this basis goal is the assumption that an outcome which is farthest from its discovered neighbors has the highest potential to have undiscovered neighbors. On the contrary, an outcome whose discovered neighbors are close is probably in an area of the goal space which is already well explored. The algorithm then generates and executes a new policy which is the same as the one that achieved the chosen basis goal plus some Gaussian noise. 
+
+
+AGME builds a repertoire of outcomes, with their corresponding policies, but it does not explicitly create or learn a parameterized skill *MATH*. Different strategies can be employed to construct *MATH*  from the repertoire of goals and policies. Since this is not the focus of this work, in the following sections we simply assume that the agent uses a k-neighbor regression with *MATH*: i.e. when asked to achieve certain goal, the parameterized skill *MATH* simply returns the policy of the most similar discovered outcome from *MATH*. 
+
+
+ALGORITHM 
+
+
+Experiment 1: learning an arm inverse model  
+
+
+Setup 
+
+
+In the first experiment, the agent learns to move the end-point of a planar 3-link arm everywhere in its working space. The input to the system is either formed by the x,y position of the arm end-point (which might be produced by a suitable sensory preprocessing), or by the raw 50x50 pixel RGB image of the arm coming from a simulated camera).
+On each trial, the agent policy moves the arm by specifying the three arm joint angles constrained within -60 and +60 degrees. 
+
+
+Results 
+
+
+Fig. [1] shows the agent learning when the outcome is encoded either as the x,y arm end-point position or as the image of the arm. The AGME algorithm performs well both with the predefined outcome space and with the image space. Instead, skill babbling has a limited progress when faces the image space. Fig. [2] shows how AGME progressively discovers the whole goal manifold *MATH* embedded in *MATH* (i.e., all possible images corresponding to all the arm postures) while skill babbling gets stuck. 
+
+
+FIGURE  
+
+
+Experiment 2a: pushing an object to desired locations  
+
+
+Setup 
+
+
+In the second experiment the agent&apos;s objective is to learn to push an object to a desired position. The environment is formed by a circular object lying on a 2D square workspace. The plane is observed by the agent with a fixed 50x50 camera. The policy performed at each trial specifies a linear trajectory (start point and end point) for a planar-arm end-point. At the beginning of each trial the object is set to the central position of the working space. If the arm end-point crosses the object, the object will be displaced to the end point specified by the policy (see Fig. [3]).
+The agent can observe the outcome of the performed policies either as the final x,y position of the object or as the corresponding camera image. 
+
+
+Results 
+
+
+The results show the agents learning when the outcomes are predefined as the x,y positions of the object and as images. As in the previous experiment, AGME is able to learn in both the x,y and image scenarios, while skill babbling cannot cope with images (Fig. [4] and Fig. [5]). 
+
+
+FIGURE  
+
+
+Experiment 2b: pushing an object everywhere using Dynamic Movement Primitives  
+
+
+This experiment uses the same setup as the previous one, except in this case the policy is a dynamic movement primitive (DMP), starting from a fixed point. 
+
+
+Setup 
+
+
+The environment is the same as in the previous experiment).
+However, this time the agent policy is a dynamic movement primitive: policy parameters specify 10 weights (5 for the x-axis and 5 for the y-axis) of the DMP Gaussians, plus the DMP end point. The start point of the DMP is fixed, as shown in Fig. 
+
+
+Results 
+
+
+Fig. shows that using a DMP as the agent policy yields similar results as the previous experiments. 
+
+
+FIGURE  
+
+
+Experiment 3 - Touching different parts to achieve different colors  
+
+
+In the third environment the agent learns to touch different parts of an object to make it change its appearance to different colors (see Fig. As in previous experiments, learning is simulated both using a pre-defined outcome and using camera images. 
+
+
+Setup 
+
+
+The environment is constituted by a single circular red object lying at the center of a square. At each trial the agent policy specifies the linear trajectory (start point and end point) of an effector. If the effector trajectory intersect the circle, the circle will change its color from red to another color, which depends on which part of the circle was hit (see). The outcome is passed to the agent is either the point on which the circle was hit or an image. At the start of each trial, the object color is reset to red. 
+
+
+Results 
+
+
+Fig. shows the results: again the AGME algorithm works both with pre-defined outcome variables and with images, while skill babbling works only with the former. 
+
+
+FIGURE  
+
+
+Discussion 
+
+
+The experiments show that our AGME algorithm adapts well to different environments involving different types of outcomes and policies. In all these environments, using the sensor space (images from the camera) works well, often with performance similar to when using a predefined goal space tailored to the specific tasks to solve. Compared to existing approaches, our algorithm escapes the problem of not knowing the outcome space in advance thanks to two different features: 1) it never samples from the outcome space, so it does not require to know it in advance 2) it does not need to sample from the sensory space either, so it avoids the problem that in such space valid goals are very rare. Instead, AGME gradually discovers valid goals exploring the sensory space from the known ones and represents them as a graph. Based on this representation, it measures the distances between discovered goals to actively explore areas of the sensory space having a higher chance to host new goals. The skill babbling algorithm [*REF*] also builds a gradual representation of the goal space. However, its exploration of the goal space in the simulated environments was poor and in particular it did not manage to cope with the image space. Indeed, its exploration mechanism based on generating goals within &quot;bubbles&quot; around known goals does not actively drive exploration towards more promising space areas but basically relies on noise. Also, skill babbling uses a mechanism to generate a new policy that adds noise to known goals and then computes the possible corresponding policy through regression, thus it relies on having a good regressor mapping goals to policies. Adding noise to an image often does not result in a valid goal, plus the regressor may also introduce further problems to the generated policy if the regressor is not yet sufficiently accurate. Our non-parametric approach instead does not require a regressor and for the final performance it uses the policies of the goals that are most similar to the requested goals. To generate the policy, here we in particular used a simple k-neighbour regressor but more sophisticated regressors trained with the collected goals/policies might be used to achieve a better generalization to non experienced goals (this is for example done in [*REF*]). 
+
+
+Conclusion 
+
+
+Current approaches for parameterized skill learning require to know the goal space in advance. Instead, our AGME algorithm can be used with a very general and broad goal space corresponding to the raw sensory space, such a camera-image space. These spaces possibly have a very high number of dimensions and goals that are achievable within them represent only a tiny fraction of the whole space. AGME gradually builds a representation of the goal space based on the goals it progressively discovers and based on this representation tries to find the most promising areas to further discover new goals thus identifying the whole manifold of achievable goals within the larger sensor space. The results of the proposed experiments show how AGME can work with different types of goals and policies, thus showing generality across different scenarios. This ability to work in different environments without the need for predefined variables describing the task space is a fundamental step towards real open-ended autonomous learning systems.

@@ -1,0 +1,460 @@
+Crawling in Rogue&apos;s dungeons with (partitioned) A3C
+
+
+INTRODUCTION
+
+
+In recent years, there has been a huge amount of work on the application
+of deep learning techniques in combination with reinforcement learning
+(the so called deep reinforcement learning) for the development of
+automatic agents for different kind of games. Game-like environments
+provide realistic abstractions of real-life situations, creating new and
+innovative dimensions in the kind of problems that can be addressed by
+means of neural networks. Since the seminal work by Mnih et al.
+[*REF*]exploiting a combination of Qlearning and neural networks
+(Deep Q-Networks, DQN) in application to Atari games [*REF*], the field
+has rapidly evolved, offering several improvements such as Double
+Qlearning [*REF*](correcting overestimations in the action
+value of the original version) to the recent breakthrough provided by
+the introduction of asynchronous methods, the so called A3C model [*REF*].
+
+
+In this work, we apply a version of A3C to automatically move a player
+in the dungeons of the famous Rogue video game. Rogue was the ancestor
+of this gender of games, and the first application exploiting a
+procedural, random creation of its levels; we use it precisely in this
+way: as a generator of different kind of labyrinths, with a reasonable
+level of complexity. Of course, the full game offers many other
+challenges, comprising collecting objects, evolving the rogue, and
+fighting with monsters of increasing power, but, at least for the
+moment, we are not addressing these aspects (although they may provide
+interesting cues for future developments).
+
+
+We largely based this work on the learning environment that was
+previously created to this aim in [*REF*;*REF*], and
+that allows a simple interaction with Rogue. At the same time, the
+extension to A3C forced a major revision of the environment, that will
+be discussed in Section [6].
+
+
+The reasons for addressing Rogue, apart from the fascination of this
+vintage game, have been extensively discussed in [*REF*;*REF*]
+(see also [*REF*]), and we just recall here the main motivations. 
+In particular, Rogue&apos;s dungeons are a classical example of Partially 
+Observable Markov Decision Problem (POMDP), since each level is initially 
+unknown and not entirely visible. Solving this kind of task is notoriously 
+difficult and challenging [*REF*], since it requires an important amount of exploration.
+
+
+The other important characteristic that differentiates it from other,
+more modern, 3D dungeons-based games such as ViZDoom [*REF*]or the
+Labyrinth in [*REF*] is precisely the graphical interface, that in the
+case of Rogue is ASCII-based. Our claim is that, at the current state of
+knowledge, decoupling vision from more intelligent activities such as
+planning can only be beneficial, allowing to focus the attention on the
+really challenging aspects of the player behavior.
+
+
+Achievements overview 
+
+
+Rogue is a complex game, where the player (the &quot;rogue&quot;) is supposed to
+roam through many different levels of a dungeon trying to retrieve the
+amulet of Yendor. In his quest, the player must be able to: 1. explore
+the dungeon (partially visible, when you enter a new level); 2. defend
+himself from enemies, using the items scattered through the dungeon; 3.
+avoid traps; 4. avoid starvation, looking for and eating food inside the dungeon.
+
+
+Currently, we are merely focusing on exploring the maze: as explained in
+Section [6] monsters and traps may be easily
+disabled in the game.
+
+
+FIGURE 
+
+
+The dungeon consists of 26 floors (configurable) and each floor consists
+of up to 9 rooms of varying size and location, randomly connected
+through non linear corridors, and small mazes. To reach a new floor the
+agent needs to find and to go down the stairs, whose position is likely
+hidden from sight, located in a yet unexplored room and in a different
+spot at each new level. Finding and taking the stairs are the main
+ingredients governing the agent movement: the only differences between
+the first floors and the subsequent ones are related to the frequency of
+meeting enemies, dark rooms, mazes or hidden doors. As a consequence, we
+organized the training process on the base of a single level,
+terminating the episode as soon as the rogue takes the stairs. In the
+rest of the work, when we talk about the performance of an agent, we
+refer to the probability that it correctly completes a single level,
+finding and taking the stairs within a maximum of 500 moves. The
+performance is measured on a set of 200 consecutive (i.e. random) games
+and we show a comparison with previous work in table [1]. The results are not conclusive,
+partly because the approaches rely on vastly different models.
+
+
+FIGURE
+
+
+There are essentially three ingredients behind this achievement:
+1. the adoption of A3C as a base learning algorithm, in substitution of
+DQN; we shall diffusely talk about A3C in Section [3.2]
+2. an agent-centered, cropped representation of the state
+3. a supervised partition of the problem in a predefined set of
+situations, each one delegated to a different A3C agent, sharing
+nevertheless a common value function (i.e. a common evaluation of
+the state). We shall talk about situations in Section [4.1].
+
+
+While the adoption of A3C and the idea of experimenting with
+situations was a planned activity [*REF*], the shift to an
+agent-centered view, as well as the choice of the agent situations have
+been mostly the result of trial-and-error, through an extremely long and
+painful experimentation process.
+
+
+Related work
+
+
+As we mentioned in the introduction, there is a huge amount of
+research around the application of deep reinforcement learning to video
+games.In this section we shall merely mention some recent works that,
+in addition to those already mentioned, have been a source of
+inspiration for our work, or the subject of different experimentations
+we performed. A few more works that seems to offer promising
+developments [*REF*;*REF*]will be discussed in the conclusions.
+Our current bot is essentially a partitioned multi-task agent in the
+sense of [*REF*]. Its tree-like structure may be reminiscent of
+Hierarchical models [*REF*;*REF*;*REF*], but they are
+in fact distinct notions. In Hierarchical models a Master cooperates
+with one or more Workers, by dictating them macro actions (e.g. &quot;reach
+the next room&quot;), that are taken by Workers as their objectives. The
+Master typically gets rewards from the environment and gives ad hoc,
+possibly intrinsic bonuses to Workers. The hope is to let top-level
+agents focus on planning while sub-parts of the hierarchy manage simple
+atomic actions, improving the learning process. In our case, we simply 
+split the task according to different situations
+the rogue may be faced with: a room, a corridor, the proximity to
+stairs/walls, etc. (see Section [4.1] for details). We did several experiments
+with hierarchical structures, but so far none of them gave satisfactory result.
+
+
+We also experimented with several forms of intrinsic rewards
+[*REF*], especially after passing to a rogue-centered view.
+Intrinsic motivations are stimuli received form the surrounding
+environment different from explicit, extrinsic rewards, and that could
+be used by the agent for alternative form of training, learning to do a
+particular action because inherently enjoyable. Examples are
+empowerment [*REF*] or auxiliary tasks [*REF*].
+In this case too, we have not been able to obtain interesting results.
+
+
+Reinforcement Learning Background
+
+
+A Reinforcement Learning problem is usually formalized as a Markov
+Decision Process (MDP). In this setting, an agent interacts at discrete
+timesteps with an external environment. At each time step *MATH*,the agent
+observes a state *MATH* and choose an action *MATH* according to some
+policy *MATH*,that is a mapping (or more generally a probability
+distribution) from states to actions. As a result of its action, the
+environment change to a new state *MATH*;moreover the agent
+obtains a reward *MATH* (see Fig.). The process is then iterated until a terminal state is reached.
+
+
+FIGURE
+
+
+The future cumulative reward *MATH* is the total accumulated reward 
+from time starting at *MATH*.*MATH* is the so called discount factor: it
+represents the difference in importance between present and future rewards.
+The goal of the agent is to maximize the expected return starting from
+an initial state *MATH*.The action value *MATH* is the expected return 
+for selecting action *MATH* in state *MATH* and prosecuting with strategy *MATH*.
+Given a state *MATH* and an action *MATH*,the optimal action value function
+*MATH* is the best possible action value achievable by any policy.
+Similarly, the value of state *MATH* given a policy *MATH* is
+*MATH* and the optimal value function is *MATH*.
+
+
+Q-learning and DQN
+
+
+The Q-function, similarly to the V-function can be represented by
+suitable function approximators, e.g. neural networks. We shall use the
+notation *MATH* to denote an approximate action-value function
+with parameters *MATH*.
+
+
+In (one-step) Q-learning, we try to approximate the optimal action value
+function: *MATH* by learning the parameters
+via backpropagation according to a sequence of loss function functions
+defined as follows: *MATH* is the new state reached from *MATH* taking action *MATH* and
+*MATH* is the uniform distribution on stored transitions for experience replay.
+
+
+The previous loss function is motivated by the well know Bellman
+equation, that must be satisfied by the optimal *MATH* function:
+*MATH* Indeed, if we know the optimal state-action values *MATH* for next states,
+the optimal strategy is to take the action that maximizes *MATH*.
+
+
+Q-learning is an off-policy reinforcement learning algorithm. The main
+drawback of this method is that a reward only directly affects the value
+of the state action pair s,a that led to the reward. The values of other
+state action pairs are affected only indirectly through the updated
+value *MATH*.The back propagation to relevant preceding states and
+actions may require several updates, slowing down the learning process.
+
+
+Actor-Critic and A3C 
+
+
+In contrast to value-based methods, policy-based methods directly
+parameterize the policy *MATH* and update the parameters
+*MATH* by gradient ascent on *MATH*.The standard REINFORCE [*REF*]
+algorithm updates the policy parameters *MATH* in the direction
+*MATH*,which is an unbiased estimate of *MATH*.
+
+
+It is possible to reduce the variance of this estimate while keeping it
+unbiased by subtracting a learned function of the state *MATH* known
+as a baseline. The gradient is then *MATH*.
+
+
+A learned estimate of the value function is commonly used as the
+baseline *MATH*.In this case, the quantity *MATH* can be 
+seen as an estimate of the advantage of action *MATH* in state 
+*MATH* for policy *MATH*,defined as *MATH*,just because *MATH* is
+an estimate of *MATH* and *MATH* is an estimate of *MATH*.
+
+
+This approach can be viewed as an actor-critic architecture where the
+policy *MATH* is the actor and the baseline *MATH* is the critic.
+A3C [*REF*] is a particular implementation of this technique based on the
+asynchronous interaction of several parallel couples of Actor and
+Critic. The experience of each agent is independent from that of the
+other agents, which stabilizes learning without the need for experience
+replay as in DQN.
+
+
+Neural Network Architecture
+
+
+Our implementation is essentially based on A3C. In this section we
+describe a novel technique that partitions the sample space into a
+predefined set of situations, each one addressed by a different A3C
+agent. All of these agents contributes to build a common cumulative
+reward without sharing any other information, and for this reason they
+are said to be highly independent. Each agent employs the same
+architecture, state representation and reward function. In this section
+we discuss: the situations (Sec.[4.1]), the state representation
+(Sec. [4.2]), how we shaped the reward function (Sec. [4.3]), the neural network
+(Sec. [4.4]), hyper-parameters tuning (Sec. [4.5]).
+
+
+Situations 
+
+
+In our work, with the term situation we mean the environment state
+used to discriminate which situational agent should perform the next
+action. We experimented the four situations listed below, from higher to
+lower priority: 1. The rogue (the agent) stands on a corridor 2. The stairs are visible
+3. The rogue is next to a wall 4. Any other case The situations are 
+determined programmatically and are not learned. This
+is a simplistic choice, mostly dictated by frustration: in future work
+we plan to learn them in an end-to-end way. When multiple conditions in
+the above list are met, the one with higher priority will be selected.
+For example, if the stairs are visible but the rogue is walking on a
+corridor, the situation is determined to be situation 1 rather than situation_2, 
+because the former has higher priority. We define:
+- s4 as the configuration made of all the aforementioned situations
+- s2 as the configuration made of situations
+- s1 as the configuration with no situations at all
+We believe that situations may be seen as a way to simplify the overall
+problem, breaking it down into easier sub-problems.
+
+
+State representation 
+
+
+The state is a *MATH* matrix corresponding to a cropped view of
+the map centered on the rogue (i.e. the rogue position is always on the
+center of the matrix). This representation has the advantage to be
+sufficiently small to be fed to dense layers (possibly after
+convolutions); moreover, it does not require to represent the rogue into
+the map. In our experiments we adopted two variations of the above
+matrix. The first (called c1) has a single channel, resulting in a
+*MATH* shape, and it is filled with the following values:
+The second (called c2) is made of two channels (the stairs channel and
+the environment channel) and thus has shape *MATH*.The
+values used for c2 are the same of c1.
+
+
+FIGURE
+
+
+Reward shaping 
+
+
+We designed the following reward function:
+1. a positive reward (*MATH*) is given when using a door never used before
+2. a positive reward (*MATH*) is given when, after an action, one or more
+new doors are found
+3. a huge positive reward (*MATH*) is given when descending the stairs
+4. a small negative reward (*MATH*) is given when taking an action
+that does not change the state (eg.: try to cross a wall)
+The chosen reward values are not random. In fact each floor contains at
+most *MATH* rooms and each room has maximum *MATH* doors, thus on each floor
+the cumulative reward of the rewards of type 1 and 2 can not exceed
+*MATH*.But what normally happens, in the episodes with the
+best return, is that only about *MATH* of the cumulative reward
+is given by finding new rooms. This is true because negative rewards are
+enough to teach the agent not to take useless actions and, in the
+meantime, they do not significantly affect the balance between room
+exploration and stair descent. The result is that the agent is encouraged both to descend the stairs
+and to explore the floor, and this impacts positively and significantly
+on its performance. In future work we plan to employ sparser reward
+functions that are not as problem specific.
+
+
+Neural Network 
+
+
+FIGURE
+
+
+The neural network architecture we used is shown in figure
+[1]. This network consists of two convolutional layers followed by a dense layer to
+process spatial dependencies and a LSTM layer to process temporal
+dependencies, and finally, value and policy output layers. The
+convolutions have a ReLU activation, a *MATH* kernel with unitary
+stride and respectively 16 and 32 filters. Their output is flattened and
+fed to a FC with ReLU and 256 units. We call this structure: tower.
+
+The tower input is the state representation described in
+Section [4.2] and its output is concatenated with a
+numerical &quot;one hot&quot; representation of the action taken in the previous
+state and the obtained reward. This concatenation is fed into an LSTM
+composed of 256 units. The idea of concatenating previous actions and
+rewards to the LSTM input comes from [*REF*].
+
+The output of the LSTM 
+is then the input for the value and policy layers.
+A network with the aforementioned structure implements an agent for each
+situation described in Section [4.1]. The loss is computed separately for each
+network, and corresponds to the A3C loss computed in [*REF*].
+
+
+Hyper-Parameters Tuning 
+
+
+Each episode lasts at most *MATH* steps/actions, and it may end either
+achieving success (i.e. descending the stairs), or reaching the steps
+limit. Thus, the death state is impossible for the agent, since in our
+experiments monsters and traps have been disabled and *MATH* steps are
+not enough to die for starvation. Most of the remaining hyper-parameters 
+values we adopted (for example the entropy *MATH*) came from [*REF*], an
+Open-Source implementation of [*REF*], except the following:
+The learning rate is annealed over time according to the following
+equation: *MATH*,where *MATH* is the maximum global step, and *MATH* is the current global
+step. The initial learning rate is approximatively *MATH*.
+
+
+FIGURE
+
+
+Evaluation
+
+
+For evaluation purposes we want to measure how often the agent is able
+to descend the stairs and to explore the floor. In our experiments, the
+final state is reached when the agent descend the stairs. For this
+reason, a good evaluation metric for a Rogue-like exploration-only
+system should be based at least on:
+- the success rate: the percentage of episodes in which the final
+state is reached (an equivalent of the accuracy).
+- the number of new tiles found during the exploration process.
+- the number of steps taken to win an episode.
+We evaluated our systems using an average of the aforementioned metrics
+over *MATH* episodes. The results we achieved are summarized in figure.
+
+
+FIGURE 
+
+
+Our best agent shows remarkable skills in exploring the dungeon,
+searching for the stairs. Using four situations instead of just two did not prove to be
+beneficial, however adopting a separate situation (and hence a
+separate neural network) for the case when the stairs are visible was
+fundamental. In fact, as can be seen in Fig., the policy learned by s1-c2 completely
+ignored the stairs, thus achieving a very low success rate.
+The experiment with 4 situations resulted in the development of the
+peculiar inclination for the agent of walking alongside walls.
+Finally, state representation c2 induced faster learning, but only a
+slight increase in the resulting success rate.
+
+
+Refactoring the Rogue In A Box library 
+
+
+With this article, we release a new version [*REF*] of
+the Rogue In A Box library [*REF*;*REF*] that
+improves modularity, efficiency and usability with respect to the
+previous version. In particular, the old library was mainly centered
+around DQN-agents, that at the time looked as the most promising
+approach for the application of deep reinforcement learning to this kind
+of games. With the advent of A3C and other techniques, we restructured
+the learning environment, neatly decoupling the interface with the game,
+supported by a suitable API, from the design of the agents. Other innovative features comprise:
+1. Screen parser and frames memory
+2. Communication between Rogue and the library
+3. Enabling or disabling monsters and traps
+4. Evaluation module
+Of particular note is the evaluation module, which provides statistics
+on the history of environment interactions, allowing to properly compare
+the policies of different agents.
+
+
+CONCLUSIONS
+
+
+In this article, we have shown how we can address the Partially
+Observable Markov Decision Problem behind the exploration of Rogue&apos;s
+dungeons, achieving a success rate of *MATH*,with a simple technique
+that partitions the sample space into situations. Each situation is
+handled by a different A3C agent, all of them sharing a common value
+function. The interest of Rogue is that the planar, ASCII-based,
+bi-dimensional interface permits to decouple vision from more
+intelligent activities such as planning: in this way we may better
+investigate and understand the most challenging aspects of the player&apos;s behavior.
+
+
+The current version of the agent works very well, but still has some
+problems in cul-de-sac situations, where the agent should trace-back his
+path. Moreover, to completely solve the Rogue&apos;s exploration problem,
+dark rooms and hidden doors are also required to be handled. We
+predict that the main challenge is going to be provided by hidden
+doors, since they are almost completely unpredictable and hard to
+detect even for a human. Different aspects of the game, such as
+collecting objects and fighting could also be taken into account,
+possibly delegating them to ad-hoc situations.
+
+
+In spite of the fact that the overall performance of our agent is really
+good, its design is not yet entirely satisfactory. In fact, too much
+intelligence about the game is built in, both in the design of
+situations, and especially in their identification and attribution to
+specific networks. Also the rogue-centered, cropped view introduces a
+major simplification of the problem, completely by-passing the
+attention problem (see e.g. [*REF*]) that, as discussed in
+[*REF*], was one of the interesting aspects of Rogue.
+
+
+Currently, our efforts are going in the direction of designing an
+unsupervised version of the work described in this paper, where the
+agent is able to autonomously detect interesting situations, delegating
+them to specific subnets. As additional research topics, we are
+- exploring the role of sample-efficiency in our context, along the lines of [*REF*].
+- looking Multi-Task Adaptive Networks, following the ideas in [*REF*].

@@ -1,0 +1,1346 @@
+A Hybrid POMDP-BDI Agent Architecture with Online Stochastic Planning and Plan Caching
+
+
+Introduction
+
+
+Imagine a scenario where a planetary rover has five tasks of varying
+importance. The tasks could be, for instance, collecting gas (for
+industrial use) from a natural vent at the base of a hill, taking a
+temperature measurement at the top of the hill, performing
+self-diagnostics and repairs, reloading its batteries at the solar
+charging station and collect soil samples wherever the rover is. The
+rover is programmed to know the relative importance of collecting soil
+samples. The rover also has a model of the probabilities with which its
+various actuators fail and the probabilistic noise-profile of its
+various sensors. The rover must be able to reason (plan) in real-time to
+pursue the right task at the right time while considering its resources
+and dealing with various events, all while considering the uncertainties
+about its actions (actuators) and perceptions (sensors).
+
+
+We propose an architecture for the proper control of an agent in a
+complex environment such as the scenario described above. The
+architecture combines belief-desire-intention (BDI) theory [*REF*; *REF*]
+and partially observable Markov decision processes (POMDPs)
+[*REF*; *REF*]. Traditional BDI architectures (BDIAs) cannot deal with
+probabilistic uncertainties and they do not generate plans in real-time.
+A traditional POMDP cannot manage goals (major and minor tasks) as well
+as BDIAs can. Next, we analyse the POMDPs and BDIAs in a little more detail.
+
+
+One of the benefits of agents based on BDI theory, is that they need not
+generate plans from scratch; their plans are already (partially)
+compiled, and they can act quickly once a goal is focused on.
+Furthermore, the BDI framework can deal with multiple goals. However,
+their plans are usually not optimal, and it may be difficult to find a
+plan which is applicable to the current situation. That is, the agent
+may not have a plan in its library which exactly &apos;matches&apos; what it
+ideally wants to achieve. On the other hand, POMDPs can generate optimal
+policies on the spot to be highly applicable to the current situation.
+Moreover, policies account for stochastic actions in partially
+observable environments. Unfortunately, generating optimal POMDP
+policies is usually intractable. One solution to the intractability of
+POMDP policy generation is to employ a continuous planning strategy,
+or agent-centred search [*REF*]. Aligned with agent-centred search is
+the forward-search approach or online planning approach in POMDPs [*REF*].
+
+
+The traditional BDIA maintains goals as desires; there is no reward
+for performing some action in some state. The reward function provided
+by POMDP theory is useful for modeling certain kinds of behavior or
+preferences. For instance, an agent based on a POMDP may want to avoid
+moist areas to prevent its parts becoming rusty. Moreover, a POMDP agent
+can generate plans which can optimally avoid moist areas. But one would
+not say that avoiding moist areas is the agent&apos;s task. And POMDP
+theory maintains a single reward function; there is no possibility of
+weighing alternative reward functions and pursuing one at a time for a
+fixed period -- all objectives must be considered simultaneously, in one
+reward function. Reasoning about objectives in POMDP theory is not as
+sophisticated as in BDI theory. A BDI agent cannot, however,
+simultaneously avoid moist areas and collect gas; it has to switch
+between the two or combine the desire to avoid moist areas with every other goal.
+
+
+The Hybrid POMDP-BDI agent architecture (or HPB architecture, for short)
+has recently been introduced [*REF*]. It combines the advantages of
+POMDP theoretic reasoning and the potentially sophisticated means-ends
+reasoning of BDI theory in a coherent agent architecture. In this paper,
+we generalize the management of goals by allowing for each goal to be
+pursued with different intensities, yet concurrently.
+
+
+Typically, BDI agents do not deal with stochastic uncertainty.
+Integrating POMDP notions into a BDIA addresses this. For instance, an
+HPB agent will maintain a (subjective) belief state representing its
+probabilistic (uncertain) belief about its current state. Planning with
+models of stochastic actions and perceptions is possible in the HPB
+architecture. The tight integration of POMDPs and BDIAs is novel to this
+architecture, especially in combination with desires with changing intensity levels.
+
+
+This article serves to introduce two significant extensions to the first
+iteration [*REF*] of the HPB architecture. The first extension allows
+for multiple intentions to be pursued simultaneously, instead of one at
+a time. In the previous architecture, only one intention was actively
+pursued at any moment. In the new version, one agent action can take an
+agent closer to more than one goal at the moment the action is performed
+-- the result of a new approach to planning. As a consequence of
+allowing multiple intentions, the policy generation module
+(Sec. 4.3), the desire function and
+the method of focusing on intentions
+(Sec. 4.2) had to be adapted. The
+second extension is the addition of a plan library. Previously, a
+policy (conditional plan) would have to be generated periodically and
+regularly to supply the agent with the recommendations of actions it
+needs to take. Although one of the strengths of traditional BDI theory
+is the availability of a plan library with pre-written plans for quick
+use, a plan library was excluded from the HPB architecture so as to
+simplify the architecture&apos;s introduction. Now we propose a framework
+where an agent designer can store hand-written policies in a library of
+plans and where generated policies are stored for later reuse. Every
+policy in the library is stored together with a &apos;context&apos; in which it
+will be applicable and the set of intentions which it is meant to
+satisfy. There are two advantages of introducing a plan library: (i)
+policies can be tailored by experts to achieve specific goals in
+particular contexts, giving the agent immediate access to recommended
+courses of action in those situations, and (ii) providing a means for
+policies, once generated, to be stored for later reuse so that the agent
+can take advantage of past &apos;experience&apos; -- saving time and computation.
+
+
+In Section 2, we review the necessary theory,
+including POMDP and BDI theory. In
+Section 3, we describe the basic HPB
+architecture. The extensions to the basic architecture are presented in
+Section 4. Section 5 describes two simulation experiments in
+which the proposed architecture is tested, evaluating the performance on
+various dimensions. The results of the experiments confirm that the
+approach may be useful in some domains. The last section discusses some
+related work and points out some future directions for research in this area.
+
+
+Preliminaries 
+
+
+The basic components of a BDI architecture [*REF*; *REF*] are
+- a set or knowledge-base *MATH* of beliefs;
+- an option generation function *MATH*, generating the
+objectives the agent would ideally like to pursue (its desires);
+- a set of desires *MATH* (goals to be achieved);
+- a &apos;focus&apos; function which selects intentions from the set of desires;
+- a structure of intentions *MATH* of the most desirable options/desires
+returned by the focus function;
+- a library of plans and subplans;
+- a &apos;reconsideration&apos; function which decides whether to call the focus function;
+- an execution procedure, which affects the world according to the
+plan associated with the intention;
+- a sensing or perception procedure, which gathers information about
+the state of the environment; and
+- a belief update function, which updates the agent&apos;s beliefs
+according to its latest observations and actions.
+
+
+Exactly how these components are implemented result in a particular BDI architecture.
+
+
+ALGORITHM
+
+
+Algorithm 1 (adapted from *REF* [Fig. 2.3]) is a basic BDI agent control loop. *MATH* 
+is the current plan to be executed. *MATH* senses
+the environment and returns a percept (processed sensor data) which is
+an input to *MATH*, which updates the agent&apos;s beliefs.
+*MATH* generates a set of desires, given the
+agent&apos;s beliefs, current intentions and possibly its innate motives. It
+is usually impractical for an agent to pursue the achievement of all its
+desires. It must thus filter out the most valuable and achievable
+desires. This is the function of
+*MATH*, taking beliefs, desires and
+current intentions as parameters. Together, the processes performed by
+*MATH* and *MATH* may be called deliberation,
+formally encapsulated by the *MATH* procedure.
+*MATH* returns a plan from the plan library to achieve
+the agent&apos;s current intentions.
+
+
+A more sophisticated controller would have the agent consider whether
+to re-deliberate, with a *MATH* function placed just
+before deliberation would take place. The agent could also test at every
+iteration through the main loop whether the currently pursued intention
+is still possibly achievable. Serendipity could also be taken advantage
+of by periodically testing whether the intention has been achieved,
+without the plan being fully executed. Such an agent is considered
+&apos;reactive&apos; because it executes one action per loop iteration; this
+allows for deliberation between executions. There are various mechanisms
+which an agent might use to decide when to reconsider its intentions.
+See, for instance, *REF* [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+In a partially observable Markov decision process (POMDP), the actions
+the agent performs have non-deterministic effects in the sense that the
+agent can only predict with a likelihood in which state it will end up
+after performing an action. Furthermore, its perception is noisy. That
+is, when the agent uses its sensors to determine in which state it is,
+it will have a probability distribution over a set of possible states to
+reflect its conviction for being in each state.
+
+
+Formally [*REF*], a POMDP is a tuple *MATH* with
+- *MATH*, a finite set of states of the world (that the agent can be in),
+- *MATH* a finite set of actions (that the agent can choose to execute),
+- a transition function *MATH*, the probability of being in *MATH* 
+after performing action *MATH* in state *MATH*,
+- *MATH*, the immediate reward gained for executing action *MATH* while in state *MATH*,
+- *MATH*, a finite set of observations the agent can perceive in its world,
+- a perception function *MATH*, the probability of observing *MATH* 
+in state *MATH* resulting from performing action *MATH* in some other state, and
+- *MATH* the initial probability distribution over all states in *MATH*.
+
+
+In general, we regard an observation as the signal recognized by a
+sensor; the signal is generated by some event which is not directly perceivable.
+
+
+A belief state *MATH* is a set of pairs *MATH* where each
+state *MATH* in *MATH* is associated with a probability *MATH*. All probabilities
+must sum up to one, hence, *MATH* forms a probability distribution over the
+set *MATH* of all states. To update the agent&apos;s beliefs about the world, a
+special function *MATH* is defined as
+*MATH*, where *MATH* is an action performed in &apos;current&apos;
+belief state *MATH*, *MATH* is the resultant observation and *MATH* denotes
+the probability of the agent being in state *MATH* in &apos;new&apos; belief state
+*MATH*. Note that *MATH* is a normalizing constant.
+
+
+Let the planning horizon *MATH* (also called the look-ahead depth) be
+the number of future steps the agent plans ahead each time it plans.
+*MATH* is the optimal value of future courses of actions the agent
+can take with respect to a finite horizon *MATH* starting in belief state
+*MATH*. This function assumes that at each step the action that will
+maximize the state&apos;s value will be selected.
+
+
+Because the reward function *MATH* provides feedback about the utility
+of a particular state *MATH* (due to *MATH* executed in it), an agent who does
+not know in which state it is in cannot use this reward function
+directly. The agent must consider, for each state *MATH*, the probability
+*MATH* of being in *MATH*, according to its current belief state *MATH*.
+Hence, a belief reward function *MATH* is defined, which takes a
+belief state as argument. Let *MATH*.
+
+
+The optimal state-value function is define by
+*MATH* V, where *MATH* is a factor to discount
+the value of future rewards and *MATH* denotes the probability
+of reaching belief state *MATH*. While *MATH* denotes
+the optimal value of a belief state, function *MATH* denotes the optimal
+action-value: *MATH* is the value of executing *MATH* in the current belief
+state, plus the total expected value of belief states reached thereafter.
+
+
+The Basic HPB Architecture 
+
+
+In BDI theory, one of the big challenges is to know when the agent
+should switch its current goal and what its new goal should be
+[*REF*]. To address this challenge, we propose that an agent should
+maintain intensity levels of desire for every goal. This intensity of
+desire could be interpreted as a kind of emotion. The goals most
+intensely desired should be the goals sought (the agent&apos;s intentions).
+We also define the notion of how much an intention is satisfied in the
+agent&apos;s current belief state. For instance, suppose that out of five
+possible goals, the agent currently most desires to watch a film and to
+eat a snack. Then these two goals become the agent&apos;s intentions.
+However, eating is not allowed inside the film-theatre, and if the agent
+were to go buy a snack it would miss the beginning of the film. So the
+total reward for first watching the film then buying and eating a snack
+is higher than first eating then watching. As soon as the film-watching
+goal is satisfied, it is no longer an intention. But while the agent was
+watching the film, the desire-level of the (non-intention) goal of being
+at home has been increasing. However, it cannot become an intention
+because snack-eating has not yet been satisfied. Going home cannot
+simply become an intention and dominate snack-eating, because the
+architecture is designed so that current intentions have precedence over
+non-intention goals, else there is a danger that the agent will
+vacillate between which goals to pursue. Nonetheless, snack-eating may
+be ejected from the set of intentions under the special condition that
+the agent is having an unusually hard time achieving it. For instance,
+if someone stole its wallet in the theatre, the agent can no longer have
+the current intention (i.e., actively pursue) eating a snack. Hence, in
+our architecture, if an intention takes &apos;too long&apos; to satisfy, it is
+removed from the set of intentions. As soon as the agent gets home or is
+close to home, the snack-eating goal will probably become an intention
+again and the agent will start making plans to satisfy eating a snack.
+Moreover, the desire-level of snack-eating will now be very high (it has
+been steadily increasing) and the agent&apos;s actions will be biased towards
+satisfying this intention over other current intentions (e.g., over
+getting home, if it is not yet there).
+
+
+A Hybrid POMDP-BDI (HPB) agent [*REF*] maintains (i) a belief state
+which is periodically updated, (ii) a mapping from goals to numbers
+representing the level of desire to achieve the goals, and (iii) the
+current set of intentions, the goals with the highest desire levels
+(roughly speaking). As the agent acts, its desire levels are updated and
+it may consider choosing new intentions and discard others based on new
+desire levels. Refer to
+Figure for an overview of the operational
+semantics. The figure refers to concepts defined in the following subsection.
+
+
+FIGURE
+
+
+Declarative Semantics
+
+
+The state of an HPB agent is defined by the tuple
+*MATH*, where *MATH* is the agent&apos;s current belief state
+(i.e., a probability distribution over the states *MATH*, defined below),
+*MATH* is the agent&apos;s current desire function and *MATH* is the agent&apos;s
+current intention. More will be said about *MATH* and *MATH* a little later.
+
+
+An HPB agent could be defined by the tuple *MATH*, where
+- *MATH* is a set of attribute-sort pairs (for short, the
+attribute set). For every *MATH*, *MATH* is
+the name or identifier of an attribute of interest in the domain of
+interest, like *MATH* or *MATH*, and
+*MATH* is the set from which *MATH* can take a
+value, for instance, real numbers in the range *MATH* or a list of
+values like *MATH*, *MATH*, *MATH*,
+*MATH*. So *MATH* *MATH* 
+could be an attribute set.
+
+
+A state *MATH* is induced from *MATH* as one possible way of
+assigning values to attributes:
+*MATH* if *MATH* and
+*MATH*, then *MATH*. The set of all
+possible states is denoted *MATH*.
+
+
+- *MATH* is a set of goals. A goal is a subset of some state *MATH*.
+For instance, *MATH* is a goal, and so are *MATH* and
+*MATH*. The set of goals is
+given by the agent designer as &apos;instructions&apos; about the agent&apos;s tasks.
+
+
+- *MATH* is a finite set of actions.
+
+
+- *MATH* is a finite set of observations.
+
+
+- *MATH* is the transition function of POMDPs.
+
+
+- *MATH* is the perception function of POMDPs.
+
+
+- *MATH* consists of two functions *MATH* and
+*MATH* which allow an agent to determine the utilities of
+alternative sequences of actions. *MATH*.
+
+
+*MATH* is the preference function with a range in
+*MATH*. It takes an action *MATH* and a state *MATH*, and
+returns the preference (any real number) for performing *MATH* in *MATH*.
+That is, *MATH*. Numbers closer to 1 imply
+greater preference and numbers closer to 0 imply less preference.
+Except for the range restriction of *MATH*, it has the same
+definition as a POMDP reward function, but its name indicates that
+it models the agent&apos;s preferences and not what is typically thought
+of as rewards. An HPB agent gets &apos;rewarded&apos; by achieving its goals.
+The preference function is especially important to model action
+costs; the agent should prefer &apos;inexpensive&apos; actions.
+*MATH* has a local flavor. Designing the preference
+function to have a value lying in FORMULA may sometimes be
+challenging, but we believe it is always possible.
+
+
+*MATH* is the satisfaction function with a range in
+*MATH*. It takes a state *MATH* and an intention *MATH*,
+and returns a value representing the degree to which the state
+satisfies the intention. That is, *MATH*. It
+is completely up to the agent designer to decide how the
+satisfaction function is defined, as long as numbers closer to 1
+mean more satisfaction and numbers closer to 0 mean less
+satisfaction. *MATH* has a global flavor.
+
+
+Figure  shows a flow diagram representing the
+operational semantics of the basic HPB architecture.
+
+
+The Desire Function
+
+
+The desire function *MATH* is a total function from goals in *MATH* into the
+positive real numbers *MATH*. The real number represents the
+intensity or level of desire of the goal. For instance, *MATH* 
+could be in *MATH*, meaning that the goal of having the battery level at 13
+and the week-day Tuesday is desired with a level of 2.2. *MATH* and
+*MATH* are also examples of desires in *MATH*.
+
+
+*MATH* is the agent&apos;s current intention; an element of *MATH*; the goal with
+the highest desire level. This goal will be actively pursued by the
+agent, shifting the importance of the other goals to the background. The
+fact that only one intention is maintained makes the HPB agent
+architecture quite different to standard BDIAs.
+
+
+We propose the following desire update rule.
+*MATH* Rule FORMULA is defined so that as *MATH* 
+tends to one (total satisfaction), the intensity with which the
+incumbent goal is desired does not increase. On the other hand, as
+*MATH* becomes smaller (more dissatisfaction), the
+goal&apos;s intensity is incremented. The rule transforms *MATH* with respect to
+*MATH* and *MATH*. A goal&apos;s intensity should drop the more it is being
+satisfied. The update rule thus defines how a goal&apos;s intensity changes
+over time with respect to satisfaction.
+
+
+Note that desire levels never decrease. This does not reflect reality.
+It is however convenient to represent the intensity of desires like
+this: only relative differences in desire levels matter in our
+approach and we want to avoid unnecessarily complicating the architecture.
+
+
+Focusing and Satisfaction Levels
+
+
+*MATH* is a function which returns one member of *MATH* called
+the (current) intention *MATH*. In the initial version of the architecture,
+the goal selected is the one with the highest desire level. After every
+execution of an action in the real-world, *MATH* is called
+to decide whether to call *MATH* to select a new intention.
+*MATH* is a meta-reasoning function analogous to the
+*MATH* function mentioned in
+Section 2. It is important to keep the agent
+focused on one goal long enough to give it a reasonable chance of
+achieving it. It is the job of *MATH* to recognize when the
+current intention seems impossible or too expensive to achieve.
+
+
+Let *MATH* be the sequence of satisfaction levels of
+the current intention since it became active and let *MATH* be a
+designer-specified number representing the length of a sub-sequence of
+*MATH* -- the *MATH* last satisfaction levels.
+
+
+One possible definition of *MATH* is
+*MATH*, where *MATH* is the average change from one
+satisfaction level to the next in the agent&apos;s &apos;memory&apos; *MATH*,
+and *MATH* is some threshold, for instance, *MATH*. If the agent is
+expected to increase its satisfaction by at least, say, 0.1 on average
+for the current intention, then *MATH* should be set to 0.1. With this
+approach, if the agent &apos;gets stuck&apos; trying to achieve its current
+intention, it will not blindly keep on trying to achieve it, but will
+start pursuing another goal (with the highest desire level). Some
+experimentation will likely be necessary for the agent designer to
+determine a good value for *MATH* in the application domain.
+
+
+Note that if an intention was not well satisfied, its desire level still
+increases at a relatively high rate. So whenever the agent focuses
+again, a goal not well satisfied in the past will be a top contender to
+become the intention (again).
+
+
+Planning for the Next Action
+
+
+A basic HPB agent controls its behaviour according to the policies it
+generates. *MATH* is a procedure which generates a POMDP policy
+*MATH* of depth *MATH*. Essentially, we want to consider all action
+sequences of length *MATH* and the belief states in which the agent would
+find itself if it followed the sequences. Then we want to choose the
+sequence (or at least its first action) which yields the least cost and
+which ends in the belief state most satisfying with respect to the intention.
+
+
+Planning occurs over an agents belief states. The satisfaction and
+preference functions thus need to be defined for belief states: The
+satisfaction an agent gets for an intention in its current belief state
+is defined as *MATH*, 
+where *MATH* is defined above and *MATH* is the
+probability of being in state *MATH*. The definition of
+*MATH* has the same form as the reward function *MATH* 
+over belief states in POMDP theory:
+*MATH*, where *MATH* was discussed above.
+
+
+During planning, preferences and intention satisfaction must be
+maximized. The main function used in the *MATH* procedure is
+the HPB action-state value function *MATH*, giving the value
+of some action *MATH*, conditioned on the current belief state *MATH*,
+intention *MATH* and look-ahead depth *MATH*: *MATH*, where *MATH*, *MATH* is the
+goal/preference &apos;trade-off&apos; factor, *MATH* is the normal POMDP
+discount factor and *MATH* is the normal POMDP state estimation function.
+
+
+*MATH* returns *MATH*, the
+trivial policy of a single action.
+
+
+The Extended HPB Architecture 
+
+
+The operational semantics of the extended architecture is essentially
+the same as for the first version, except that a plan library is now
+involved. The agent starts off with an initial set of intentions, a
+subset of its goals. For the current set of intentions, it must either
+select a plan from the plan library or generate a plan to pursue all its
+intentions. At every iteration of the agent&apos;s control loop, an action is
+performed, an observation is made, the belief state is updated, and a
+decision is made whether to modify the set of intentions. But only when
+the current policy (conditional plan) is &apos;exhausted&apos; does the agent seek
+a new policy, by consulting its plan library, and if an adequate policy
+is not found, generating one.
+
+
+In the next subsection, we introduce some new notation and changes made
+to the architecture.
+Section 4.2 discusses how the focussing
+procedure must change to accommodate the changes.
+Section 4.3 explains how policies are
+generated for simultaneous pursuit of multiple goals. Finally,
+Section 4.4 presents the plan library,
+which was previously unavailable, and how the agent and agent designer
+can use it to their benefit.
+
+
+Prologue
+
+
+The HPB agent model gets three new component -- a goal weight function
+*MATH*, a compatibility function *MATH* and the plan library
+*MATH*. It can thus be defined by the tuple
+*MATH*, *MATH*, *MATH*, *MATH*, *MATH*, *MATH*, *MATH*, *MATH*, *MATH*, *MATH*.
+
+
+In the previous version, satisfaction and preference were traded-off by
+&quot;trade-off factor&quot; which was not explicitly mentioned in the agent
+model. Actually the trade-off factor should have been part of the model,
+because it must be provided by the agent designer, and it directly
+affects the agent&apos;s behaviour. In the new version, every goal *MATH* 
+will be weighted by *MATH* according to the importance of *MATH* to the
+agent. Goal weights are constrained such that *MATH* for all *MATH*, and *MATH*.
+
+
+The third fundamental extension is that *MATH* becomes a set of
+intentions. In this way, an HPB agent may actively pursue several goals
+simultaneously. For example, a planetary rover may want to travel to its
+recharging station and simultaneously make same atmospheric measurements en route.
+
+
+The first version has also been changed so that the set of goals *MATH* is
+simply a set of names, rather than restricting a goal to be a set of
+attribute values, as was previously done. Goals are defined by how they
+are used in the architecture, particularly by their involvement in the
+definition of satisfaction functions.
+
+
+In the extended architecture, it will be convenient to use more compact
+notation: Here we let *MATH*, where
+*MATH* is the same as *MATH* and *MATH* is a set of
+satisfaction functions *MATH*. In particular, we
+move away from a preference function, and rather think of a cost
+function *MATH*. Preferences will be captured by the set of satisfaction functions.
+
+
+As a consequence of being able to pursue several goals at the same time,
+there exists a danger that the agent will pursue one intention when it
+necessarily causes another intention to become less satisfied. For
+instance, visiting the USA regional headquarters is diametrically
+opposite to visiting the China regional headquarters at the same time.
+Other examples of goals which should be &apos;disjoint&apos; are *MATH* and *MATH*, and
+*MATH* and *MATH*. The solution we use is to list, for each goal *MATH*, all other goals
+which are compatible with it, in the sense that their simultaneous
+pursuit &apos;effective&apos; (defined by the agent designer). Let
+*MATH* denote the set of goals compatible with *MATH*. It is
+mandatory that *MATH*. Two goals *MATH* and *MATH* are called
+incompatible if and only if *MATH* or *MATH*.
+
+
+Suppose *MATH*, *MATH*, *MATH*, *MATH*,
+*MATH*, *MATH*. Then an
+agent designer may specify *MATH* and *MATH*.
+Note that *MATH* and *MATH* are incompatible.
+
+
+A New Approach to Focusing 
+
+
+Given that *MATH* is a set of intentions, ensuring that the &apos;correct&apos;
+goals are intentions at the &apos;right&apos; time to ensure that the agent
+behaves as desired, requires some careful thought. It is still important
+to keep the agent focused on one intention long enough to give it a
+reasonable chance of achieving it, temporarily stop pursuing intentions
+it is struggling to achieve.
+
+
+The HPB architecture does not have a focus function which returns a
+subset of *MATH* of intentions *MATH*. Rather, we have a set of procedures
+which decide at each iteration which intention to remove from *MATH* (if
+any) and which goal to add to *MATH* (if any). Incompatible must also be dealt with.
+
+
+Let *MATH* be the sequence of satisfaction levels of
+some goal *MATH* since *MATH* became active (i.e., was added to *MATH*) and
+let *MATH* be a number representing the length of a sub-sequence
+of *MATH* -- the *MATH* last satisfaction
+levels of goal *MATH*. *MATH* is defined exactly like
+*MATH*: *MATH*, where *MATH* is the average change from one
+satisfaction level of *MATH* to the next in the agent&apos;s &apos;memory&apos;, and
+*MATH* is the threshold above which *MATH* must be for *MATH* to remain an intention.
+
+
+Let *MATH* be the currently most intense goal defined as *MATH*.
+
+
+We define two focusing strategies for sets of intentions: the
+over-optimistic strategy and the compatibility strategy.
+
+
+Over-optimistic Strategy
+
+
+This strategy ignores compatibility issues between goals. In this sense,
+the agent is (over) optimistic that it can successfully simultaneously
+pursue goals which are incompatible.
+
+
+Add *MATH* to *MATH* only if *MATH*. If
+*MATH* is added to *MATH*, clear *MATH* &apos;s record of
+satisfaction levels, that is, let *MATH* be the empty sequence.
+
+
+Next: For every *MATH*, if *MATH* and *MATH* returns
+&apos;yes&apos;, then remove *MATH* from *MATH*.
+
+
+Compatibility Strategy
+
+
+Add *MATH* to *MATH* only if *MATH* and there does
+not exists a *MATH* such that *MATH*.
+If *MATH* is added to *MATH*, clear *MATH* &apos;s record of
+satisfaction levels, that is, let *MATH* 
+be the empty sequence.
+
+
+Next: For every *MATH*, if *MATH* and *MATH* returns
+&apos;yes&apos;, then remove *MATH* from *MATH*.
+
+
+There is one case which must still be dealt with in the compatibility
+strategy: Suppose for some *MATH*, *MATH*.
+Further suppose that *MATH* (i.e., *MATH*) and *MATH* is and
+remains the most intensely desired goal. Now, *MATH* may not be added to
+*MATH* because it is incompatible with *MATH*, no other goal will be
+attempted to be added to *MATH* and *MATH* may not be removed while it
+is the only intention, even if *MATH* returns
+&apos;yes&apos;. What could easily happen in this case is that *MATH* will
+continually increase in desire level, *MATH* &apos;s average satisfaction
+level will remain below the change threshold (i.e.,
+*MATH* remains true), and the agent continues to
+pursue only *MATH*. To remedy this &apos;locked&apos; situation, the following
+procedure is run after the previous &apos;add&apos; and &apos;remove&apos; procedures are
+attempted. If *MATH*, *MATH* and
+*MATH* returns &apos;yes&apos;, then remove *MATH* from
+*MATH*, add *MATH* to *MATH* and clear *MATH* &apos;s record of satisfaction levels.
+
+
+A New Desire Function
+
+
+The old rule (in new notation) is still available: *MATH*.
+
+
+We have found through experimentation that when an intention-goal&apos;s
+desire levels are updated, non-intention-goals may not get the
+opportunity to become intentions. In other words, it may happen that
+whenever new non-intention-goals are considered to become intentions,
+they are always &apos;dominated&apos; by goals with higher levels of desire which
+are already intentions. By disallowing intentions&apos; desire levels to
+increase, non-intentions get the opportunity to &apos;catch up&apos; with their
+desire levels. A new form of the desire update rule is thus proposed for
+this version of the architecture:
+*MATH*. The term *MATH* in FORMULA ensures
+that a goal&apos;s desire level changes if and only if the goal is not an intention.
+
+
+Both forms of the rule are defined so that as *MATH* tends
+to one (total satisfaction), the intensity with which the incumbent goal
+is desired does not increase. On the other hand, as *MATH* 
+becomes smaller (more dissatisfaction), the goal&apos;s intensity is
+incremented -- by at most its weight of importance *MATH*. A goal&apos;s
+intensity should drop the more it is being satisfied.
+
+
+However, update rule FORMULA which is independent of whether a goal is an
+intention may still result in better performance in particular domains.
+(This question needs more research.) It is thus left up to the agent
+designer to desire which form of the rule better suits the application domain.
+
+
+Planning by Policy Generation 
+
+
+In this section, we shall see how the planner can be extended to compute
+a policy which pursues several goals simultaneously. Goal weights are
+also incorporated into the action-state value function.
+
+
+The satisfaction an agent gets for an intention *MATH* at its current
+belief state is defined as
+*MATH*, where *MATH* is defined above and *MATH* is the probability of being in
+state *MATH*. The definition of *MATH* has the same form as the
+reward function *MATH* over belief states in POMDP theory:
+*MATH*, where *MATH* was discussed above.
+
+
+The main function used in the *MATH* procedure is the HPB
+action-state value function *MATH*, giving the value of some
+action *MATH*, conditioned on the current belief state *MATH* and look-ahead
+depth *MATH*: *MATH*, where
+- *MATH* if *MATH*, else *MATH* if *MATH*,
+- *MATH* is an ordering of the goals in *MATH*,
+- *MATH* and *MATH* are the expected
+(w.r.t. a belief state) values of *MATH*, resp., *MATH*,
+- *MATH*,
+- *MATH* is the normal POMDP discount factor and
+- *MATH* is the normal POMDP state estimation function.
+
+
+Now, instead of *MATH* returning a single action (assuming
+*MATH*), *MATH* generates a tree-structures plan of depth *MATH*,
+conditioned on observations, that is, a policy. With a policy of depth
+*MATH*, an agent can execute a sequence of *MATH* actions, where the choice of
+exactly which action to take at each step depends on the observation
+received just prior. *MATH* 
+*MATH* is used at every choice point to construct the policy.
+
+
+Figure 1 is a graphical example of a policy with two actions and two observations.
+The agent is assumed to be in belief state *MATH* when the
+policy is generated. At every belief state node (triangles), the optimal
+action is recommended. After an action is performed, all/both
+observations are possible and thus considered. There is thus a choice at
+every *MATH* node; however, it is not a choice for the agent, rather,
+it is a choice for the environment which observation to send to the
+agent. Given the action performed, for every possible observation, a
+different belief state is generated. At every *MATH* node
+(belief state), *MATH* *MATH* is applied to determine the
+action to perform there. (In theory, the agent can choose to perform any
+action at these *MATH* nodes, but our agent will take the
+recommendations of POMDP theory for optimal behavior.) The agent will
+perform *MATH* first, then depending on whether *MATH* 
+or *MATH* in sensed, the agent should next (according to the
+policy) perform *MATH*, respectively, *MATH*. Then a
+third action will be performed according to the policy and conditional
+on which observation is sensed.
+
+
+FIGURE
+
+
+Introducing a Plan Library 
+
+
+Another extension of the basic architecture is that a language based on
+the attributes is introduced. The language *MATH* is the set of all
+sentences. Let *MATH* and *MATH* be sentences. Then the following are
+also sentences.
+
+
+- *MATH*,
+
+
+- *MATH*, i.e., an attribute-value pair,
+
+
+- *MATH*,
+
+
+- *MATH*,
+
+
+- *MATH*.
+
+
+If a sentence *MATH* is satisfied or true in a state *MATH*, we write
+*MATH*. The semantics of *MATH* is defined by
+
+
+- *MATH* always,
+
+
+- *MATH*,
+
+
+- *MATH* and *MATH*,
+
+
+- *MATH* or *MATH*,
+
+
+- *MATH* not *MATH*.
+
+
+Let *MATH* be a sentence in *MATH*. When a sentence in *MATH* appears in a
+written policy (see below), it is called a context.
+
+
+We define two kinds of plans: an attribute condition plan is a triple
+*MATH*, and a belief state condition plan is a triple *MATH*,
+where *MATH* is a set of intentions, *MATH* is a POMDP policy, *MATH* is a
+context and *MATH* is a belief state. All plans are stored in a plan
+library.
+
+
+The idea is that attribute condition plans (abbreviation: a-plans) are
+written by agent designers and are available for use when the agent is
+deployed. Roughly speaking, belief state condition plans (abbreviation:
+b-plans) are automatically generated by a POMDP planner and stored when
+no a-plan is found which &apos;matches&apos; the agent&apos;s current belief state and
+intention set.
+
+
+Policies in a-plans are of two kinds: DEFINITION 1.
+
+
+At belief state *MATH*, the degree of belief of *MATH* is *MATH*.
+
+
+We abbreviate &quot;most-likely-context&quot; as &apos;ml&apos;. If an ml policy
+*MATH* is adopted for execution and it is not simply an
+action, then *MATH* is executed, an observation is received, the current
+belief state is updated to *MATH* and finally the policy which is paired
+with the most likely context is executed -- that is, *MATH* is executed.
+
+
+DEFINITION 2
+
+
+We abbreviate &quot;first-applicable-context&quot; as &apos;fa&apos;. If an fa policy
+*MATH* is adopted for execution and it is not simply an
+action, then *MATH* is executed, an observation is received, the current
+belief state is updated to *MATH* and finally the policy which is paired
+with the first context which satisfies its probability inequality is
+executed - that is, *MATH* is executed such that
+*MATH* and *MATH* and there is no
+*MATH* such that *MATH* for which
+*MATH*. If no context in the sequence *MATH* 
+satisfies its inequality, the a-plan of which the policy is a part is
+regarded as having finished, that is, the control loop is then in a
+position where a fresh plan in the plan library is sought.
+
+
+In the following example a-plan policy, an agent must move around in a
+six-by-six grid world to collect items. Suppose the plan selected from
+the library is *MATH* with *MATH* being
+*MATH*, *MATH* being *MATH* 
+and *MATH* being *MATH*. One can see that *MATH* itself is an ml policy, but
+embedded inside it is an fa policy.
+
+
+Suppose that the agent currently has a belief state *MATH* and
+an intention set *MATH*. First, the agent will scan through
+all a-plans, selecting all those which &apos;match&apos; *MATH*. From
+this set, the agent will execute the policy *MATH* of the a-plan
+*MATH* whose attribute condition has the highest degree of belief
+at *MATH*. If the set of a-plans matching *MATH* is
+empty, the agent will scan through all b-plans, selecting all those
+which &apos;match&apos; *MATH*. From this set, the agent will execute
+the policy *MATH* of the b-plan *MATH* whose belief state is &apos;most
+similar&apos; to *MATH*. If the set of b-plans matching
+*MATH* is empty, or there is no b-plan with belief state
+similar to *MATH*, then the agent will generate policy
+*MATH*, execute it and store
+*MATH* in the plan library for
+possible reuse later. The high-level planning process is depicted by the
+diagram in Figure 2.
+
+
+FIGURE 2
+
+
+To &quot;execute policy *MATH* &quot; (where *MATH* has horizon/depth *MATH*) means to
+perform *MATH* actions as recommended by *MATH*. No policy will be sought in
+the library, nor will a new policy be generated until the action
+recommendations of the current policy being executed have been
+&apos;exhausted&apos;. One may be concerned that a policy becomes &apos;stale&apos; or
+inapplicable while being executed, and that seeking or generating
+&apos;fresh&apos; policies at every iteration keeps action selection relevant in a
+dynamic world. However, written policies (in a-plans) should preferably
+have the form of generated policies, and generated policies (in b-plans)
+can deal with all situations understood by the agent: It is assumed that
+each observation distinguishable by the agent, identifies a particular
+state of the world, as far as the agent&apos;s sensors allow. Hence, if a
+policy considers every observation at its choice nodes, the policy will
+have a recommended (for written policies) or optimal (for generated
+policies) action, no matter the state of the world. However, writing or
+generating policies with far horizons (e.g., *MATH*) is impractical. With
+large *MATH*, an agent will take relatively long to generate a policy and
+thus lose its reactiveness. Reactiveness is especially important in highly dynamic environments.
+
+
+ALGORITHM
+
+
+With respect to a-plans, whether two intention sets match will be
+determined by how many goals they have in common. Thus, the similarity
+between *MATH* and *MATH* can be determined as follows.
+*MATH*. *MATH* lies in *MATH*. *MATH* and
+*MATH* need not have equal cardinality. Larger values of
+*MATH* mean more similarity / closer match. The agent
+designer can decide what value of *MATH* constitutes a
+&apos;match&apos; between *MATH* and *MATH* (see the discussion on &quot;thresholds&quot; below).
+
+
+What constitutes a match between intention sets with respect to b-plans
+is different: Policies generated at two times *MATH* and *MATH* might be
+significantly different for the same (similar) context(s) if the
+satisfaction levels of the intentions are significantly different at the
+two times. This is an important insight because policies of b-plans are
+generated, not written. Even though
+*MATH* may constitute a &apos;match&apos;
+(with *MATH* in a b-plan), *MATH* might be
+completely impractical for pursuing *MATH*. The measure of
+similarity will be the sum of differences between satisfaction levels.
+Note that an intention&apos;s satisfaction levels can only be compared if the
+intention appears in both intention sets under consideration. We denote
+the similarity between two intention sets *MATH* and
+*MATH* as *MATH* 
+and define it as follows.
+*MATH*,where *MATH* denotes the absolute value of *MATH*. *MATH* 
+lies in *MATH*. *MATH* and *MATH* need not have
+equal cardinality. Larger values of *MATH* mean more
+similarity / closer match. The agent designer can decide what value of
+*MATH* constitutes a &apos;match&apos; between *MATH* and *MATH*.
+
+
+For a fixed pair of intention sets, *MATH*.
+That is, *MATH* is a stronger measure of similarity than
+*MATH*. This is because with *MATH*,
+intention satisfaction levels must also be similar. The stronger measure
+is required to filter out b-plans that seem similar when judged only on
+the commonality of their intentions, but not on their satisfaction
+levels. And there may be several b-plans in the library which would be
+judged similar by *MATH*, but they have been added to the
+library exactly because they are indeed different when their
+satisfaction levels are taken into account. The following example should
+make this clear. Suppose that the following two b-plans are in the
+library: *MATH* and *MATH*, where *MATH* and
+*MATH*. And suppose *MATH* is
+most satisfied when the agent is in *MATH*, and *MATH* is most satisfied
+when the agent is in *MATH*. A policy to pursue *MATH* when starting
+in *MATH* would rather suggest actions to move towards *MATH*, while a
+policy to pursue *MATH* when starting in *MATH* would rather suggest
+actions to move towards *MATH*. The point is that although the two
+b-plans are identical with respect to the intention set, they have very
+different policies, due to their different belief states (and thus satisfaction levels).
+
+
+We now prepare for the definition of similarity between two belief
+states. The &apos;directed divergence&apos; [*REF*; *REF*] of belief state *MATH* from
+belief state *MATH* is defined as
+*MATH*. *MATH* is undefined when *MATH* while *MATH*. When *MATH*, then *MATH* 
+because *MATH*. Let *MATH*, 
+where *MATH* is the set of all probability distributions over the states
+*MATH* (i.e., all belief states which can be induced from *MATH*). That is,
+*MATH* is the set of belief states which keep *MATH* defined. Let
+*MATH*. For our purposes, we
+can define *MATH* as *MATH* whenever it would normally
+be undefined. We define a slightly modified cross-entropy *MATH* as
+*MATH*. Finally, the similarity between the current belief
+state *MATH* and the belief state *MATH* in a plan in the library is *MATH*.
+
+
+Two thresholds are involved with determining when library plans are
+applicable and how plans are dealt with: the intention-set threshold
+(abbreviation: *MATH*) and the belief-state threshold
+(abbreviation: *MATH*). The former is involved in both a-plans and
+b-plans, and the latter is involved only in b-plans.
+
+
+The *MATH* procedure (Algo. 2)
+formally defines what policy the agent will execute whenever the agent
+seeks a policy, and the procedure defines when and how new plans are
+added to the plan library.
+
+
+Simulations 
+
+
+We performed some tests on an HPB agent in two domains: a six-by-six
+grid-world and a three-battery system. In the experiments which follow,
+the threshold *MATH* is set to *MATH*, *MATH* is set to 5 and
+*MATH*. Desire levels are initially set to zero for all goals. For each
+experiment, 10 trials were run. The plan library is not made use of.
+
+
+In the grid-world, the agent&apos;s task is to visit each of the four
+corners, and to collect twelve items randomly scattered. The goals are
+*MATH*, *MATH*, *MATH*, *MATH*, *MATH*, and *MATH*,
+*MATH*, *MATH* and *MATH* are marked mutually incompatible. That is, *MATH*.
+
+
+States are quadruples *MATH*, with
+*MATH* being the coordinates of the agent&apos;s position in the world,
+*MATH* the direction it is facing, and *MATH*, *MATH* if an item is present
+in the cell with the agent, else *MATH*. The agent can perform five actions
+*MATH*, meaning, turn left, turn right, move one cell forward, see whether an
+item is present and take an item. The only observation possible when
+executing one of the physical actions is *MATH*, the null
+observation, and *MATH* has possible observations from the set
+*MATH* for whether the agent sees the presence of an item (1) or not (0).
+
+
+Next, we define the possible outcomes for each action: When the agent
+turns left or right, it can get stuck in the same direction, turn
+*MATH* or overshoots by *MATH*. When the agent moves forward, it
+moves one cell in the direction it is facing or it gets stuck and does
+not move. The agent can see an item or see nothing (no item in the
+cell), and taking is deterministic (if there is an item present, it will
+be collected with certainty, if the agent executes *MATH*). All
+actions except *MATH* are designed so that the correct outcome
+is achieved *MATH* of the time and incorrect outcomes are achieved *MATH* of the time.
+
+
+Seven experiments were performed, with different weight-combinations
+(*MATH*) assigned for each experiment. For each trial, the agent
+starts in a random location and performs 100 actions. When
+*MATH*, we let *MATH* where 10 is the maximum Manhattan
+distance between two cells in the world and *MATH* is the
+Manhattan distance between the cells represented by *MATH* and *MATH*, and we
+let *MATH*, where *MATH* is the Manhattan distance between the cell represented
+by *MATH* and the closest cell containing an item.
+
+
+In the BatryPack domain, the agent&apos;s task is to keep a pack of
+rechargeable batteries within a given voltage range. There are three
+batteries available, each with a maximum capacity of 6 volts. For every
+time-unit that a battery is in the pack, it loses 1 volt. For every
+time-unit a battery is out of the pack, it gains 1 volt. The pack is
+considered to be within range if the sum of the batteries currently in
+the pack is in *MATH*. (The possible pack-voltage-range is *MATH*).
+The goals are *MATH*, meaning that the
+agent should, respectively, try to keep the pack within range, and
+charge the batteries. The goals are, intuitively, not mutually
+exclusive. States are of the form
+*MATH*, with *MATH* being
+either *MATH* or *MATH*, indicating whether battery *MATH* 
+is in or out of the pack, and *MATH* is the batteries current voltage.
+The agent can perform ten actions: *MATH* and for *MATH*,
+*MATH*, *MATH* and *MATH*, meaning,
+remove battery *MATH* from the pack, add battery *MATH* to the pack,
+respectively, measure the current voltage available in battery *MATH*. The
+only observation possible when executing one of the physical actions is
+*MATH*; *MATH* has possible observations from
+the set *MATH*. When the agent removes or adds a battery,
+it may fail to do so with a *MATH* chance. The measurement action is
+deterministic, but *MATH* of the time it will perceive a voltage one volt
+more or less than it is actually.
+
+
+Six experiments were performed with different weights (*MATH*) assigned
+for each experiment - three while the goals were mutually incompatible
+and three while the goals may be pursued simultaneously. For each trial,
+the initial state is *MATH* with
+the initial intention being *MATH* - and the agent/system
+performs 50 actions. We let *MATH* equal 1 if the
+battery pack is within range, else it equals a value less than 1 (min.
+0) in proportion to how far the pack voltage is from being within range.
+We let *MATH* where *MATH* is the number of
+batteries which are out of the pack.
+
+
+Evaluation of HPB Agent Performance 
+
+
+Table 1 shows the results. It can be seen
+quite clearly that the agent can be directed to certain corners and to
+collect items with a dedication proportional to the weights chosen by
+the agent designer for the respective goals.
+
+
+TABLE
+
+
+Table 3 shows the results. It can be seen that the
+system performs better when the goals are pursued jointly, particularly
+when maintaining pack voltage and trying to charge the batteries have
+equal weights. In the table, &quot; *MATH* one/two intentions&quot; means that for
+*MATH*, the percentage of time that there was exactly one intention in
+*MATH* is *MATH* and the percentage of time that there were exactly two
+intentions in *MATH* is *MATH*.
+
+
+TABLE
+
+
+TABLE
+
+
+These experiments highlight four important features of the HPB
+architecture: (1) Each of several goals can be pursued individually until
+satisfactorily achieved. (2) Goals must periodically be re-achieved. (3)
+The trade-off between (weights of) goals can be set effectively. (4)
+Goals can be satisfied even while dealing with stochastic actions and perceptions.
+
+
+Related Work 
+
+
+AgentSpeak *MATH* [*REF*] extends the BDI language AgentSpeak [*REF*]
+with on-demand probabilistic planning in uncertain environments.
+AgentSpeak has a plan library of plans, each plan being of the form
+*MATH*; where *MATH* is a
+triggering event, *MATH* are belief literals and
+*MATH* are actions or goals. Goals may become (internal)
+triggering events. Events in the (external) environment may also be
+perceived as triggering events. As triggering events occur, they are
+placed in a set and periodically selected for processing. An event is
+&apos;processed&apos; by selecting an appropriate plan from the plan library with
+a matching triggering event. A plan is appropriate if its context
+*MATH* is a logical consequence of the agent&apos;s set
+of base beliefs. The goals and/or actions *MATH* of the
+selected appropriate plan will be processed in sequence. If *MATH* is an
+action, it is executed; if it is a goal, it becomes an internal event
+which may trigger the selection and execution of further plans. An
+AgentSpeak agent maintains a set of intentions and each intention is a
+stack of plans. Please refer to [*REF*] for details. When considering HPB
+plans, *MATH* is roughly analogous to *MATH*, *MATH* is
+roughly analogous to *MATH* or *MATH* and *MATH* is roughly analogous to *MATH*.
+
+
+The contribution of AgentSpeak *MATH* is to allow a POMDP planner to
+suggest the optimal action at a point in a (written) plan where the
+agent designer feels that an optimal action is required at that point,
+or that there is insufficient information at the time of writing the
+plan to suggest a reasonable action. In other words, there might be
+points in a plan when actions are best chosen just before execution so
+that they can be determined appropriately for the agent&apos;s current context.
+
+
+*REF* make use of only the first action of any POMDP policy. Online
+POMDP planners do forward-search to a given depth *MATH* (number of future
+actions). The deeper the look-ahead depth, the more optimal the actions
+in the policy. It might actually be a waste of computational resources
+to discard the whole policy of depth *MATH* once it is available. An agent
+could use its whole policy-tree and only generate a new policy after it
+has finished using the current policy to execute *MATH* actions. However,
+the actions closer to the end of the policy tree will tend to be farther
+from optimal than those closer to the tree&apos;s root. In future work, we
+would like to find ways to balance out the myopic take-first-action
+approach and the over-optimistic take-all-actions approach.
+
+
+AgentSpeak *MATH* does not have a mechanism for storing and reusing generated policies.
+
+
+An advantage of AgentSpeak *MATH* is that their written plans can be more
+expressive than HPB plans: elements of their plans are written in a
+language based on a fragment of first-order logic, including n-ary
+predicates and variable terms. Nonetheless, even though an HPB a-plan is
+propositional in nature (not relational), a policy has a reasonably
+expressive tree structure with branching conditional on observations of
+context sentences. A desirable feature that AgentSpeak plans have that
+HPB plans lack is the ability to call plans from within plans.
+
+
+Some slightly less related work will now be reviewed.
+
+
+*REF* and *REF* have incorporated online plan generation into BDI
+systems, however the planners deal only with deterministic actions and observations.
+
+
+*REF* use POMDP theory to coordinate teams of agents. However, their
+framework is very different to our architecture. They use POMDP theory
+to determine good role assignments of team members, not for generating policies online.
+
+
+*REF* provide a rather sophisticated architecture for controlling the
+behavior of an emotional agent. Their agents reason with several classes
+of emotion and their agents are supposed to portray emotional behavior,
+not simply to solve problems, but to look believable to humans. Their
+architecture has a &quot;continuous planner FORMULA that is capable of
+partial order planning and includes emotion-focused coping FORMULA&quot;
+Their work has a different application to ours, however, we could take
+inspiration from them to improve the HPB architecture.
+
+
+*REF* take a different approach to use POMDPs to improve BDI agents.
+By leveraging the relationship between POMDP and BDI models, as
+discussed by *REF*, they devised an algorithm to extract BDI plans from
+optimal POMDP policies. The main difference to our work is that their
+policies are pre-generated and BDI-style rules are extracted for all
+contingencies. The advantage is that no (time-consuming) online
+plan/policy generation is necessary. The disadvantage of their approach
+is that all the BDI plans must be stores and every time the domain model
+changes, a new POMDP must be solved and the policy-to-BDI-plan algorithm
+must be run. It is not exactly clear from their paper [*REF*] how or
+when intentions are chosen. Although it is interesting to know the
+relationship between POMDPs and BDI models [*REF*; *REF*], we did not
+use any of these insights in developing our architecture. However, the
+fact that the HPB architecture does integrate the two frameworks, is
+probably due to the existence of the relationship.
+
+
+*REF* also introduced a hybrid POMDP-BDI architecture, but without a
+notion of desire levels or satisfaction levels. Although their basic
+approaches to combine the POMDP and BDI frameworks is the same as ours,
+there are at least three major differences: Firstly, they define their
+architecture in terms of the GOLOG agent language [*REF*]. Secondly,
+their approach uses a computationally intensive method for deciding
+whether to refocus; performing short policy look-aheads to ascertain the
+most valuable goal to pursue. Our approach seems much more
+efficient. Thirdly, in their approach, the agent cannot pursue several goals concurrently.
+
+
+*REF* incorporate probabilistic graphical models into the BDI
+framework for plan selection in stochastic environments. An agent
+maintains epistemic states (with random variables) to model the
+uncertainty about the stochastic environment, and corresponding belief
+sets of the epistemic state are defined. The possible states of the
+environment, according to sensory observations, and their relationships
+are modeled using probabilistic graphical models: The uncertainty
+propagation is carried out by Bayesian Networks and belief sets derived
+from the epistemic states trigger the selection of relevant plans from a
+plan library. For cases when more than one plan is applicable due to
+uncertainty in an agent&apos;s beliefs, they propose a utility-driven
+approach for plan selection, where utilities of actions are modeled in
+influence diagrams. Our architecture is different in that it does not
+have a library of pre-supplied plans; in our architecture, policies
+(plans) are generated online.
+
+
+None of the approaches mentioned maintain desire levels for selecting
+intentions. The benefit of maintaining desire levels is that intentions
+are not selected only according what they offer with respect to their
+current expected reward, but also according to when last they were achieved.
+
+
+Conclusion 
+
+
+Our work focuses on providing high-level decision-making capabilities
+for robots and agents who live in dynamic stochastic environments, where
+multiple goals and goal types must be pursued. We introduced a hybrid
+POMDP-BDI agent architecture, which may display emergent behavior,
+driven by the intensities of their desires. In the past decade, several
+BDIAs have been augmented with capabilities to deal with uncertainty.
+The HPB architecture is novel in that it can pursue multiple goals
+concurrently. Goals must periodically be re-achieved, depending on the
+goals&apos; desire levels, which change over time and in proportion to how
+close the goals are to being satisfied.
+
+
+A major benefit of the HPB architecture is that every action recommended
+by a generated policy simultaneously maximizes the agent&apos;s reward with
+respect to pursuit of all the current intentions. As far as the
+authors are aware, no other agent architecture is capable of this.
+
+
+In previous work [*REF*], we argued that maintenance goals like
+avoiding moist areas (or collecting soil samples) should rather be
+viewed as a preference and modeled as a POMDP reward function. And
+specific tasks to complete (like collecting gas or keeping its battery
+charged) should be modeled as BDI desires. The idea is that while the
+agent is pursuing goals, it can concurrently perform rewarding actions
+not directly related to its goals. The architecture reported about in
+this paper does not make a clear distinction between overt and
+maintenance goals. In the new version of the architecture, that
+distinction can be simulated, however, now goals can be pursued in a
+much more fine-grained way via the choice of goal-weights (*MATH*).
+
+
+Another important feature brought into the new version is the ability to
+mark sets of goals as disjoint thereby forcing the agent to never
+pursue these goals concurrently, that is, disjoint goals will never be in *MATH* simultaneously.
+
+
+Although *REF* and *REF* call their approaches hybrid, our
+architecture can arguably more confidently be called hybrid because of
+its more intimate integration of POMDP and BDI concepts.
+
+
+We could take some advice from *REF*. They provide a systematic
+methodology to incorporate emotion into a decision-theoretic framework,
+and also provide &quot;a principled, domain-independent methodology for
+generating heuristics in novel situations&quot;.
+
+
+Policies returned by *MATH* as defined in this paper are
+optimal. A major benefit of a POMDP-based architecture is that the
+literature on POMDP planning optimization
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*] (for
+instance) can be drawn upon to improve the speed with which policies can be generated.
+
+
+Evaluating the proposed architecture in richer domains would highlight
+problems in the architecture and indicate new directions for research
+and development in the area of hybrid POMDP-BDI architectures.
+
+
+The expressivity of the language we use for describing goals and for
+writing conditions in a-plans is relatively low. AgentSpeak, for
+instance, has a richer language. The language&apos;s expressivity is mostly
+independent of the architecture. We thus chose to use a simple language
+to better focus on the components we want to discuss.
+
+
+The design of the HPB agent architecture is a medium-to-long-term
+programme. We would like to keep improving its capabilities to deal with
+unforeseen, complex events in a changing, noisy environment. The next
+step is to rigorously test the architecture using an HPB agent in a
+complex simulated world. In particular, HPB agents with a plan library,
+including (pre-written) a-plans and (generated) b-plans, must still be
+assessed. There is also scope for improving the focussing procedure. And
+analyzing under what conditions the two forms of desire update rule
+produce better performance must be investigated.
+
+
+There may be better methods for learning than policy reuse. Policy reuse
+has its place when reasoning time or power is limited, but given the
+time and power, more sophisticated techniques could perhaps generate and
+store shorter, more effective plans. For instance, when an agent
+encounters a landmark with relatively high certainty, the landmark&apos;s
+location can be stored. The agent could then augment its sensor readings
+with the stored location data to reach the landmark more easily in
+future. Some objects in the environment might not be stable, and their
+location data should &apos;degrade&apos; over time in proportion to the environment&apos;s dynamism.
+
+
+*REF* provide a method for learning which (pre-written) plans in a BDI
+system should be executed in which contexts (given a selection of
+context-applicable plans). Their approach can also relearn context-plan
+matches as conditions change in dynamic environments. Future versions of
+the HPB architecture could benefit from ideas in their work.
+
+
+Prediction is an inherent part of POMDP planning, but we would like our
+agents to predict much farther into the future, and recognize critical
+events which it should deal with or avoid. POMDP policies and
+pre-written plans are more for local &apos;tactical&apos; control. We need to
+bring in techniques for the agent to think globally or &apos;strategically&apos;.
+
+
+The set of intentions might change while executing a policy. If the
+current set of intentions changes a lot, the current policy might become
+inapplicable. This is a typical BDI reconsideration issue. However, an
+HPB agent will usually only perform very few actions before seeking a
+new plan. Just as in the case with humans, our agent should normally not
+get in trouble by assuming that things have not changed significantly in
+the last few steps. If the environment is so dynamic that relatively
+short plans can become inappropriate before completion of the plans,
+then the agent should have some more low-level, reactive systems to deal
+with the changes. In highly dynamical environments, the HPB &apos;agent&apos; is
+better suited to being the high-level reasoning module of a larger system.

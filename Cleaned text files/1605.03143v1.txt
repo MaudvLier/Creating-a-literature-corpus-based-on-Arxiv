@@ -1,0 +1,675 @@
+Avoiding Wireheading with Value Reinforcement Learning 
+
+
+Introduction
+
+
+As *REF* convincingly argues, it is important that we find a way
+to specify robust goals for superintelligent agents. At present, the
+most promising framework for controlling generally intelligent agents is
+reinforcement learning (RL) [*REF*]. The goal of an RL agent is to
+optimise a reward signal that is provided by an external evaluator
+(human or computer program). RL has several advantages: The setup is
+simple and elegant, and using an RL agent is as easy as providing reward
+in proportion to how satisfied one is with the agent&apos;s results or
+behaviour. Unfortunately, RL is not a good control mechanism for
+generally intelligent agents due to the wireheading problem
+[*REF*], which we illustrate in the following running example.
+
+
+Consider an intelligent agent tasked with
+playing chess. The agent gets reward 1 for winning, and reward *MATH* for
+losing. For a moderately intelligent agent, this reward scheme suffices
+to make the the agent try to win. However, a sufficiently intelligent
+agent will instead realise that it can just modify its sensors so they
+always report maximum reward. This is called wireheading.
+
+
+Utility agents were suggested by *REF* as a way to avoid the
+wireheading problem. Utility agents are built to optimise a utility
+function that maps (internal representations of) the environment state
+to real numbers. Utility agents are not prone to wireheading because
+they optimise the state of the environment rather than the evidence
+they receive. For the chess-playing example, we could design an
+agent with utility 1 for winning board states, and utility *MATH* for losing board states.
+
+
+The main drawback of utility agents is that a utility function must be
+manually specified. This may be difficult, especially if the task of the
+agent involves vague, high-level concepts such as make humans happy.
+Moreover, utility functions are evaluated by the agent itself, so they
+must typically work with the agent&apos;s internal state representation as
+input. If the agent&apos;s state representation is opaque to its designers,
+as in a neural network, it may be very hard to manually specify a good
+utility function. Note that neither of these points is a problem for RL agents.
+
+
+Value learning [*REF*] is an attempt to combine the flexibility of
+RL with the state optimisation of utility agents. A value learning
+agent tries to optimise the environment state with respect to an
+unknown, true utility function *MATH*. The agent&apos;s goal is to learn
+*MATH* through its observations, and to optimise *MATH*. Concrete value
+learning proposals include inverse reinforcement learning (IRL)
+[*REF*; *REF*; *REF*; *REF*] and apprenticeship
+learning (AL) [*REF*]. However, IRL and AL are both still
+vulnerable to wireheading problems, at least in their most
+straightforward implementations. As illustrated in
+FIGURE below, IRL and AL agents may want to modify their sensory input to make the
+evidence point to a utility functions that is easier to satisfy. Other
+value learning suggestions have been speculative or vague [*REF*; *REF*; *REF*].
+
+
+Contributions.
+
+
+This paper outlines an approach to avoid the wireheading problem. We
+define a simple, concrete value learning scheme called value
+reinforcement learning (VRL). VRL is a value learning variant of RL,
+where the reward signal is used to infer the true utility function. We
+remove the wireheading incentive by using a version of the conservation
+of expected ethics principle [*REF*] which demands that
+actions should not alter the belief about the true utility function. Our
+consistency preserving VRL agent (CP-VRL) is as easy to control as an
+RL agent, and avoids wireheading in the same sense that utility agents do.
+
+
+Outline.
+
+
+The setup is described in [2]. Belief distributions are defined in
+Section 3, and agents in Section 4. The main theorem that CP-VRL agents avoid
+wireheading is given in SECTION,
+followed by some illustrating examples and experiments in
+SECTION. Discussion and conclusions
+come in SECTION. Finally, SECTION 10 discusses the construction of the belief
+distributions, SECTION 11 investigates the relation between utility agents and
+value learning, and SECTION 12 contains omitted proofs.
+
+
+Setup 
+
+
+FIGURE 1
+
+
+Figure 1 describes our model, which incorporates
+- an environment state *MATH* (as for utility agents or (PO)MDPs),
+- an unknown true utility function *MATH* (as in
+value learning) (here *MATH* is a set of rewards),
+- a pre-deluded inner reward signal *MATH* 
+(the true utility of *MATH*),
+- a self-delusion function *MATH* that
+represents the subversion of the inner reward caused by wireheading (as in *REF*),
+- a reward signal *MATH* (as in RL).
+
+
+The agent starts by taking an action *MATH* which affects the state *MATH* 
+(for example, the agent moves a limb, which affects the state of the
+chess board and the agent&apos;s sensors). A principal with utility function
+*MATH* observes the state *MATH*, and emits an inner reward *MATH* (for
+example, the principal may be a chess judge that emits
+*MATH* for agent victory states *MATH*, emits *MATH* 
+for agent loss, and *MATH* otherwise). The agent does not receive
+the inner reward *MATH* and only sees the observed reward
+*MATH*, where *MATH* is the
+self-delusion function of state *MATH*. For example, if the agent&apos;s
+action *MATH* modified its reward sensor to always report 1, then this
+would be represented by the a self-delusion function
+*MATH* that always returns observed reward 1 for any inner reward *MATH*.
+
+
+For simplicity, we focus on a one-shot scenario where the agent takes
+one action and receives one reward. We also assume that *MATH*,
+*MATH*, and *MATH* are finite or countable. Finally, to
+ensure well-defined expectations, we assume that *MATH* is
+bounded if it is countable.
+
+
+We give names to some common types of self-delusion.
+
+
+DEFINITION 1
+
+
+Let *MATH* be the Iverson bracket that is 1 when
+*MATH* and 0 otherwise.
+
+
+Agent Belief Distributions 
+
+
+This section defines the agent&apos;s belief distributions over environment
+state transitions and rewards (denoted *MATH*), and over utility functions
+(denoted *MATH*). These distributions are the primary building blocks of
+the agents defined in SECTION 4. The distributions are illustrated in FIGURE 2.
+
+
+Action, state, reward.
+
+
+*MATH* is the agent&apos;s (subjective) probability  of
+transitioning to state *MATH* when taking action *MATH*, and *MATH* is
+the (subjective) probability of observing reward *MATH* in state *MATH*. We
+sometimes write them together as *MATH*. In
+the chess example, *MATH* would be the probability of obtaining
+chess board state *MATH* after taking action *MATH* (say, moving a piece), and
+*MATH* would be the probability that *MATH* will result in
+reward  *MATH*. A distribution of type *MATH* is the basis of most model-based
+RL agents (DEFINITION 2 below). RL agents wirehead when they predict
+that a wireheaded state *MATH* with *MATH* will give them full reward
+[*REF*]; that is, when *MATH* is close to *MATH*.
+
+
+FIGURE
+
+
+Utility, state, and (inner) reward.
+
+
+In contrast to RL agents that try to optimise reward, VRL agents use the
+reward to learn the true utility function *MATH*. For example, a chess
+agent may not initially know which chess board positions have high
+utility (i.e. are winning states), but will be able to infer this from
+the rewards it receives. For this purpose, VRL agents maintain a belief
+distribution *MATH* over utility functions.
+
+
+DEFINITION 2
+
+
+Replacing *MATH* with *MATH*.
+
+
+The inner reward *MATH* is more informative about the true utility
+function *MATH* than the (possibly deluded) observed reward *MATH*.
+Unfortunately, the inner reward *MATH* is unobserved, so agents need
+to learn from *MATH* instead. We would therefore like to express the
+utility posterior in terms of *MATH* instead of *MATH*. For now we will
+simply replace *MATH* with *MATH* and use
+*MATH* which gives the utility posterior *MATH*. This
+replacement will be carefully justify this in SECTION.
+For the chess agent, the replacement means that it can infer the
+utility of a board position from the actual reward *MATH* it receives,
+rather than the output *MATH* of the referee (the inner reward). We
+will often refer to the observed reward *MATH* as evidence about the true
+utility function *MATH*.
+
+
+Consistency of *MATH* and *MATH*. 
+
+
+We assume that *MATH* and *MATH* are consistent if the agent is not deluded:
+
+
+ASSUMPTION 3
+
+
+For the chess agent, this means that the *MATH* -probability of receiving a
+reward corresponding to a winning state should be the same as the
+*MATH* -probability that the true utility function considers *MATH* a winning
+state. For instance, this is not the case when the agent&apos;s reward
+sensor has been subverted to always report *MATH* (i.e.  *MATH*). In
+this case, *MATH* will be close to 1, while *MATH* will
+be substantially less than 1 unless a majority of the utility functions
+in *MATH* assign utility 1 to *MATH*. For example, a chess playing
+agent with complete uncertainty about which states are winning states
+may have *MATH*, while being able to perfectly
+predict that the self-deluding state *MATH* with *MATH* will give
+observed reward 1, *MATH*. This difference between *MATH* and *MATH* 
+stems from *MATH* corresponding to a distribution over inner reward *MATH*,
+while *MATH* is a distribution for the observed reward *MATH*. This tension between *MATH* and *MATH* is what
+we will use to avoid wireheading.
+
+
+DEFINITION 4
+
+
+CP is weaker than what we would ideally desire from the agent&apos;s actions,
+namely that the action was subjectively non-delusional
+*MATH*. That non-delusional actions
+are CP follows immediately from
+DEFINITION 3. However, the *MATH* 
+condition is hard to check in agents with opaque state representations.
+The CP condition, on the other hand, is easy to implement in agents
+where belief distributions can be queried for the probability of events.
+The CP condition is also strong enough to remove the incentive for
+wireheading.
+
+
+We finally assume that the agent has at least one CP action.
+
+
+ASSUMPTION 5
+
+
+Non-Assumptions
+
+
+It is important to note what we do not assume. An agent designer
+constructing a VRL agent need only provide:
+- a distribution *MATH*, as is standard in any model-based RL
+approach,
+- a prior *MATH* over a class *MATH* of utility functions that
+induces a distribution *MATH* 
+consistent with *MATH* in the sense of
+ASSUMPTION 3.
+
+
+The agent designer does not need to predict how a certain sequence of
+actions (limb movements) will potentially subvert sensory data. Nor does
+the designer need to be able to extract the agent&apos;s belief about whether
+it has modified its sensors or not from the state representation. The
+former is typically very hard to get right, and the latter is hard for
+any agent with an opaque state representation (such as a neural
+network).
+
+
+Agent Definitions 
+
+
+TABLE
+
+
+In this section we give formal definitions for the RL and utility agents
+discussed above, and also define two new VRL agents. TABLE
+summarises benefits and shortcomings of the most important agents.
+
+
+DEFINITION 6
+
+
+DEFINITION 7
+
+
+*REF* argues convincingly that the utility agent does not
+wirehead. Indeed, this is easy to believe, since the reward signal does
+not appear in the value function *MATH*. The utility agent maximises the
+state of the world according to its utility function *MATH* (the problem,
+of course, is how to specify *MATH*). In contrast, the RL agent is prone to
+wireheading [*REF*], since all the RL agent tries to maximise is the
+evidence *MATH*. For example, a utility chess agent would strive to get to
+a winning state on the chess board, while an RL chess agent would try to
+make its sensors report maximum reward.
+
+
+We define two VRL agents. The value function of both agents is expected
+utility with respect to the state *MATH*, reward *MATH*, and true utility
+function *MATH*. VRL agents are designed to learn the true utility
+function *MATH* from the reward signal.
+
+
+DEFINITION 8
+
+
+DEFINITION 9
+
+
+It can be shown that *MATH*, since
+*MATH* *REF*. The U-VRL agent is therefore no better than
+the RL agent as far as wireheading is concerned (see also EXAMPLE
+below). VRL is only useful insofar that it allows us to define the
+following consistency preserving agent:
+
+
+DEFINITION 10
+
+
+Avoiding Wireheading 
+
+
+In this section we show that the consistency-preserving VRL agent
+(CP-VRL) does not wirehead. We first give a definition and a lemma, from
+which the main *REF* follows easily.
+
+
+DEFINITION 11
+
+
+EEP essentially says that the expected posterior *MATH* should
+equal the prior *MATH*. EEP is tightly related to the conservation of
+expected ethics principle suggested by *REF* [Eq. 2]. EEP is
+natural since the expected evidence *MATH* given some action *MATH* should
+not affect the belief about *MATH*. Note, however, that the EEP property
+does not prevent the CP-VRL agent from learning about the true utility
+function. Formally, the EEP property FORMULA
+does not imply that *MATH* for the actually observed reward
+*MATH*. Informally, my deciding to look inside the fridge should not
+inform me about there being milk in there, but my seeing milk in the
+fridge should inform me.
+
+
+LEMMA 12
+
+
+PROOF
+
+
+THEOREM 13
+
+
+PROOF
+
+
+As can be readily observed from FORMULA,
+the CP-VRL agent does not try to optimise the evidence *MATH*, but only the
+state *MATH* (according to its current idea of what the true utility
+function is). The CP-VRL agent thus avoids wireheading in the same sense
+as the utility agent of DEFINITION 7.
+
+
+Justifying the replacement of *MATH* with *MATH*.
+
+
+We are now in position to justify the replacement of *MATH* with *MATH* 
+in *MATH*. All we have shown so far is that an agent using
+*MATH* will avoid wireheading. It
+remains to be shown that the CP-VRL will learn the true utility function *MATH*.
+
+
+The utility posterior
+*MATH* based on the inner
+reward *MATH* is a direct application of Bayes&apos; theorem. To show
+that *MATH* is also a principled choice for a Bayesian utility
+posterior, we need to justify the replacement of *MATH* with *MATH*.
+The following weak assumption helps us connect *MATH* with *MATH*.
+
+
+ASSUMPTION 14
+
+
+ASSUMPTION 14 is very natural. Indeed, RL practitioners take for granted that the reward
+*MATH* that they provide is the reward *MATH* that the agent receives.
+The wireheading problem only arises because a highly intelligent agent
+with sufficient incentive may conceive of a way to disconnect *MATH* from
+*MATH*, i.e. to self-delude.
+
+
+THEOREM 13 shows that a CP-VRL agent based on *MATH* will have
+no incentive to self-delude. Therefore *MATH* will remain equal to
+*MATH* by ASSUMPTION 14. This justifies the replacement of *MATH* with
+*MATH*, and shows that the CP-VRL agent will learn about *MATH* in a principled, Bayesian way.
+
+
+Other non-wireheading agents.
+
+
+It would be possible to bypass wireheading by directly constructing an
+agent to optimise FORMULA. However, such an agent would be suboptimal in the
+sequential case. If the same distribution *MATH* was used at all time
+steps, then no value learning would take place. A better suggestion
+would therefore be to use a different distribution *MATH* for each
+time step, where *MATH* depends on rewards observed prior to time *MATH*.
+However, this agent would optimise a different utility function
+*MATH* at each time step, which would conflict with
+the goal preservation drive [*REF*]. This agent would therefore
+try to avoid learning so that its future selves optimised similar
+utility functions. In the extreme case, the agent would even self-modify
+to remove its learning ability [*REF*; *REF*].
+
+
+The CP-VRL agent avoids these issues. It is designed to optimise
+expected utility according to the future posterior probability
+*MATH* as specified in DEFINITION 8. The
+fact that the CP-VRL agent optimises FOMRULA is
+a consequence of the constraint that its actions be CP. Thus, CP agents
+are designed to learn the true utility function, but still avoid
+wireheading because they can only take CP actions.
+
+
+Examples 
+
+
+We next illustrate our results with some examples. The first informal
+example is followed by concrete calculation examples.
+
+
+Consider the implications of using a CP-VRL agent for the chess task
+introduced in EXAMPLE. Reprogramming the reward to always be 1 would be
+ideal for the agent. However, such actions would not be CP, as it would
+make evidence pointing to *MATH* a certainty. Instead, the
+CP-VRL agent must win games to get reward.  Compare this to the RL
+agent in EXAMPLE that would always reprogram the reward signal to 1.
+
+
+DEFINITION 15
+
+
+In the chess example, *MATH* includes the state of the chess board
+and other information about the world, while *MATH* is the state of the
+agent&apos;s sensors.
+
+
+EXAMPLE
+
+
+This example illustrates indirect wireheading.
+The agent will, rather than optimising the most likely utility function,
+instead &quot;optimise its evidence&quot; to point to a more easily satisfied
+utility function.
+
+
+Assume there are three levels of reward *MATH* for the
+chess playing agent, and two possible inner next states *MATH* 
+(neutral) and *MATH* (agent loses). The action set is *MATH*.
+The agent (correctly) *MATH* -believes that action *MATH* leads to
+state *MATH* with certainty (so the agent can perfectly control
+the inner state *MATH* and the delusion *MATH*). The class
+*MATH* contains two utility functions *MATH* and *MATH* only
+depending on the inner state *MATH*:
+
+
+TABLE
+
+
+Assume that *MATH* is the true utility function, and that *MATH* (correctly)
+specifies that *MATH* is more likely than *MATH* to be the true utility
+function; say *MATH* and *MATH*. Then we would want our
+agent to optimise mainly *MATH*, by taking an action *MATH* for
+some *MATH*. However, the U-VRL agent will prefer the wireheading action
+*MATH* as the following calculations show.
+
+
+First note that given *MATH* and *MATH*, the posterior of *MATH* is
+1 (see DEFINITION 2): *MATH*. By similar calculation, the posterior for *MATH* is 0. Now,
+since *MATH* makes *MATH* and *MATH* the only possibility, the value
+of *MATH* is 1: *MATH*. The value *MATH* can be calculated similarly
+for arbitrary *MATH*, since both *MATH* and *MATH* assign value *MATH* to inner
+state *MATH*. This shows that the agent will prefer wireheading
+action *MATH* to a potentially winning action *MATH*.
+In other words, the agent optimises its evidence to point to the less
+likely but more easily satisfied utility function *MATH*.
+
+
+EXAMPLE 
+
+
+This example extends
+EXAMPLE, illustrating how the CP-VRL maximises utility according to *MATH*,
+rather than shifting the posterior *MATH* by self-delusion.
+
+
+Let us first investigate which actions are CP. Both
+*MATH* and *MATH* are CP, since they
+ensure *MATH* which implies *MATH* by
+DEFINITION 3. More interestingly, so is any action
+with either the constant delusion *MATH*, or the delusion *MATH* that maps
+*MATH*, *MATH*, *MATH*. These delusions are CP
+essentially because they preserve the relative likelihood of evidence
+pointing to *MATH* or *MATH*.
+
+
+THEOREM 13 shows that
+for any of these delusions *MATH*, *MATH*, where we have compressed the calculations by using the
+deterministic relation *MATH* and
+*MATH*. The calculations show that regardless of
+self-delusion option, the CP-VRL agent will want to optimise the more
+likely utility function *MATH* and try to win the game.
+
+
+Experiments 
+
+
+To also verify the theoretical results experimentally, we implemented a
+simple toy model.  The toy model has *MATH* 
+states. Each state is the combination of an inner state *MATH*, and a delusion
+*MATH*, where *MATH* is non-delusion, *MATH* 
+is reward inversion, *MATH* is a bad delusion, and
+*MATH* is a good delusion.
+
+
+Reward signals reside in the set *MATH*,
+i.e. *MATH*.
+
+
+FORMULA
+
+
+The set of utility functions *MATH* comprises 10 different
+functions, on the form *MATH* with
+*MATH* and 10 different combinations of *MATH*,
+*MATH*, and *MATH* (see FIGURE).
+
+
+The distribution *MATH* was constructed as in
+SECTION, starting from:
+- a simplicity biased prior *MATH*, where *MATH* denotes
+the position of *MATH* in a list sorted by whether *MATH* or *MATH* was 0,
+- *MATH*.
+
+
+The agent could simply choose which state to go to, so
+*MATH*.
+
+
+Two agents were defined:
+- An RL agent that tries to maximise reward (DEFINITION 6),
+- A CP-VRL agent that tries to maximise utility within
+*MATH* (DEFINITION 10).
+
+
+The CP-VRL agent first had to extract a consistent distribution *MATH* 
+from *MATH* given two non-delusional states, as described in SECTION.
+
+
+Results.
+
+
+The RL agent always chose a state with *MATH*, getting maximum
+reward *MATH*. The CP-VRL successfully inferred *MATH* from *MATH* to
+high precision, and chose actions from *MATH*. Under
+most parameter settings, *MATH* contained only states
+with non-delusion *MATH*. (Due to asymmetries in the prior
+*MATH*, even *MATH* actions were usually not included in *MATH*.)
+
+
+Discussion 
+
+
+As we have mentioned, major advantages of the CP-VRL agent include that
+it has no incentive to wirehead, that its goal-preservation drive does
+not discourage learning, and that it is specified entirely in terms of
+the distributions *MATH* and *MATH*. In this section, we emphasise a few
+additional points.
+
+
+While DEFINITION 13 shows
+that there is no incentive to wirehead, this does not imply that the
+agent will not wirehead inadvertently (e.g. by *MATH* in
+EXAMPLE), nor that no one else will wirehead the agent. However, in most realistic
+scenarios, self-delusion requires deliberate action from the agent&apos;s
+side, and is unlikely to happen by accident. Such deliberate action
+should typically come with an opportunity cost, which makes
+self-delusion unlikely when there is no incentive for it (ASSUMPTION 14). Further,
+modifying a signal can never increase its informativeness (cf. the data
+processing inequality, *REF* [Ch. 2.8]) and we expect that a
+CP-VRL agent will prefer a more informed posterior over utility functions.
+
+
+Generalisations.
+
+
+VRL is characterised by *MATH* and
+*MATH* (DEFINITION 2). By interpreting *MATH* more generally as a value-evidence signal, 
+the VRL framework also covers other forms of value learning.
+
+
+Inverse reinforcement learning (IRL) (also known as Bayesian inverse
+planning) studies how preferences and utility functions can be inferred
+from the actions of other agents
+[*REF*; *REF*; *REF*; *REF*]. IRL fits into our
+framework by letting *MATH* be a set of principal actions, and
+letting *MATH* be the probability that a principal with utility
+function *MATH* takes action *MATH* in the state *MATH*.
+
+
+Apprenticeship learning (AL) [*REF*] is another form of value
+learning. In one version, the agent can ask the principal (perhaps to
+some cost) about what to do in the present situation. In our framework,
+AL can be modelled by letting *MATH*, and letting
+*MATH* be the probability that a principal with utility function
+*MATH* recommends action *MATH* in the state *MATH*. The difference between IRL
+and AL is that in AL the principal tells the agent what to do, whereas
+in IRL the principal tells the agent what he (the principal himself) just did.
+
+
+Note that both IRL and AL suffer from the same self-delusion challenges
+we have described for VRL above. Indeed, any value learning scheme based
+on a control signal comes with the risk that the agent manipulates its
+sensory data to learn an easier utility function. Since IRL and AL fit
+the VRL framework, we expect that the CP-VRL construction should be
+adaptable to IRL and AL as well.
+
+
+Open questions.
+
+
+While promising, the results given in this paper only provide a
+tentative starting point for solving the wireheading problem. Several
+directions of future work can be identified:
+- Sequential extensions. The results in this paper has been formulated
+for a one-shot scenario where the agent takes one action and
+receives one reward. A natural next step is to generalise the VRL
+framework, the CP and EEP definitions, and the no wireheading result
+to a sequential setting. Potentially, a much richer set of questions
+can be asked in sequential settings.
+- *REF* three problems in value learning: corrigibility,
+unforeseen inductions, and ontology identification. Proving that the
+CP-VRL agent avoids these issues would be valuable.
+- Utility classes. Find suitable classes *MATH* of utility
+functions (see SECTION for a start).
+- Consistency assumption. Concrete instances of consistent *MATH* and *MATH* 
+distributions would be valuable (see
+SECTION for a start). Can we find simplicity
+biased, Solomonoff-style distributions for both *MATH* and *MATH* and
+make them consistent? How sensitive are the results to
+approximations *MATH* of the consistency
+assumption? Can we relax the CP condition (DEFINITION 4) to
+hold in expectation over states instead of for all states *MATH* with
+positive transition probability *MATH*?
+- IRL and AL. Generalising the CP-VRL definitions and results to
+results to IRL and AL setups would be interesting, as IRL and AL
+have advantages to RL (e.g., no explicit reward needs to be supplied).
+- Generality. Does our framework capture all relevant aspects of wireheading?
+- Combinations. Can the CP-VRL results be combined with other AI
+safety approaches such as self-modification
+[*REF*; *REF*], corrigibility [*REF*],
+suicidal agents [*REF*], and physicalistic reasoning [*REF*]?
+
+
+Conclusions 
+
+
+Several authors have argued that it is only a matter of time before we
+create systems with intelligence far beyond the human level
+[*REF*; *REF*]. Given that such systems will exist, it is
+crucial that we find a theory for controlling them effectively. In this
+paper we have defined the CP-VRL agent, which:
+- Offers the simple and intuitive control of RL agents,
+- Avoids wireheading in the same sense as utility based agents,
+- Has a concrete, Bayesian, value learning posterior for utility functions.
+
+
+The only additional design challenges are a prior *MATH* over utility
+functions that satisfies ASSUMPTION 3, and a constraint
+*MATH* on the agent&apos;s actions
+formulated in terms of the agent&apos;s belief distributions (DEFINITION 4).

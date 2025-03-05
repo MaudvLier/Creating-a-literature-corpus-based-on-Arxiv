@@ -1,0 +1,455 @@
+Introduction
+
+
+People are constantly in search of better ways to be happy. However,
+philosophers and psychologists have not yet agreed on a notion of human
+happiness. In this paper, we pursue the more general goal of defining
+happiness for intelligent agents. We focus on the reinforcement learning
+(RL) setting [*REF*] because it is an intensively studied formal
+framework which makes it easier to make precise statements. Moreover,
+reinforcement learning has been used to model behaviour in both human
+and non-human animals [*REF*].
+
+
+Here, we decouple the discussion of happiness from the discussion of
+consciousness, experience, or qualia. We completely disregard whether
+happiness is actually consciously experienced or what this means. The
+problem of consciousness has to be solved separately; but its answer
+might matter insofar that it could tell us which agents&apos; happiness we
+should care about.
+
+
+Desiderata.
+
+
+We can simply ask a human how happy they are. But artificial
+reinforcement learning agents cannot yet speak. Therefore we use our
+human &quot;common sense&quot; intuitions about happiness to come up with a
+definition. We arrive at the following desired properties.
+
+
+- Scaling. Happiness should be invariant under scaling of the
+rewards. Replacing every reward *MATH* by *MATH* for some
+*MATH* with *MATH* (independent of *MATH*) does not
+change the reinforcement learning problem in any relevant way.
+Therefore we desire a happiness measure to be independent under
+rescaling of the rewards.
+
+
+- Subjectivity. Happiness is a subjective property of the agent
+depending only on information available to the agent. For example,
+it cannot depend on the true environment.
+
+
+- Commensurability. The happiness of different agents should be
+comparable. If at some time step an agent *MATH* has happiness *MATH*, and
+another agent *MATH* has happiness *MATH*, then it should be possible to
+tell whether *MATH* is happier than *MATH* by computing *MATH*. This
+could be relaxed by instead asking that *MATH* can calculate the
+happiness of *MATH* according to *MATH* &apos;s subjective beliefs.
+
+
+- Agreement. The happiness function should match experimental data
+about human happiness.
+
+
+It has to be emphasised that in humans, happiness cannot be equated with
+pleasure [*REF*]. In the reinforcement learning setting, pleasure
+corresponds to the reward. Therefore happiness and reward have to be
+distinguished. We crudely summarise this as follows; for a more detailed
+discussion see Section 3.
+*MATH* The happiness measure that we propose is the following. An agent&apos;s happiness
+in a time step *MATH* is the difference between the value of the obtained
+reward and observation and the agent&apos;s expectation of this value at time
+step *MATH*. In the Markov setting, this is also known as the temporal
+difference error (TD error) [*REF*]. However, we do not limit
+ourselves to the Markov setting in this paper. In parts of the mammalian
+brain, the neuromodulator dopamine has a strong connection to the TD
+error [*REF*]. Note that while our definition of happiness is not
+equal to reward it remains highly correlated to the reward, especially
+if the expectation of the reward is close to 0.
+
+
+Our definition of happiness coincides with the definition for joy
+given by Jacobs et al. [*REF*], except that the latter is weighted
+by *MATH* minus the (objective) probability of taking the transition which
+violates subjectivity. Schmidhuber&apos;s work on &apos;intrinsic motivation&apos; adds
+a related component to the reward in order to motivate the agent to
+explore in interesting directions [*REF*].
+
+
+Our definition of happiness can be split into two parts.
+
+
+DEFINITION
+
+
+Moreover, we identify two sources of happiness: luck, favourable
+chance outcomes (e.g. rolling a six on a fair die), and pessimism,
+having low expectations of the environment (e.g. expecting a fair die to
+be biased against you). We show that agents that know the world
+perfectly have zero expected happiness.
+
+
+Proofs can be found in Appendix.
+
+
+In the rest of the paper, we use our definition as a starting point to
+investigate the following questions. Is an off-policy agent happier than
+an on-policy one? Do monotonically increasing rewards necessarily imply
+a happy agent? How does value function initialisation affect the
+happiness of an agent? Can we construct an agent that maximises its own
+happiness?
+
+
+Reinforcement Learning
+
+
+In reinforcement learning (RL) an agent interacts with an
+environment in cycles: at time step *MATH* the agent chooses an action
+*MATH* and receives an observation
+*MATH* and a real-valued reward *MATH*;
+the cycle then repeats for time step *MATH*  [*REF*]. The list of
+interactions *MATH* is called a history. We
+use *MATH* to denote a history of length *MATH*, and we use the shorthand
+notation *MATH* and *MATH*. The agent&apos;s
+goal is to choose actions to maximise cumulative rewards. To avoid
+infinite sums, we use a discount factor *MATH* with *MATH* 
+and maximise the discounted sum *MATH*. A
+policy is a function *MATH* mapping every history to the action taken
+after seeing this history, and an environment *MATH* is a stochastic
+mapping from histories to observation-reward-tuples.
+
+
+A policy *MATH* together with an environment *MATH* yields a probability
+distribution over histories. Given a random variable *MATH* over histories,
+we write the *MATH* - *MATH* -expectation of *MATH* conditional on the history
+*MATH* as *MATH*.
+
+
+The (true) value function *MATH* of a policy *MATH* in environment
+*MATH* maps a history *MATH* to the expected total future reward when
+interacting with environment *MATH* and taking actions according to the
+policy *MATH*: *MATH*. 
+It is important to emphasise that *MATH* denotes the
+objective expectation that can be calculated only by knowing the
+environment *MATH*. The optimal value function *MATH* is defined as
+the value function of the optimal policy, *MATH*.
+
+
+Typically, reinforcement learners do not know the environment and are
+trying to learn it. We model this by assuming that at every time step
+the agent has (explicitly or implicitly) an estimate *MATH* of the
+value function *MATH*. Formally, a value function estimator maps
+a history *MATH* to a value function estimate *MATH*. Finally, we define
+an agent to be a policy together with a value function estimator. If
+the history is clear from context, we refer to the output of the value
+function estimator as the agent&apos;s estimated value.
+
+
+If *MATH* only depends on the last observation and action, *MATH* is
+called Markov decision process (MDP). In this case,
+*MATH* and the observations are called states (*MATH*). In MDPs we use the
+*MATH* -value function, the value of a state-action pair, defined as *MATH*.
+Assuming that the environment is an MDP is very common in the RL
+literature, but here we will not make this assumption.
+
+
+A Formal Definition of Happiness
+
+
+The goal of a reinforcement learning agent is to maximise rewards, so it
+seems natural to suppose an agent is happier the more rewards it gets.
+But this does not conform to our intuition: sometimes enjoying pleasures
+just fails to provide happiness, and reversely, enduring suffering does
+not necessarily entail unhappiness *REF* and
+*REF*. In fact, it has been shown
+empirically that rewards and happiness cannot be equated [*REF*] (*MATH*).
+
+
+There is also a formal problem with defining happiness in terms of
+reward: we can add a constant *MATH* to every reward. No
+matter how the agent-environment interaction plays out, the agent will
+have received additional cumulative rewards *MATH*.
+However, this did not change the structure of the reinforcement learning
+problem in any way. Actions that were optimal before are still optimal
+and actions that are slightly suboptimal are still slightly suboptimal
+to the same degree. For the agent, no essential difference between the
+original reinforcement learning problem and the new problem can be
+detected: in a sense the two problems are isomorphic. If we were to
+define an agent&apos;s happiness as received reward, then an agent&apos;s
+happiness would vary wildly when we add a constant to the reward while
+the problem stays structurally exactly the same.
+
+
+We propose the following definition of happiness.
+
+
+DEFINITION
+
+
+It is important to emphasise that *MATH* represents the agent&apos;s
+subjective estimate of the value function. If the agent is good at
+learning, this might converge to something close to the true value
+function *MATH*. In an MDP
+*REF* is also known as the temporal difference
+error [*REF*]. This number is used used to update the value
+function, and thus plays an integral part in learning.
+
+
+If there exists a probability distribution *MATH* on histories such that
+the value function estimate *MATH* is given by the expected future
+discounted rewards according to the probability distribution *MATH*, *MATH*, 
+then we call *MATH* the agent&apos;s subjective
+expectation. Note that we can always find such a probability
+distribution, but this notion only really makes sense for model-based
+agents (agents that learn a model of their environment). Using the
+agent&apos;s subjective expectation, we can rewrite DEFINITION as follows.
+
+
+PROPOSITION
+
+
+FORMULA states that
+happiness is given by the difference of how good the agent thought it
+was doing and what it learns about how well it actually does. We
+distinguish the following two components in FORMULA:
+- Payout: the difference of the obtained reward *MATH* and the
+agent&apos;s expectation of that reward *MATH*.
+- Good News: the change in opinion of the expected future rewards
+after receiving the new information *MATH*.
+
+
+*MATH*.
+
+
+EXAMPLE
+
+
+For each of the two components, payout and good news, we distinguish the
+following two sources of happiness.
+
+
+- Pessimism: the agent expects the environment to contain less
+rewards than it actually does.
+
+
+- Luck: the outcome of *MATH* is unusually high due to randomness.
+
+
+*MATH*.
+
+
+EXAMPLE
+
+
+The following proposition states that once an agent has learned the
+environment, its expected happiness is zero. In this case,
+underestimation cannot contribute to happiness and thus the only source
+of happiness is luck, which cancels out in expectation.
+
+
+PROPOSITION
+
+
+Analogously, if the environment is deterministic, then luck cannot be a
+source of happiness. In this case, happiness reduces to how much the
+agent underestimates the environment. By
+FORMULA, having learned a deterministic
+environment perfectly, the agent&apos;s happiness is equal to zero.
+
+
+Matching the Desiderata
+
+
+Here we discuss in which sense our definition of happiness satisfies the
+desiderata from Section 1.
+
+
+Scaling.
+
+
+If we transform the rewards to *MATH* with *MATH*,
+*MATH* for each time step *MATH* without changing the value
+function, the value of *MATH* will be completely
+different. However, a sensible learning algorithm should be able to
+adapt to the new reinforcement learning problem with the scaled rewards
+without too much problem. At that point, the value function gets scaled
+as well, *MATH*. In this case we get *MATH*, hence happiness gets scaled by a positive factor and
+thus its sign remains the same, which would not hold if we defined
+happiness just in terms of rewards.
+
+
+Subjectivity.
+
+
+The definition FORMULA of
+*MATH* depends only on the current reward and the
+agent&apos;s current estimation of the value function, both of which are
+available to the agent.
+
+
+Commensurability.
+
+
+The scaling property as described above means that the exact value of
+the happiness is not useful in comparing two agents, but the sign of the
+total happiness can at least tell us whether a given agent is happy or
+unhappy. Arguably, failing this desideratum is not surprising; in
+utility theory the utilities/rewards of different agents are typically
+not commensurable either.
+
+
+However, given two agents *MATH* and *MATH*, *MATH* can still calculate the
+*MATH* -subjective happiness of a history experienced by *MATH* as
+*MATH*. This corresponds to the
+human intuition of &quot;putting yourself in someone else&apos;s shoes&quot;. If both
+agents are acting in the same environment, the resulting numbers should
+be commensurable, since the calculation is done using the same value
+function. It is entirely possible that *MATH* believes *MATH* to be happier,
+i.e.  *MATH*, but also that *MATH* believes *MATH* to be happier *MATH*,
+because they have different expectations of the environment.
+
+
+Agreement.
+
+
+Rutledge et al. measure subjective well-being on a smartphone-based
+experiment with 18,420 participants [*REF*]. In the experiment, a
+subject goes through 30 trials in each of which they can choose between
+a sure reward and a gamble that is resolved within a short delay. Every
+two to three trials the subjects are asked to indicate their momentary
+happiness.
+
+
+Our model based on FORMULA with a very simple
+learning algorithm and no loss aversion correlates fairly well with
+reported happiness (mean *MATH*, median *MATH*, median
+*MATH*) while fitting individual discount factors, comparative to
+Rutledge et al.&apos;s model (mean *MATH*, median *MATH*, median
+*MATH*) and a happiness=cumulative reward model (mean *MATH*,
+median *MATH*, median *MATH*). This analysis is
+inconclusive, but unsurprisingly so: the expected reward is close to *MATH* 
+and thus our happiness model correlates well with rewards. See Appendix for the details of
+our data analysis.
+
+
+The hedonic treadmill [*REF*] refers to the idea that humans
+return to a baseline level of happiness after significant negative or
+positive events. Studies have looked at lottery winners and accident
+victims [*REF*], and people dealing with paralysis, marriage,
+divorce, having children and other life changes [*REF*]. In most
+cases these studies have observed a return to baseline happiness after
+some period of time has passed; people learn to make correct reward
+predictions again. Hence their expected happiness returns to zero
+FORMULA. Our definition unfortunately does not
+explain why people have different baseline levels of happiness (or
+hedonic set points), but these may be perhaps explained by biological
+means (different humans have different levels of neuromodulators,
+neurotransmitters, hormones, etc.) which may move their baseline
+happiness. Alternatively, people might simply learn to associate
+different levels of happiness with &quot;feeling happy&quot; according to their
+environment.
+
+
+Discussion and Examples
+
+
+Off-policy Agents
+
+
+In reinforcement learning, we are mostly interested in learning the
+value function of the optimal policy. A common difference between RL
+algorithms is whether they learn off-policy or on-policy. An
+on-policy agent evaluates the value of the policy it is currently
+following. For example, the policy that the agent is made to follow
+could be an *MATH* -greedy policy, where the agent picks
+*MATH* a fraction *MATH* of the time, and
+a random action otherwise. If *MATH* is decreased to zero over
+time, then the agent&apos;s learned policy tends to the optimal policy in
+MDPs. Alternatively, an agent can learn off-policy, that is it can
+learn about one policy (say, the optimal one) while following a
+different behaviour policy.
+
+
+The behaviour policy (*MATH*) determines how the agent acts while it
+is learning the optimal policy. Once an off-policy learning agent has
+learned the optimal value function *MATH*, then it is not happy if it
+still acts according to some other (possibly suboptimal) policy.
+
+
+PROPOSITION
+
+
+Q-learning is an example of an off-policy algorithm in the MDP setting.
+If Q-learning converges, and the agent is still following the
+sub-optimal behaviour policy then
+FORMULA tells us that the agent will be
+unhappy. Moreover, this means that SARSA (an on-policy RL algorithm)
+will be happier than Q-learning on average and in expectation.
+
+
+Increasing and Decreasing Rewards
+
+
+Intuitively, it seems that if things are constantly getting better, this
+should increase happiness. However, this is not generally the case: even
+an agent that obtains monotonically increasing rewards can be unhappy if
+it thinks that these rewards mean even higher negative rewards in the
+future.
+
+
+EXAMPLE
+
+
+Analogously, decreasing rewards do not generally imply unhappiness. For
+example, the pains of hard labour can mean happiness if one expects to
+harvest the fruits of this labour in the future.
+
+
+Value Function Initialisation
+
+
+FIGURE
+
+
+EXAMPLE
+
+
+Maximising Happiness
+
+
+How can an agent increase their own happiness? The first source of
+happiness, luck, depends entirely on the outcome of a random event that
+the agent has no control over. However, the agent could modify its
+learning algorithm to be systematically pessimistic about the
+environment. For example, when fixing the value function estimation
+below *MATH* for all histories, happiness is
+positive at every time step. But this agent would not actually take any
+sensible actions. Just as optimism is commonly used to artificially
+increase exploration, pessimism discourages exploration which leads to
+poor performance. As demonstrated in
+FORMULA, a pessimistic agent may be less
+happy than a more optimistic one.
+
+
+Additionally, an agent that explicitly tries to maximise its own
+happiness is no longer a reinforcement learner. So instead of asking how
+an agent can increase its own happiness, we should fix a reinforcement
+learning algorithm and ask for the environment that would make this
+algorithm happy.
+
+
+Conclusion
+
+
+An artificial superintelligence might contain subroutines that are
+capable of suffering, a phenomenon that Bostrom calls mind
+crime [*REF*]. More generally, Tomasik argues that even
+current reinforcement learning agents could have moral
+weight [*REF*]. If this is the case, then a general theory of
+happiness for reinforcement learners is essential; it would enable us to
+derive ethical standards in the treatment of algorithms. Our theory is
+very preliminary and should be thought of as a small step in this
+direction. Many questions are left unanswered, and we hope to see more
+research on the suffering of AI agents in the future.
