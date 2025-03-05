@@ -1,0 +1,220 @@
+Foundation Reinforcement Learning: towards Embodied Generalist Agents with Foundation Prior Assistance
+
+
+Introduction
+
+
+Recently, the fields of Natural Language Processing (NLP) [Vaswani et al. 2017]; [Devlin et al. 2018]; [Brown et al. 2020]; [OpenAI 2023] and Computer Vision (CV) [Dosovitskiy et al. 2020]; [Radford et al. 2021]; [Ramesh et al. 2022]; [Kirillov et al. 2023] have witnessed significant progress, primarily attributable to the ability to consume extensive datasets in Deep Learning (DL). Specifically, GPT models [Brown et al. 2020]; [OpenAI 2023] are built upon a large pre-trained corpus consisting of billions of texts from the Internet, while Segment Anything [Kirillov et al. 2023] employs massive amounts of hand-labeled segmentation data. These large-scale models have demonstrated superior capabilities, including strong precision and generalization, by leveraging prior knowledge of common sense from substantial data [Liu et al. 2021]; [Sutton 2019].
+
+
+FIGURE 1
+
+
+To build an embodied generalist agent, we, as well as many other researchers, believe that commonsense prior acquired from large-scale datasets is also the key. Recently, researchers have made steady progress towards this goal. A long-horizon robotic task can be solved by first decomposing the task into a sequence of primitive tasks, and then executing each primitive routine. Large language models have been shown to be highly successful on the task decomposition side [Ahn et al. 2022]; [Liang et al. 2023]; [Driess et al. 2023], while the progress on the primitive skill side is still limited, which is the focus of this paper. Many recent approaches collect large amounts of human demonstrations and then use imitation learning to fine-tune the large-scale pre-trained vision language models (VLMs) [Reed et al. 2022]; [Brohan et al. 2022; 2023]. However, these approaches do not generalize well outside the demonstration domain, and it is hard to further scale them up due to the expense of collecting demonstrations. We argue that pre-training&amp;fine-tuning, the current wisdom of utilizing priors in LLM or VLM, might not be appropriate for embodied agents. This is because the LLM and VLM applications usually have the same output space between pre-training and fine-tuning, while in embodied applications, the action output has never been observed during pre-training. This makes it hard to generalize with the limited amount of expert demonstrations.
+
+
+In this paper, we ask two fundamental questions: *MATH*What is the proper concrete form we should represent the embodied foundation prior? How should those priors be used in the downstream task? *MATH* Starting from the goal-conditioned MDP task formulation, we propose three essential prior knowledge for embodied AI: the value prior, the success-reward prior, and the policy prior. With the analogy of how humans solve a new task based on their commonsense (illustrated in Fig.
+[1], the proposed priors approximate the rough approach to completing it (*MATH* *MATH*policy prior *MATH* *MATH*), and during the execution phase, the priors can judge whether the current state is closer to or further from success (*MATH* *MATH*value prior *MATH* *MATH*). The priors can also adjudicate the completion status of the current task (*MATH* *MATH*success-reward prior *MATH* *MATH*).
+On top of these priors, we propose a novel framework named *MATH* *MATH*Foundation Reinforcement Learning *MATH* *MATH* (FRL) that runs RL with the assistance of the potentially noisy prior knowledge. To demonstrate the efficacy of the proposed framework, we design an Actor-Critic algorithm based on the priors, which is called Foundational Actor-Critic (FAC).
+
+
+Our FRL framework enjoys three major benefits. (1) *MATH* *MATH*Sample efficient learning *MATH* *MATH*. With the foundation prior, our method explores with prior knowledge. Compared to the uninformed exploration in vanilla RL, our FAC method learns with significantly fewer samples. (2) *MATH* *MATH*Robust to noisy priors *MATH* *MATH*. The three embodied priors can be noisy, since they are pre-trained from other embodiment data. Our FAC method works robustly even under heavily noised priors. (3) *MATH* *MATH*Minimal human intervention *MATH* *MATH*: FAC completely learns from the foundation priors, without the need of human-specified dense reward, or providing tele-operated demonstrations. This is in stark contrast to some previous work that heavily relies on large-scale demonstrations [Reed et al. 2022]; [Brohan et al. 2022; 2023]. Thus, FAC can potentially be scaled up more easily.
+
+
+We apply the FAC to robotics tasks in simulation, and empirical results have shown the strong performance of FAC. In summary, our contributions are as follows:
+
+
+- We propose the Foundation Reinforcement Learning (FRL) framework.
+The framework systematically introduces three priors that are essential to embodied agents. Our framework also suggests how to utilize those priors with RL, which is proven to be highly effective.
+- We propose the Foundational Actor-Critic (FAC) algorithm, a concrete algorithm within the FRL framework that utilizes the value, success-reward, and policy prior knowledge to embodied AI. FAC is sample efficient; it can learn with noisy priors; it requires minimal human effort to run.
+- Empirical results show that FAC can achieve 100% success rates in 7/8 tasks under 200k frames without manual-designed rewards, which proves the high sample efficiency. The ablation experiments verify the significance of the embodied foundation prior and the robustness of our proposed method w.r.t. the quality of the foundation prior.
+
+
+Related Work
+
+
+*MATH* *MATH*Foundation Models for Policy Learning *MATH* *MATH* The ability to leverage generalized knowledge from large and varied datasets has been proved in the fields of CV and NLP. In embodied AI, researchers attempt to learn universal policies based on large language models (LLMs) or vision-language models (VLMs). Some researchers train large transformers by tokenizing inputs and inferring actions by imitation learning [Brohan et al. 2022]; [2023]; [Reed et al. 2022]; [Yu et al. 2023], or offline Reinforcement Learning [Chebotar et al. 2023]. Some researchers utilize the LLMs as reasoning tools and do low-level control based on language descriptions [Di Palo et al.]; [Huang et al. 2022]; [Ahn et al. 2022]; [Driess et al. 2023]; [Wu et al. 2023]; [Singh et al. 2023]; [Shridhar et al. 2022]. The above works utilize human teleoperation to collect data for policy learning. However, it is hard to scale up human teleoperation to collect large-scale data.
+The model UniPi [Du et al. 2023] predicts videos for tasks based on VLMs and generates actions via a trained inverse model from the videos. But UniPi is of poor robustness empirically due to the lack of interactions with the environments.
+
+
+*MATH* *MATH*Foundation Models for Representation Learning *MATH* *MATH* Apart from learning policies directly from the foundation models, some researchers attempt to extract universal representations for downstream tasks. Some works focus on pre-trained visual representations that initialize the perception encoder or extract latent states of image inputs [Karamcheti et al. 2023]; [Shah &amp; Kumar 2021]; [Majumdar et al. 2023]; [Nair et al. 2022c]. Some researchers incorporate the pre-trained LLMs or VLMs for linguistic instruction encoding [Shridhar et al. 2023]; [Nair et al. 2022b]; [Jiang et al. 2022]. Some have investigated how to apply the LLMs or VLMs for universal reward or value representation in RL. [Fan et al. 2022 Nair et al. 2022a Mahmoudieh et al. 2022] build language-conditioned reward foundation models to generate task reward signals, and [Ma et al. 2022] is the first to train a universal goal-conditioned value function on large-scale unlabeled videos. However, no policy prior knowledge is provided for down-steam policy learning in these methods, and we find it significant of the policy prior knowledge for down-steam tasks in some experiments. In contrast, our proposed framework FRL leverages policy, value, and success-reward prior knowledge, which covers the basic commonsense of solving sequential tasks.
+
+
+Background
+
+
+1. Actor-Critic Algorithms
+
+
+Since various Actor-Critic algorithms demonstrate great performance on diverse tasks [Haarnoja et al. 2018]; [Lillicrap et al. 2015], we build our method on top of Actor-Critic algorithms to demonstrate the Foundation Reinforcement Learning framework, which is named Foundation Actor-Critic. Specifically, we choose a variant of deterministic Actor-Critic algorithms DrQ-v2 as the baseline, which is a SoTA model-free method for visual RL. It learns Q-value functions with clipped double Q-learning [Fujimoto et al. 2018] and deterministic policies by the Deterministic Policy Gradient (DPG) [Silver et al. 2014], which maximizes *MATH*Jϕ *MATH*(*MATH*D *MATH*) = E *MATH*stD *MATH* *MATH*.
+Here *MATH*D *MATH* is the dataset of the training replay, and *MATH*θ, ϕ *MATH* are the learnable parameters. The training objectives of DrQ-v2 are as follows [Yarats et al. 2021]:
+
+
+l *MATH*k *MATH*.
+
+
+*MATH*L *MATH*actor(*MATH*ϕ *MATH*) = *MATH*− *MATH*E *MATH*stD *MATH* min *MATH*Qθ *MATH* (*MATH*st, at *MATH*) *MATH*, k ∈ { *MATH*1 *MATH*, *MATH* *MATH*} *MATH*; *MATH*k *MATH*=1 *MATH*, *MATH* *MATH*L *MATH*critic(*MATH*θ *MATH*) = E *MATH*s D *MATH* *MATH*Qθ *MATH* (*MATH*st, at *MATH*) *MATH*− y *MATH*) *MATH*, k ∈ { *MATH*1 *MATH*, *MATH* *MATH*} *MATH*; *MATH*t *MATH* *MATH*k *MATH* (1) where *MATH*st *MATH* is the latent state representation, *MATH*at *MATH* is the action sampled from actor *MATH*πϕ *MATH*, and *MATH*y *MATH* is the n-step TD target value. *MATH*γ *MATH* is the discount factor. More details can be referred to [Yarats et al. 2021].
+
+
+2. Reward shaping in MDP
+
+
+In this work, we apply the value prior knowledge in Actor-Critic algorithms in the format of the reward shaping. Reward shaping guides the RL process of an agent by supplying additional rewards for the MDP [Dorigo &amp; Colombetti 1998]; [Mataric 1994]; [Randløv &amp; Alstrøm 1998]. In practice, it is considered a promising method to speed up the learning process for complex problems. [Ng et al. 1999] introduce a formal framework for designing shaping rewards. Specifically, we define the MDP *MATH*G *MATH* = (*MATH*S, A, P, R *MATH*), where *MATH*A *MATH* denotes the action space, and *MATH*P *MATH* = Pr *MATH*{st *MATH*+1 *MATH*|st, at} *MATH* denotes the transition probabilities. Rather than handling the MDP *MATH*G *MATH*, the agent learns policies on some transformed MDP *MATH*G *MATH* = (*MATH*S, A, P, R *MATH*), *MATH*R *MATH* = *MATH*R *MATH* + *MATH*F *MATH*, where *MATH*F *MATH* is the shaping reward function.
+When there exists a state-only function Φ: *MATH*S → *MATH* R such that *MATH*F *MATH* (*MATH*s, a, s *MATH*) = *MATH*γ *MATH*Φ(*MATH*s *MATH*) *MATH*− *MATH* Φ(*MATH*s *MATH*) (*MATH*γ *MATH* is the discounting factor), the *MATH*F *MATH* is called a *MATH* *MATH*potential-based shaping function *MATH* *MATH*. [Ng et al. 1999] prove that the potential-based shaping function *MATH*F *MATH* has optimal policy consistency under some conditions (Theorem [1] in the App. [A.2]).
+
+
+The theorem indicates that potential-based function *MATH*F *MATH* exhibits no particular preference for any policy other than the optimal policy *MATH*π *MATH* when switching from *MATH*G *MATH* to *MATH*G *MATH*. Moreover, under the guidance of shaping rewards for the agents, a significant reduction in learning time can be achieved. In practical *MATH*G *MATH* settings, the real-valued function Φ can be determined based on domain knowledge.
+
+
+Method
+
+
+In this section, we investigate what kinds of prior knowledge are significant for training embodied generalist agents and how to apply the prior knowledge to the given down-steam tasks.
+
+
+1. Foundation Prior Knowledge in Embodied AI
+
+
+For embodied intelligent agents, the process of handling different tasks in environments can be formulated as goal-conditioned MDP (GCMDP). Here, we take an example of how children solve daily manipulation tasks with commonsense prior knowledge and propose the priors in GCMDP correspondingly. As a 3-year-old child, Alice has never opened a door, and today, she is encouraged to open a door by her mother. Alice receives the task instruction of opening the door, and she begins to make attempts. Here, the language instruction of the task is the description of the *MATH* *MATH*goal *MATH* *MATH* in the GCMDP. As a child, she has witnessed how her parents opened the door, and she has some commonsense concerning this task.
+
+
+First, she has noticed some rough behaviors of reaching the door and turning the doorknob to open it from her parents. So she can follow their behavior and make attempts. In the context of MDP, the commonsense of the rough behavior can be formulated as a goal-conditioned policy function, which provides the rough action in the given task. We define such commonsense as the *MATH* *MATH*policy prior knowledge *MATH* *MATH*, guiding the agents with noisy actions. With such policy prior, the embodiment can trial and error more efficiently instead of exploring randomly.
+
+
+Moreover, she understands what state is closer to success, e.g. the state closer to the door is better. Once she enters some undesirable states, she knows it is unnecessary to continue exploring from that state and she should makes some adjustments back to a better state. In the context of MDP, the commonsense of justifying that the state close to the door is better can be formulated as a goal-conditioned value function, which provides the approximate value estimations of different states concerning the given task. We define such commonsense as the *MATH* *MATH*value prior knowledge *MATH* *MATH*, measuring the values of states from the foundation models.
+
+
+After some trials, Alice notices that the door is open. She begins reinforcing the behavior of this successful trial, and finally, she can stably solve the task. It is natural for humans to discriminate whether the task is successful and reinforce their behaviors. In the context of MDP, the commonsense of realizing that the door is open can be formulated as the 0-1 success-reward function, which equals 1 only if the task is successful. We define such commonsense as *MATH* *MATH*success-reward prior knowledge *MATH* *MATH*, which gives final feedback towards whether the task is successful. For any new task, Alice can make trials and succeed with the same learning pattern.
+
+
+Inspired by the learning paradigm that human learns to handle tasks in the above example, we believe the three prior knowledge are fundamental for embodied generalist agents. Consequently, following the learning paradigm, we formulate a novel framework *MATH* *MATH*Foundation Reinforcement Learning *MATH* *MATH* (FRL) to solve the GCMDP with commonsense prior knowledge, which does RL under noisy prior knowledge from foundation models. For convenience, we note such prior knowledge acquired from foundation models as the embodied foundation prior, i.e. the embodied foundation prior = *MATH*{ *MATH*policy prior, value prior, success-reward prior *MATH*} *MATH*. We will formalize the three defined foundation priors and demonstrate how to inject the noisy prior knowledge for RL as follows.
+
+
+For embodied agents, we define the GCMDP as a tuple *MATH*G *MATH*: *MATH*G *MATH* = (*MATH*S, A, P, R|T, T *MATH*). *MATH*S ∈ *MATH* R *MATH* *MATH* denotes the state. *MATH*T *MATH* is the task identifier. *MATH*R|T *MATH* denotes the rewards conditioned on tasks, which is a 0-1 success signal reward. The embodiment can be facilitated by the above three embodied prior knowledge to solve the MDP. Without the success-reward prior knowledge, the embodiment cannot be reinforced by successful trials.
+With the policy prior knowledge, the embodiment can explore the environments efficiently, rather than taking amounts of random explorations. With the value prior knowledge, the embodiment can prevent the policy from reaching some undesirable states, pruning the decision-making space. Notably, for humans, determining whether a task has been completed is precise and straightforward, but judging how good the current state is and where to take action can be vague and noisy. Thus, we assume the success-reward prior knowledge is relatively precise and sound, but the value and policy prior knowledge can be much more noisy. Formally, the value, policy, and success-reward foundation priors are extracted from
+- Value foundation model *MATH*MV *MATH* (*MATH* *MATH* *MATH*): *MATH* *MATH*.
+- Policy foundation model *MATH*Mπ *MATH*(*MATH* *MATH* *MATH*): *MATH* *MATH* *MATH*.
+- Success-reward foundation model *MATH* *MATH* *MATH* *MATH*: *MATH* *MATH*.
+
+
+To sum up, compared to the setting of vanilla RL, the Foundation RL solves tasks with abundant foundation prior knowledge. Instead, the vanilla RL relies on uninformative trial and error explorations as well as carefully and manually designed reward functions to learn the desired behaviors. It is not only of poor sample efficiency but also requires lots of human reward engineering. In Foundation RL, *MATH*MV *MATH* and *MATH*MR *MATH* give the value and reward estimations of states, and *MATH*Mπ *MATH* provides behavioral guidance with rough prior actions for the agent. This way, it can solve tasks much more efficiently, and learn with minimal human intervention.
+
+
+1. Foudation Actor-Critic
+
+
+Under the proposed Foundation RL framework, we instantiate an actor-critic algorithm to take advantage of the prior knowledge, which is named Foundation Actor-Critic (FAC). Although other approaches may be possible. In this section, we demonstrate how to inject the policy, value, and success-reward embodied prior knowledge into Actor-Critic algorithms systematically. Intuitively, the policy prior informs the agent on what to do at each step, while the value prior can correct the policy when it enters bad states. The success-reward prior tells the agent whether the task is successful, allowing for reinforcement from the successful experiences.
+
+
+*MATH* *MATH*Formulated as 0-1 Success-reward MDP *MATH* *MATH* Generally, we consider the given task as an MDP with 0-1 success-rewards from foundation model *MATH*MR *MATH*, which equals 1 only if the agent succeeds in the task. The reason is that the success-reward foundation prior is assumed to be relatively more accurate than the other priors. Thus, we formulate the MDP to solve as *MATH*G *MATH*1, where *MATH*RG *MATH*1 *MATH*|T *MATH* = *MATH*MR *MATH*(*MATH*s|T *MATH*) *MATH*∈ { *MATH*0 *MATH*, *MATH* 1 *MATH*} *MATH*. However, the decision-making problems are in sequence, and it is quite difficult to optimize the policy based on the 0-1 sparse reward signal due to the large search space of the MDP. We utilize the policy and value prior knowledge to learn *MATH*G *MATH*1 better and more efficiently.
+
+
+*MATH* *MATH*Guided by Policy Regularization *MATH* *MATH* To encourage the embodiment to explore the environments with the guidance of policy prior knowledge, we regularize the actor *MATH*πϕ *MATH* by the policy prior from *MATH*Mπ *MATH*(*MATH*s|T *MATH*) during training. Such regularization can help the actor explore the environment. Without loss of generality, we assume that the policy foundation prior follows Gaussian distributions. We add a regularization term to the actor: *MATH*L *MATH*reg(*MATH*ϕ *MATH*) = KL(*MATH*πϕ, N *MATH* (*MATH*Mπ *MATH*(*MATH*st|T *MATH*) *MATH*, σ *MATH*ˆ)), where *MATH*σ *MATH*ˆ is the standard deviation hyper-parameter of the policy prior.
+Note that there might be some bias caused by the policy prior; however, the bias can be bounded theoretically, as shown in Appendix Theorem [2].
+
+
+*MATH* *MATH*Guided by Reward-shaping from Value Prior *MATH* *MATH* The noisy foundation policy prior might mislead the agent to undesired states. We propose to guide the policy by the value foundation model *MATH*MV *MATH* (*MATH*s|T *MATH*) to avoid unnecessary exploration on unpromising states. Since there is a value function in the Actor-Critic algorithm, a natural approach is initializing the value of states by *MATH*MV *MATH* (*MATH*s|T *MATH*) and fine-tuning the value functions. However, we empirically find that it performs poorly, because of the catastrophic forgetting issues.
+
+
+To better employ the value foundation prior, we propose to utilize the *MATH* *MATH*reward-shaping *MATH* *MATH* technique [Ng et al. 1999]. Specifically, we introduce the potential-based shaping function *MATH*F *MATH* (*MATH*s, s|T *MATH*) = *MATH*γMV *MATH* (*MATH*s|T *MATH*) *MATH*− MV *MATH* (*MATH*s|T *MATH*). Intuitively, since *MATH*MV *MATH* roughly estimates the value of each state, *MATH*F *MATH* can measure the increase of value towards reaching the next state *MATH*s *MATH* from the current state *MATH*s *MATH*. The shaping reward will be positive if the new state *MATH*s *MATH* is better than the state *MATH*s *MATH*.
+
+
+*MATH* *MATH* Foundation Actor-Critic *MATH* *MATH* In summary, we propose to deal with a new MDP *MATH*G *MATH*2, where *MATH*RG *MATH*2 *MATH*|T *MATH* = *MATH*αMR *MATH* + *MATH*F, α &gt; *MATH* 0. Here, the *MATH*α *MATH* emphasizes the success feedback, which equals 100 in this work. The optimal policy of *MATH*G *MATH*2 is the same as that of *MATH*G *MATH*1 because *MATH*F *MATH* is a potential-based function. In this paper, we build our model upon the DrQ-v2 [Yarats et al. 2021] with image inputs, where the objectives are listed in Eq. [1]. We inject the value, success-reward, and policy foundation prior to the baseline method to solve *MATH*G *MATH*2. We name the proposed foundation RL method as *MATH* *MATH*Foudation Actor-Critic *MATH* *MATH* (FAC). The objective of critics in FAC remains the same as [Eq.1], and the objective of the actor in FAC is regularized, listed in Eq. [2].
+
+
+FORMULA, where *MATH* *MATH* is the tradeoff between the policy gradient guidance and the policy regularization guidance, which is set to 1. FAC learns from the foundation success prior, with foundation value shaping. Thus, we don&apos;t need to manually design a reward function.
+
+
+2. Acquiring Foundation Prior in FAC
+
+
+In this work, we aim to study what kind of prior is important for the embodied generalist agent and how to use those priors. Building the large-scale foundation priors is out of our paper&apos;s scope. However, we think it is an exciting future research direction. To validate our proposed framework, we utilize several existing works as proxy embodied foundation models.
+
+
+*MATH* *MATH* Value Foundation Prior *MATH* *MATH* For the value foundation model *MATH* *MATH*, we propose to utilize VIP [Ma et al. 2022], which trains a universal value function via pre-training on internet-scale robotics datasets. For each task, it requires a goal image and measures the distance between the current state and the goal state visually. In the experiments, we load the pre-trained value foundation model and apply it directly to value inference without in-domain fine-tuning.
+
+
+*MATH* *MATH* Policy Foundation Prior *MATH* *MATH*. For the policy foundation model *MATH* *MATH*, we propose to follow the work UniPi, which infers actions based on a language conditioned video prediction model and a universal inverse dynamics model. UniPi [Du et al. 2023] generates video trajectory for the task *MATH*T *MATH* conditioned on the start frame and task. Then, actions can be extracted from the generated video with a universal inverse dynamics model. However, video generation is computationally expensive. To improve the computational efficiency, we propose to distill a policy prior model *MATH*Mπ *MATH* *MATH* from the video generation model and the inverse dynamics model. Specifically, we generate video datasets from the video generation model and label the corresponding actions from the video dataset by the inverse model. Then, we train a policy model *MATH*Mπ *MATH*(*MATH*st|T *MATH*) from the datasets by supervised learning, which takes the current state as input. The original UniPi performs heavy in-domain fine-tuning. Instead, we use a few data for in-domain fine-tuning, which is more practical for real-world applications. More details are attached in the App. [A.1]. *MATH* *MATH* Reward Foundation Prior *MATH* *MATH*. There are few foundation models to distinguish the success behavior in embodied AI. Therefore, we use the ground truth 0-1 success signal from the environments.
+
+
+Experiments
+
+
+In this section, we provide extensive evaluations of Foundation Actor-Critic on robotics manipulation tasks. We attempt to investigate the effects of the foundation prior knowledge in policy learning, especially the sample efficiency and robustness aspects.
+Specifically, our experiments are designed to answer the following questions: (a) How sample efficient is our proposed Foundation Actor-Critic algorithm; (b) How significant are the three foundation prior knowledge respectively; (c) How is the quality of the foundation prior knowledge affect the performance of FAC.
+
+
+FIGURE 2
+
+
+1. SETUP
+
+
+*MATH* *MATH*Building Policy Foundation Models in FAC *MATH* *MATH* As mentioned in Sec. [4.3,] we distill a policy foundation model *MATH*Mπ *MATH* through a language condition video prediction model and an inverse dynamics model *MATH*ρ *MATH*(*MATH*st, st *MATH*+1). As for the video prediction model, we choose the open-source vision language model, Seer [Gu et al. 2023]. The model Seer predicts a video conditioned on one image and a language instruction with latent diffusion models, pre-trained on Something Something V2 [Goyal et al. 2017] and BridgeData [Ebert et al. 2021] datasets. Ideally, the model can be plugged in without in-domain fine-tuning. However, we find the current open-source video prediction models fail to generate reasonable videos in the simulator. Consequently, we fine-tune the Seer with 10 example videos from each task. Compared to UniPi that fine-tunes with 200k videos, the videos generated by our model are more noisy. Our model reflects the noisy nature of the future policy foundation model. In terms of the inverse dynamics model *MATH*ρ *MATH*(*MATH*st, st *MATH*+1), we save the replay buffer of the baseline DrQ-v2, containing 1M frames of each task, and train *MATH*ρ *MATH*(*MATH*st, st *MATH*+1) based on the replay buffers.
+Finally, to distill the policy foundation model *MATH*Mπ *MATH*, we generate 100 videos for each task from the fine-tuned Seer model (1k videos for the harder task bin-picking), label pseudo actions among the videos by the inverse dynamics model *MATH*ρ *MATH*(*MATH*st, st *MATH*+1), and train *MATH*Mπ *MATH*(*MATH*st|T *MATH*) on the action-labeled videos by supervised learning. More details are attached in the App.
+[A.1]. *MATH* *MATH*Environments and Baselines *MATH* *MATH* We conduct experiments of Foundation Actor-Critic on 8 tasks from simulated robotics environments Meta-World [Yu et al. 2020]. We average the success rates of finishing tasks over 20 evaluations across 3 runs with different seeds. To verify the effectiveness and significance of the three foundation priors, we compare our methods to the following baselines:
+
+
+- Vanilla DrQ-v2 [Yarats et al. 2021], with manually designed rewards from the suite.
+
+
+- R3M [Nair et al. 2022c]. We combine DrQ-v2 with the R3M visual representation. Same as the vanilla DrQ-v2, this baseline also learns from manually designed rewards.
+
+
+- UniPi [Du et al. 2023], which infers actions by the inverse dynamics model *MATH*ρ *MATH*(*MATH*st, st *MATH*+1) and an expert video generated from the language conditioned video prediction model Seer, fine-tuned under 10 example videos for each task following our setups.
+
+
+- The distilled policy foundation model *MATH*Mπ *MATH*(*MATH*st|T *MATH*).
+
+
+FIGURE 3
+
+
+2. Performance Analysis
+
+
+We compare the performance of our method with the above baselines on 8 tasks in Meta-World with 1M frames. Our proposed FAC achieves 100% success rates for all the tasks. 7/8 of them require less than 200k frames. For the hard task bin-picking, FAC requires less than 400k frames. However, the baseline methods can not achieve 100% success rates on most tasks. As illustrated in Fig. [2,] the sample efficiency and the success rates of FAC are much superior compared to the baseline methods. DrQ-v2 is able to complete some tasks but learns much slower compared to FAC. R3M injects the visual representation prior knowledge into the RL process, but its performance is even worse than DrQ-v2. We hypothesize that it might be caused by the pre-trained model having lost plasticity [D&apos;Oro et al. 2022]. Since the UniPi and the distilled foundation prior baseline do not involve training, they are represented as two horizontal lines in Fig. [2]. UniPi outperforms the distilled prior in most environments, since the distilled prior is learned from UniPi. However, UniPi is still far inferior compared to FAC.
+
+
+3. Ablation Study
+
+
+In this section, we answer the following questions: (a) Are all the three proposed priors necessary? What&apos;s the importance of each? (b) How does FAC perform with better / worse foundation priors?
+
+
+FIGURE 
+
+
+*MATH* *MATH* Ablation of Each Embodied Foundation Prior *MATH* *MATH* To investigate the importance of each foundation prior, we remove each prior and compare it against the full method. Figure [3] shows the three ablations: no policy prior (i.e. no policy KL regularization), no value prior (i.e. *MATH*R|T *MATH* = *MATH*αMR *MATH*(*MATH*s|T *MATH*)), no success reward (i.e. *MATH*R|T *MATH* = *MATH*γMV *MATH* (*MATH*st *MATH*+1 *MATH*|T *MATH*) *MATH*− MV *MATH* (*MATH*st|T *MATH*)).
+
+
+We find that the reward prior is the most important, without which the performance over all the tasks drops a lot. The reason is that, without the 0-1 success reward signals, the reward function is only a shaping reward, where any policy is equivalent under this reward.
+
+
+Without the policy prior, the agent fails on somE hard tasks, such as bin-picking and door-open. It also converges much more slowly on drawer-open and window-close. We note that the task hammer converges faster without the policy prior, which is counter-intuitive. This is because the agent w.o. policy prior succeeds through pushing the nail with the robot arm rather than with the hammer, as illustrated in Fig. [4].
+
+
+FIGURE 4
+
+
+FIGURE 5
+
+
+Without the value prior, the sample efficiency would drop, especially for the hard task bin-picking. Under the noisy policy prior, the shaping rewards inferred from value prior can guide the policy to reach states of higher values with larger probability.
+
+
+*MATH* *MATH*FAC with Various Quality of Value and Policy Foundation Prior *MATH* *MATH* Since the value foundation prior is from VIP [Ma et al. 2022] without in-domain data fine-tuning, which can be noisy, we are interested in how the noisy values perform compared to the ground truth values. We build oracle value functions for each task from the pre-trained FAC models. We find that oracle values give a further boost to some tasks Figure [5], such as bin-picking-v2 and door-open-v2. This indicates that better value foundation priors might further boost the performance.
+
+
+We have shown that although the distilled policy prior itself has low success rates on most tasks Fig. [2], FAC is able to achieve high success rates by utilizing the noisy policy prior. To further test the robustness of our method, we define several noisier policy priors. Specifically, we discretize each action dimension generated from the distilled policy model into only three values *MATH*{− *MATH*1 *MATH*, *MATH* 0 *MATH*, *MATH* +1 *MATH*} *MATH*. This makes the policy prior only contain rough directional information. We name this prior as *MATH*discritized *MATH* *MATH*policy *MATH*. To generate even noisier prior, we replace the discretized actions with uniform noise at 20% and 50% probability. As shown in Figure [5,] we find that the discretized policy prior performs similarly to the original policy prior, except for door-open.
+Adding the extra uniform noise decreases the performance further.
+However, we note that even using the discretized policy with 50% noise, FAC can still reach 100% success rates in many environments.
+
+
+In conclusion, the results indicate that our proposed FAC is robust to the quality of the foundation prior. Moreover, the better the foundation prior is, the more sample efficient the FAC is.
+
+
+Discussion
+
+
+In this paper, we introduce a novel framework, termed Foundation Reinforcement Learning, which leverages policy, value, and success-reward prior knowledge for reinforcement learning tasks. Additionally, we elucidate the application of the embodied foundation prior within actor-critic methodologies, hereby designated as Foundation Actor-Critic. We acknowledge that there are two dimensions for future exploration of this work. For one thing, it is imperative to construct accurate and broadly applicable foundation priors. For another, it is promising to introduce more abundant prior knowledge for the Foundation RL. For instance, humans can predict the future states. Such prediction prior knowledge can be extracted from the dynamic foundation models, which can be potentially effective for policy learning.

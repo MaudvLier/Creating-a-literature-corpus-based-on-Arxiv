@@ -1,0 +1,127 @@
+Agent-based Learning of materials datasets from scientific literature
+
+
+Introduction
+
+
+The past decade&apos;s extraordinary achievements in leveraging machine learning for chemical discovery highlight the power of accessible knowledge and structured data [*REF*; *REF*; *REF*].
+However, a significant portion of chemical knowledge, particularly the experimental ones, is scattered across scientific literature in an unstructured format[*REF*]. Researchers face challenges in effectively utilizing existing knowledge for design of experiments, as well as in comprehending the entirety of previous works in a field.
+Thus, the development of methodologies to extract information from the literature and convert it into structured data will play a fundamental role in advancing the machine learning for molecules and materials.
+
+
+Natural Language Processing (NLP) is a powerful tool for extracting information from scientific literature. Conventional NLP methods have been used in materials and chemical sciences [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*] for Named Entity Recognition. However, these methods are limited in other NLP tasks that are needed for a general-purpose data extraction tool, including Co-reference Resolution, Relation Extraction, Template Filling, Argument Mining, and Entity Linking. To better understand these NLP terminologies, let us consider an example taken from an abstract of a materials paper [*REF*] in the field of metal-organic frameworks (MOFs):
+
+
+FIGURE
+
+
+- Named Entity Recognition involves identifying and classifying the specific entities within the text into predefined categories (i.e., chemical compounds: &quot;bio-MOFs-11 -- 14&quot;, &quot;acetate&quot;, experimental conditions: &quot;1 bar&quot;, &quot;273 K&quot;, &quot;10: 90 CO2: N2 mixture&quot;).
+- Co-reference Resolution focuses on finding all expressions that refer to the same entity in the text. As an example, phrases like &quot;these materials&quot;, &quot;each material&quot; are references that relate back to the bio-MOFs-11-14 mentioned in the first sentence.
+- Relation Extraction involves extracting semantic relationships from the text, which usually occur between two or more entities (i.e., the impact of &quot;aliphatic chain lengths&quot; on &quot;BET surface areas&quot; and &quot;CO2: N2 selectivities&quot;).
+- Template Filing is an efficient approach to extract and structure complex information from text. As an example: material name: bio-MOFs-11 -- 14.
+- Argument Mining focuses on the automatic identification and extracts the reasoning presented within the text. As an example, the &quot;increase in the water stability&quot; of the mentioned MOFs are connected to the &quot;increasing length of the aliphatic chains&quot;.
+- Entity Linking takes one step further than named entity recognition and distinguishes between similarly named entities (i.e., the term &quot;bio-MOFs&quot; would be linked to databases or literature that describe these materials in detail.
+
+
+The emergence of Large Language Models (LLMs) or foundation models, shows a great promise in tackling these complex NLP tasks [*REF*; *REF*; *REF*; *REF*].
+*REF* fine-tuned a language model (BERT) on battery publications to extract device-level information from a paragraph that contains one device only.   *REF* showed that fine-tuned LLMs using 100-1000 data points can perform Relation Extraction as well as template filling, enabling conversion of the extracted information into user-defined output formats. Despite these promising results, these methods require training data, limiting their ease of use and broad applicability. Moreover, LLM based approaches have not been explored for more intricate challenges, such as argument mining and co-reference resolution. These tasks are critical for practically using NLP for automated database development. For example, in one article, multiple materials might be discussed and authors use abbreviations like &quot;compound 1&quot; or simply &quot;1&quot; in the entire research manuscript for referencing after initially defining the chemical compound in the introduction section. Additionally, description of material properties often come with various interpretations, limiting using rigid name entity matching. As implementations of standalone LLMs fall short in addressing these intricate tasks, new methods are needed to enable reliable information extraction. An effective approach is to augment LLMs with domain-specific toolkits. These specialized tools offer precise answers, thus addressing the inherent limitations of LLMs in specific domains, and enhancing their overall performance and applicability [*REF*; *REF*; *REF*; *REF*].
+
+
+In this work, we introduce an autonomous AI agent, Eunomia, augmented with chemistry-informed tools, designed to extract materials science-relevant information from unstructured text and convert it into structured databases. With an LLM at its core, our AI agent is capable of strategizing and executing actions by tapping into a wealth of knowledge from academic publications, domain-specific experts, the Internet, and other user-defined resources). We show that this method streamlines data extraction, achieving remarkable accuracy and performance solely with a pre-trained LLM (GPT-4 [*REF*]), eliminating the need for fine-tuning. It offers adaptability by accommodating a variety of information extraction tasks through natural language text prompts for new output schemas and reducing the risk of hallucinations through a chain-of-verification process. This capability extends beyond what a standalone LLM can offer.
+Eunomia simplifies the development of tailored datasets from literature for domain experts, eliminating the need for extensive programming, NLP, or machine learning expertise.
+
+
+This manuscript is organized as follows; Benchmarking and evaluating the model performance on three different materials NLP tasks with varying level of complexity are represented in Section [3]. This is followed by Section [4], with a discussion on the implications of our findings, the advantages and limitations of our approach, as well as suggested directions for future work. Finally, in Section [5], we describe our methodology on agent&apos;s toolkits and evaluation metrics.
+
+
+FIGURE
+
+
+AI Agent 
+
+
+In the realm of artificial intelligence, an &quot;agent&quot; is an autonomous entity capable of taking action based on its environment. In this work, we developed a chemist AI agent, Eunomia, to autonomously extract information from scientific literature (Figure [1]). We use an LLM to serve as the brain of our agent [*REF*]. The LLM is equipped with advanced capabilities like planning and tool use to act beyond just a text generator, and act as a comprehensive problem solver, enabling effective interactions with the environment. We use ReAct architecture [*REF*] for planning, enabling both reasoning and action. Our agent can interact with external sources like knowledge bases or environments to obtain more information. These knowledge bases are developed as toolkits (see method section for details) allowing the agent to extract relevant information from research articles, publicly available datasets, and built-in domain-specific chemical knowledge, ensuring its proficiency in playing the role of an expert chemist. We use OpenAI&apos;s GPT-4 [*REF*] with a temperature of zero as our LLM and LangChain [*REF*] for the application framework development (note the choice of LLM is only a hyperparameter and other LLMs can be also used with our agent). The application of LLMs in developing autonomous agents is a growing area of research [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*], with a detailed survey available in Ref. [*REF*] for further insights.
+
+
+In addition to the standard search and text manipulation tools, we have implemented a Chain-of-Verification (CoV) tool to enhance the robustness of our AI agent against hallucination. Hallucination in a LLM refers to the generation of content that strays from factual reality or includes fabricated information [*REF*]. In the CoV approach, the agent iteratively assesses its responses to ensure they remain logically consistent and coherent (see method section [5.1.2] for details). This addition helps particularly with eliminating mistakenly extracted data related to semantically similar properties. An illustrative example is the case of stability of materials, where thermal, mechanical, and chemical stabilities might be confused by the agent. Figure [2] illustrates how CoV process works in action: the agent is tasked to identify MOFs and the corresponding water stability data in a paper. The agent initially misclassifies a thermally stable MOF as water-stable, but then it corrects this mistake by a comprehensive review using the CoV tool. This tool improves the performance of the agent and ensures robust data extraction.
+
+
+FIGURE 
+
+
+Case studies 
+
+
+We evaluate the performance of our AI agent by benchmarking it across three different materials NLP tasks, with increasing task complexity (Table [1]). In our assessment, we include a wide range of text lengths, including sentences, paragraphs and entire manuscript, as well as different NLP tasks discussed in the introduction. The first case study focuses on assessing the agent&apos;s performance on NLP tasks of lower complexity, specifically Named Entity Recognition and Relation Extraction. For this, we use our agent to extract host-to-many dopants relationships from a single sentence. The second case study, with medium NLP complexity, involves obtaining MOFs&apos; chemical formula and their corresponding guest species from a paragraph with multiple sentences. Finally, the third case study centers on predicting a given property of MOFs based on the context coming from a materials research paper. The property of interest in our work is water stability. This case study aims to, in addition to Named Entity Recognition and Relation Extraction, evaluate the co-reference resolution and argument mining proficiency of our AI agent, tailored for chemists, which involves a high level of NLP complexity. In all case studies, our chemist AI agent, Eunomia, is a zero-shot learner that is equipped with the Doc Search tool (see Section [5.1.1]). We have also conducted additional experiments by equipping Eunomia with the chain-of-verification (CoV) tool, as described in Section [5.1.2]. This is referred to as Eunomia + CoV from here on.
+
+
+To fairly compare the performance of our agent with the state-of-the-art fine-tuned LLM methods, the evaluation methodology for the first two case studies mirrors precisely that of *REF* (see Section [5.2]for details), serving as a benchmark reference. In this study,   *REF* is referred to as LLM-NERRE, which involves fine-tuning a pre-trained LLM (GPT-3 [*REF*]) on 100-1000 set of manually annotated examples, and then using the model to extract information from unstructured text.
+
+
+TABLE
+
+
+This case study aims to extract structured information about solid-state impurity doping from a single sentence. The objective is to identify the two entities &quot;host&quot; and &quot;dopant&quot;. &quot;Host&quot; refers to the foundational crystal, sample, or category of material characterized by essential descriptors in its proximate context, such as &quot;ZnO2 nanoparticles&quot;, &quot;LiNbO3&quot;, or &quot;half-Heuslers&quot;. &quot;Dopant&quot; means the elements or ions that represent a minority component, deliberately introduced impurities, or specific atomic-scale defects or carriers of electric charge like &quot;hole-doped&quot; or &quot;S vacancies&quot;. A single host can be combined with multiple dopants, through individual doping or simultaneous doping with different species, and one dopant can associate with various host materials. The text may contain numerous dopant-host pairings within the same sentence, and also instances of dopants and hosts that do not interact.
+
+
+TABLE
+
+
+Eunomia shows an excellent performance in this task, demonstrating the effectiveness of our approach in Named Entity Recognition and Relation Extraction. Performance comparison between our chemist AI agent (Eunomia), and LLM-NERRE can be found in Table . In this setting, the same above definition of hosts and dopants are passed to Eunomia via the input prompt, while LLM-NERRE is fine-tuned on 413 sentences. The testing set contains 77 sentences. Notably, in both tasks, Eunomia + CoV exceeds the performance of LLM-NERRE in terms of the F1 score. This clearly demonstrates the effectiveness of our approach compared to fine-tuning, which can be labor-intensive and error-prone. We instruct Eunomia not to make up answers, which lead to a more cautious outcome, wherein uncertain or unclear inputs yield no output. As an example in the sentence &quot;An anomalous behavior of the emission properties of alkali halides doped with heavy impurities, stimulated new efforts for its interpretation, invoking delicate and sophisticated mechanisms whose interest transcends the considered specific case.&quot;, the ground-truth host materials is &quot;alkali halides&quot;. However, due to the nature of exact-word matching metric implemented in Ref. [*REF*] a cautious agent with no predictions for the host entity will be penalized with two false negatives, one for each word in the ground-truth, leading to lower recall score.
+
+
+Case Study 2: MOF Formula and Guest Species Relation
+
+
+The goal of this case study is to identify MOF formula and guest species from unstructured text, as a paragraph with multiple sentences. The MOF formula refers to the chemical formula of a MOF, which is an important piece of information for characterizing and identifying MOFs. The guest species, on the other hand, are chemical species that have been incorporated, stored, or adsorbed in the MOF. These species are of interest because MOFs are often used for ion and gas separation, and the presence of specific guest species can affect the performance of the MOF. We limit our method to stand-alone Eunomia without CoV due to the complexity of defining a chemistry-informed CoV verification tool for this specific task. It should be noted that *REF* also included results on the identification of synthesis descriptions and applications pertaining to MOFs. However, as the metric of exact-word matching reported in *REF* does not fairly and adequately reflect the model performance for the multi-word (\&gt; 2 words) nature of these outputs, we have limited our benchmarking to the MOF formula and guest species identification only.
+
+
+TABLE
+
+
+Table  shows the performance comparison between Eunomia and LLM-NERRE on the MOF formula and guest species relation extraction task. While Eunomia shows a superior performance on the MOF formula compared to LLM-NERRE, the relatively low performance of both approaches is related to the nature of the exact word matching. Using semantic similarity would be a more appropriate indicator in this context. On the guest species entity, while Eunomia shows a high recall (0.923), precision is relatively poor (0.429). This can be attributed to how the exact-word matching metrics have been defined in Ref. [*REF*], where precision is majorly lowered by the presence of the extra unmatched predicted words (false positives), while recall remains high because all ground truth items were found in the predicted words.
+
+
+Case Study 3: MOF Property Relation 
+
+
+FIGURE
+
+
+This case study aims to mimic a practical scenario of developing datasets from scientific literature, where we evaluate the agent&apos;s performance on extracting MOF&apos;s water stability. To excel in this goal, the agent must identify all MOFs mentioned within the research paper, evaluate their water stability, and support these evaluations using exact sentences derived from the document. Such tasks are inherently linked to the NLP functions of Named Entity Recognition, Co-reference Resolution, Relation Extraction, and Argument Mining. This is particularly a challenging task as researcher report the water stability in various ways, using phrases ranging from &quot;the material remains crystalline in humid conditions&quot; to &quot;the MOF is stable in wide range of pH&quot;, or &quot;the material is not soluble in water&quot;.
+
+
+For this case study, we created a hand-labeled dataset based on a selection of 101 materials research papers, which contain a selection of 371 MOFs. Three expert chemists manually read through and review each paper, pinpointing the MOFs referenced within. A portion of these articles are selected considering the original work by *REF*, where they developed a dataset of MOF names and their water stability by manually reading 111 research articles. To mimic the practical data extraction scenario, in which the agent is passed many articles, many of which do not contain the desired information, we included articles with no information about water stability. Each MOF in our set is assigned to one of the three classes of &quot;Stable&quot;, &quot;Unstable&quot;, and &quot;Not provided&quot;.
+Figure [3].a presents the distribution of the classes within this dataset.
+
+
+For this case study, we have established criteria to characterize water-stable MOFs, drawing from the study by *REF* and our own chemical intuition. A water-stable MOF should meet the following criteria:
+
+
+- No alteration in properties after being subjected to moisture or steam, or when soaked or boiled in water or an aqueous solution.
+- Preservation of its porous architecture in liquid (water) environments.
+- Sustained crystallinity without loss of structural integrity in aqueous environments.
+- Insoluble in water or aqueous solutions.
+- Exhibiting a pronounced rise in its water adsorption isotherm.
+
+
+These water stability guidelines are defined as rules to Eunomia within the input prompt, as well as in its equipped CoV tool.
+
+
+Eunomia with CoV tool retrieve most (yield of 86.20%) of the reported MOFs and shows an excellent performance (accuracy of 0.91) in inferring their water stability. This high yield and accuracy demonstrates the capability of our approach in extracting desired knowledge from the natural text. As expected, in the absence of CoV, there is a marginal decrease in accuracy to 0.86, along with a yield reduction to 82.70%.
+Taking into account the confusion matrix in Figure [3].b, it is evident that our agent adopts a cautious approach in its predictions. This is reflected in the substantial number of \&quot;Not provided\&quot; predictions which, upon comparison with the actual ground-truth class, indicates a propensity of the agent to acknowledge the insufficiency of information for making a definitive prediction, rather than mistakenly categorizing samples into the incorrect \&quot;Stable\&quot; or \&quot;Unstable\&quot; classes, and contaminating the agent&apos;s resulting dataset with unwanted noise.
+
+
+FIGURE
+
+
+Discussion 
+
+
+We presented a high performing and robust method for extracting domain specific information from complex, unstructured text - ranging from sentences and paragraphs to extensive research articles - using AI agents. Scientists and researchers can use our open-source application to effortlessly develop tailored datasets for their specific areas and use them for downstream predictive tasks[*REF*]. While currently the cost of querying large datasets may become expensive, we expect the rapid advancements in LLMs will diminish this cost.
+
+
+Unlike other methods that follow a pipeline-based or end-to-end approach, our agent-based method could appeal to domain experts due to its minimal demand for programming skills, NLP and machine learning knowledge. Users are not required to rigidly define an output schema or engage in the meticulous task of creating manual annotations for the purpose of fine-tuning. Rather, they can simply prompt the agent with more context and describe how their desired output should be formatted in natural language. Moreover, the agent can easily be extended and equipped with other tools (e.g. Dataset Search, CSV Generator, etc.) to be adapted to other problems. For example, we showed that, by equipping the agent with the chain-of-verification tool (CoV), we can minimize Hallucinations and improve the agent&apos;s performance. Similarly, by including reasoning tools, we can ask the agent to explain its reasoning based on the provided context to develop more transparent workflows for the LLM-based methods, and reduce their known &quot;black-box&quot; nature. This, simultaneously, offers a great opportunity for human-in-the-loop oversight, especially for tasks of critical importance.
+
+
+Our results reveal an important observation: while large language models are few-shot learners [*REF*], AI agents with appropriate tools and instructions are capable of being zero-shot learners. This brings an excellent opportunity to boost the performance of standalone LLMs across various domain-specific tasks without having to go through labor-intensive fine-tuning processes. A future thorough and systematic analysis of prompt sensitivity can provide valuable insights into this observation.

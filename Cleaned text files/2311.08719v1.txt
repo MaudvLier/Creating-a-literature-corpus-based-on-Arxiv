@@ -1,0 +1,272 @@
+Think-in-Memory: Recalling and Post-thinking Enable LLMs with Long-Term Memory
+
+
+Introduction
+
+
+Impressive advancements in Large Language Models (LLMs) have revolutionized the interaction between human beings and artificial intelligence (AI) systems. These advancements have particularly showcased superior performance in human-agent conversations, as demonstrated by ChatGPT [*REF*] and GPT-4 [*REF*]. From finance [*REF*] and healthcare [*REF*] to business and customer service [*REF*], these advanced LLMs exhibit a remarkable ability to understand questions and generate corresponding responses. Notably, the large model scale, reaching up to hundreds of billions of parameters, enables the emergence of such human-like abilities within LLMs [*REF*].
+
+
+Despite the remarkable abilities of LLMs pre-trained on large corpora, LLM-based AI agents still face a significant limitation in long-term scenarios, i.e., inability to process exceptionally lengthy inputs [*REF*]. This is particularly important in some specific tasks, e.g., medical AI assistants [*REF*] rely on the symptoms of past conversations to provide accurate clinical diagnosis.
+Thus, LLMs without the capability of dealing with long-term inputs may hinder the diagnosis accuracy due to forgetting important disease symptoms (see in Section [4.4]). Therefore, it is necessary to develop AI systems with long-term capabilities for more accurate and reliable interactions.
+
+
+FIGURE
+
+
+There have been various studies conducted to improve the capabilities of LLMs to handle long-term inputs. Overall, these studies can be roughly divided into two types: (1) Internal memory based methods [*REF*] aims to reduce the computational costs of self-attention for expanding the sequence length. To accommodate longer input texts, special positional encoding should be exploited to learn relative positions. For example, [*REF*] explored a block-local Transformer with global encoder tokens, combined with additional long input pre-training. (2) External memory based methods (also called long-term memory mechanism [*REF*]) generally utilize a physical space as a memory cache to store historical information, where relevant history can be read from the memory cache to augment LLMs without forgetting. In particular, both token and raw text can be maintained as history in the memory. For instance, [*REF*] demonstrated a significant performance improvement by augmenting LLMs with an external memory cache containing trillions of tokens assisted by BERT embeddings [*REF*]. It should be noticed that token-based memory mechanism requires to adjust the LLM&apos;s architecture for adaption, which is hard to be combined with different LLMs. By accessing an external memory cache, the augmented LLMs have achieved new state-of-the-art records in various language modeling benchmarks, which generally performs better than internal memory based methods. Therefore, this work focuses on designing an LLM-agnostic external memory mechanism to enhanced the memorization capacity of LLMs.
+
+
+In general, the utility of memory-augmented LLMs primarily hinges on their ability for iterative recalling and repeated reasoning over the history in an external memory cache. In detail, for conversations after the *MATH* -th turn, LLMs are required to re-understand and re-reason the history from *MATH* -th to *MATH* -th conversations. For example, as shown in Figure, to answer the questions of *MATH* -th and *MATH* -th turns, LLMs recall *MATH* -th turn and reason over it for twice.
+Unfortunately, this paradigm is prone to encountering several issues and potentially causes a performance bottleneck in real-world applications.
+The main issues are shown in follows:
+
+
+- Inconsistent reasoning paths. Prior studies [*REF*; *REF*] has shown that LLMs easily generate diverse reasoning paths for the same query. As shown in Figure (Left), LLMs give a wrong response due to inconsistent reasoning over the context.
+- Unsatisfying retrieval cost. To retrieve relevant history, previous memory mechanisms need to calculate pairwise similarity between the question and each historical conversation, which is time-consuming for long-term dialogue.
+
+
+To address these concerns, we would like to advance one step further in memory-augmented LLMs with the analogy to the typical process of metacognition [*REF*], where the brain saves thoughts as memories rather than the details of original events. Thus, in this work, we propose a Think-in-Memory (TiM) framework to model the human-like memory mechanism, which enables LLMs to remember and selectively recall historical thoughts in long-term interaction scenarios. Specifically, as shown in Figure, the TiM framework is divided into two stages: (1) In the recalling stage, LLMs generate the response for the new query with recalling relevant thoughts in the memory; (2) In the post-thinking stage, the LLM engages in reasoning and thinking over the response and saves new thoughts into an external memory. Besides, to mirror the cognitive process of humans, we formulate some basic principles to organize the thoughts in memory based on the well-established operations (e.g., insert, forget, and merge operations), allowing for dynamic updates and evolution of the thoughts.
+Specifically, TiM is built on a hash-based retrieval mechanism (i.e., Locality-Sensitive Hashing [*REF*]) to support efficient hand-in (i.e., insert thoughts) and hand-out (i.e., recall thoughts) operations. Additionally, TiM is designed to be LLM-agnostic, which means it can be combined with various types of language models. This includes closed-source LLMs such as ChatGPT [*REF*], as well as open-source LLMs like ChatGLM [*REF*].
+
+
+FIGURE
+
+
+The key contributions of this work are summarized as follows:
+
+
+- We propose a novel human-like long-term memory mechanism called TiM, enabling LLMs to remember and selectively recall thoughts. TiM can let LLM think in memory without repeated reasoning over the long-term history.
+- We formulate some basic principles to organize the thoughts in memory based on the well-established operations, which mirrors human cognitive process to empower dynamic updates and evolution for the thoughts in memory. Besides, a hash-based retrieval mechanism is introduced for efficient utilization of TiM.
+- We conducted extensive experiments on multi-turn dialogue datasets.
+The results indicate that our method can substantially enhance LLM&apos;s performance across various dimensions: (1) It enables diverse topics ranging from open to specific domains; (2) It supports bilingual languages in both Chinese and English; (3) It improves response correctness and coherence.
+
+
+Related Work
+
+
+Large Language Models
+
+
+Recently, Large Language Models (LLMs) have attracted significant attention for their superior performance on a wide range of Natural Language Processing tasks, such as machine translation [*REF*], sentiment analysis [*REF*], and question answering systems [*REF*]. These advancements are indeed supported by the developments of deep learning techniques and the availability of vast amounts of text data. From the perspective of open source, existing LLMs can roughly divided into two types: (1) cutting-edge closed-source LLMs, e.g., PaLM [*REF*], GPT-4 [*REF*], and ChatGPT [*REF*]; (2) open-source LLMs, e.g., LLaMa [*REF*], ChatGLM [*REF*], and Alpaca [*REF*]. Researchers have studied various methods for the applications of these popular LLMs. For example, many strategies are proposed to fine-tune pre-trained LLM models on specific tasks [*REF*], which can further improve their capabilities in specific domains. Besides, some efforts have been made to enhance the quality of the generated content of LLMs, e.g., generating more diverse and creative text while maintaining coherence and fluency [*REF*]. Overall, recent developments of LLMs cover a broad range of topics, including model architecture [*REF*], training methods [*REF*], fine-tuning strategies [*REF*], as well as ethical considerations [*REF*]. All these methods aim to enhance the understanding capabilities of LLMs for real-world applications. However, these powerful LLM models still have some shortcomings. One notable limitation of LLMs is their lack of a strong long-term memory, which hinders their ability to process lengthy context and retrieve relevant historical information.
+
+
+Long-term Memory
+
+
+Numerous efforts have been conducted to enhance the memory capabilities of LLMs. One approach is to utilize memory-augmented networks (MANNs) [*REF*], such as Neural Turing Machines (NTMs) [*REF*], which is designed to utilize more context information for dialogue. In general, MANNs are proposed with an external memory cache via the storage and manipulation of information, which can well handle tasks of long-term period by interacting with memory. In addition, many studies focused on long-term conversations [*REF*; *REF*; *REF*; *REF*].
+For example, Xu et al. [*REF*] introduced a new English dataset consisting of multi-session human-human crowdworker chats for long-term conversations. Zhong et al. [*REF*] proposed a MemoryBank mechanism inspired by Ebbinghaus&apos; forgetting curve theory.
+However, these methods still face some great challenges to achieve a reliable and adaptable long-term memory mechanism for Language and Learning Models (LLMs). Concretely, these methods only considered storing the raw dialogue text, requiring repeated reasoning of the LLM agent over the same history. Besides, these models need to calculate pairwise similarity for recalling relevant information, which is time-consuming for the long-term interactions.
+
+
+Methodology
+
+
+In this section, we first introduce the overall workflow of our proposed framework. Then we provide a detailed description for each stage of TiM, involving storage for memory cache, organization principle for memory updating, and retrieval for memory recalling.
+
+
+Framework Overview
+
+
+Given a sequence of conversation turns, each turn is denoted by a tuple *MATH*, representing the user&apos;s query (Q) and the agent&apos;s response (R) at that specific turn. The main objective is to generate a more accurate response *MATH* like a human for a new coming query *MATH*, while remembering the contextual information of historical conversation turns.
+The proposed TiM allows the agent to process long-term conversation and retain useful historical information after multiple conversations with the user.
+
+
+Main Components
+
+
+As illustrated in Figure, our TiM comprises the following components, working together to provide more accurate and coherent responses for long-term conversation:
+
+
+- Agent *MATH*: *MATH* is a pre-trained LLM model to facilitate dynamic conversations, such as ChatGPT [*REF*] and ChatGLM [*REF*].
+- Memory Cache *MATH*: *MATH* a continually growing hash table of key-value pairs, where key is the hash index and value is a single thought. More details of *MATH* can refer to Section [3.2]. To be clear, *MATH* supports varying operations as shown in Table.
+- Hash-based Mapping *MATH*: Locality-sensitive Hashing is introduced to quickly save and find the relevant thoughts in *MATH*.
+
+
+Workflow
+
+
+Overall framework is divided into two stages:
+
+
+- Stage-1: Recall and Generation. Given a new question from the user, LLM agent *MATH* retrieves relevant thoughts for generating accurate responses. Since we save the self-generated reasoning thoughts as external memory, this stage can directly recall and answer the question without repeated reasoning over the raw historical conversation text.
+- Stage-2: Post-think and Update. After answering the question, we let the LLM agent post-think upon *MATH* -*MATH* pair and insert the newly self-generated reasoning thoughts into memory cache *MATH*.
+
+
+Storage for Memory Cache 
+
+
+Thoughts-based System
+
+
+TiM&apos;s storage system *MATH* aims to save the knowledge of AI-user interactions via self-generated inductive thoughts (Definition) upon the conversations. Each piece of thought *MATH* is stored in the format of the tuple *MATH*, where *MATH* is the hash index obtained by hash function *MATH*. This hash-based storage not only aids in quick memory retrieval but also facilitates the memory updating, providing a detailed index of historical thoughts.
+
+
+DEFINITION
+
+
+The main challenge of utilizing inductive thoughts for LLM is obtaining high-quality sentences matching relation triples. Here we provide two kinds of solutions to obtain inductive thoughts: (1) pre-trained model for open information extraction, such as OpenIE [*REF*]; (2) In-context learning with few-shot prompts based on LLM. In this work, we utilize the second solution, i.e., utilizing LLM Agent *MATH* to generate inductive thoughts, as shown in Figure [1].
+
+
+FIGURE
+
+
+Hash-based Storage
+
+
+We aim to save inductive thoughts into the memory following a certain rule, i.e., similar thoughts should be stored in the same group in the memory for efficiency. To this end, we adopt a hash table as the architecture of TiM&apos;s storage system, where similar thoughts are assigned with the same hash index.
+
+
+Given a query, we propose to quickly search its nearest thoughts in a high-dimensional embedding space, which can be solved by the locality-sensitive hashing (LSH) method. The hashing scheme of LSH is to assign each *MATH* -dimension embedding vector *MATH* to a hash index *MATH*, where nearby vectors get the same hash index with higher probability. We achieve this by exploiting a random projection as follows: *MATH* *MATH* *MATH* where *MATH* is a random matrix of size *MATH* and *MATH* is the number of groups in the memory. *MATH* denotes the concatenation of two vectors. This LSH method is a well known LSH scheme [*REF*] and is easy to implement. Figure shows a schematic exhibition of TiM&apos;s storage system based on LSH.
+
+
+FIGURE 
+
+
+FIGURE
+
+
+Retrieval for Memory Recalling
+
+
+Built on the memory storage, the memory retrieval operates a two-stage retrieval task for the most relevant thoughts, i.e., LSH-based retrieval followed by similarity-based retrieval. The paradigm involves the following detailed points.
+
+
+- Stage-1: LSH-based Retrieval. For a new query *MATH*, we first obtain its embedding vector *MATH* based on LLM agent. Then LSH function (i.e., Eq.) can produce the hash index of the query. This hash index also indicates the its nearest group for similar thoughts in the memory cache according to the property of LSH.
+- Stage-2: Similarity-based Retrieval. Within the nearest group, we calculate the pairwise similarity between the query and each piece of thought in the group. Then top-*MATH* thoughts are recalled as the relevant history for accurately answering the query. It should be noticed that pairwise similarity is calculated within a group rather than the whole memory cache, which can achieve more efficient retrieval than previous memory mechanisms.
+
+
+Organization for Memory Updating
+
+
+With the above-discussed memory storage and retrieval, the long-term memory capability of LLMs can be well enhanced. Motivated by the human memory, there needs some organization principles based on the well-established operations for dynamic updates and evolution of the thoughts, e.g., insert new thoughts, forget less important thoughts, and merge repeated thoughts, which can make the memory mechanism more natural and applicable.
+
+
+Beginning with the architecture of the storage for memory cache, TiM adopts the hash table to store the self-generated thoughts, where each hash index corresponds a group containing similar thoughts. Within same group, TiM supports the following operations to organize the thoughts in the memory:
+
+
+- Insert, i.e., store new thoughts into the memory. The prompt for generating thoughts is shown in Figure [1].
+- Forget, i.e., remove unnecessary thoughts from the memory, such as contradictory thoughts. The prompt of this operation is shown in Figure [2].
+- Merge, i.e., merge similar thoughts in the memory, such as thoughts with the same head entity. The prompt of this operation is shown in Figure [3].
+
+
+Parameter-efficient Tuning
+
+
+We adopt a computation-efficient fine-tuning approach called Low-Rank Adaptation (LoRA) [*REF*] for the scenarios with limited computational resources. LoRA [*REF*] optimizes pairs of rank-decomposition matrices while keeping the original weights frozen, which can effectively reduce the number of trainable parameters.
+Specifically, considering a linear layer defined as *MATH*, LoRA fine-tunes it according to *MATH*, where *MATH*, *MATH*, *MATH*, and *MATH*. Essentially, this fine-tuning stage can adapt LLMs to multi-turn conversations, providing appropriately and effectively response to users. For all experiments, we set LoRA rank *MATH* as 16 and train the LLM models for *MATH* epochs.
+
+
+Insightful Discussion
+
+
+Here we make a summary for previous memory mechanisms and our method in Table, including memory content, LLM-agnostic, and organization operations.
+There are several important observations from Table: (1) Previous memory mechanisms only save raw conversation text (Q-R pairs) as the memory, which requires repeated reasoning over the history. Our method maintains thoughts in the memory cache and can directly recall them without repeated reasoning. (2) Previous memory mechanisms only support simple read and write (insert) operations, while our method provides more manipulate way for the memory. (3) Some previous memory mechanisms store the tokens in the memory, which requires adjusting LLM architecture (LLM-aware) for applications. Our method is deigned as a LLM-agnostic module, which can be easily combined with other LLMs.
+
+
+TABLE
+
+
+Experiment
+
+
+Experimental Settings
+
+
+Dataset
+
+
+Three datasets are used to demonstrate the effectiveness of the proposed method.
+
+
+- KdConv: KdConv is a Chinese multi-domain knowledge-driven conversation benchmark [*REF*] grounding the topics to knowledge graphs, which involves 4.5K conversations and 86K utterances from three domains (film, music, and travel). The average turn number is 19.
+- Generated Virtual Dataset (GVD): GVD is a long-term conversation dataset [*REF*] involving 15 virtual users (ChatGPT) over 10 days. Conversations are synthesized using pre-defined topics, including both English and Chinese languages. For the test set, [*REF*] manually constructed 194 query questions (97 in English and 97 in Chinese) to evaluate whether the LLM could accurately recall the memory and produce the appropriate answers.
+- Real-world Medical Dataset (RMD): To evaluate the effectiveness of the proposed memory mechanism in the real-world scenarios, we manually collect and construct a dataset containing 1,800 conversations for medical healthcare consumer. For the test set, 80 conversations are used to evaluate whether the LLM could provide the accurate diagnosis.
+
+
+LLM
+
+
+We integrate two powerful LLMs to demonstrate the effectiveness of the proposed TiM mechanism. These LLMs originally lack long-term memory and specific adaptability to the long-term conversations. The detailed introduction of these LLMs are follows.
+
+
+- ChatGLM [*REF*]: ChatGLM is an open-source bilingual language model based on the General Language Model (GLM) framework [*REF*]. This model contains 6.2 billion parameters with specific optimization, involves supervised fine-tuning, feedback bootstrap, and reinforcement learning with human feedback.
+- Baichuan2 [*REF*]: Baichuan2 is an open-source large-scale multilingual language model containing 13 billion parameters, which is trained from scratch on 2.6 trillion tokens.
+This model excels at dialogue and context understanding.
+
+
+Baseline
+
+
+One baseline is to answer questions without using any memory mechanism.
+Another baseline is SiliconFriend [*REF*], a classical memory mechanism, which can store the raw text into the memory and support reading operation.
+
+
+Evaluation Protocol
+
+
+Following [*REF*], three metrics are adopted to evaluate the performance of the proposed method.
+
+
+- Retrieval Accuracy evaluates whether the relevant memory is successfully recalled (labels: {0: no; 1: yes}).
+- Response Correctness evaluates if correctly answering the probing question (labels: {0: wrong; 0.5: partial; 1: correct}).
+- Contextual Coherence evaluates whether the response is naturally and coherently generated, e.g., connecting the dialogue context and retrieved memory (labels: {0: not coherent; 0.5: partially coherent; 1: coherent}).
+
+
+To be fair, during evaluation, the prediction results of all LLMs are firstly shuffled, ensuring the human evaluator does not know which LLM the results come from. Then the final evaluation results are obtained by the human evaluation.
+
+
+Comparison Results
+
+
+Results on GVD dataset
+
+
+We evaluate our method on both English and Chinese test sets of GVD dataset. The following insights are observed from Table: (1) Compared with SiliconFriend [*REF*], our method exhibits superior performance for all metric, especially for the contextual coherence, indicating the effectiveness of TiM mechanism. (2) TiM delivers better results on both languages. The performance improvement on Chinese is larger than English, which may be attributed to the abilities of the LLMs.
+
+
+Results on KdConv dataset
+
+
+Table illustrates the comparison results on KdConv dataset. We evaluate 2 different LLMs with TiM over different topics (film, music, and travel). As shown in Table, it is observed that our method can obtain best results across all topics. Our method can achieve high retrieval accuracy to recall the relevant thoughts. When without the memory mechanism, these LLMs usually exhibit lower response correctness due to lack of long-term memory capability, while TiM can well eliminate such negative issue. Furthermore, TiM can also help to improve the contextual coherence of the response.
+
+
+Results on RMD dataset
+
+
+Table reports the comparison results on RMD dataset, which contains the realistic conversations between the doctors and patients. As shown in Table, our method can improve the overall response performance for the real-world medical conversations. In detail, using TiM, both ChatGLM and Baichuan2 can improve their capability for long-term conversations, i.e., significant improvements on the response correctness and the contextual coherence. The main reason is that TiM is more similar to the workflow of human memory, which can enhance the ability of LLMs to produce more human-like responses.
+
+
+FIGURE
+
+
+More Analysis
+
+
+Retrieval Time
+
+
+We report the comparison results of retrieval time. The baseline is to calculate pairwise similarity between the question and the whole memory, which is utilized as the default retrieval way for most previous mechanisms. For both baseline and our method, the memory length is as *MATH* and the memory context is fixed. Table shows the time cost for making a single retrieval. It is observed that our method can reduce about 0.1 ms retrieval time compared with baseline method.
+
+
+Top-*MATH* Recall
+
+
+We report the retrieval accuracy using different values of *MATH* on Kdconv dataset (Travel). As shown in Figure [4], top-1 retrieval accuracy is higher than *MATH*.
+The overall retrieval accuracy is improved with increasing value of *MATH*, where top-*MATH* can achieve *MATH* retrieval accuracy. Besides, as shown in Table, top-*MATH* recall can significantly improve the performance of existing LLMs for long-term conversations.
+
+
+Industry Application 
+
+
+In this section, based on the ChatGLM and TiM, we develop a medical agent (named TiM-LLM) in the context of patient-doctor conversations (as shown in Figure). Note that TiM-LLM is only an auxiliary tool for the clinical doctors to give treatment options and medical suggestions for patients&apos; needs.
+
+
+Figure illustrates a real-world conversation between a patient and a doctor, where the clinical diagnosis results are given by the medical agent with and without TiM. As shown in Figure, without TiM, the medical agent may struggle to recall previous symptoms, resulting in incomplete or incorrect assessments (red part), i.e., the agent has forgotten previous symptoms so it is uncertain whether oral mucosal inflammation is the only cause. Assisted by TiM, the medical agent can recall relevant symptoms and make a comprehensive understanding of a patient&apos;s diseases. Thus it provide accurate diagnosis and treatment (bold part).
+
+
+Conclusion
+
+
+In this work, we propose a novel memory mechanism called TiM to address the issue of biased thoughts in Memory-augmented LLMs. By storing historical thoughts in an evolved memory, TiM enables LLMs to recall relevant thoughts and incorporate them into the conversations without repeated reasoning. TiM consists of two key stages: recalling thoughts before generation and post-thinking after generation. Besides, TiM works with the several basic principles to organize the thoughts in memory, which can achieve dynamic updates of the memory. Furthermore, we introduce Locality-Sensitive Hashing into TiM to achieve efficient retrieval for the long-term conversations. The qualitative and quantitative experiments conducted on real-world and simulated dialogues demonstrate the significant benefits of equipping LLMs with TiM.
+Overall, TiM is designed as an approach to improve the quality and consistency of responses for long-term human-AI interactions.

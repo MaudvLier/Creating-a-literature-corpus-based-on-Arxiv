@@ -1,0 +1,269 @@
+HELPER: Instructable and Personalizable Embodied Agents with Memory-Augmented Context-Dependent LLM Prompting
+
+
+Introduction
+
+
+Parsing free-form human instructions and human-robot dialogue into task plans that a robot can execute is challenging due to the open-endedness of environments and procedures to accomplish, and to the diversity and complexity of language humans use to communicate their desires. Human language often contains long-term references, questions, errors, omissions, or descriptions of routines specific to a particular user [*REF*; *REF*; *REF*].
+Instructions need to be interpreted in the environmental context in which they are issued, and plans need to adapt in a closed-loop to execution failures. Large Language Models (LLMs) trained on Internet-scale text can parse language instructions to task plans with appropriate plan-like or code-like prompts, without any finetuning of the language model, as shown in recent works [*REF*; *REF*; *REF*; *REF*; *REF*].
+The state of the environment is provided as a list of objects and their spatial coordinates, or as a free-form text description from a vision-language model [*REF*; *REF*; *REF*; *REF*].
+Using LLMs for task planning requires engineering a prompt that includes a description of the task for the LLM to perform, a robot API with function documentation and expressive function names, environment and task instruction inputs, and a set of in-context examples for inputs and outputs for the task [*REF*]. These methods are not trained in the domain of interest; rather they are prompt-engineered having in mind the domain at hand.
+
+
+How can we extend LLM-prompting for semantic parsing and task planning to open-domain, free-form instructions, corrections, human-robot dialogue, and users&apos; idiosyncratic routines, not known at prompt engineering time? The prompts used for the domain of tabletop rearrangement are already approaching the maximum context window of widely used LLMs [*REF*; *REF*]. Even as context window size grows, more prompt examples result in larger attention operations and cause an increase in both inference time and resource usage.
+
+
+To this end, we introduce [HELPER] (Human-instructable Embodied Language Parsing via Evolving Routines), a model that uses retrieval-augmented situated prompting of LLMs to parse free-form dialogue, instructions, and corrections from humans and vision-language models to programs over a set of parameterized visuomotor routines.
+[HELPER] is equipped with an external non-parametric key-value memory of language-program pairs. [HELPER] uses its memory to retrieve relevant in-context language and action program examples, and generates prompts tailored to the current language input.
+[HELPER] expands its memory with successful executions of user specific procedures; it then recalls them and adapts them in future interactions with the user. [HELPER] uses pre-trained vision-language models (VLMs) to diagnose plan failures in language format, and uses these to retrieve similar failure cases with solutions from its memory to seed the prompt. To execute a program predicted by the LLM, [HELPER] combines successful practices of previous home embodied agents, such as semantic and occupancy map building [*REF*; *REF*; *REF*], LLM-based common sense object search [*REF*], object detection and tracking with off-the-shelf detectors [*REF*], object attribute detection with VLMs [*REF*], and verification of action preconditions during execution.
+
+
+We test [HELPER] on the TEACh benchmark [*REF*], which evaluates agents in their ability to complete a variety of long-horizon household tasks from RGB input given natural language dialogue between a commander (the instruction-giving user) and a follower (the instruction-seeking user). We achieve a new state-of-the-art in the TEACh Execution from Dialog History and Trajectory-from-Dialogue settings, improving task success by 1.7x and goal-condition success by 2.1x compared to prior work in TfD. By further soliciting and incorporating user feedback, [HELPER] attains an additional 1.3x boost in task success. Our work is inspired by works in the language domain [*REF*; *REF*; *REF*; *REF*] that retrieve in-context prompt examples based on the input language query for NLP tasks. [HELPER] extends this capability to the domain of instructable embodied agents, and demonstrates the potential of memory-augmented LLMs for semantic parsing of open-ended free-form instructive language into an expandable library of programs.
+
+
+Related Work
+
+
+Instructable Embodied Agents
+
+
+Significant strides have been made by training large neural networks to jointly map instructions and their sensory contexts to agent actions or macro-actions using imitation learning [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Existing approaches differ -- among others -- in the way the state of the environment is communicated to the model. Many methods map RGB image tokens and language inputs directly to actions or macro-actions [*REF*; *REF*; *REF*; *REF*].
+Other methods map language instructions and linguistic descriptions of the environment&apos;s state in terms of object lists or objects spatial coordinates to macro-actions, foregoing visual feature description of the scene, in an attempt to generalize better [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Some of these methods fine-tune language models to map language input to macro-actions, while others prompt frozen LLMs to predict action programs, relying on the emergent in-context learning property of LLMs to emulate novel tasks at test time. Some methods use natural language as the output format of the LLM [*REF*; *REF*; *REF*; *REF*], and others use code format [*REF*; *REF*; *REF*].
+[HELPER] prompts frozen LLMs to predict Python programs over visuo-motor functions for parsing dialogue, instructions and corrective human feedback.
+
+
+The work closest to [HELPER] is LLM Planner [*REF*] which uses memory-augmented prompting of pretrained LLMs for instruction following. However, it differs from *MATH* in several areas such as plan memory expansion, VLM-guided correction, and usage of LLMs for object search. Furthermore, while *REF* frequently seeks human feedback, *MATH* requests feedback only post full task execution and employs Visual-Language Models (VLMs) for error feedback, reducing user interruptions.
+
+
+Numerous simulation environments exist for evaluating home assistant frameworks, including Habitat [*REF*], GibsonWorld [*REF*], ThreeDWorld [*REF*], and AI2THOR [*REF*]. ALFRED [*REF*] and TEACh [*REF*] are benchmarks in the AI2THOR environment [*REF*], measuring agents&apos; competence in household tasks through natural language. Our research focuses on the &apos;Trajectory from Dialogue&apos; (TfD) evaluation in TEACh, mirroring ALFRED but with greater task and input complexity.
+
+
+FIGURE
+
+
+Prompting LLMs for action prediction and visual reasoning
+
+
+Since the introduction of few-shot prompting by [*REF*], several approaches have improved the prompting ability of LLMs by automatically learning prompts [*REF*], chain of thought prompting [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*] and retrieval-augmented LLM prompting [*REF*; *REF*; *REF*] for language modeling, question answering, and long-form, multi-hop text generation. [HELPER] uses memory-augmented prompting by retrieving and integrating similar task plans into the prompt to facilitate language parsing to programs.
+
+
+LLMs have been used as policies in Minecraft to predict actions [*REF*; *REF*], error correction [*REF*], and for understanding instruction manuals for game play in some Atari games [*REF*]. They have also significantly improved text-based agents in text-based simulated worlds [*REF*; *REF*; *REF*; *REF*].
+ViperGPT [*REF*], and CodeVQA [*REF* -etal-2023-modular] use LLM prompting to decompose referential expressions and questions to programs over simpler visual routines. Our work uses LLMs for planning from free-form dialogue and user corrective feedback for home task completion, a domain not addressed in previous works.
+
+
+Method
+
+
+[HELPER] is an embodied agent designed to map human-robot dialogue, corrections and VLM descriptions to actions programs over a fixed API of parameterized navigation and manipulation primitives. Its architecture is outlined in Figure [1]. At its heart, it generates plans and plan adjustments by querying LLMs using retrieval of relevant language-program pairs to include as in-context examples in the LLM prompt. The generated programs are then sent to the [Executor] module, which translates each program step into specific navigation and manipulation action. Before executing each step in the program, the [Executor] verifies if the necessary preconditions for an action, such as the robot already holding an object, are met. If not, the plan is adjusted according to the current environmental and agent state. Should a step involve an undetected object, the [Executor] calls on the [Locator] module to efficiently search for the required object by utilizing previous user instructions and LLMs&apos; common sense knowledge. If any action fails during execution, a VLM predicts the reason for this failure from pixel input and feeds this into the [Planner] for generating plan adjustments.
+
+
+FIGURE
+
+
+[Planner]: Retrieval-Augmented LLM Planning 
+
+
+Given an input *MATH* consisting of a dialogue segment, instruction, or correction, [HELPER] uses memory-augmented prompting of frozen LLMs to map the input into an executable Python program over a parametrized set of manipulation and navigation primitives *MATH*  *MATH*  that the *MATH* can perform (e.g., goto(X), pickup(X), slice(X), ...). Our action API can be found in Section [11] of the Appendix.
+
+
+[HELPER] maintains a key-value memory of language - program pairs, as shown in Figure A. Each language key is mapped to a 1D vector using an LLM&apos;s frozen language encoder. Given current context *MATH*, the model retrieves the top- *MATH* keys, i.e., the keys with the smallest *MATH* distance with the embedding of the input context *MATH*, and adds the corresponding language - program pairs to the LLM prompt as in-context examples for parsing the current input *MATH*.
+
+
+Figure B illustrates the prompt format for the [Planner]. It includes the API specifying the primitives *MATH* parameterized as Python functions, the retrieved examples, and the language input *MATH*. The LLM is tasked to generate a Python program over parameterized primitives *MATH*. Examples of our prompts and LLM responses can be found in Section [13] of the Appendix.
+
+
+Memory Expansion 
+
+
+The key-value memory of [HELPER] can be continually expanded with successful executions of instructions to adapt to a user&apos;s specific routines, as shown in Figure. An additional key-value pair is added with the language instruction paired with the execution plan if the user indicates the task was successful. Then, [HELPER] can recall this plan and adapt it in subsequent interactions with the user. For example, if a user instructs [HELPER] one day to &quot;Perform the Mary cleaning. This involves cleaning two plates and two cups in the sink&quot;, the user need only say &quot;Do the Mary cleaning&quot; in future interactions, and [HELPER] will retrieve the previous plan, include it in the examples section of the prompt, and query the LLM to adapt it accordingly. The personalization capabilities of [HELPER] are evaluated in Section [4.4].
+
+
+Incorporating user feedback 
+
+
+A user&apos;s feedback can improve a robot&apos;s performance, but requesting feedback frequently can deteriorate the overall user experience. Thus, we enable [HELPER] to elicit user feedback only when it has completed execution of the program. Specifically, it asks &quot;Is the task completed to your satisfaction? Did I miss anything?&quot; once it believes it has completed the task. The user responds either that the task has been completed (at which point [HELPER] stops acting) or points out problems and corrections in free-form natural language, such as, &quot;You failed to cook a slice of potato. The potato slice needs to be cooked.&quot;. [HELPER] uses the language feedback to re-plan using the [Planner]. We evaluate [HELPER] in its ability to seek and utilize user feedback in Section [4.3].
+
+
+Visually-Grounded Plan Correction using Vision-Language Models 
+
+
+Generated programs may fail for various reasons, such as when a step in the plan is missed or an object-of-interest is occluded. When the program fails, [HELPER] uses a vision-language model (VLM) pre-trained on web-scale data, specifically the ALIGN model [*REF*], to match the current visual observation with a pre-defined list of textual failure cases, such as an object is blocking you from interacting with the selected object, as illustrated in Figure [2]. The best match is taken to be the failure feedback *MATH*. The [Planner] module then retrieves the top- *MATH* most relevant error correction examples, each containing input dialogue, failure feedback, and the corresponding corrective program, from memory based on encodings of input *MATH* and failure feedback *MATH* from the VLM. The LLM is prompted with the the failed program step, the predicted failure description *MATH* from the VLM, the in-context examples, and the original dialogue segment *MATH*. The LLM outputs a self-reflection [*REF*] as to why the failure occurred, and generates a program over manipulation and navigation primitives *MATH*, and an additional set of corrective primitives *MATH* (e.g., step-back(), move-to-an-alternate-viewpoint(), ...). This program is sent to the [Executor] for execution.
+
+
+[Executor]: Scene Perception, Pre-Condition Checks, Object Search and Action Execution 
+
+
+The [Executor] module executes the predicted Python programs in the environment, converting the code into low-level manipulation and navigation actions, as shown in Figure [1]. At each time step, the [Executor] receives an RGB image and obtains an estimated depth map via monocular depth estimation [*REF*] and object masks via an off-the-shelf object detector [*REF*].
+
+
+FIGURE
+
+
+Scene and object state perception
+
+
+Using the depth maps, object masks, and approximate egomotion of the agent at each time step, the [Executor] maintains a 3D occupancy map and object memory of the home environment to navigate around obstacles and keep track of previously seen objects, similar to previous works [*REF*]. Objects are detected in every frame and are merged into object instances based on closeness of the predicted 3D centroids. Each object instance is initialized with a set of object state attributes (cooked, sliced, dirty, ...) by matching the object crop against each attribute with the pre-trained ALIGN model [*REF*]. Object attribute states are updated when an object is acted upon via a manipulation action.
+
+
+Manipulation and navigation pre-condition checks
+
+
+The [Executor] module verifies the pre-conditions of an action before the action is taken to ensure the action is likely to succeed. In our case, these constraints are predefined for each action (for example, the agent must first be holding a knife to slice an object). If any pre-conditions are not satisfied, the [Executor] adjusts the plan accordingly. In more open-ended action interfaces, an LLM&apos;s common sense knowledge can be used to infer the pre-conditions for an action, rather than pre-defining them.
+
+
+[Locator]: LLM-based common sense object search
+
+
+When [HELPER] needs to find an object that has not been detected before, it calls on the [Locator] module. The [Locator] prompts an LLM to suggest potential object search location for the [Executor] to search nearby, e.g. &quot;search near the sink&quot; or &quot;search in the cupboard&quot;. The [Locator] prompt takes in the language *MATH* (which may reference the object location, e.g., &quot;take the mug from the cupboard&quot;) and queries the LLM to generate proposed locations by essentially parsing the instruction as well as using its common sense. Based on these predictions, [HELPER] will go to the suggested locations if they exist in the semantic map (e.g., to the cupboard) and search for the object-of-interest. The [Locator]&apos;s prompt can be found in Section [11] of the Appendix.
+
+
+Implementation details. We use OpenAI&apos;s &apos;gpt-4-0613&apos; [*REF*] API, except when mentioned otherwise. We resort to the &apos;text-embedding-ada-002&apos; [*REF*] API to obtain text embeddings. Furthermore, we use the SOLQ object detector [*REF*], which is pretrained on MSCOCO [*REF*] and fine-tuned on the training rooms of TEACh. For monocular depth estimation, we use the ZoeDepth network [*REF*], pretrained on the NYU indoor dataset [*REF*:ECCV12] and subsequently fine-tuned on the training rooms of TEACh. In the TEACh evaluations, we use *MATH* =3 for retrieval.
+
+
+TABLE
+
+
+Experiments
+
+
+We test [HELPER] in the TEACh benchmark [*REF*]. Our experiments aim to answer the following questions:
+
+
+1. How does [HELPER] compare to the SOTA on task planning and execution from free-form dialogue?
+
+
+2. How much do different components of [HELPER] contribute to performance?
+
+
+3. How much does eliciting human feedback help task completion?
+
+
+4. How effectively does [HELPER] adapt to a user&apos;s specific procedures?
+
+
+Evaluation on the TEACh dataset 
+
+
+Dataset
+
+
+The dataset comprises over 3,000 human--human, interactive dialogues, geared towards completing household tasks within the AI2-THOR simulation environment [*REF*]. We evaluate on the Trajectory from Dialogue (TfD) evaluation variant, where the agent is given a dialogue segment at the start of the episode. The model is then tasked to infer the sequence of actions to execute based on the user&apos;s intents in the dialogue segment, ranging from [Make Coffee] to [Prepare Breakfast]. We show examples of such dialogues in Figure. We also test on the Execution from Dialogue History (EDH) task in TEACh, where the TfD episodes are partitioned into &quot;sessions&quot;. The agent is spawned at the start of one of the sessions and must predict the actions to reach the next session given the dialogue and action history of the previous sessions. The dataset is split into training and validation sets. The validation set is divided into &apos;seen&apos; and &apos;unseen&apos; rooms based on their presence in the training set. Validation &apos;seen&apos; has the same room instances but different object locations and initial states than any episodes in the training set. At each time step, the agent obtains an egocentric RGB image and must choose an action from a specified set to transition to the next step, such as pickup(X), turn left(), etc. Please see Appendix Section [14] for more details on the simulation environment.
+
+
+Evaluation metrics
+
+
+Following evaluation practises for the TEACh benchmark, we use the following two metrics: 1. Task success rate (SR), which refers to the fraction of task sessions in which the agent successfully fulfills all goal conditions. 2. Goal condition success rate (GC), which quantifies the proportion of achieved goal conditions across all sessions. Both of these metrics have corresponding path length weighted (PLW) variants. In these versions, the agent incurs penalties for executing a sequence of actions that surpasses the length of the reference path annotated by human experts.
+
+
+Baselines
+
+
+We consider the following baselines: 1. Episodic Transformer (E.T.) [*REF*] is an end-to-end multimodal transformer that encodes language inputs and a history of visual observations to predict actions, trained with imitation learning from human demonstrations. 2. Jarvis [*REF*] trains an LLM on the TEACh dialogue to generate high-level subgoals that mimic those performed by the human demonstrator. Jarvis uses a semantic map and the Episodic Transformer for object search. 3. FILM [*REF*; *REF*] fine-tunes an LLM to produce parametrized plan templates. Similar to Jarvis, FILM uses a semantic map for carrying out subgoals and a semantic policy for object search. 4. DANLI [*REF*] fine-tunes an LLM to predict high-level subgoals, and uses symbolic planning over an object state and spatial map to create an execution plan. DANLI uses an object search module and manually-defined error correction.
+
+
+[HELPER] differs from the baselines in its use of memory-augmented context-dependent prompting of pretrained LLMs and pretrained visual-language models for planning, failure diagnosis and recovery, and object search. We provide a more in-depth comparison of [HELPER] to previous work in Table.
+
+
+Evaluation
+
+
+We show quantitative results for [HELPER] and the baselines on the TEACh Trajectory from Dialogue (TfD) and Execution from Dialogue History (EDH) validation split in Table. On the TfD validation unseen, [HELPER] achieves a 13.73% task success rate and 14.17% goal-condition success rate, a relative improvement of 1.7x and 2.1x, respectively, over DANLI, the prior SOTA in this setting.
+[HELPER] additionally sets a new SOTA in the EDH task, achieving a 17.40% task success rate and 25.86% goal-condition success rate on validation unseen.
+
+
+TABLE
+
+
+Ablations 
+
+
+We ablate components of [HELPER] in order to quantify what matters for performance in Table Ablations. We perform all ablations on the TEACh TfD validation unseen split. We draw the following conclusions:
+
+
+1. Retrieval-augmented prompting helps for planning, re-planning and failure recovery. Replacing the memory-augmented prompts with a fixed prompt (w/o Mem Aug; Table ) led to a relative 18% reduction in success rate.
+
+
+2. VLM error correction helps the agent recover from failures.
+Removal of the visually-grounded plan correction (w/o Correction; Table ) led to a relative 6% reduction in success rate.
+
+
+3. The pre-condition check and the LLM search help. Removal of the action pre-condition checks (w/o Pre Check; Table ) led to a relative 16% reduction in success rate. Replacing the [Locator] LLM-based search with a random search (w/o [Locator]; Table) led to a relative 12% reduction in success rate.
+
+
+4. Larger LLMs perform better. Using &apos;GPT-3.5&apos; (w GPT-3.5; Table ) exhibits a relative 31% reduction in success rate compared to using &apos;GPT-4&apos;. Our findings on GPT-4&apos;s superior planning abilities align with similar findings from recent studies of *REF* [*REF*; *REF*; *REF*].
+
+
+5. Perception is a bottleneck. Using GT depth (w/ GT depth; Table ) led to an improvement of 1.15x compared to using estimated depth from RGB. Notable is the 1.77x improvement in path-length weighted success when using GT depth. This change is due to lower accuracy for far depths in our depth estimation network lower, thereby causing the agent to spend more time mapping the environment and navigating noisy obstacle maps. Using lidar or better map estimation techniques could mitigate this issue.
+
+
+Using ground truth segmentation masks and depth (w/ GT depth, seg; Table ) improves task success and goal-conditioned task success by 1.64x and 2.11x, respectively. This shows the limitations of frame-based object detection and late fusion of detection responses over time. 3D scene representations that fuse features earlier across views may significantly improve 3D object detection. Using GT perception (w/ GT percept; Table ), which includes depth, segmentation, action success, oracle failure feedback, and increased API failure limit (50), led to 2.20x and 3.56x improvement.
+
+
+Eliciting Users&apos; Feedback 
+
+
+We enable [HELPER] to elicit sparse user feedback by asking &quot;Is the task completed to your satisfaction? Did I miss anything?&quot; once it believes it has completed the task, as explained in Section [3.1.2]. The user will then respond with steps missed by [HELPER], and [HELPER] will re-plan based on this feedback. As shown in in Table User Feedback, asking for a user&apos;s feedback twice improves performance by 1.27x. Previous works do not explore this opportunity of eliciting human feedback partly due to the difficulty of interpreting it -- being free-form language -- which our work addresses.
+
+
+Personalization 
+
+
+We evaluate [HELPER]&apos;s ability to retrieve user-specific routines, as well as on their ability to modify the retrieved routines, with one, two, or three modifications, as discussed in [3.1.1]. For example, for three modifications we might instruct [HELPER]: &quot;Make me a Dax sandwich with 1 slice of tomato, 2 lettuce leaves, and add a slice of bread&quot;.
+
+
+Dataset
+
+
+The evaluation tests 10 user-specific plans for each modification category in five distinct tasks: [Make a Sandwich]; [Prepare Breakfast]; [Make a Salad]; [Place X on Y]; and [Clean X]. The evaluation contains 40 user requests. The complete list of user-specific plans and modification requests can be found in the Appendix, Section [10].
+
+
+Evaluation
+
+
+We report the success rate in Table [1]. [HELPER] generates the correct personalized plan for all but three instances, out of 40 evaluation requests. This showcases the ability of [HELPER] to acquire, retrieve and adapt plans based on context and previous user interactions.
+
+
+TABLE
+
+
+Limitations
+
+
+Our model in its current form has the following limitations:
+
+
+1. Simplified failure detection.
+
+
+The AI2-THOR simulator much simplifies action failure detection which our work and previous works exploit [*REF*; *REF*].
+In a more general setting, continuous progress monitoring from pixels would be required for failure detection, which model VLMs can deliver and we will address in future work.
+
+
+2. 3D perception bottleneck.
+
+
+[HELPER] relies on 2D object detectors and depth 3D lifting for 3D object localization. We observe a 2X boost in TEACh success rate from using ground truth segmentation in [HELPER]. In future work we plan to integrate early 2D features into persistent 3D scene feature representations for more accurate 3D object detection.
+
+
+4. Cost from LLM querying.
+
+
+GPT-4 API is the most accurate LLM used in [HELPER] and incurs a significant cost. NLP research in model compression may help decreasing these costs, or finetuning smaller models with enough input-output pairs.
+
+
+3. Multimodal (vision and language) memory retrieval.
+
+
+Currently, we use a text bottleneck in our environment state descriptions. Exciting future directions include exploration of visual state incorporation to the language model and partial adaptation of its parameters. A multi-modal approach to the memory and plan generation would help contextualize the planning more with the visual state.
+
+
+Last, to follow human instructions outside of simulation environments our model would need to interface with robot closed-loop policies instead of abstract manipulation primitives, following previous work [*REF*].
+
+
+Conclusion
+
+
+We presented [HELPER], an instructable embodied agent that uses memory-augmented prompting of pre-trained LLMs to parse dialogue segments, instructions and corrections to programs over action primitives, that it executes in household environments from visual input. [HELPER] updates its memory with user-instructed action programs after successful execution, allowing personalized interactions by recalling and adapting them. It sets a new state-of-the-art in the TEACh benchmark. Future research directions include extending the model to include a visual modality by encoding visual context during memory retrieval or as direct input to the LLM. We believe our work contributes towards exciting new capabilities for instructable and conversable systems, for assisting users and personalizing human-robot communication.

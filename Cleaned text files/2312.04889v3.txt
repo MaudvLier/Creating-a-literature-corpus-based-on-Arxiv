@@ -1,0 +1,256 @@
+KwaiAgents: Generalized Information-seeking Agent System with Large Language Models
+
+
+INTRODUCTION
+
+
+Bertrand Russell once profoundly stated that the search for knowledge is one of the simple but overwhelmingly strong passions that have governed his life [*REF*]. Through the ages, successive generations have committed themselves to probing the intricacies of our world, crafting ingenious tools for organization and retrieval, all in a bid to quench insatiable curiosity. However, Research in cognitive science reveals that humans, on average, forget approximately 50% of newly acquired information within an hour, a phenomenon termed the forgetting curve [*REF*]. This observation holds particularly true when individuals attempt to internalize knowledge without periodic reinforcement. For instance, while many can effortlessly recall that Mount Everest is &quot;the highest mountain in the world&quot;, the identity of &quot;the fifth highest mountain&quot; often eludes memory. However, the human forte lies in critical thinking, planning, reflection, and the adept use of external resources. Confronted with a knowledge gap, individuals might consult search engines like Google, or turn to repositories of knowledge like Wikipedia or books. This unique blend of cognition and resourcefulness distinguishes humans from other species, often rendering us more insightful than even the most advanced computers.
+
+
+Recent advances in Large Language Models (LLMs) are increasingly seen as catalysts for the development of Artificial General Intelligence (AGI). Research indicates that LLMs are capable of following human instructions and exhibit skills in diverse areas including conversation, mathematics, coding, comprehension, and commonsense reasoning [*REF*, *REF*, *REF*]. Beyond these abilities, recent studies highlight LLMs&apos; proficiency in planning, reflection, and the use of external tools [*REF*, *REF*, *REF*, *REF*]. This has led to the emergence of a new paradigm in AI, where agents powered by LLMs are being developed [*REF*, *REF*, *REF*, *REF*]. Closed-source LLMs, like ChatGPT and GPT-4, have demonstrated their utility in various agent systems. HuggingGPT [*REF*] illustrates LLMs&apos; ability to utilize AI-powered tools, while projects such as Auto-GPT [*REF*] and BabyAGI [*REF*] show that LLM-powered agents can autonomously fulfill human requirements.
+Generative Agents [*REF*] mimic human behaviors and interact within immersive communities. Voyager [*REF*] demonstrates that agents can acquire diverse skills and continuously explore environments like Minecraft. AutoGen [*REF*] and ChatDev [*REF*] enable communication between agents for application development. On the other hand, open-source smaller models like Llama (7B or 13B) [*REF*, *REF*] have shown their potential in specific agent systems when fine-tuned with targeted instructional prompts [*REF*, *REF*, *REF*, *REF*]. However, these models&apos; performance declines if prompt templates are altered. Thus it remains uncertain whether these smaller, open-source models have acquired generalizable agent capabilities or merely overfit the prompt templates. In the context of the information-seeking scenario presented in this paper, many studies have also investigated how LLMs address web navigation challenges, encompassing tasks such as searching and retrieval [*REF*], online shopping [*REF*], and interacting with webpages to accomplish specific objectives [*REF*, *REF*]. However, information retrieved from web searches can be skewed by trendiness or be misleading and outdated. It&apos;s essential for LLMs to consider and reconcile information from multiple sources, especially when dealing with high-quality factual information, such as that found on Wikipedia, or how-to knowledge in videos.
+
+
+FIGURE 1
+
+
+In this paper, we introduce KwaiAgents, a generalized information-seeking agent system leveraging with LLMs. As illustrated in Figure [1], KwaiAgents comprises three main components: (1) KAgentSys, an autonomous agent loop that integrates a memory bank, a tool library, a task planner, and a concluding module. (2) KAgentLMs, which are a suite of open-source LLMs continuously fine-tuned to enhance agent capabilities. (3) KAgentBench, a benchmark that assesses the performance of LLMs in responding to varied agent-system prompts across different capabilities; We also collect a series of fact-based or time-aware queries designed to evaluate the effectiveness of the LLM-enhanced agent system in executing information-seeking tasks.
+
+
+Within the KAgentSys, we design a planning-concluding procedure, wherein the planning component facilitates inter-agent thinking, and the concluding segment is tailored for human interaction within conversational sessions. Furthermore, we propose an innovative hybrid search-browse toolkit, sourcing knowledge from search results, webpages, Wikipedia, and various aspects and videos found in Kuaipedia [*REF*]. This hybrid search toolkit, along with a time-aware toolkit, effectively tackles long-tail, deceptive and obsolete information on the Internet.
+
+
+KAgentLMs are produced to explore whether small, open-sourced models (7B or 13B) can master skills such as planning, reflection, tool-use in various agent systems. We introduce the Meta-Agent Tuning (MAT) framework. This framework aims to create an advanced structure for agent planning and reasoning prompts. We analyzed many popular agent systems, distilling the prompts into six key components: (1) system profile, (2) instructions or constraints, (3) tool specifications, (4) goal placement, (5) memory allocation, and (6) output format. Subsequently, a meta-agent prompting mechanism generates comprehensive instructional prompt templates, which are then incorporated into an experimental agent loop for comparison with results from promising open-sourced templates. Less effective prompt templates are filtered through a scoring mechanism. During the experimental agent looping, GPT-4 is utilized to generate responses to a variety of inquiries from the approved templates, forming the agent instruction tuning dataset. This dataset covers a wide range of scenarios pertinent to information-seeking agent systems, including multi-turn conversations, multi-step task planning, reflection, tool-use, integration of external knowledge, profile adaptation, and adherence to human directives.
+
+
+Given the complexity of many agent systems and benchmarks [*REF*, *REF*] -- often requiring API-keys or sandbox environments -- it becomes challenging to evaluate LLMs using a straightforward promptin-response-out mechanism. Thus, we introduce KAgentBench, designed for the automated and streamlined assessment of different agent abilities across different models. We also carefully collect approximately 200 extra factual-based or time-aware queries, where one can hire human annotators to gauge the performance of various LLMs on different agent systems. Our comprehensive experiments reveal that our system outperforms several open-sourced agent systems. Notably, following MAT, even a 7B or 13B model exhibits the generalized agent capabilities required for information-seeking tasks, regardless of the system employed.
+
+
+To sum up, we make the following contributions:
+
+
+- We propose the KAgentSys, which integrates a planning-concluding procedure with a novel hybrid search-browse and time-aware toolkit, demonstrating superior performance over many existing open-sourced agent systems.
+- We introduce KAgentLMs and the Meta-Agent Tuning framework to explore how smaller open-sourced LLMs can acquire generalized agent capabilities for information-seeking tasks.
+- We develop an accessible benchmark KAgentBench for the both automatic evaluation of capabilities necessary for various agent systems and human evaluation of queries for a comprehensive assessment of agent system performance.
+
+
+SYSTEM
+
+
+In this section, we delineate the functioning of KAgentSys and its response to user requirements. We begin by explaining the roles of LLMs, the memory bank, and the tool library. Subsequently, these components will be integrated into the primary agent loop of KAgentSys.
+
+
+LLMs
+
+
+In an analogy to the human brain, LLMs should first understand the user&apos;s requirements. This includes considering external knowledge pertinent to the current turn of the dialogue, which has been retrieved from a database, as well as referencing previous conversation messages and tasks completed in the past. Subsequently, the LLM should generate well-founded plans, appropriate tool commands, or draw conclusions upon completing the planning process. To accommodate the varying requirements of different LLMs, we introduce a straightforward calling API that accepts a prompt as input and returns a response.
+
+
+Memory Bank
+
+
+The memory module caches a user&apos;s contextual information throughout a conversation session. This information is categorized into three distinct components:
+
+
+Knowledge Memory: This module captures and retrieves external resources that a user wishes to integrate into the conversational context. Examples include the user&apos;s personal data or documents they wish to discuss in detail.
+
+
+Conversation Memory: This component records query-response pairs for every turn in the conversation.
+
+
+Task Memory: This memory chronicles the decision-making process of the KAgentSys. For every conversation session, once the user inputs text, the KAgentSys strategize by planning tasks, selecting appropriate tools, and executing commands to obtain observations from these tools. Consequently, this task-related information is systematically stored in memory.
+
+
+For each memory type, text is partitioned into segments with fixed-maximum-length. Each segment is then transformed into a vector representation for vector-based searches or indexed using an inverted list for keyword searches. This culminates in a hybrid retrieval system that, given a succinct query, extracts relevant text segments from the various memory types using different retrieval mechanisms. These segments are then aggregated and formatted into structured, context-rich text, making it ready for use in subsequent prompts. One can find more details and cases from appendix [A.1] and [B.3].
+
+
+Tool Library
+
+
+The tool library offers two distinct sets of pre-defined tools: one for factuality and the other for time-awareness.
+
+
+Typical strategies, as outlined by [*REF*, *REF*], utilize search engines for fact retrieval by directing a LLM to generate a query. The LLM then determine whether to access a specific URL from the search results or respond to the query based on the retrieved information. If the LLM chooses to access a link, it proceeds to scan the webpage, extracting relevant paragraphs or generating concise summaries for the query. Drawing inspiration from Google Search and it&apos;s Knowledge Graph [1], KAgentSys adopts the aforementioned search-browse mechanism. However, it extends this approach into a &quot;hybrid search&quot;, which integrates traditional web searching with an entity search in Kuaipedia [*REF*], as depicted in Figure [2]. The hybrid_search function accepts a single argument, query, and concurrently performs two tasks: (1) It employs a search engine API to fetch pertinent webpages, each accompanied by a title, URL, and a brief summary. (2) It applies principal entity linking, as described in [*REF*], to identify the primary entity and gathers a concise Wikipedia description, the aspect tree, and the most relevant videos in Kuaipedia. Each component (entities, aspects, and videos) includes its corresponding URL for detailed exploration.
+When the agent opts to browse, it selects one of the following actions: (1) browse_website to delve into a webpage and either summarize it or derive answers relevant to the input query. (2) browse_wiki to explore a Wikipedia page and either summarize it or extract answers pertinent to the query. (3) browse_aspect to examine the facets of an entity and investigate related videos. (4) browse_video to interpret the OCR of individual frames and the ASR of the video, producing a text-based summary.
+
+
+The second suite of tools within KAgentSys emphasizes time-awareness.
+We observed that merely incorporating timestamps into prompts remains suboptimal for time-aware question-answering, leading to the propagation of outdated information. Therefore, we introduced several time-aware tools, including: (1) calendar, which processes a date range to provide details from both the Gregorian and Lunar calendars.
+(2) holidays, which, given a date range, returns notable festivals.
+(3) time_delta, which calculates the duration (in days/hours/minutes/seconds) between two timestamps.
+(4) weather, which requires a location and date range to furnish weather details, such as temperature, precipitation, and humidity. In addition, user-defined custom tools can also be seamlessly integrated into KAgentSys, provided they come with detailed specifications. The detailed format of all of the tools can be found in [A.2].
+
+
+FIGURE 2
+
+
+Agent Loop
+
+
+Before initializing the KwaiAgents&apos;s loop, the user submits a query (required) alongside optional inputs such as external knowledge sources (link or file) and specific instructions or profiles that guide the agent&apos;s behavior. The loop then progresses through the following procedures:
+
+
+Memory Update: The system updates records of the user&apos;s past interactions, including previous conversations and executed tasks. If the user provides new links or files, the external knowledge base is also updated accordingly.
+
+
+Memory Retrieval: Based on the user&apos;s current query and recent interactions, relevant segments from external knowledge sources, past conversations, and completed tasks are retrieved. These segments are consolidated into a fixed-maximum-length text box for subsequent reference.
+
+
+Task Planning: This phase leverages the gathered information to construct a comprehensive prompt for LLMs. The prompt encompasses the agent&apos;s profile, behavior guidelines as specified by the user, tool specifications, the consolidated memory text box, the current timestamp, and a predefined output format in JSON. Consequently, the LLM is prompted to generate a task_name, representing the plan for the ensuing phase, and a command detailing which tools to invoke and the respective arguments.
+
+
+Tool Execution: If the &quot;Task Planning&quot; phase yields a tool named task_complete, the loop terminates, prompting the agent to formulate a conclusion. Otherwise, the specified commands are executed. Each command produces an observation in a custom format, which is then integrated into the task memory.
+
+
+Concluding: Analogous to the &quot;Task Planning&quot; phase, the agent formulates a response to the user&apos;s query by considering the retrieved memories. The agent&apos;s profile, user-provided instructions, and the current timestamp are also incorporated into the final prompt.
+
+
+Both of the prompt templates of Task Plan and Concluding is shown in Appendix [A.3].
+
+
+META-AGENT TUNING
+
+
+In this section, we introduce the Meta-agent Tuning (MAT) framework, designed to enhance smaller open-source Large Language Models (LLMs) in the 7-13 billion parameter range, with capabilities like planning, reflection, and tool utilization, particularly in information-seeking contexts. The MAT framework comprises three core processes: crafting agent system templates using a meta-agent, validating these templates through an experimental agent loop, and training LLMs with a combination of the generated agent-instruction data and general data.
+
+
+Templates Crafting
+
+
+Upon reviewing various open-source agent systems, such as ReAct [*REF*], Auto-GPT [*REF*], ToolLlama [*REF*], and ModelScope-agent [*REF*], we observed a shared architectural feature in their system prompts. We distilled this commonality into six components: (1) Profile, which details the LLM&apos;s role, such as &quot;You are a helpful AI Planner&quot;. (2) Instructions, encompassing the constraints and sequence of actions for the agents, for instance, &quot;Iterate no more than five times&quot;. (3) Tools, outlining the format for the tools to be utilized, like a JSON schema with function names, descriptions, and argument details. (4) Memory, indicating the integration of external knowledge, past tasks, and conversational history; an example being placing the conversation history at the beginning of the prompt. (5) Goal, specifying the incorporation of user queries or requirements. (6) Format, illustrating how agents should craft responses and manage iterations, such as returning a JSON object with task names, tool names, and arguments.
+
+
+FIGURE 
+
+
+FIGURE 3
+
+
+To exploit these insights, we designed a meta-agent 2, depicted in Figure [3], employing GPT-4 to craft template prompts.
+Nevertheless, the GPT-4 generated templates were homogenous, lacking in variety. To mitigate this, we introduced seed queries on particular topics to steer GPT-4 towards producing more targeted and diverse templates. Thus, query collection is crucial in this context. We amassed high-quality queries from various sources including ShareGPT 3, prior studies [*REF*, *REF*], and GPT-4 generated queries based on tools following established methodologies [*REF*]. After compiling the queries, we segmented them into overlapping clusters, such as celebrity information (as shown in Figure [3]). Finally, Meta-agent help us generate an series of system prompt templates for subsequent use.
+
+
+Templates Validation
+
+
+The primary issue with template generation, as discussed, concerns the quality of the output. Despite the advanced capabilities of GPT-4, some of the resultant templates often exhibit significant flaws, failing to operate in simulated environments or diverging from expected human outcomes. To address this, a validation framework is essential to assess and determine the viability of agent system templates generated by the GPT-4.Our analysis indicates that open-source agent system templates typically yield higher success rates compared to those generated by GPT-4. By bundling these proven templates, we can enhance the validation process. This process involves a comparative analysis where a subset of queries *MATH* is applied to both the GPT-generated template 𝑡𝑔 and the open-source templates actions *MATH*.The performance of these templates is then evaluated in an experimental agent loop powered by GPT4, producing a set of promising results *MATH* for each query 𝑞𝑖. Concurrently, the loop generates a candidate result 𝑟 (𝑖) for 𝑡𝑔. We leverage GPT-4’s analytical prowess to rate the closeness of *MATH* to the promising results, represented by a score *MATH*. The template’s final score 𝑟𝑔 is computed using the formula: 𝑠𝑐𝑜𝑟𝑒 *MATH*.
+
+
+To conclude the validation, we establish a threshold 𝜉, approving templates that meet or exceed this benchmark with *MATH*. 
+
+
+LLMs Training
+
+
+Following the initial phase, we have amassed a collection of high-quality generated agent system templates, open-source templates and templates used in KAgentSys. We proceeded to dispatch a series of queries to each template, employing an experimental agent loop that prompts GPT-4 to produce corresponding prompt-response pairs. This process yielded the agent dataset, denoted as D𝑎𝑔𝑒𝑛𝑡, which, when amalgamated with a diverse instruction dataset D𝑔𝑒𝑛𝑒𝑟𝑎𝑙, facilitates the training of a foundational large language model. We also experiment an appropriate mixture rate, 𝜂, of these two dataset, to apply during this training phase.
+
+
+Further details regarding data construction and distribution can be found in Appendix [B].
+
+
+EXPERIMENTS
+
+
+This section outlines our experimental approach, detailing our specially curated instruction-tuning dataset and introducing the KAgentBench. We present the performance of different large language models (LLMs) on our benchmark, illustrating models&apos; agent capabilities across various perspective. We also collect some factual or time-aware queries to show how different models perform on different systems.
+
+
+Dataset
+
+
+Our instruction-tuning dataset was compiled by aggregating and generating tools and queries from prior research [*REF*, *REF*, *REF*]. This was augmented with additional queries focused on factual content. Following the template crafting phase, we sampled approximately 50 queries for each generation, which yielded a substantial number of candidate templates. These were then vetted through an experimental agent loop, with those achieving a threshold score *MATH* being selected for use 4. We incorporate open-source templates, the KAgentSys template, and our generated templates alongside the sampled queries into the experimental agent loop. This resulted in a collection of prompt-response pairs, comprising 120,917 queries and 18,005 templates, as detailed in Table [1]. Additionally, to avoid overemphasis on specialized capabilities of LLMs, we collated 43,099 queries from diverse domains such as open-domain question answering, chit chatting, role-playing, mathematics, etc. from different sources. The distribution of these queries is depicted in Figure [4].
+
+
+TABLE 1 
+
+
+The KAgentBench was constructed through a rigorous selection of queries, tools, templates, and memory elements, with a detailed breakdown presented in Figure [2]. The benchmark includes 63.04% of queries in Chinese, with the remainder in English. Each query is paired with five system prompt templates, with the exception of the &quot;Profile&quot; type, which increases the instance count. Four-to-five ground truth responses generated by different templates are associated with each instance, predicated on the assumption that these truths are independent of the prompt templates. The benchmark features 614 unique tools in toal, and 9.26 tailored in average to individual queries. Memory is categorized into four types: none, conversational turns, task history, or external knowledge. Among them, no memory accounts for 20.64%, conversational turns accounts for 48.12%, task history accounts for 16.23%, and external knowledge accounts for 15.01%. Particularly, in memory, conversational turns, task history, and external knowledge data all contain information types that are related, unrelated, and conflicting with the query. &quot;Reflection&quot; is distinguished from &quot;Planning &amp; Tool-use&quot; by the need to address incorrect information or discrepancies in previous tasks or external knowledge, requiring LLMs to reassess current information for more strategic planning, such as formulating alternative search queries. The &quot;Profile&quot; dimension involves crafting instructional conversations within specific roles, for which GPT-4 generates variations under different settings. Post-creation, human annotators refined each ground truth to ensure a high-quality benchmark.Furthermore, we amassed 200 factual and time-aware queries in Chinese to serve as initial inputs for an agent system, with the option to employ human annotators to assess the accuracy and the quality of the system&apos;s final responses.
+
+
+Benchmark Evaluation
+
+
+In the planning stage, the model is tasked with producing three key outputs: (1) Thought *MATH* is the text generated by LLMs to decide what it will do next, e.g. &quot;I will search Andy Lau&apos;s personal information&quot;, (2) Tool-name 𝑇𝑛 is the designated tool for the task, e.g. web_search (3) Tool-args *MATH* is the list of (argument_name, arg_value)s. e.g. [keywords, Andy Lau, topk, 5]. To assess different agent capabilities, we introduce specific datasets and metrics:
+
+
+Planning ability evaluation involves adhering to the &quot;Unity of knowledge and action&quot; principle [*REF*]. It requires considering both the thought and the tool-name: *MATH*.
+
+
+TABLE 2
+
+
+Concluding stage involves generating a conclusion 𝑇𝑐, simply a word sequence, hence the scoring simplifies to: 𝑀 core information is incorrect, or over 60% of the content contains errors; 3 points - core information is accurate, but 10% to 60% of the supplementary information is incorrect; 4 points - *MATH* minor discrepancies, with the core information being accurate and errors in the supplementary information limited to 10% or less; 5 points - flawless. A response with a score of 4 or 5 points is considered to have passed.
+
+
+Profile benchmark utilizes a distinct dataset for role-based instructional conversations. The response (𝑇𝑟) also constitutes a word sequence, but with a singular template and 𝑁 ground truths, leading to this scoring formula: *MATH*.
+
+
+The aggregate score is a weighted sum of the five metrics, with careful consideration given to the weights: *MATH*.
+
+
+The performance of various LLMs is shown in Table 3. Among all aspects, GPT-3.5 surpasses all experimented open-source models. After meta-agent tuning, Qwen-7B and Baichuan2-13B exhibit significant improvements of 14.22 and 19.71, respectively, exceeding GPT-3.5’s performance. Llama2, ToolLlama, and AgentLM obtain poor results in planning, tool-use, and reflection due to their inability to generate the correct formatting for each template and their limited capacity to handle Chinese contexts. ToolLlama’s performance is worse in planning compared to tool-use, as we discovered that their training data consistently has a “thought” field set to none, affecting the planning metric computation. Therefore, even with clear prompt instructions, models tuned to specific prompt templates consistently fail. Furthermore, we observed that reflection is more challenging than planning and tool-use since it necessitates higher model intelligence and longer task history, along with an expanded knowledge length.
+
+
+Human Evaluation
+
+
+As previously mentioned, we collect approximately 200 queries as the initial input for each agent system equipped with various LLMs as the brain. Each system ultimately outputs a conclusion in response to the input. Human annotators are employed to assess the truthfulness and quality of the responses. The scoring consists of five levels, defined as follows: 1 point - significant inaccuracies in the core information, with most or all being incorrect; 2 points - out an agent, possibly due to the integration of Chinese factual data during the pretraining or supervised fine-tuning stage. AutoGPT outperforms ReAct, as the prompt templates are more complex, and the JSON output format is more stable. Our KAgentSys achieves the best results, regardless of which backend LLM is used. There is a considerable gap between GPT-4 and other models, with the open-sourced models performing worse. However, following meta-agent tuning, the open-source models show significant improvements; Qwen-7B has an 11.9% increase in average pass rate across three systems and a 0.53 increase in average score, while Baichuan-13B sees a 10.1% increase in pass rate and a 0.43 increase in average score. After meta-agent tuning, the best open-source model achieves 74.13%, which is 10% higher than GPT-3.5 and close to GPT-4&apos;s 83.58%.
+
+
+Ablation Study
+
+
+To further demonstrate the effectiveness of KAgentSys, we modify several key components: 1) we replace the memory bank with a simple memory mechanism where tasks, conversations, and external knowledge are inserted into the prompt by truncation; 2) we substitute the hybrid search-browse toolset with the basic web_search and web_browse modules used in Auto-GPT. This simplified version is called KAgentSys-lite, which will also be open-sourced. We evaluate KAgentSys-lite using the aforementioned human evaluation method and employ Baichuan2-MAT as the cognition core. The results reveal a 5.97% drop (74.13% → 68.16%) in pass rate and a
+
+
+0.25 decrease (4.11 → 3.86) in average score. Moreover, to assess the generalizability of our Meta-agent Tuning approach on unseen templates, we exclude all open-source agent templates from the training set. Following training, the performance of Baichuan2-MAT in KAgentBench shows moderate decreases in overall score (45.34 → 42.12, 3.22% drop) metrics. These results indicate that open-source agent templates is not a key component of our training process and demonstrate the models after Meta-agent Tuning are robust on unseen templates. To evaluate KAgentLMs&apos;s generalization ability for unseen tools, we conduct evaluations on the KAgentBench subset, focusing on functions not present in the training set. The results reveal that, in terms of the plan metric, the Baichuan2-MAT model shows a 15.71-point improvement over GPT-3.5-turbo (21.34 → 37.05). Similarly, for tool-use metric, Baichuan2-MAT achieves a 14.04-point enhancement compared to GPT-3.5-turbo (35.56 → 49.60).
+These findings demonstrate the model&apos;s robust generalization ability for unknown tools.
+
+
+TABLE 3
+
+
+TABLE 4
+
+
+Case Study
+
+
+We have conducted case studies to evaluate the performance of our proposed system and modeling approach. During these studies, we observed that GPT-3.5 tends to generate repetitive planning stages and employ the same strategies, even when no new information is gleaned or an answer has already been found. Contrarily, our modified approach demonstrates enhanced reflective capabilities and an ability to discontinue redundant processes effectively. Additional details can be found in Appendix, referenced in Figure [12].
+
+
+Regarding the system analysis, traditional search engines exhibit limitations when faced with long-tail or trending questions. For instance, as depicted in Figure [5], when querying the age difference between Antonela and Messi, two issues arise: (1) the trendiness of &quot;Messi and his wife&quot; skews search results towards news articles that tempt user engagement with irrelevant content, such as relationship timelines; and (2) the question, which pertains to their respective birthdates (a detail not widely sought), is a &quot;long-tail&quot; search query. Large language models (LLMs) alone struggle with this, as they might recall Messi&apos;s birthdate but forget Antonela&apos;s.
+Combining LLMs with a search engine also falls short, as the surfaced information, while related, fails to precisely address the inquiry. Our approach overcomes these hurdles by incorporating entity linking and extracting relevant details from resources like Wikipedia.
+Specifically, our system first retrieves Messi and his wife&apos;s birthdates, then accurately computes the time difference using the time_delta tool, delivering the correct response to the posed question.
+
+
+RELATED WORK
+
+
+Large Language Models
+
+
+The field of Large Language Models (LLMs) has recently undergone a significant revolution, showcasing their prowess across a variety of downstream domains and tasks [*REF*, *REF*, *REF*]. Enhanced capabilities are achieved through advanced prompting [*REF*] and instruction fine-tuning [*REF*, *REF*]. To make LLMs accessible for anyone, numerous open-source projects have been launched, including Llama [*REF*, *REF*], Alpaca [*REF*], Vicuna [*REF*], etc. Many LLMs are optimized for Chinese language processing, such as such as ChatGLM [*REF*], Qwen [*REF*], Baichuan [*REF*]. These models, generally ranging from 6B to 14B parameters, also achieve promising results on many benchmarks. Our study investigates their effectiveness within agent systems, in comparison to closed-source alternatives such as GPT-4.
+
+
+FIGURE 5
+
+
+LLMs Powered Agents
+
+
+Recent research has increasingly shown that LLMs can be instrumental in developing AI agents [*REF*, *REF*, *REF*, *REF*]. Examples such as ToolFormer [*REF*], HuggingGPT [*REF*], Gorilla [*REF*], and ToolLlama [*REF*] demonstrate LLMs&apos; proficiency in tool utilization. Projects like Auto-GPT [*REF*], BabyAGI [*REF*], and ModelScope-agent [*REF*] highlight the autonomous capabilities of LLM-powered agents in fulfilling human tasks. Generative Agents [*REF*] are known for mimicking human interactions within immersive environments.
+Voyager [*REF*] showcases these agents&apos; ability to acquire diverse skills and engage in continuous exploration in settings like Minecraft. Additionally, AutoGen [*REF*] and ChatDev [*REF*] facilitate agent-to-agent communication, aiding in application development. Our study focuses on constructing an agent system adept at using external search engines or encyclopedic resources for completing information-seeking tasks.
+
+
+Information seeking systems
+
+
+Our research contributes to the domain of conversational informationseeking systems. Radlinski and Craswell [*REF*] articulated the core attributes of these systems, while Thomas et al. [*REF] introduced the Microsoft Information-Seeking Conversation (MISC) dataset, which presents dialogues where humans serve as intermediaries in information-seeking scenarios. Agents utilizing reinforcement learning have been effectively employed in this area as well [*REF*]. Of particular interest is the emergence of Large Language Model (LLM)-driven methods and systems, such as WebGPT [*REF*], AutoGPT [*REF*], and innovative approaches to web navigation [*REF*, *REF*, *REF*]. Our study harnesses the capabilities of LLMs to construct an agent system that automates the gathering of pertinent information, thereby satisfying the informational needs of users.
+
+
+CONCLUSION
+
+
+In this paper, we present KwaiAgents, composed of three integral components. The agent system KAgentSys employs a planning-concluding procedure, leveraging LLMs as the core cognitive unit, a memory bank, and a hybrid time-aware search-browse toolkit to fulfill user queries effectively. To investigate the potential of open-source, smaller LLMs in exhibiting agent capabilities such as planning, reflection, and tool utilization, we propose a Meta-agent Tuning (MAT) strategy and produce a suit of LLMs called KA-gentLMs.
+Furthermore, we establish a comprehensive benchmark KAgentBench to assess the aforementioned capabilities of LLMs and gather an additional 2˜00 queries to further appraise system-level performance.
+Our extensive experiments demonstrate that our system outperforms other open-source agent systems. And after MAT, even LLMs in the range of 6B-13B exhibit results comparable to GPT-4.

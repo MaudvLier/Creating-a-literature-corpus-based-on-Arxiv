@@ -1,0 +1,164 @@
+Language and Sketching: An LLM-driven Interactive Multimodal Multitask Robot Navigation Framework
+
+
+Introduction
+
+
+Mobile robots are becoming an integral part of our lives, used in domestic spaces and crowded places like train stations and airports. In these places, robots need to comprehend the environment effectively and act in line with human intentions. However, information obtained exclusively from laser scans is incomplete in complex environments. For instance, there might be potential obstacles that the radar fails to detect. For example, a puddle of milk is spilled on the ground. Some obstacles require us to maintain a certain distance from them, like the surrounding area of a glass that one shouldn&apos;t touch or come near. To address potential obstacles, while some work proposes the incorporation of visual data [*REF*; *REF*; *REF*], this demands both robust visual recognition and an understanding of obstacles, increasing the burden of system hardware and software.
+Therefore, we consider if these issues can be primarily addressed using 2D laser scans, supplemented with some low-dimensional, simple information. In socially aware navigation, a robot&apos;s ability to provide services to users hinges on its understanding of complex environments.
+Understanding the environment is a basic requirement for point-to-point navigation; to enhance the user experience, robots should also provide a variety of additional services. Although some studies[*REF*; *REF*; *REF*] have achieved human-following and human-guiding tasks separately, and [*REF*] have enabled a robot to perform both tasks, professionals still need to provide information through codes or mathematical formulations to assign and switch tasks, which is not a convenient way to interact for general users.
+
+
+FIGURE
+
+
+A natural and direct interaction between humans and robots will be preferred as it can provide robots with critical information about the environment and greatly improve user experience. Hence, to enhance robots&apos; understanding of the environment and free assignment of tasks, we consider a combination of language and hand-drawn sketches. In light of the advancements in Natural Language Processing (NLP), Large Language Models (LLM) have been gaining powerful logical reasoning abilities. We envision robots comprehending human intentions from a single sentence input. Simultaneously, when certain details are difficult to describe verbally, users can supplement with simple sketches on an interactive interface. Therefore, we propose an LLM-driven Interactive Multimodal Multitask Robot Navigation Framework (LIM2N), a system capable of understanding multimodal user inputs from both language and sketches and executing various tasks. Users can provide robots with environmental information via text and supplementary sketches, as shown in Fig. [1]. Initially, an LLM module interprets textual input to determine the task type and environmental details, categorizing them into constraint and destination information. In an intelligent sensing module, we process constraint information while simultaneously retrieving destination information. In an RL module, we input the prior task type, destination information from the previous two modules, and constraint information processed by the intelligent sensing module to direct robots&apos; movement. We conduct experiments in both the simulation and the real world. The results indicate that LIM2N can more comprehensively interpret environmental information with enhanced stability. Additionally, user study feedback further validates our interaction model&apos;s intuitive user experience.
+
+
+The main contributions of this work are the following:
+
+
+- We propose a novel navigation framework LIM2N based on language and sketches multimodal inputs in domestic and communal environments, significantly enhancing the user&apos;s interactive experience and the system&apos;s comprehensive understanding of the environment.
+- We design a new algorithm where a moving robot, driven by LLM, completes multiple tasks mainly based on adaptation and processing of the sensing modules, e.g., 2D laser scans, without the need to train multiple models. This differs from existing algorithms which often require multiple models for different tasks.
+- We conduct both quantitative and qualitative experiments in the simulation and the real world to validate our framework&apos;s enhanced comprehension and interactivity.
+
+
+Related Work
+
+
+LLM in navigation: In mobile robot navigation tasks, providing textual directives for robots is an intuitive way to ensure robots understand user needs. Incorporating a language model with a visual module enhances performance in visual-linguistic navigation (VLN) tasks [*REF*]. Building on this, researchers have added an action prompt base to deepen robots&apos; environment comprehension [*REF*].
+Later, a transformer framework was developed to adjust navigation based on textual cues [*REF*]. A linguistic-based interface for open-ended robotic control in human-machine interactions was presented [*REF*]. However, challenges remain in textual understanding. The swift progress of LLM has spurred interest in robot linguistic control. Researchers have used the ChatGPT API to guide robots, presenting a novel approach for LLM in robotics [*REF*]. A function library has been suggested to amplify LLM capabilities for complex tasks [*REF*], while others have focused on constraining LLM outputs to produce robot-executable directives [*REF*; *REF*].
+Combining Visual Language Models with LLM, researchers have used value maps for robot path plotting [*REF*], exemplifying efforts to assimilate multimodal data atop visual information [*REF*].
+Although text and visual tokens have been merged, the need for set icons limits its adaptability [*REF*]. Given these methods&apos; reliance on visual data, a trade-off exists between environmental understanding accuracy and increased system loads, posing challenges for home robots and prompting researchers to explore non-visual environmental comprehension.
+
+
+When relying solely on text, addressing indescribable information is challenging. Simple hand-drawn sketches may be the solution. Unlike visual data, these sketches, while less data-intensive, convey significant information. Sketches were used for vehicular navigation, enabling users to guide vehicles by drawing paths [*REF*].
+This technique was further refined for single and multi-robot navigation [*REF*; *REF*], and combined with laser data to improve robots&apos; self-localization [*REF*]. Building on this, we explored using sketches to inform robots of potential obstacles in intricate environments.
+
+
+Multitasks navigation: Understanding complex environments is crucial for delivering optimal services to users. Beyond basic point-to-point navigation, robots should engage in tasks like human-following and human-guiding. Given the unpredictability of pedestrian trajectories, many current methods utilize Deep Reinforcement Learning (DRL) techniques [*REF*]. However, these approaches often fail to address the freezing robot problem. Expanding on this, researchers employ sound cues for smoother robot-pedestrian interactions [*REF*]. Other works integrate pedestrian anticipated paths into the reward mechanism [*REF*]. Although significant advancements have been made, many methods still focus primarily on point-to-point navigation. For better user experience, enhancing robot-pedestrian interactions is vital. Some studies integrated technologies like LIDAR for pedestrian tracking [*REF*]. When visuals are added, methods use pedestrian features for real-time follow-ups [*REF*; *REF*].However, most current technologies require specialized knowledge and operate under certain constraints, neglecting intuitive user interaction. To address this issue, our research emphasizes user interaction, aiming to develop a system that accurately responds to direct user inputs.
+
+
+LIM2N: An Interactive Framework
+
+
+FIGURE
+
+
+The overview of our LIM2N is given in Fig. . Our framework comprises an LLM module, an Intelligent Sensing module, and an RL module. Within the LLM module, input from text or voice is transformed into linguistic information and channeled into the LLM backbone. Utilizing a predefined text-based semantic map and function library, the LLM backbone identifies the necessary services a user needs, i.e. task type. From the text, it extracts and translates details into constraint information (e.g., potential obstacles) for the intelligent sensing module and destination information (e.g., end goal) for the RL module. Within the intelligent sensing module, we integrate hand-drawn sketches received from users, constraint information from LLM module, and laser scans to produce a merged laser map. Additionally, this module employs a robust pedestrian detection system SPENSER Spenser to provide the position and speed of pedestrians for multitask execution, with a specific emphasis on utilizing the camera exclusively for pedestrian detection within our work. In the RL module, using task type and destination information, we pinpoint the robots&apos; current target position. Together with the merged laser map, we then feed this into the Soft Actor-Critic (SAC).
+
+
+LLM module
+
+
+FIGURE 
+
+
+Fig. [2] shows the detail architecture of our LLM module. The LLM module accepts inputs either as text or voice. When the input is voice-based, it is converted to text by an ASR component. Upon receiving textual input, the LLM backbone processes it. Firstly, this backbone identifies the task type from a task-types pool. Once the task requires end goal information, it will be treated as one type of destination information. When tasks call for pedestrian data, like human-guiding, the pedestrian ID is integrated into the destination information and relayed to the intelligent sensing module for relevant data acquisition. Beyond merely identifying tasks, LLM secondly extract environment-related details from the text. This includes destination information, for example taking routes that pass by a bookshelf before reaching a sofa, and constraint information concerning potential obstacles like carpets or restricted safety zones near glass cabinets. We derive the necessary coordinates for environmental specifics from the semantic map. We process this information using predefined function libraries and third-party Python libraries like Numpy and Shapely. Subsequently, we send the destination information and the task type to the RL module, while assimilating the constraint information into the intelligent sensing module.
+
+
+Pre-configured Setup
+
+
+Semantic map is intended to compensate for the inability of LLM to directly interpret visual information. Without visual cues, the LLM rely on linguistic inputs to understand their surroundings. Within LIM2N, a semantic map encompasses key building coordinates, as well as length and width, derived from 2D laser scans. Function library has been constructed to enhance the task completion capabilities of LLM and address their computational limitations. For example, the function expand_location(position, r) computes the coordinates based on position, and subsequently determines the safety margin around it by considering its length, width, and the input parameter r.
+Subsequently, we design a prompt for LLM, delineating the objectives to facilitate its comprehension of the high-level functions within the library. It is vital that LLM, upon encountering ambiguous instructions, actively seeks clarification from the user and refrains from making any unwarranted assumptions.
+
+
+Intelligent Sensing Module
+
+
+We developed a user interface (UI) to facilitate enhanced interaction with users for understanding the environment. Initially, we offer a map generated through post-processing of 2D laser scans of the real-world to allow intuitive user interaction. Users can sketch on the map as needed.
+These sketches appear within the UI, and users can select the end goal by clicking on the map. Users can also use sketches to convey wishes: drawing a closed pattern signifies a potential obstacle; tracing a route directs the robots&apos; path; and outlining dangerous obstacles with extended lines indicates a safe distance to maintain.
+
+
+Concurrently, we also provide text and voice input interfaces for the LLM modules in the UI. Once we retrieve the constraint information from the LLM module, it&apos;s directly visualized as sketches on the interface.
+These sketches, when amalgamated with the robot&apos;s 2D laser scans, form a merged laser map. When the task requires pedestrian information, we use the robust Spenser system to extract precise pedestrian data, notably the location *MATH* and movement velocity *MATH*. The merged laser map and pedestrian data are both subsequently relayed to the RL module.
+
+
+Reinforcement Learning Module
+
+
+Upon receiving specified data, we employ Task Mode Processing to determine the robots&apos; target position *MATH* for each task type at time *MATH*. Subsequently, both *MATH* and the merged laser map are treated as observations for the subsequent processing. Utilizing the SAC algorithm, an advanced offline policy method, we deduce the robot&apos;s optimal action.
+See Fig. [3] for an overview.
+
+
+![Using Task Mode processing, based on the task type and utilizing destination information (end goal and pedestrian positions), we determine the target location *MATH* at time *MATH*. This *MATH* and the merged laser map are provided to the SAC component as observations.]
+
+
+Task Mode Processing
+
+
+Referring to [*REF*], pedestrian assistance tasks in crowded environments include point-to-point navigation, human-following (where the robot follows a person), and human-guiding (where the robot leads a person to a specific location). For point-to-point tasks, the robot must precisely know the end goal, and we directly designate the end goal as *MATH*. During human-following, the robot only needs to continually locate the position of the person to be served (VIP) as *MATH* and maintain a safe and proximate distance at all times. In human-guiding, the robot initially sets *MATH* to the VIP&apos;s location and approaches it.
+Once near the VIP, the robot updates *MATH* to the end goal.
+Concurrently, the robot continuously monitors its distance from pedestrians. If the distance suddenly increases, perhaps due to unexpected pedestrian behavior or slow movement, the robot promptly adjusts *MATH* to the pedestrian&apos;s position. After approaching the pedestrian, it then updates *MATH* back to the end goal.
+
+
+SAC Neural Network Design
+
+
+We define the problem as a Partially-Observable Markov Decision Process (POMDP), represented by the tuple *MATH*.
+Here *MATH* is the state space. *MATH* is the observation space. *MATH* is the action space, where the action *MATH* is continuous. *MATH* is the state transition model *MATH*. *MATH* stands for the reward function.
+Inspired by [*REF*], it includes elements like reward for reaching the target, collision penalty, distance from the target, and a negative reward for each step taken.
+
+
+To train our navigation policy, we utilize a SAC algorithm, which mainly encompasses two components: an actor and a critic. The core objective of the training is to identify a policy *MATH* that maximizes the accumulated reward, which is represented as: *MATH* *MATH*, *MATH* where *MATH* is the Entropy at state *MATH*, *MATH* is the relative importance of the entropy term against the reward. Here, the value function is divided into the Q function and the V function, with the specifics of the formulas as follows: *MATH* *MATH*, *MATH* where *MATH* is the discount factor in *MATH*. The update rule for the Q function is: *MATH* *MATH* *MATH*.
+
+We trained our network within a simulated environment constructed using OpenCV[*REF*]. Within this environment, certain obstacles are fixed, and complemented by adding two randomly placed square obstacles and four line segments of different lengths in each training iteration.
+This dynamic obstacle configuration enhances the robot&apos;s proficiency in obstacle avoidance. Additionally, leveraging pedestrian trajectories from SFM[*REF*] and ORCA[*REF*], we incorporated four simulated pedestrians to ensure avoidance competence in a crowded environment.
+
+
+FIGURE
+
+
+Experiments
+
+
+We conducted experiments in both simulation and real-world to verify the performance of LIM2N. Our experiments aimed to: 1) evaluating the navigation performance of our framework with multimodal inputs, and 2) integrating language and sketches to improve the intuitiveness and convenience of interaction. We measure the user-friendliness of interactions through language and sketches. For our real-world experiments, we utilized the HuanYuBot-H21X04 mobile robot, featuring the RPLIDAR A1 radar and a Mecanum wheel for motion, as depicted in Fig. [4].
+
+
+FIGURE
+
+
+Navigation Performance
+
+
+We constructed two simulation scenarios: the Static Scenario, based on a real scene with obstacles, and the Pedestrian Scenario, which builds upon the Static Scenario by featuring three moving pedestrians. Each scenario had six unique tests, and each test was repeated ten times specifically for that scenario, as detailed in Fig. [5].
+For the baseline, we used two approaches. The first approach, manual control with constraint information (MC w/ CI), involved ten participants operating the robot at LIM2N speeds after five initial tests. The second approach, RL without constraint information (RL w/o CI), allowed target setting only through code adjustments, without addressing potential obstacles. Success rates are shown in Fig. [8]. Additionally, TABLE [1] categorizes the failure rates into three primary reasons: contacts with potential obstacles (*MATH*), entries into safety zones (*MATH*), and failure to pass a specific point (*MATH*).
+
+
+FIGURE
+
+
+Our experiments demonstrate that LIM2N effectively navigates around potential obstacles, maintaining a stable speed and path. In manual control, operators interpret environmental cues, allowing them to circumvent potential obstacles. However, certain keyboard configurations might lead to inconsistencies in directional movement, causing confusion for operators. Inappropriately adjusted speed settings can either increase the risk of collisions or extend the test duration. The efficacy of manual control depends largely on the user&apos;s proficiency, leading to diverse outcomes. In contrast, the RL w/o CI encounters difficulties with potential obstacles, effectively addressing only visible ones. In our quantitative analysis, as shown in Fig. [6], LIM2N effectively processes environmental data, outperforming manual control in accuracy when navigating fixed obstacles.
+
+
+TABLE
+
+
+However, its performance slightly lags behind manual control in the presence of virtual pedestrians, and current RL-based methods struggle to match human reflexes in emergencies with unpredictable obstacles, as illustrated in Fig. [7]. RL w/o CI only succeeds in tests that do not require detecting potential obstacles or maintaining safe distances, failing when detours are necessary. In Table [1], the failure rates indicate that the primary shortcoming of RL w/o CI stems from breaches in the safety zone and collisions with unseen obstacles.
+Although manual control seldom enters safe zones, participants usually choose longer paths to ensure safety, as shown in Fig. [5].
+This also explains why, in individual cases, the success rate of manual control may exceed that of LIM2N. Ultimately, LIM2N achieved notable results in both environmental comprehension and path planning.
+
+
+Interactive Navigation Efficacy
+
+
+In this study, we recruited 15 participants aged 20-27, with 5 females and 10 males, and 6 possessing a technical background. These participants had no prior involvement in this project. The experiments took place in a simulated living room, each lasting approximately 60 minutes. Participants controlled a mobile robot through three methods: 1) Manual control using a joystick; 2) Semi-automatic control requiring real-time updating of targets in the Rviz interface with RL w/o CI; 3) Our proposed method, combines text, voice, and sketches for test execution. To counter potential order effects, we randomized the experimental sequence and allotted time for participants to acclimate to the control methods.
+
+
+FIGURE
+
+
+In our research, based on prior tests, we incorporated human-following and human-guiding tasks, resulting in five tests, with some tests illustrated in Fig. [9]-Left. Some tests required participants to place obstacles undetectable to the robot to increase complexity. We recorded the completion times for three point-to-point navigation tests conducted by the participants, as shown in Fig. [9]-Right. LIM2N demonstrated significant robustness with minimal variance across users. Its average speed was comparable to other techniques, excelling in standard tests but lagging in more complex tests due to differences between simulated RL algorithms and real-world robot dynamics. Based on this, LIM2N proves to be both more efficient and stable.
+
+
+FIGURE
+
+
+After the experiments, participants rated their experiences using a 5-point Likert scale, summarized in Fig. [10]. The results showed LIM2N has made advancements in enhanced learning, intelligent operation, and improved control. LIM2N&apos;s intuitiveness and user preferences were similar to joystick controls. Conversations with participants favoring joystick control revealed their preference for manual interaction, influenced by their affinity for mechanics. Many noted that on the Rviz platform, updating based on the real-time status of the robot was not as convenient as using a joystick due to the inability to see potential obstacles. Overall, LIM2N provided a satisfactory interactive experience, highlighting the enhanced user experience it provides.
+
+
+Conclusion
+
+
+We have introduced an LLM-driven multimodal input framework that conveys environmental information to robots via text or hand-drawn inputs. This approach also enables the robot to execute diverse tests based on users&apos; specific needs. Experimental results from both simulated and real-world environments demonstrate that LIM2N exhibits a profound ability to comprehend environmental information while also boasting robust interactive capabilities. In future iterations of this work, we plan to: 1) incorporate human feedback to realize a human-in-the-loop system, utilizing user feedback as learning data for the RL algorithm, and 2) address the challenge of managing multi-user information when multiple users seek services from the robot.

@@ -1,0 +1,178 @@
+Autonomous Robotic Reinforcement Learning with Asynchronous Human Feedback
+
+
+Introduction
+
+
+Robotic reinforcement learning (RL) is a useful tool for continual improvement, particularly in unstructured real-world domains like homes or offices. The promise of autonomous RL methods for robotics is tremendous - simply place a robotic learning agent in a new environment, and see a continual improvement in behavior with an increasing amount of collected experience. Ideally, this would happen without significant environment-specific instrumentation, such as resets, or algorithm design choices (e.g. shaping reward functions).
+However, the practical challenges involved in enabling real-world autonomous RL are non-trivial to tackle. While those challenges have often been chalked down to just sample efficiency [*REF*, *REF*], we argue that the requirement for constant human effort during learning is the main hindrance in autonomous real-world RL. Given the episodic nature of most RL algorithms, human effort is required to provide constant resets to the system [*REF*, *REF*, *REF*], and to carefully hand-design reward functions [*REF*, *REF*, *REF*] to succeed. The requirement for constant human intervention to finetune the reward signal and provide resets [*REF*], hinders real-world RL.
+
+
+The field of autonomous RL [*REF*, *REF*, *REF*] studies this problem of enabling uninterrupted real-world training of learning systems. A majority of these techniques aimed to infer reward functions from demonstrations or goal specifications [*REF*, *REF*, *REF*, *REF*], while enabling reset-free learning by training an agent to reset itself [*REF*, *REF*, *REF*]. However, these techniques can be challenging to scale to tasks with non-trivial exploration [*REF*].
+
+
+FIGURE 1
+
+
+To enable autonomous RL techniques to scale to complex tasks with non-trivial exploration, we note that directly reaching a final target goal through autonomous exploration can be difficult. However, achieving a promising intermediate sub-goal can be relatively simple.
+This process can then be repeated until the desired target goal is accomplished, making the overall exploration process tractable, as long as sub-goals are appropriately chosen. The important question becomes - &quot;What are promising sub-goals to reach and how can we learn how to reach them within autonomous RL?&quot;
+
+
+In this work, we note that a promising sub-goal is one that satisfies two criteria: (1) it is closer to the desired final goal than the current state of the system, and (2) it is reachable from the current state under the current policy. While criterion (1) is challenging to estimate without actually having the task solved beforehand, in this work, we show that asynchronously provided non-expert human feedback in the form of binary comparisons can be used to cheaply estimate state-goal proximity. This estimate of proximity can be paired with a density model for measuring reachability under the current policy, thereby selecting promising intermediate sub-goals that satisfy both criteria (1) and (2). Our proposed learning system - Guided Exploration for Autonomous Reinforcement learning (GEAR) leverages occasionally provided comparative human feedback [*REF*, *REF*] for directing exploration towards promising intermediate sub-goals, and self-supervised policy learning techniques [*REF*] for learning goal-directed behavior from this exploration data. This is a step towards an autonomous RL system that can leverage both self-collected experience and cheap human guidance to scale to a variety of complex real-world tasks with minimal effort.
+
+
+Related Work
+
+
+Autonomous Reinforcement Learning in Real World. RL has been used to learn skills in the real world through interaction with real-world environments [*REF*, *REF*, *REF*, *REF*, *REF*, *REF*]. A common limitation is the requirement for episodic resets, necessitating frequent human interventions.
+&quot;Autonomous reinforcement learning&quot; aims to obviate these challenges by building learning systems that can learn with minimal interventions [*REF*, *REF*, *REF*]. A large class of autonomous RL methods, involve learning a forward policy to accomplish a task and a backward policy to reset the system [*REF*, *REF*, *REF*, *REF*, *REF*, *REF*]. A different class of methods [*REF*, *REF*, *REF*, *REF*] views the reset-free RL problem as a multi-task RL problem. These techniques typically require a human-provided reward [*REF*, *REF*, *REF*, *REF*, *REF*] or rely on simple techniques like goal-classifiers to provide rewards [*REF*, *REF*]. These reward mechanisms fail to solve domains with challenging elements of exploration. GEAR is able to learn autonomously with no manual resets, while using cheap, asynchronous human feedback to guide exploration more effectively.
+
+
+Learning from Human Feedback: To alleviate the challenges of reward function specification, we build on the framework of learning from binary human comparisons [*REF*, *REF*, *REF*, *REF*, *REF*, *REF*, *REF*, *REF*]. These techniques leverage binary comparative feedback from human supervisors to learn reward functions that can then be used directly with RL methods, often model-free [*REF*]. While these techniques have often been effective in learning for language models [*REF*, *REF*], they have seen relatively few applications in fully real-world autonomous RL at scale. The primary challenge is that these methods are too sample inefficient for real-world use, or require too much human feedback [*REF*, *REF*]. In this work, we build on a recently introduced technique [*REF*] that combines self-supervised policy learning via hindsight supervised learning [*REF*] with learning from human feedback to allow for robust learning that is resilient to infrequent and incorrect human feedback. While [*REF*] was largely evaluated in simulation or in simple episodic tasks, we leverage insights from [*REF*] to build RL systems that do not require resets or careful environment setup.
+
+
+Some work in robotics that rely on human feedback, scale it up by means of crowdsourcing [*REF*, *REF*]. We show that GEAR can also work from crowdsourced feedback by using Amazon Mechanical Turk as a crowdsourcing platform, collecting annotations in the form of binary comparisons. Note that other types of human feedback have also been leveraged in previous work, such as through physical contact [*REF*, *REF*, *REF*], eye gaze [*REF*], emergency stop [*REF*]. Our method is agnostic to the kind of feedback as long as we can translate it into a sort of distance function to guide subgoal selection.
+
+
+While it hasn&apos;t been tackled in this paper due to the scarce amount of feedback needed in the tested tasks, research done in learning when to ask for human feedback [*REF*, *REF*, *REF*, *REF*, *REF*, *REF*] could be leveraged in GEAR to increase efficiency in the amount of feedback requested. Similarly, previous work on shared autonomy and how to improve the understanding of the human/robot intentions [*REF*, *REF*, *REF*] could also be applied to GEAR to allow for better use of human feedback.
+
+
+Goal-conditioned reinforcement learning: In this work, we build on the framework of goal-conditioned policy learning to learn robot behaviors. Goal-conditioned RL [*REF*, *REF*, *REF*, *REF*, *REF*] studies the sub-class of MDPs where tasks involve reaching particular &quot;goal&quot; states. The key insight behind goal-conditioned RL methods is that different tasks can be characterized directly by states in the state space that the agent is tasked with reaching. Based on this insight, a variety of self- supervised goal-conditioned RL techniques have been proposed [*REF*, *REF*, *REF*, *REF*, *REF*, *REF*, *REF*, *REF*, *REF*] that aim to leverage the idea of &quot;hindsight&quot;-relabeling to learn policies.
+These techniques typically rely on policy generalization to show that learning on actually achieved goals can help reach the desired ones.
+As opposed to these techniques, GEAR uses self-supervised policy learning [*REF*, *REF*] for acquiring goal-directed behavior while relying on human feedback [*REF*] to direct exploration.
+
+
+Preliminaries
+
+
+Problem Setting. In this work, we focus on the autonomous reinforcement learning problem [*REF*]. We model the agent&apos;s environment as a Markov decision process (MDP), symbolized by the
+tuple (S, A, T, R, ρ0, γ), with standard notation [*REF*]. The reward function is r ∈ R, where r: S × A → R1 is unknown to us, as it is challenging to specify. As we discuss in Section [4], an approximate reward rˆ(s) must be inferred from human feedback in the process of training. As in several autonomous RL problem settings, of particular interest is the initial state distribution ρ0(s), which is provided for evaluation, but the system is run reset-free without the ability to reset the system to initial states s ρ0(s) during training [*REF*]. The aim is to learn a policy *MATH* that maximizes the expected sum of rewards *MATH* starting from the initial state distribution ρ0(s) and executing a learned policy π.
+
+
+Goal-Conditioned Reinforcement Learning. Since reward functions are challenging to define in the most general case, goal-conditioned policy learning techniques consider a simplified class of MDPs where rewards are restricted to the problem of reaching particular goals.
+The goal-reaching problem can be characterized as (S, A, T, R, ρ0, γ, G, p(g)), with a goal space G and a target goal distribution p(g) in addition to the standard MDP setup. In the episodic goal-conditioned RL setting, each episode involves sampling a goal from the goal distribution g p(g), and attempting to reach it. The policy, π, and reward, r, are conditioned on the selected goal g ∈ G. Goal-conditioned RL problems leverage a special form of the reward function as *MATH*, 1 when a goal is reached, and 0 otherwise. As in standard RL, at evaluation time an agent is tasked with maximizing the discounted reward based on the goal, *MATH*. Note that, unlike most work in goal-conditioned RL, we are in the autonomous goal-conditioned RL setting, where we do not have access to resets during training.
+
+
+While goal-conditioned RL makes the reward r(st, at, g) particularly easy to specify, in continuous spaces *MATH* is zero with high probability. Recent techniques have circumvented this by leveraging the idea of hindsight relabeling [*REF*, *REF*, *REF*]. The key idea is to note that while when commanding a goal the reward will likely by 0, it can be set to 1 had the states that are actually reached, been commanded as goals, thereby providing self-supervised learning signal [*REF*, *REF*, *REF*]. This idea of using self-supervision for policy learning has spanned both techniques for RL [*REF*, *REF*] and iterated supervised learning [*REF*, *REF*]. The resulting objective for supervised policy learning can be expressed as arg *MATH*. Self-supervised policy
+learning algorithms [*REF*] alternate between sampling trajectories by commanding the desired goals under the current policy π¯(·|g) and target goal distribution g p(g), where x¯ denotes stop-gradient. Policies can then be learned based on the goals reached in hindsight g = G(τ), where G is any function for hindsight relabeling -- for instance, choosing the last state of τ as the goal.
+
+
+GEAR: A System for Autonomous Robotic Reinforcement Learning with Asynchronous Human Feedback
+
+
+Our proposed system - Guided Exploration for Autonomous Reinforcement learning (GEAR), is able to leverage a self-supervised policy learning scheme with occasional human feedback to learn behaviors without requiring any resets or hand-specified rewards. While typical autonomous RL methods aim to reset themselves autonomously, this comes at the cost of a challenging reward design problem. The reward function has to be able to account for all eventualities that the system may find itself in, rather than behaviors from a single initial state. In this work, we instantiate a practical algorithm GEAR, that takes the perspective that cheap, asynchronous feedback in the form of binary comparisons provided remotely by humans can guide exploration in autonomous RL.
+
+
+Reset-Free Learning via Goal-Conditioned Policy Learning
+
+
+The problem of autonomous RL involves learning a policy to perform a task evaluated from a des-ignated initial state distribution ρ0, but without access to episodic resets during training. Typical paradigms for this problem [*REF*, *REF*, *REF*] have alternated between training a &quot;forward&quot; policy to solve the task, and a &quot;reverse&quot; policy to reset the environment. The challenge with applying this in the real world boils down to the difficulty of reward specification.
+
+
+To circumvent the challenge of reward specification, we can model the problem as a goal-conditioned one and leverage self-supervised learning methods [*REF*]. This involves learning a single goal-conditioned policy π(a|s, g) that can perform both forward and reverse tasks. While trying to accomplish the forward goal, the policy takes g p(g) as its goal, and once the goal is accomplished, the reverse process takes in g ρ0(s) as its goal, bringing the agent back to its initial state. The policy π(a|s, g) can be learned by self-supervised goal-conditioned policy learning methods [*REF*, *REF*]. In these approaches, states that were reached in some trajectory during training are relabeled, in hindsight, as goal states from which those trajectories serve as examples of how to reach them. Then, they use supervised learning to learn policies from this data (Section [3]).
+
+
+FIGURE 2
+
+
+A problem with this kind of self-supervised policy learning algorithm is that it relies purely on policy generalization for exploration; the policy π is commanded to reach g p(g) or g ρ0(s), even if it has not actually seen valid paths to reach g. This may result in very poor trajectories since the pair (s, g) can be out-of-distribution. This problem is especially exacerbated in autonomous RL settings.
+
+
+Guided Exploration and Policy Learning via Asynchronous Human Feedback
+
+
+Rather than always commanding the initial state or the target goal as described above, human feedback can help select meaningful intermediate sub-goals to command the policy to interesting states from which to perform exploration. In autonomous RL, meaningful intermediate sub-goals gsub are those that make progress towards reaching the currently desired goal. Given a desired goal g, the intermediate sub-goal gsub should be - (1) close to g in terms of dynamical distance [*REF*], and (2) reachable from the current state s under the policy π. Without knowledge of the optimal value function V ∗, it is non-trivial to estimate both conditions (1) and (2). In GEAR, we rely on binary feedback provided by human users to estimate state-goal proximity (condition (1)) and on density estimation for computing state-goal reachability (condition (2)).
+
+
+Proximity Estimation Using Human Feedback To estimate state goal proximity, we draw inspiration from work [*REF*, *REF*, *REF*] in learning from human preferences. Specifically, we build directly on a recently proposed technique that uses human preferences to guide exploration in the episodic setting [*REF*]. While [*REF*] also guides exploration using human preferences to estimate state goal proximities, it has a strict episodic requirement making it unsuitable for autonomous RL.
+
+
+Techniques based on comparative feedback aim to learn reward functions from binary comparisons provided by non-expert human supervisors. In this framework, human users can be asked to label which state si or sj is closer to a particular desired goal g. These preferences can then be used to infer an (unnormalized) state-goal proximity function dϕ(s, g) by optimizing dϕ with respect to the following objective (derived from the Bradley-Terry economic model [*REF*, *REF*, *REF*]): *MATH*.
+
+
+This suggests that if a state si is preferred over sj in terms of its proximity to the goal g, the unnormalized distance should satisfy *MATH*.
+
+
+During exploration, we can choose a sub-goal by sampling a batch of visited states and score them according to dϕ(s, g). As outlined in [*REF*], the chosen sub-goal doesn&apos;t need to be the one that minimizes the estimated distance to the goal, but rather can be sampled softly from a softmax distribution to deal with imperfections in human comparisons.
+
+
+Reachability Estimation Using Likelihood Based Density Estimation While the aforementioned proximity measure, suggests which intermediate sub-goal gsub is closest to a particular target goal g, this does not provide a measure of &quot;reachability&quot; - whether gsub is actually reachable by the current policy π, from the current environment state s. This is not a problem in an episodic setting, but in the autonomous reset-free learning case, many states that have been visited in the data buffer may not be reachable from the current environment state s using the current policy π.
+
+
+In our self-supervised policy learning scheme (Section [4.1]), reachability corresponds directly to marginal density - seeing (s, gsub) pairs in the dataset is likely to indicate that gsub is reachable from a particular state s. This is a simple consequence of the fact that policies are learned via hindsight relabeling with supervised learning [*REF*], and that a supervised learning oracle would ensure reachability for states with enough density in the training set. This suggests that the set of reachable intermediate sub-goals gsub can be computed by estimating and then thresholding the marginal likelihood of various (s, gsub) in the training data. To do so, a standard maximum likelihood generative modeling technique can be used to learn a density pψ(st, gsub) [*REF*, *REF*, *REF*, *REF*, *REF*].
+
+
+The learned density model pψ(st, gsub) can be used to select reachable goals with a simple procedure - given a batch of sampled candidate sub-goals from the states visited thus far, we first filter reachable candidates by thresholding density pψ(st, gsub) ≥ ϵ. The set of reachable candidates can then be used for sampling a proximal goal proportional to the state-goal distance dϕ estimated from human feedback as described above. Note that when there are no viable reachable candidates, the policy can perform random exploration. In our experimental evaluation in simulation, we estimate this density with a neural autoregressive density model [*REF*, *REF*, *REF*] or a discretized, tabular density model.
+
+
+System Overview
+
+
+The overall system in GEAR learns policies in the real world without needing resets or reward functions and minimal non-expert crowdsourced human feedback. GEAR alternates between trying to explore and learn a policy πθ(a|s, g) to reach the target goal distribution g p(g) in the forward process, and reach the initial state g ρ0(s) in the reverse one. In each of these processes, the agent selects intermediate sub-goals gsub for exploration based on the current state and the desired goal. The sub-goal selection mechanism first samples a set of visited states from the replay buffer Dcandidates = sN D. Then, it uses the density model pψ to estimate the reachability of these states from the current one, filtering out the unreachable states.
+Amongst these, Dfiltered, interreachable, the agent performs random exploration. This exploration process repeats until the target goal g p(g)(or the start state g ρ0(s)) is reached, then the goal is flipped and the learning continues. Occasionally, the agent updates its density model pψ(st, gsub) by likelihood-based training and accepts occasional, asynchronous feedback from crowdsourced human supervisors to update the state-goal proximity estimate dϕ(gsub, g). To warm-start training, we can add a set of teleoperated data (potentially suboptimal) to the replay buffer, and pretrain our policy π(a|s, g) via supervised learning on hindsight relabeled trajectories as described in Section [3] and [*REF*, *REF*, *REF*]. Detailed pseudocode and algorithm equations can be found in Appendix A.
+
+
+Experimental Evaluation
+
+
+To evaluate our proposed learning system GEAR, we aim to answer the following questions: (1) Is GEAR able to learn behaviors autonomously in simulation environments without requiring resets or careful reward specification? (2) Is GEAR able to scale to learning robotic behaviors directly in the real world using asynchronous crowdsourced human feedback and autonomous RL?
+
+
+Evaluation Domains
+
+
+We evaluate our proposed learning system on four domains in simulation and two in the real-world. The benchmarks are depicted in Fig *REF* and consist of the following environments: Pusher: a simple manipulation task in which we move an object within a table. A Navigation task in which a Turtlebot has to move to a certain goal location. Kitchen: another manipulation task in which the robot has to open and close a microwave. Four Rooms: another navigation task in which an agent has to move through some rooms with tight doors. Details of these environments can be found in Appendix [C].
+
+
+FIGURE 3
+
+
+Baselines and Comparisons
+
+
+To test the effectiveness of GEAR, we compare with several baselines on autonomous reinforcement learning and learning from human feedback.
+Details of the baselines are presented in Appendix [B]
+
+
+Does GEAR learn behaviors autonomously in simulation?
+
+
+FIGURE 4
+
+
+As seen in Fig *REF*, when evaluation success rates are averaged over 4 seeds, GEAR is able to successfully learn across all environments in simulation. In particular, we see that GEAR outperforms previous work in reset-free RL like VICE or FBRL. In the case of FBRL, this is a consequence of GEAR not relying on a carefully tailored reward function as well as the fact that hindsight relabelling methods are more sample efficient than PPO-based methods [*REF*]. This, together with the more accurate reward signal that GEAR gets from comparative human feedback, explains why GEAR outperforms VICE.
+
+
+We also see that GEAR is significantly more performant than HUGE, due to the fact that GEAR accounts for policy reachability when commanding subgoals. By ignoring this, the goal selection mechanism in HUGE often selects infeasible goals that get the agent trapped. We explore this topic further in [E.1] where we show that GEAR reaches a higher percentage of commanded goals than HuGE. Additionally, by relying on subgoals to guide exploration, GEAR also outperforms GCSL.
+
+
+Moreover, GEAR beats previous work that rely on human feedback, such as the Human Preferences method, by guiding exploration via subgoal selection and also for the robustness to non-tailored reward signal (feedback) that subgoal selection together with hindsight relabeling brings [*REF*].
+
+
+Notice that in Fig *REF*, we conduct experiments using both autoregressive neural density models [*REF*, *REF*] and tabular densities for measuring policy reachability, except in the kitchen environment, in which the high dimensionality inhibits using tabular densities. While the comparisons in Fig *REF* are done from the Lagrangian system state, we will explore scaling this to visual inputs in future work.
+
+
+In order to obtain a fair comparison between all of the baselines, we leveraged a synthetic oracle instead of a real human. In Section [5.4], we show GEAR succeeds in learning optimal policies when using human feedback in the real world. Furthermore, in Appendix [D] we show that GEAR can learn successful policies no matter where the feedback is coming from: synthetic oracles, non-expert annotators on Amazon Mechanical Turk, and expert annotators.
+
+
+In Appendix [E], we provide further analysis of the hyperparameters of GEAR, as well as show the effect of the amount and frequency of human feedback needed to learn optimal policies.
+
+
+Does GEAR learn behaviors autonomously in the real world from crowdsourced human feedback?
+
+
+Next, we trained GEAR in the real world, learning from crowdsourced human feedback from arbitrary, non-expert users on the web. We set up two different tasks, first, a navigation one with the TurtleBot, and second, a manipulation task with the franka arm consisting of pushing a bowl (Fig *REF*). The first task involves leaving the robot in a living room and allowing it to explore how to navigate the room autonomously to go from one location to another through obstacles, with human feedback crowdsourced from Amazon Mechanical Turk. The robot is provided with around 10 trajectory demonstrations of teleoperated seed data and then left to improve autonomously. Human supervisors provide occasional feedback: 453 comparative labels provided asynchronously over 8 hours, from 40 different annotators. For the second task, the robot is again provided with 10 trajectories and 200 labels from 22 annotators over the course of one hour. We observe in Fig *REF* that our policies successfully learn to solve each task from minimal human supervision and a reset-free setting in the real world. A depiction of the interface can be found in Appendix G, and more details on the demographics of crowdsourced supervision can be found in Appendix [D].
+
+
+FIGURE 5
+
+
+Conclusion and Limitations
+
+
+In this work, we present a framework for autonomous reinforcement learning in the real world using cheap, asynchronous human feedback.
+We show how a self-supervised policy learning algorithm can be efficiently guided using human feedback in the form of binary comparisons to select intermediate subgoals that direct exploration and density models to account for reachability. The resulting learning algorithm can be deployed on a variety of tasks in simulation and the real world, learning from self-collected data with occasional human feedback.
+
+
+Limitations: This work has several limitations: (1) Safety Guarantees: Real-world exploration with RL can be unsafe, leading to potentially catastrophic scenarios during exploration, (2) Limitation to Binary Comparisons: Binary comparisons provided by humans are cheap, but provide impoverished feedback since it only provides a single bit of information per comparison. (3) Requirement for Pretraining Demonstrations: For practical learning in the real world, the efficiency of GEAR is enhanced by using teleoperated pretraining data. This can be expensive to collect (4) Density Model as a Proxy for Reachability: We use density models as proxies for reachability, but this is only a valid metric in a small set of quasistatic systems.
+More general notions of reachability can be incorporated. (5) Learning from low dimensional state: the current instantiation of GEAR learns from low dimensional state estimates through a visual state-estimation system, which needs considerable tuning.

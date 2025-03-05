@@ -1,0 +1,336 @@
+Learning Machine Morality through Experience and Interaction
+
+
+Introduction
+
+
+Recent developments in Artificial Intelligence (AI) have seen an increase in publicly-voiced safety concerns around emerging intelligent technology. A large part of these safety concerns results from the lack of moral reasoning in many practical AI decision-making systems being developed for one task or another.
+Therefore, there is an urgent need to start developing a methodology for deliberately building morality into AI systems, to influence the way these make decisions and to be able to set safety as a key goal underpinning their behavior, especially when they are used in autonomous and semi-autonomous settings (Amodei et al., 2016; Awad et al., 2018; UK Government, 2023; Christian, 2020; Dignum, 2017, 2019; Wallach et al., 2008).
+
+
+Traditional approaches in AI safety in general, and in developing machine morality in particular, can broadly be classified as top-down versus bottom-up (Tolmeijer et al., 2021; Wallach &amp; Allen, 2009).
+Purely top-down methods (Wallach &amp; Allen, 2009) impose explicitly defined safety rules or constraints on an otherwise independent system. Until recently, top-down methods were the mainstream approach in AI safety, with a vast array of researchers proposing and implementing logic-based ethical rules for agents (Arkoudas et al., 2005; Hooker &amp; Kim, 2018; Anderson et al., 2006; Loreggia et al., 2020; Danielson, 1992). However, top-down methods pose a set of disadvantages associated with difficulties in defining the constraints precisely, and potential contradictions between them, especially in complex social environments (Bostrom &amp; Yudkowsky, 2014). An alternative approach is learning morality from experience and interaction from the bottom-up. Some recent developments in AI safety have employed the bottom-up principle in full, allowing algorithms to infer moral preferences entirely from human behavior or text, without any specification of the underlying moral framework.
+Prominent examples of this include Reinforcement Learning from Human Feedback, or RLHF (Ziegler et al., 2019), and Inverse Reinforcement Learning from human demonstrations (Ng &amp; Russell, 2000). The full bottom-up methodology may allow for better adaptability, robustness and generalization, and allows agents to learn implicit preferences which are otherwise hard to formalize explicitly. Nevertheless, purely bottom-up learning approaches face risks, such as reward-hacking^1^ (Skalse et al., 2022) or data poisoning by adversaries (Steinhardt et al., 2017), and they rely on a well-specified learning signal and a large sample, which does not always make them feasible or safe (Amodei et al., 2016).
+
+
+In this paper, we propose a new systematization that considers recent developments in AI safety along a continuum from fully rule-based to fully-learned approaches. This systematization highlights that the majority of mainstream approaches to AI morality sit at the extremes of the scale. After evaluating the relative advantages and issues associated with purely top-down or bottom-up approaches, we highlight a hybrid methodology as a promising alternative. This argument can be considered part of a broader movement promoting the combination of Reinforcement Learning (RL), i.e., learning though experience and interaction, with some form of human advice (Najar &amp; Chetouani, 2021). To the best of our knowledge, there has been limited work around the problem of learning ethical preferences in this class of solutions.
+
+
+To illustrate our argument, we consider three case studies that combine top-down moral principles with a bottom-up RL mechanism: intrinsic rewards based on moral frameworks, principle-driven AI systems, and safety-constrained learning. Within each case study, we cite a set of existing experimental papers as evidence for the success and promise of this approach. To aid future work in this area, for the intrinsic rewards methodology, we discuss available frameworks from moral Philosophy, Psychology and other fields, and outline how these can be adapted in reward design.
+
+
+We frame this work from the point of view of an AI agent - an artificial entity that makes a decision or choice in a given environment. While the majority of existing AI systems in the real world are built for prediction or classification (e.g., language models, financial forecasting, sentiment analysis, image classification), some of them are already exhibit decision-making capabilities in the form of clinical assistants (e.g., healthcare decision systems - Rajpurkar et al., 2022; or automatic diagnosis - Brown et al., 2020a), 1. Reward hacking refers to the unintended outcomes that might derive from the use of an approximate proxy reward function (Skalse et al., 2022), and includes cases where the reward is potentially misspecified (Leike et al., 2017; Zhuang &amp; Hadfield-Menell, 2020; Pan et al., 2022).
+
+
+recommender systems (Jannach et al., 2022), financial tools (Cao, 2022), and increasingly autonomous robots (Murphy, 2019). Moreover, there is an expectation that commercial autonomous vehicles will be present in our roads in the near term (Lipson &amp; Kurman, 2016).
+Furthermore, some researchers argue that agent-based solutions can also be implemented through emerging technologies such as Large Language Models, which can be used as a basis of the underlying decision-making process (Park et al., 2023). More generally, as AI systems become more and more sophisticated, further and more advanced types of agents are likely to emerge, presenting novel and complex challenges in terms of safety. Therefore, we argue that the safe and moral design of AI agent-based systems must be studied theoretically and experimentally today, in preparation for full (or at least increased) autonomy, which some refer to, in the limit, as Artificial General Intelligence. To study such agents, in our formalization, morality is expressed through a choice made in a given environment, which is defined as the physical and/or virtual (simulated) context in which an agent operates.
+
+
+One issue not directly addressed in this paper is which moral values should be implemented in AI. The definition of morality and which actions can be classified as &apos;good&apos; or &apos;bad&apos; depends on an agent&apos;s internal moral preferences (see Section 3.4.3) and/or on an external evaluation metric of interest (see Section 4). An agent interacting with humans in the real world may find that different humans they face have different moral values. Who should decide which of these values the agent must try to align to? This question is beyond the scope of the present paper. In this work we limit our investigation to methods for implementing moral learning based on one or a few values of choice, but those values themselves are interchangeable and can be put in explicitly by the user of the system (Pitt, 2014).
+
+
+We begin by motivating a hybrid approach to developing AI morality, which combines learning algorithms with the interpretability of explicit top-down moral principles (Section 2). We then overview three case studies which implement this hybrid approach in different ways, including one which proposes a formal solution based on intrinsic rewards for RL agents (Sections 3.1-3.4) based on a set of traditional moral philosophical frameworks (Section 3.4.4). In Section 4 we discuss potential approaches to evaluating moral learning agents based on their actions and resulting social outcomes. Finally, in Section 5 we outline ways in which such work can be extended to further the scientific understanding of human morality and allow philosophers to test ethical frameworks through simulation (in silico) and/or human-AI studies (Mayo-Wilson &amp; Zollman, 2021). The aim of this paper is to help unify and expand the ongoing research efforts around the design of learning frameworks to embed AI morality in artificial agents.
+
+
+Learning Morality in Machines
+
+
+It is possible to identify two traditions in terms of the design and implementation of specific capabilities in artificial agents: top-down and bottom-up. The top-down tradition imposes hard rules or constraints upon a system, and involves human experts planning the system architecture and all its components in advance. More specifically, in AI, the top-down methodology would possibly align with the principled &apos;core knowledge&apos; approach from cognitive science, which first builds detailed models of these capabilities in humans (Spelke &amp; Kinzler, 2007; Lake et al., 2017) and then uses the models to implement human-like cognitive processes in agents. As far as morality is concerned, for example, this can take the form of logical rules representing human moral norms (Loreggia et al., 2020; Arkoudas et al., 2005; Hooker &amp; Kim, 2018), or pre-defined moral cognitive models such as those proposed by Kleiman-Weiner et al.
+(2017) and Awad et al. (2022). The bottom-up tradition, in contrast, consists in letting agents learn principles from experience, organically, without planning the general architecture or constrains in advance. This aligns with the general recent advances in AI capabilities via machine learning (in particular, deep learning; Goodfellow et al., 2016) methods, learning how to act purely from potentially highly-dimensional data. In the AI alignment and safety domains, this has been done via Inverse RL from human behavior (Ng &amp; Russell, 2000), and, more recently, RL from human feedback, i.e., RLHF (Ziegler et al., 2019).
+
+
+FIGURE 1
+
+
+A set of theoretical works by Wallach and colleagues (Wallach et al., 2008; Wallach &amp; Allen, 2009; Wallach, 2010) discusses how the top-down and bottom-up traditions can be applied to the development of machine morality and social intelligence. In light of recent developments in implementing ethical values in AI (Tolmeijer et al., 2021), we extend their framework and argue that approaches should be considered on a continuum from full top-down methods, through a range of hybrid methods, which combine learning with pre-defined moral principles with different &apos;weighting&apos;, to full bottom-up implementations.
+
+
+We present a systematization of the existing solutions to building machine morality along this continuum in Figure 1. As we show, the majority of existing implementations in AI safety and AI ethics sit at the extreme ends of the scale presented in Figure 1 - either originating from the top-down approach (fully top-down, imposing pre-defined logic rules or constraints on agents, or the nearly-top down safety-constrained learning), or relying entirely on bottom-up inference of implicit ethical principles from human behavior, without any top-down definition of preferences given in advance (e.g., Inverse RL or RLHF). Only a small number of proposals can be identified between these two extremes. These solutions are characterized by the utilization of learning mechanisms combined with the adoption of explicit moral principles.
+
+
+In Sections 2.1-2.2 we will consider the relative advantages and disadvantages of the fully top-down or fully bottom-up approaches for developing machine morality. A summary of the discussion can be found in Table 1. Our analysis highlights the advantages deriving from the combinations of both traditions in a hybrid way to create safe yet adaptive moral agents, and we argue in Section 2.3 that this represents a promising solution for next-generation safe AI systems.
+
+
+TABLE 1
+
+
+Top-down Approaches
+
+
+Principles of morality are at least partly determined by cultural and religious norms (e.g., the Golden Rule or the Ten Commandments). More abstractly, a number of moral frameworks have been defined in the philosophical tradition (Aristotle, 2019; Bentham, 1780; Harsanyi, 1961; Kant, 1785; Rawls, 1971) to reflect ethical principles to which humanity should adhere. More recently, moral psychologists, sociologists, economists and biologists have built up an increasingly advanced understanding of the norms and preferences present in human societies (Graham et al., 2009, 2013; Fehr &amp; Fischbacher, 2004b; Fehr &amp; Schmidt, 1999; Levitt &amp; List, 2007; Krupka &amp; Weber, 2013; Kimbrough &amp; Vostroknutov, 2023; Capraro &amp; Perc, 2021; Bolton &amp; Ockenfels, 2000; Levine, 1998; Charness &amp; Rabin, 2002; Andreoni &amp; Miller, 2002), the ways in which these norms may develop over a human lifetime (Gopnik, 2009; Kohlberg, 1975) or how they may have emerged over the process of evolution (Axelrod &amp; Hamilton, 1981; Binmore, 2005).
+
+
+One approach to designing ethical AI systems that is reflective of today&apos;s norms could be to encode these principles and norms directly as hard &apos;rules&apos; into computer algorithms. As argued in Wallach et al.
+(2008) and Wallach and Allen (2009), this top-down approach to machine morality would, in theory, allow a direct mapping from the principles we want systems to abide by to interpretable constraints or rules. Furthermore, a set of clear rules makes it easy for regulators to oversee the behavior of AI systems and to impose penalties and sanctions.
+
+
+Several techniques have been proposed for encoding moral principles into intelligent systems in a purely top-down manner. Logic-based approaches within this tradition include the use of deontic or modal logic for defining deontological ethical constraints on systems in general (Arkoudas et al., 2005; Hooker &amp; Kim, 2018; Kim et al., 2021), or in the medical domain in particular (Anderson et al., 2006), and the use of graphical methods such as conditional preference networks to compare an AI agent&apos;s normative preference against that of a community (Loreggia et al., 2020). Within the domain of modeling social situations as games between two players, Danielson (1992) has proposed Prolog-based implementations of player strategies conditioned on the opponent&apos;s last move. Finally, a prominent science-fiction example of purely top-down ethical constraints for machines is the three fundamental Laws of Robotics from the Foundation Series by Isaac Asimov (Asimov, 1950), as discussed in relation to information technology by Clarke (1993). Past work has proposed implementing these laws in logic-based systems, for example via Prolog, a logic-based programming language (Ferguson, 1981).
+
+
+In spite of the apparent simplicity and assurance provided by a top-down approach, empirical evidence as well as philosophical inquiry suggest reasons why it may be inefficient in implementing moral reasoning in agents, which is inherently complex (Abel et al., 2016; Amodei et al., 2016; Awad et al., 2018; Wallach et al., 2008; Wallach &amp; Allen, 2009; Asimov, 1950; Vamplew et al., 2018). We will use Asimov&apos;s (Asimov, 1950) principles to underpin a general working example in discussing these challenges. First of all, it is extremely challenging - if not impossible - to ensure that rule-based approaches will be able to cover every type of potentially unsafe or unethical situation the agent may face in the future. For example, Asimov&apos;s most important principle is &apos;a robot should not harm a human being, or by inaction allow a human to come to harm&apos;. However, to the present day, defining a general constraint of &apos;harm&apos; for a robotic system remains a great challenge, since harm can mean such different things in different environments (Beckers et al., 2023). Thus, there is a problem of generalization. Secondly, explicitly defined rules may miss important implicit preferences of the human users of that system, for example if these preferences are sub-conscious or hard to formalize.
+Finally, even if the correct set of constraints can be defined, in complex or uncertain social situations it may be hard to prevent them from contradicting one another, and behavior of rule-based agents in uncertain situations caused by such contradictions and dilemmas may not be predictable. An example of this was presented in Asimov&apos;s stories when a robotic assistant entered a deadlock situation when moving either way in the environment made it more likely to violate the first or second law, so as a result the robot stayed motionless instead of executing its task and put its human colleagues in great danger (for experimental evidence of deadlock situations arising in &apos;ethical&apos; robots, see Winfield et al., 2014). One potential solution may be to impose prioritization rules on these constraints - however, defining the desired prioritization may present its own challenges as different members of a society that the agent is designed for may prefer different rules over others. Plenty examples of this challenge exist in complex ethical questions, such as how to distribute limited resources in a society, or make a decision where one objective has to be compromised for the sake of another - to the present day, even humans cannot find agreement among themselves on the best course of action in such settings.
+
+
+Bottom-up Approaches
+
+
+Given the disadvantages of top-down approaches to the design of moral agents outlined above, an alternative methodology may be needed for developing machine morality. Many recent advances in other areas of Artificial Intelligence can be attributed to moving away from hand-engineered rule-based algorithms and features towards more flexible learning systems based on deep learning (Goodfellow et al., 2016) - for example in vision (Krizhevsky et al., 2012) and natural language processing (Brown et al., 2020b; Devlin et al., 2019). An increasingly powerful framework for developing systems for decision-making in particular is RL, where an agent learns by trial-and-error while interacting with an environment and receiving a reward signal (Sutton &amp; Barto, 2018) (see Section 3.1 for a detailed definition). Of particular relevance to social capabilities in AI, RL has allowed researchers to develop
+
+
+super-human game playing agents (Mnih et al., 2015; Silver et al., 2016; Meta Fundamental AI Research Diplomacy Team (FAIR) et al., 2022). More generally, Silver et al. (2021) argue that the pursuit of reward may be sufficient for all kinds of intelligence to arise. Given the success of learning over rule-based algorithms across these domains, a promising direction for ethical reasoning may be to enable agents to develop a general moral intuition bottom-up (Wallach &amp; Allen, 2009), by learning from interactions with a social environment over time (Railton, 2020). A seminal paper proposing the use of RL for ethical learning is Abel et al. (2016). Focusing on single-agent ethical dilemmas, the authors outlined the strengths of RL over rule-based or Bayesian approaches. This RL-based approach would also align with the view of some developmental psychologists, who believe that humans learn morality gradually, starting with simple norms in early childhood and advancing to complex ethical principles later on (Gopnik, 2009; Kohlberg, 1975; Awad et al., 2022).
+
+
+Specific examples of bottom-up moral learning can include Supervised Learning on a data set of scenarios (e.g., dilemmas), in which a set of actions in response to a given situation are labeled as morally permissible or not, as in Guarini (2006). More recently, with the emergence of Large Language Models (LLMs), another bottom-up approach to representing morality in systems could be to train LLMs on morally relevant text - such as moral philosophical writings, fables or religious texts. Within the RL domain, one example of fully bottom-up learning is Inverse RL, where a reward function is learned directly from expert (e.g., human) demonstrations of desired behavior (Ng &amp; Russell, 2000). Inverse RL for morality in particular has been explored by Hadfield-Menell et al. (2016), Kretzschmar et al. (2016), Peschl et al. (2022). Extensions of this include (Inverse) Multi-Objective RL (Hayes et al., 2022) in situations in which multiple humans might contradict one another in terms of moral (and other) norms (for example, see work by Peschl et al., 2022). A more recent yet related approach is Reinforcement Learning from Human Feedback (RLHF), in which humans rank outputs from a pre-trained model to display their preferences, and these rankings are used as a signal to fine-tune the model (Christiano et al., 2017; Ziegler et al., 2019). The strength of RLHF that has contributed to its recent growth in popularity is that it allows researchers to use relative rankings to infer implicit values in concepts that may otherwise be difficult to formalize as rewards (indeed, as argued in Section 2.1, many moral preferences may not be possible to formalize in an explicit way). This has been demonstrated by the successful reduction in the toxicity of language model outputs following fine-tuning with RLHF, without having to explicitly define what toxicity means in all possible linguistic constructions (Ouyang et al., 2022). Alternatively, if one has control over the environment as well as the agent, social mechanisms can be implemented that may lead agents to learn moral policies on their own - examples of this have included implementations of mechanisms inspired by Rawls&apos;s (Rawls, 1971) idea of the Veil of Ignorance (see Weidinger et al., 2023), or a partner selection mechanism in social dilemmas (Anastassacos et al., 2020).
+
+
+A more general advantage of a learning agent over a rule-based one is that agents that learn continuously are able to adapt to the potentially changing dynamics or evolving morality of a given society.
+Additionally, learned policies which utilize function approximation, for example via Deep Reinforcement Learning (Mnih et al., 2015), have the potential to generalize to unseen situations, or &apos;states&apos; in RL, and will try to learn a policy that accommodates potentially different or even contradicting sets of preferences without causing deadlock - for an example, see Bakker et al. (2022).
+
+
+In addition, Railton in (Railton, 2020) argues that AI may be more robust to potential adversarial attacks if ethical reasoning forms a part of an agent&apos;s monolithic training from the start, with a root connection to the agent&apos;s other learned policies, rather than a top-down add-on which can easily be removed without reduction in other intelligent capacities of the AI system. Indeed, such a developmental connection between ethical reasoning
+
+
+and other abilities such as problem-solving exists in humans, as observed in lesion studies (Kavish et al., 2018). Interestingly, it has recently been suggested that fine-tuned LLMs may fall victim to this exact problem at the end of training - Jain et al. (2023) suggest that fine-tuning model weights may merely create a &apos;safety wrapper&apos; on otherwise unaltered core models, making the effects of safety-focused fine-tuning easily reversible. This suggests that methods of learning morality that alter the model itself from the start may be preferred for safety-critical applications.
+
+
+More generally, despite their strengths, full bottom-up learning methods including RL may also present a set of disadvantages for the development of machine morality. First of all, RL tends to be sample inefficient - even in simple environments, agents require a large amount of experience to learn the optimal policy. This is usually addressed by initially training agents in simulation, in an artificial environment. However, this might require the development of extremely complex simulated social environments, which might be very difficult to define in practice. The problem of coverage is key in this context.
+
+
+Furthermore, learning agents are not guaranteed to learn exactly the values or behaviors intended by their designer - a problem known broadly as misalignment. For example, safety researchers Amodei et al. (2016) and Skalse et al. (2022) suggest that RL-based agents may potentially perform the so-called &apos;reward-hacking&apos;, in which they display behavior that leads to the optimal cumulative reward received on the test set of problems, even if the underlying value function is not actually encoding truly safe policies. A related issue is problem misspecification, which occurs when the simulated environment is not designed to correctly reflect the intended true setting, so policies learned in simulation do not result in desirable behavior in the real world (Leike et al., 2017; Pan et al., 2022; Zhuang &amp; Hadfield- Menell, 2020). Notably, neither reward-hacking, nor problem misspecification are solved by the increasingly popular RLHF methodology, as discussed by Casper et al. (2023).
+
+
+A further issue that can arise for learning agents is data or environment poisoning - a type of adversarial attack that arises when a designer of an AI system has no full control of the data sets used in pre-training. For example, in classification tasks in the computer vision domain (Saha et al., 2020), if an adversary implants a small area of &apos;trigger&apos; pixels into a few data points, it can cause an otherwise well-performing model to learn false associations and thus misclassify samples containing this trigger at inference time.
+Poisoning attacks like these are a risk for any general learning agents, but in relation to moral or social agents in particular, such attacks may lead to explicit harms towards other agents or humans in the environment, thus posing a more significant safety risk.
+
+
+Thus, the behavior of RL agents must be carefully evaluated in different kinds of scenarios to ensure the learned representations are aligned with the designer&apos;s intended moral values as observed in a variety of situations. We discuss this further in Section 4. An added issue in RLHF in particular is misalignment among the humans who provide the ranking data (Casper et al., 2023) - so the choice of human sample to collect feedback from becomes a crucial one, and cultural differences are likely to have a strong influence on the moral choices made by the humans and thus learned by the fine-tuned model (Graham et al., 2013).
+
+
+Finally, traditional RL faces specific issues when applied in particular to multi-agent decision-making situations, such as social dilemmas (Rapoport, 1974 - see Section 3.4.2 for a more detailed discussion), in which every agent must make a trade-off between individual and social benefit from their actions in the long term.
+Here, we observe that due to the social or moral uncertainty (Ecoffet &amp; Lehman, 2021) and the presence of numerous learning agents in an environment, traditional &apos;selfish&apos; RL agents trained to maximize their own game reward often learn inefficient (i.e., defective) policies or norms (Leibo et al., 2017; Sandholm &amp; Crites, 1996; Tennant et al., 2023). Humans playing the same dilemma games manage to find ways to cooperate, as demonstrated by Behavioral Game Theory (Camerer, 2011).
+
+
+In summary, while learning offers many benefits, the analysis of the disadvantages suggests that purely bottom-up methods may not be enough to create robust and predictably ethical agents.
+
+
+Hybrid Approaches: Pragmatic Solutions?
+
+
+Given the considerations above, Wallach and colleagues (Wallach &amp; Allen, 2009; Wallach, 2010) have recommended a hybrid approach for developing AI morality, which combines some sort of formal top-down definition of moral principle with bottom-up learning. We support this view, especially in presence of learning and adaptive AI systems. As discussed, fully bottom-up approaches do not often provide guarantees and they are generally not preferable for potentially risky situations, such as in human-robot interaction or financial applications. Top-down approaches, on the other hand, are not appropriate when the principles and constraints are difficult to specify or they are dynamic.
+
+
+Despite the promise of a hybrid approach in many scenarios, very little existing work has used it for designing ethical learning agents. In this paper, we argue that learning through experience and interaction with explicit moral principles provides an pragmatic way to implementing AI agents that learn morality in a way that is safe and flexible. For example, variations of RL can embed a variety of moral principles top-down as objective or reward functions, while simultaneously allowing agents to learn from experience how to best behave according to these principles in a potentially changing or uncertain social environment (for a parallel discussion in RL applications with human advice outside the domain of ethics, see Najar &amp; Chetouani, 2021). In particular, RL approaches which use top-down principles to modify the reward structure or the environment can embed the understanding of morality which has been developed over centuries in different domains such as Philosophy, Psychology, Biology and Law, to name a few.
+
+
+In the subsequent section, we formalize the learning problem for RL agents, and consider three examples of how moral principles can be represented. The most &apos;controlled&apos; or topdown of these is RL with safety constraints (for example, using &apos;shields&apos; to avoid harm in robotics tasks or self-driving cars - Alshiekh et al., 2018; or constraining RL by a deonticlogic normative supervisor - Neufeld et al., 2022). This case is not fully top-down since learning is present, but the moral aspect of the problem is hard-coded, so we place them towards the top-down end of the continuum in Figure 1. The least constrained hybrid example we present here is Constitutional AI (Bai et al., 2022) - a technique for finetuning LLMs with RL using feedback from a &apos;constitution&apos; of AI models, each of which is prompted to follow certain explicit principles. Finally, between the control of Safe RL and the complexity of LLM fine-tuning is a methodology implementing RL with intrinsic moral rewards (Hughes et al., 2018; McKee et al., 2020; Tennant et al., 2023). Using social dilemma scenarios (Rapoport, 1974; Axelrod &amp; Hamilton, 1981) to illustrate the intrinsic rewards approach, we also overview possible moral frameworks that could be encoded as reward functions in these games in general, and provide a few concrete examples. Throughout the case studies, we refer to existing experimental results that show that these RL-based hybrid approaches can successfully lead to the design of agents that learn moral policies in social environments.
+
+
+Designing Moral Agents with Reinforcement Learning
+
+
+Background
+
+
+Reinforcement Learning (RL) is a method that directly models decision-making, as opposed to prediction or classification - as in Supervised or Unsupervised Learning. In the RL framework, learning occurs incrementally over discrete time steps t ∈ T. At every time step t, an agent observes a state of the environment *MATH* and takes an action *MATH* using a policy (a mapping between states and actions). The environment then returns a reward *MATH* and a next state *MATH*. Over a number of iterations of such interactions with an environment, an agent learns to take actions that maximize the discounted future reward (discounted to make rewards received further in the future less important for the present calculations). Frequently, RL implementations use the Markov Decision Process framework, in which all necessary information for the agent to make a decision is contained within the last available state.
+
+
+Agents use an RL algorithm to learn what actions are best to take to maximize their cumulative reward. In this paper, we focus on the set of approaches known as model-free, where an agent does not know the model of how the environment may respond to their actions - we believe that this approach applies intuitively to uncertain social situations where other agents whose behavior is not directly predictable constitute a part of the environment. One popular model-free RL algorithm is Q-Learning, introduced by Watkins and Dayan (1992), where an agent learns the &apos;value&apos; of each possible state-action pair Q(s, a) (i.e., the estimated discounted cumulative reward an agent may expect to receive by taking this action in this state, and assuming they act optimally from then on).
+
+
+Two versions of Q-learning exist: a tabular version for small state spaces and Deep Q-Network, or DQN (Mnih et al., 2015) for value function approximation in state spaces too large to learn directly (see Appendix A for a detailed formulation). As shown in Figure 2, in tabular Q-learning, the learned value function constitutes a table mapping every state-action pair to the corresponding Q-value. In DQN, on the other hand, the learned representation is a tuned neural network which approximates the state-action value function (Mnih et al., 2015), which takes a state vector representation as input and returns the relative value of taking each possible action as an output. It is this representation that allows DQN agents to generalize knowledge across states, enabling them to choose actions based on past experience even if they have not seen this particular state before.
+
+
+These representations and the learned value functions can then be used to choose actions according to a certain policy π - for example, using an ϵ-greedy policy (Equation 1) an agent would take a &apos;greedy&apos; action most of the time, i.e., the action with the greatest estimated Q-value available from this state, but act randomly ϵ% of the time, sampling uniformly at random from the available action space A. Our formulation uses an online RL paradigm where the agent is evaluated as it continuously learns to adapt to its social environment. The random exploration in this policy allows for new states to be explored by the agent, an essential step in learning via online RL.
+
+
+*MATH*.
+
+
+Most morally relevant environments are likely to be multi-agent. In these cases, multiple players learn (i.e., iteratively update their Q-value estimates) in parallel, and, for each agent, their opponent(s) constitute a part of the environment. The state for a player is then defined as a history of their opponents&apos; previous moves. We will now explore three examples of the use of RL for learning morality via explicitly defined principles.
+
+
+FIGURE 2
+
+
+Case Study: Morally-constrained Reinforcement Learning
+
+
+Taking inspiration from the full top-down tradition, researchers have used logic to define constraints for training RL agents. For example, Neufeld et al. (2022) use defeasible deontic logic to implement a normative supervisor onto a learning agent. This supervisor takes in a proposed input action set, applies a set of norms, and outputs a reduced set of actions for a Q-learning agent to choose from - this can either be a strictly &apos;legal&apos; set of actions, or a relaxed set of &apos;permissible&apos; actions if no fully satisfactory options are available in the strict set. The &apos;ethical&apos; dimension in that work is implemented as a centralized mechanism or supervisor overseeing a learning agent, and - as discussed - the normative constraints are hard-defined, which makes this the most top-down of our case studies.
+
+
+Case Study: Constitutional AI
+
+
+As a second case study, we present the example of Constitutional AI, developed and implemented by Bai et al. (2022). This approach is specific to the type of systems known as Large Language Models (LLMs), and ethically-informed RL is used here at the fine-tuning stage, i.e., after a model has been pre-trained on a large amount of linguistic data. As such, the end product of this process is not an agent but a predictive system; however, as we discuss below, the ethical fine-tuning step of the training can be perceived as agent-based, so still has relevance to the present discussion.
+
+
+Constitutional AI relies on one LLM providing feedback to some LLM being currently trained (either itself or an external one). The constitutional methodology has been proposed as a potentially safer, more controlled and interpretable alternative to the fully bottom-up RLHF approach used in other LLMs (Ziegler et al., 2019). The feedback model
+
+
+represents a &apos;constitution&apos; of different principles, presented sequentially and defined via explicit prompts (e.g., &apos;Please choose the assistant response that&apos;s more ethical and moral. Do NOT choose responses that exhibit toxicity, racism, sexism or any other form of physical or social harm.&apos;). The principles themselves are based on a combination of human defined preferences such as the UN Declaration of Human Rights, certain digital companies&apos; terms of service (to reflect the more recent digital dimensions of safety), and a set of other preferences defined by a team of researchers behind Constitutional AI (Bai et al., 2022) and others (Glaese et al., 2022).
+
+
+Once a target LLM receives feedback based on these principles, its weights are fine-tuned with RL using the feedback as a reward signal.
+Thus, the model is fine-tuned to be more likely to produce outputs which would be considered safe by a constitution of potential &apos;critic&apos; models with diverse preferences. An extension of this approach based on crowd-sourced constitutional principles is called Collective Constitutional AI (Anthropic, 2024) and may prove promising in the future in generating more generally aligned agents.
+
+
+In summary, according to this methodology the moral principles are explicitly defined via prompts, but the mapping between those principles and a change in behavior (i.e., the change in language model outputs) is based on a learned representation which is very difficult for humans to interpret, which poses a disadvantage in terms of safety. Furthermore, while the approach is certainly promising, it must be noted that Bai et al. (2022) only managed to use the constitutional principle for improving a model&apos;s harmlessness - it remains to be seen how successful the methodology would be at promoting other values such as helpfulness.
+
+
+Case Study: Social Dilemmas
+
+
+Finally, we consider a case study that combines top-down principles and learning in a more equal weighting. This case study relies on the domain of two-player general-sum games known as social dilemmas (Axelrod &amp; Hamilton, 1981; Rapoport, 1974). Though these games constitute stark simplifications of reality, they are intended to model and reflect the general underlying structure of everyday social situations, including those involving multiple AI systems or agents.
+
+
+Social Dilemma Matrix Games
+
+
+Social dilemma games simulate situations in which each agent make decisions facing a trade-off between individual interest and societal benefit. A widely studied subset of these games is the two-player, two-action matrix game, in which a pair of players simultaneously choose an action (e.g., Cooperate or Defect), without the opportunity to communicate, each receive a certain payoff which depends on the pair of actions chosen.Higher payoff here represent the fact that that outcome is preferred by the player. What makes it a dilemma is the fact that players maximizing their individual payoffs are likely to learn policies that end up being sub-optimal in terms of long-term individual and social outcomes.
+
+
+Three classic matrix dilemma games from Economics and Philosophy that are relevant to moral choice are the Prisoner&apos;s Dilemma (Rapoport, 1974), Volunteer&apos;s Dilemma (or &apos;Chicken&apos;) (Poundstone, 1993), and Stag Hunt (Skyrms, 2001; see payoffs for row vs. column player in Table 2).
+In the Prisoner&apos;s Dilemma, mutual cooperation would achieve a Pareto-optimal outcome (in which one player cannot be made better off without disadvantaging the other) - but each individual player&apos;s best response is to defect due to greed (facing a cooperator, they benefit from defecting and getting the highest payoff T) and fear (facing a defector, they suffer by cooperating and getting the lowest payoff S). In the one-shot game, this reasoning applied by both players leads to mutual defection and thus a sub-optimal outcome for both (e.g., the IPD game in Table 2 demonstrates that both players would have preferred mutual cooperation with payoff 3 over mutual defection with payoff 2). In the Volunteer&apos;s Dilemma, a selfish or rational player may choose to defect due to greed (i.e., not volunteer in hope that someone else does), but if both do so, both obtain the lowest possible payoffs (i.e., no one volunteers, and the society suffers). Finally, in the Stag Hunt game, two players can cooperate in hunting a stag and thus obtain the greatest possible payoff each; however, given a lack of trust between the players (i.e., each player fears a non-cooperative partner), either may be tempted to defect and hunt a hare on their own instead, decreasing both players&apos; payoffs as a result.
+
+
+TABLE
+
+
+Thus, in all three games the best-response (i.e., &apos;rational&apos;) strategies are not the ones leading to the better mutual outcome.
+Gauthier (1987) argued that repeated versions of these dilemma games in particular are relevant to morality, since, with repeated interaction, complex sets of strategies can evolve - for example, involving actions to punish one&apos;s opponents for past wrongdoing, or to influence their future actions. Repeated versions of the games can be implemented as learning environments for RL agents, as we discuss in Section 3.4.2. Due to instabilities in the multi-agent environment, calculating predicted equilibria in these situations is not always computationally feasible, so simulation methods are required in order to study potential emergent behaviors and outcomes (Lasquety-Reyes, 2019; Tolmeijer et al., 2021).
+
+
+Other types of games in which it is possible to model human morality are sequential games (Harsanyi, 1961; Leibo et al., 2017; Jaques et al., 2019), games with more than two players (Liebrand, 1983; Hardin, 1968), and games with incomplete information, first introduced by Harsanyi (1995). We provide these in Appendix B for context, but focus on the simpler and more abstract two-player matrix games in the subsequent formalization due to their generalizability to a wide range of situations.
+
+
+Reinforcement Learning in Social Dilemmas
+
+
+A social dilemma environment can be implemented for RL agents as a two-player iterated game, played over T iterations (Littman, 1994).
+At each iteration, a moral player M and an opponent O play the one-shot matrix game corresponding to a classic social dilemma (see Table 2 for examples). At every time step t, the learning agent M observes a state,
+
+
+which is the pair of actions played by O and M at the previous time step *MATH*, and chooses an action (Cooperate or Defect) simultaneously with the opponent *MATH*. The player M then receives a reward R^t^^+1^ and observes a new state *MATH*. In traditional RL, this reward would be provided by the environment (i.e., extrinsic reward), and in the social dilemma games it would correspond directly to the payoffs from the game.
+
+
+Moral Preferences as Intrinsic Rewards
+
+
+Intrinsic motivation is a concept originating in human Psychology (Deci &amp; Ryan, 1985), whereby humans&apos; choices (such as the choice of a job) may not be associated with some external reward (such as money), but rather be driven by internal values (such as autonomy, excellence or intellectual curiosity, suggested by Wrzesniewski et al., 1997). In Philosophy, intrinsic motivation may align to the concept of will (Aristotle, 2019) or happiness (Bentham, 1780).
+
+
+Deci et al. (1999) and Oudeyer and Kaplan (2007) draw interesting parallels between intrinsic motivation and rewards. The implication for RL is that effective learning can result from re-defining an agent to follow some internal reward signal rather than only rewards from the environment. Early successes with this approach were reported by Chentanez et al. (2004) in curiosity-driven exploration, where curiosity is modeled as an intrinsic reward obtained when the agent visits unfamiliar states.
+
+
+The intrinsic rewards framework is directly applicable to the idea of learning morality from experience. A small set of existing works in Multi-Agent RL modified the reward signal for agents in social dilemma games to embed an internal moral value or preference into reward functions (Capraro &amp; Perc, 2021; Hughes et al., 2018; McKee et al., 2020; Tennant et al., 2023). In these works, moral preferences have either been expressed as an operation on the extrinsic reward, a combination of the player&apos;s own reward and that of their opponent(s), or a conditional function based on actions performed previously. A related line of work modifies reward functions to include an awareness of the opponents&apos; learning (Foerster et al., 2018; Jaques et al., 2019) - but these lie beyond the scope of the studies reviewed here.
+
+
+A visualization of the intrinsic rewards approach is presented in Figure 3 - using the terminology defined in Section 3.1 and the two-player social dilemma games as a case study. In this formulation, for player M, we contrast traditional agents that learn according to an extrinsic game reward RMextr, which is simply the payoff associated with the joint *MATH* (as defined in Table 2), versus agents that learn according to an intrinsic reward RMintr, based on some moral principle. In Section 3.4.4, we expand on the types of principles that can be encoded as intrinsic rewards.
+
+
+In practice, both extrinsic and intrinsic rewards can be combined in a multi-objective manner (Vamplew et al., 2018) to create an agent able to pursue multiple goals (for example, trying to obtain both moral reward and the reward from the task at hand - Noothigattu et al., 2019). This was the approach used by Chentanez et al. (2004) to create their &apos;curious&apos; yet task-specific agent. Furthermore, multi-objective RL approaches can also be used to combine multiple intrinsic moral rewards to create a multi-faceted moral agent, which allows for the creation of more complex and comprehensive moral agents.
+
+
+We implement a decentralized RL approach where each agent chooses an action in the game without a central planner. A parallel line of work exists in the modeling and ethics literature, where an &apos;ethical&apos; agent is implemented as a centralized mechanism / supervisor (e.g., Neufeld et al., 2022) - this has applications in entirely different domains such as governmental policy design (Koster et al., 2022), and lies beyond the scope of this work.
+
+
+Formalizing Existing Ethical Frameworks as Rewards for AI Agents
+
+
+A variety of moral frameworks has been developed over the millennia in the fields of Moral Philosophy, Psychology, Biology and Economics. We review a representative set of these in Table 3, formulating them as potential reward functions for agents in two-player games. A growing body of RL work demonstrates that mathematical formulations of these frameworks are able to effectively support more prosocial and cooperative behavior in societies of agents (Hughes et al., 2018; McKee et al., 2020; Tennant et al., 2023).
+
+
+FIGURE 3
+
+
+We classify possible moral agent types in Table 3 into Consequentialist or Norm-based. Consequentialist morality focuses on the outcomes or consequences of an action. In dilemma games, this can be easily implemented as an operation on the two players&apos; payoffs. For example, this could include objective functions that are Utilitarian (Bentham, 1780), defining actions as moral if they maximize total utility for all agents in a society, or Altruistic or Spiteful (Levine, 1998), where an agent is inclined to maximize or minimize their opponent&apos;s winnings, perhaps without even considering their own.
+Consequentialist morality also includes fairness-based objective functions. These can be based on the difference between two players&apos; rewards, including the inequity aversion models of Fehr and Fischbacher (2002, 2004a), or other calculations of the ratio between payoffs with different preferences for fair or equal outcomes (Bolton &amp; Ockenfels, 2000; Gini, 1912; Rapoport, 1974). Finally, consequentialism also accounts for the principles of distributive justice of Rawls (1971), in which agents distribute resources without knowing where they will end up in that distribution.
+
+
+Norm-based morality, on the other hand, focuses on defining actions as moral so long as they adhere to a society&apos;s external norms or to the specific agent&apos;s duties, regardless of the consequences further down the line. This framework includes the Deontological ethics of Kant (1785), which identifies specific acts as morally required, permitted or forbidden. An example norm for dilemma game-playing agents may be conditional cooperation, in which an agent is expected to cooperate against a cooperative opponent (Fehr &amp; Fischbacher, 2004a). Further norm-based objective functions have been formalized by Capraro and Perc (2021), Kimbrough and Vostroknutov (2023), Krupka and Weber (2013), Levitt and List (2007), who propose various weights on personal versus social importance of the norm at hand.
+
+
+A third type of ethical framework that is often distinguished is Virtue Ethics of Aristotle (2019) - in this line of reasoning, moral agents act according to their certain internal virtues. In practice, these virtues themselves often have Consequentialist or Norm-based foundations - consider, for example, the virtues of fairness or care, respectively (Graham et al., 2009, 2013). The key distinction of Virtue Ethics is that a single agent may rely on more than one type of virtue, and different agents may weigh the virtues differently against one another (Aristotle, 2019; Graham et al., 2009), so a more expressive way of modeling virtue ethics might be through a weighted, multi-objective paradigm - such as that suggested by Vamplew et al. (2018).
+
+
+TABLE 3
+
+
+In Table 3, we additionally distinguish agents by the external or internal nature of their moral motivation - while each of these frameworks can be formalized as an intrinsic reward function for the RL agent, sometimes the moral aspect of the intrinsic motivation comes from outside the agent themselves. An example of this is where certain moral norms exist externally in a society, so the agent prefers to adhere to them in their individual behavior. The final step for formalizing morality as intrinsic motivation for RL agents, then, is to formulate precise mathematical definitions of rewards based on these frameworks. Using the domain of social dilemmas introduced above, Tennant et al. (2023) propose a formulation in terms of actions and/or outcomes in a two-player, two-action social dilemma game. For illustration, we present their mathematical definitions of moral rewards at a certain timestep t in Table 4 (Tennant et al., 2023).
+
+
+TABLE 4
+
+
+In this set, given two players M and O, Consequentialist morality is implemented as operations on the two players&apos; extrinsic rewards *MATH*. Specifically, for a Utilitarian agent, the reward is simply the sum of the two players&apos; payoffs. For an equality-focused agent Virtue-equality, the reward is the ratio of the two payoffs, based on the Gini coefficient (Gini, 1912), transformed so that larger values mean greater equality between the two agents.
+
+
+Norm-based morality, on the other hand, is operationalized in terms of positive reward for an agent whose action a^t^ adheres to a given norm, or negative reward for its violation. For example, a Deontological agent following the norm of conditional cooperation (defined above) receives a negative reward of value ξ for defecting against an opponent who previously cooperated.
+The other norm-based agent Virtue-kindness follows a simple cooperative norm, obtaining a positive reward ξ for cooperating, regardless of what their opponent did previously.
+
+
+Finally, these examples also outline one multi-objective reward function Virtue-mixed, which linearly combines the two separate virtues &apos;equality&apos; and &apos;kindness&apos;, with a weighting parameter β, and a normalized parameter ξˆ used to fit the &apos;kindness&apos; element of the reward to the same scale as equality.
+
+
+Evaluating Moral Learning Agents
+
+
+Outcomes, Behaviors and Qualitative Assessment
+
+
+After training such morally motivated agents, researchers must evaluate whether their learning was ethically effective. This requires the definition of a set of outcome metrics. Traditional Reinforcement Learning research would train agents in a specific simulated environment and measure some population-level outcome such as cumulative reward. However, as discussed in Section 2.2, further evaluation metrics must be designed to identify potential reward-hacking behavior of RL agents - in other words, we must also measure concepts or behaviors that were not directly encoded in the agents&apos; reward functions. Ideally, these measurements should be broad enough to cover a vast number of diverse ethical considerations in a wide range of scenarios. The challenges of this have been discussed by Reinecke et al. (2023). As an illustration, in Section 4.2 below, we present an example set of population-level outcome metrics that were proposed by Tennant et al. (2023) for the case of social dilemma games.
+
+
+On top of population-level outcomes, a game-theoretic evaluation of emerging behaviors may also be of interest, evaluating actions taken in the game over the course of learning, and the extent to which these actions are aligned with moral norms. In social dilemmas, this must include a measurement of cooperation displayed by each agent towards the end of the learning period. This allows for a non-consequentialist evaluation of learned behaviors and policies, and provides better insight for norm-based morality.
+
+
+Finally, an alternative means of evaluation could include a qualitative assessment by a human who interacts with an agent.
+Within the domain of autonomous vehicles, large-scale evaluations of hypothetical agent behaviors have been conducted by Awad et al. (2018) using survey studies, and focusing on the trolley problem (Thomson, 1976) in particular as an agent environment. Much more qualitative evaluation is required in other domains and sets of problems to understand human perception of AI-assisted decision making more generally.
+
+
+Example: Measuring Outcomes in Social Dilemma Environments
+
+
+In the dilemma scenarios presented here, the choice of one agent affects the outcomes of another. Thus, it is possible that scenarios will arise in which agents intentionally designed with a certain morality (e.g., maximize &apos;collective reward&apos;) actually display behavior that maximizes one outcome at a cost of another (e.g., &apos;equality&apos;). For this purpose, on top of individual rewards, researchers have highlighted the importance of measuring a range of social (i.e., population-level) outcomes (Tennant et al., 2023).
+
+
+The most popular social outcome metric is the collective payoff for all agents - used by Leibo et al. (2017), Hughes et al. (2018), McKee et al. (2020). Additional moral evaluation metrics can include a measure of equality such as the Gini coefficient (Gini, 1912), and an egalitarian measure of the minimum payoff obtained by any agent in the population on every iteration (Rawls, 1971). These three social outcome metrics were formalized in Tennant et al. (2023) as a cumulative return G (i.e., the total reward accumulated over all the T iterations of an iterated game) for both players M and O as follows: *MATH*.
+
+
+In Tennant et al. (2023), the five agents from Table 4 are systematically evaluated on three distinct social dilemma games in terms of the cumulative outcomes defined above and cooperation levels.
+The results show that - with sufficient exploration and learning time - all types of moral agents are able to learn fully cooperative policies, though the &apos;equality&apos; definition produces the least efficient learning agent, which is reflected in the social outcome metrics.
+
+
+Example: Measuring Moral Behavior in Language Models
+
+
+The domain of Large Language Models (LLMs) provides a different set of challenges for measurement. Due to the open-ended nature of its inputs and outputs, and the likely moral diversity of preferences of its users (discussed above), it is harder to define a standard set of metrics to evaluate the moral learning of LLMs. Nevertheless, a large set of benchmark metrics and data sets have already been proposed for measuring morality in these systems (see Hendrycks et al., 2021a, 2021b; Pan et al., 2023; Reinecke et al., 2023).
+
+
+Outlook &amp; Implications
+
+
+Our discussion suggests that the traditional fully top-down (e.g., rule-based) methods, or the currently popular fully bottom-up approaches to AI morality and safety (e.g., fine tuning of LLMs based on Reinforcement Learning from Human Feedback), whilst intuitively attractive because of the control they seem to impose (top-down), or the generality they may offer (bottom-up), are limited and pose potential risks for systems deployed in the real world. We motivate the use of a combination of interpretable top-down quantitative definitions of moral objectives, based on existing frameworks in fields such as Moral Philosophy, with the bottom-up advantages of trial-and-error learning from experience via RL. We argue that this hybrid methodology provides a powerful way of studying and imposing control on an AI system while enabling adaptation to dynamic environments. We review three case studies combining moral principles with learning, which provide proof-of-concept for the potential of this hybrid approach in creating more prosocial and cooperative agents. Moreover, we appreciate the fact that quantifying morality by translating complex moral frameworks into elementary reward functions in this way is certainly a simplification of reality.
+Nevertheless, the original moral philosophical frameworks discussed in this work might be seen as a form of abstraction and, in a sense, simplification of the complex and multi-faceted human condition, and yet these have served the field for centuries.
+
+
+We believe there is a need to study these hybrid approaches in a variety of social environments for morally-informed learning (such as, for instance, other social dilemma games), possibly involving a large number of players. The specific moral reward functions proposed here and in a number of existing practical works (Capraro &amp; Perc, 2021; Hughes et al., 2018; McKee et al., 2020; Tennant et al., 2023), as well the other methodologies reviewed
+
+
+(Bai et al., 2022; Neufeld et al., 2022), are a starting point for building more sophisticated moral agents, including those based on more than one moral objective (Vamplew et al., 2018). In general, the reward-based methods have a disadvantage of the fact that they rely on a clear scalar payoff structure, and in the case of some of the intrinsic moral rewards proposed - a discrete set of actions. An open research question remains about how to obtain this reward structure in open-ended tasks while still maintaining principled control over the morality implemented in the reward.
+
+
+We hope that, in the future, researchers can build on these ideas and further investigate the effectiveness of each of the proposed moral frameworks experimentally. As discussed, the moral preferences of the target audience of any AI system will vary depending on their cultural and political norms (Graham et al., 2013) - in this paper, we did not aim to promote any one moral framework, but instead demonstrated the ways in which different moralities can be implemented using the same methodology of intrinsic rewards.
+
+
+Finally, it is worth noting that approaches described above can bring benefit back to the disciplines they are founded on and took inspiration from. In particular, the proposed methodology can be used to reflect upon and understand different moral frameworks and their impacts, especially in complex situations. For example, it can be used for simulating the outcomes deriving from the presence in a society of agents with specific moral preferences, or to study emergent behaviors in societies composed of agents with different moral principles. In general, this can be seen as a practical example of &apos;Computational Philosophy&apos; (Mayo-Wilson &amp; Zollman, 2021). Moreover, in general terms, modeling moral behavior as a reward-maximizing ϵ-greedy choice made by a continually learning agent can provide insights for Evolutionary Game Theory. Our simulations with learning agents can discover how certain moral behaviors can evolve (and might have evolved) in a society given a payoff structure and different distributions of preferences and norms within a population.
+Additionally, an analysis of the learning dynamics of agents can provide insights for Developmental Psychology, possibly offering a way to test various theories of moral development in children (Gopnik, 2009; Kohlberg, 1975).
+
+
+Conclusion
+
+
+In this paper, we have made the case for the use of learning with explicitly defined moral principles for developing morality in AI agents, contrasting it with more traditional top-down implementations in AI safety and ethics, and the more recent entirely bottom-up methods for learning implicit values from human feedback, such as those used for fine-tuning Large Language Models. We have suggested RL as an effective mechanism for learning morality from experience in a given environment, and reviewed three case studies which successfully implemented this in agents or the overall training of systems in practice. In one of these case studies, we have outlined a hybrid methodology in which agents learn morality from experience by using intrinsic rewards based on classic moral frameworks, and presented a formalization of a set of specific reward functions using social dilemma environments. Finally, we have proposed an example of potential evaluation of the outcomes and behaviors emerging from interactions between different agents over time.
+
+
+We hope that this article can motivate further work in the area of learning morality from experience and interaction with the help of top-down explicit moral principles. While there are substantial challenges in implementing the proposed design guidelines in practice, we believe it provides a promising avenue for addressing the growing safety concerns around emerging advanced AI.

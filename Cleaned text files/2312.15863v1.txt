@@ -1,0 +1,269 @@
+PDiT: Interleaving Perception and Decision-making Transformers for Deep Reinforcement Learning
+
+
+Introduction
+
+
+Deep reinforcement learning (RL) has made great progress in automating decisions in complex environments and tasks, from virtual environments such as mastering video games [*REF*] to real-world applications such as object grasp, autonomous driving, and 6-DoF manipulation [*REF*]. These environments and tasks usually involve multi-modal data.
+
+
+FIGURE
+
+
+Generally, an RL agent receives the environmental observations (perception) and takes actions accordingly (decision-making) to maximize the accumulated rewards. Dealing with environments with multi-modal data can be rather challenging, and various deep learning modules have been employed in perception and decision-making to enhance performance.
+
+
+For most of the deep RL models to perceive inputs in a specific modality from the environment, the perception module needs to be chosen accordingly. Commonly, Multi-Layer Perceptron (MLP), Convolutional Neural Network (CNN), and Recurrent Neural Network (RNN) with its variances have been adopted to encode low-dimensional or proprioception observation [*REF*], vision [*REF*; *REF*], and language [*REF*], respectively. It will be more challenging when the environment contains more than one modality. The intuitive solution was combining different perception modules. For instance, DreamerV3 [*REF*] uses a combination of MLPs and CNN for a mixture of low-dimensional and image inputs. However, such a combination inevitably complicates the models.
+
+
+From the perspective of decision-making, deep modules such as MLP are commonly used to parameterize the policy, e.g., in classic RL models such as DQN [*REF*] and Actor-Critic [*REF*]. Given the nature of RL as a sequential decision process, Transformer [*REF*] has also recently been adopted, proving that it is a powerful decision-maker.
+
+
+However, when considering perception and decision-making together in multi-modal environments, challenges emerge when designing the model: an intuitive solution could still be stacking various modules together. We denote Perception and Decision-making as P and D for short: For example, CoBERL [*REF*] use residual network (P) and Transformer (D); Catformer [*REF*] uses CNN (P) and Transformer (D); when dealing with vision-language tasks, RT-1 [*REF*] uses residual network for vision (P), Universal-Sentence-Encoder for language (D), and Transformer for action (D). The models tend to be gradually over-designed and complicated.
+
+
+In parallel, owing to the Transformer&apos;s growing ability in vision-language domains, such as Vision Transformer [*REF*], Uni-Perceiver-v2 [*REF*], PaLM-E [*REF*], it has been proved that Transformer has powerful vision-language multi-modal perception. This development largely encourages researchers to simplify the model design for a multi-modal generalist agent. Ground-breaking offline RL works such as Decision Transformer (DT) [*REF*], Trajectory Transformer (TT) [*REF*], Gato [*REF*], and MGDT [*REF*] only use a single Transformer sequence model: it encodes inputs from various tasks in different modalities with a causal Transformer, and predict the next step&apos;s action with the same Transformer in an autoregressive manner.
+Undoubtedly, this simple design eases the model complexity; however, fusing perception and decision-making in the same Transformer model could only be sub-optimal. Instead, delegating perception and decision to two separate modules is intuitively more efficient, and *REF* also proves that a specialized perceiver and a specialized decision-maker could largely accelerate learning. At the same time, a compact model design is still preferred over the module-stacking models.
+
+
+To this end, we propose the Perception and Decision-making Interleaving Transformer (PDiT) network, which specializes in perception and decision with two respective Transformers as shown in Figure [1]. Specifically, the PDiT network is made up of a Perceiving Transformer (perceiver) and a Deciding Transformer (decision-maker): the perceiver processes the observation at the patch level to learn a good environmental understanding, while the decision-maker focuses on the good policy learning by conditioning on the history of the desired returns, the perceiver&apos;s outputs and the actions. We first propose a Vanilla-PDiT, which naively stacks the Deciding Transformer on top of the Perceiving Transformer.
+
+
+However, our experiments find that Vanilla-PDiT cannot always achieve the expected performance. Possible reasons are that the vanilla version has no information exchange between the perception and decision; besides, stacking several Transformer blocks may cause over-global attention and loss of focus [*REF*; *REF*].
+Since the deciding layer is to make decisions, once the hidden deciding layer receives the signal from the perceiving layer, it should directly take actions instead of further embedding the input&apos;s representations abstractly by stacking multiple deciding layers.
+
+
+Thus, we propose the final model, which builds a PDiT block by interleaving the perceiving and deciding Transformer blocks and then stacks *MATH* PDiT blocks to form the network. In this way, both perception and decision are considered, and they are still specialized from the perspective of each PDiT block, and the performance is better in practice. Our contributions are summarized:
+
+
+- The core contribution is the proposed PDiT network (Vanilla-PDiT and full PDiT), which is generally applicable to various deep RL settings: (1) online and offline: the online RL like PPO [*REF*], the offline RL like CQL [*REF*], and the offline supervised learning like DT; (2) multi-modal inputs: the environments with image observations like Atari, the environments with proprioception observations like MuJoCo, and the environments with hybrid image-language observations like BabyAI; (3) multi-task reinforcement learning without changing the network architecture.
+- Furthermore, extensive experiments show that the full PDiT can achieve superior performance than strong baselines in different settings. Ablation study and feature visualization give a better understanding of our methods.
+
+
+Related Work
+
+
+A Landscape. Recently, there is a trend of applying Transformers to deep RL [*REF*; *REF*; *REF*]. As shown in Figure [2], we categorize the Transformer-based methods in two dimensions: a) Function specialization: whether the two essential functions of environmental perception and decision-making are fused in one model or specialized with two models; b) Model architecture: whether it is Transformer-only or X+Transformer, which combines a Transformer with other deep *MATH* modules such as CNN to perceive the environment. Specifically, we have the following four combinations: (1) [Specialized: X+Transformer] methods such as GTrXL [*REF*], Catformer [*REF*], CoBERL [*REF*], DT [*REF*] in Atari environment.
+For instance, Catformer [*REF*] combines CNN with Transformer, where the CNN is specialized for perception, and the Transformer is specialized for decision. In practice, they need to change their perception module when handling different observation types, which may hinder their scalability in complex environments. (2) In contrast, the [Fused: Transformer-only] methods like MGDT [*REF*], TT [*REF*], DT in MuJuCo environment, Gato [*REF*], are purely based on the Transformer, which fuses the role of environmental perception and decision-making simultaneously in one Transformer. These models significantly simplified the model structure and improved the scalability, but such a perception-decision fusion in the same model could be sub-optimal and slow in training [*REF*]. For example, DT [*REF*] mixes environmental observations with returns and actions in one Transformer when testing on the MuJoCo tasks, but the performance can be further improved by processing observations separately with another Transformer, as shown by our experiments. (3) There are no [Fused: Transformer+X], which could be reasonable due to them being potentially over-complicated. (4) The proposed PDiT is, to the best of our knowledge, the first model that delegates perception and decision-making into two Transformers, leveraging Transformer&apos;s power of dealing with multi-modal data and making sequential decisions.
+
+
+FIGURE
+
+
+Concurrent Work. StARformer [*REF*], HDT [*REF*], GDT [*REF*] and our preliminary work TIT [*REF*] also apply two Transformers for better scalability and performance. But we have fundamentally different motivations and implementations: StARformer focuses on balancing short-term and long-term dependencies with mixed Transformer-CNN; HDT aims at hierarchical control with subgoal prediction; GDT applies a causal graph to capture potential dependencies between different concepts and facilitate temporal and causal relationship learning; in contrast, our PDiT combines the advantages of the existing methods by dividing environmental perception and decision-making into two Transformers, and it is applicable for many deep RL settings.
+
+
+Applying Two Transformers in Other Fields. In multi-agent reinforcement learning, two Transformers are used for asynchronous action coordination [*REF*]. In computer vision, some methods apply two Transformers to handle tasks like image classification and person search, e.g., TNT [*REF*]., ViViT [*REF*], DualFormer [*REF*] and COAT [*REF*]. However, our PDiT and these works are totally different. Although both divide the image input into patches, it is worth noting that this is a standard process for all Vision Transformers. Besides, both have two Transformers but with different designs. For example, TNT&apos;s outer Transformer takes the coarse-grain patches, and the perceiving one further takes the finer patches from the coarse patch. For our PDiT, the perceiver&apos;s input is the multi-modal observation (image, proprioception, image-language), and the decision-maker&apos;s input is return-observation-action embedding. The perceiving Transformer perceives the environment, and the deciding one takes action. As a result, TNT can only be used for vision tasks, but our PDiT is designed for RL tasks.
+
+
+Approach
+
+
+We consider problems that can be formulated as a Markov Decision Process (MDP), which is formally defined by a tuple *MATH*, where *MATH* is the set of possible states *MATH*; *MATH* represents the set of possible actions *MATH*; *MATH* denotes the state transition function; *MATH* is the reward function; *MATH* is the discount factor. We use *MATH*, *MATH* and *MATH* to denote the state, action and reward at timestep *MATH*, respectively. Our goal is to learn a policy *MATH* that can maximize *MATH* where *MATH* is the discounted return, and *MATH* is the time horizon. Reinforcement learning [*REF*] is a popular approach to solve the MDP problems. In practice, the environment can be noisy, so we can only get an observation *MATH*, which contains partial information of the state *MATH*. We have to learn the policy based on the observation history *MATH*, which will be represented by *MATH* for simplicity and *MATH* is the history horizon. This setting is called partially-observable MDP (POMDP) [*REF*]. Given these settings and notations, we introduce our PDiT network as follows.
+
+
+Vanilla-PDiT 
+
+
+Vanilla-PDiT is the minimal implementation of PDiT. As shown in Figure [3], it stacks multiple perceiving Transformers to encode the multi-modal input and multiple deciding Transformers to learn the policy via the MDP decision sequences.
+
+
+Specifically, the perceiving Transformer (which consists of *MATH* perceiving blocks) focuses on the environmental perception by processing the observation at the patch level, while the deciding Transformer (which is made up of *MATH* deciding blocks) pays attention to the decision-making (i.e., generating the action *MATH*) by conditioning on the history of the desired returns *MATH*, the perceiver&apos;s outputs *MATH* and the actions *MATH*.
+
+
+However, naively stacking the deciding Transformer on top of the perceiving one cannot always achieve the expected performance, as shown in our experiments. We suppose this is because there is no information interaction between the perceiving and deciding blocks, which may hinder the representation learning for reinforcement learning, as demonstrated by our feature visualization. So we propose the full PDiT to improve the performance.
+
+
+PDiT
+
+
+As shown in Figure [4], the full PDiT first builds a PDiT block by one perceiving block and one deciding block on the top, then stacks *MATH* PDiT blocks to form the network. In this way, we interleave the perceiving and deciding Transformer blocks, such that the information can be fully fused in every PDiT block, while the perception and decision are still specialized by the perceiving and deciding blocks, respectively. In the following, we introduce the details.
+
+
+FIGURE
+
+
+FIGURE
+
+
+Dealing with the Multi-modal Observations
+
+
+Different environments have different types of observations. As shown in Figure [5], we consider three common types: image observation in Atari, proprioception observation in MuJoCo, and hybrid image-language observation in BabyAI.
+
+
+(1) Transform into Sequential Input. To feed multi-modal input into a Transformer, we will first &quot;sequentize&quot; the data.
+
+
+Given an image observation *MATH*, we split it into a sequence of observation patches *MATH*, where *MATH* is the resolution of the original image observation; *MATH* is the number of channels; *MATH* is the resolution of each patch; and *MATH* is the resulting number of patches, which is known as the context length for the perceiving Transformer. After getting the observation patches, we map each patch *MATH* into the observation patch embedding with a trainable linear projection *MATH*: *MATH* *MATH* *MATH* where *MATH*, and *MATH* is the dimension of the observation patch embedding.
+
+
+Given a proprioception observation with *MATH* entries, i.e., *MATH*, we take each entry as an observation patch independently: the sequence of observation patches will be *MATH* where *MATH* is equal to *MATH*. This is convenient and reasonable since each entry usually has atomic semantics, e.g., in the classic Mountain Car environment, the 2 entries of observation represent the atomic meaning of &quot;Car position&quot; and &quot;Car velocity&quot;, respectively. If there is prior knowledge, we can generate the observation patches in other ways (e.g., several entries as a patch). Then, we again use a trainable linear projection *MATH* to map the observation patches into the observation patch embeddings.
+
+
+Given a hybrid image-language observation, the image will be processed as above, and the language will be processed using Word Embedding [*REF*]. We concatenate them and get a total number of *MATH* observation patch embeddings, where *MATH* is the number of words in the language. Our method is motivated by Vision-Language Pre-training [*REF*].
+
+
+(2) Integration Token Encoding. After getting the observation patch embeddings, a trainable integration token *MATH* is added: *MATH* *MATH* *MATH*. 
+
+
+(3) Observation Patch Position Encoding. We then add the observation patch position encoding, which is a trainable parameter *MATH*, to retain positional information: *MATH* *MATH* *MATH* The resulting *MATH* serves as the input of the perceiving Transformer.
+
+
+Interleaving Perceiver and Decision Maker
+
+
+Now we introduce the PDiT block.
+
+
+(1) Perceiving Transformer Block. The concrete operations in the *MATH* -th perceiving block *MATH* are as follows: *MATH* *MATH* *MATH* where MSA(*MATH*), LN(*MATH*), and FFN(*MATH*) stand for the multi-headed self-attention, layer normalization, and feed-forward network used in the original Transformer [*REF*]. There is no mask in the MSA so that all patches in an observation can be used for good environmental perception.
+Moreover, the perceiving block can build the spatial relationships among observation patches within an observation by computing interactions between two observation patches.
+
+
+For any layer *MATH*, there are 1+ *MATH* tokens in *MATH* (i.e., *MATH*), and the integration token *MATH* will serve as the integrated representation of all tokens.
+
+
+(2) Deciding Transformer Block. As shown in Figure [4], the input of the deciding block is the trajectory across *MATH* timesteps. We use the superscript *MATH* and the subscript *MATH* to represent the timestep and the layer, respectively. The input of the *MATH* -th deciding block is: *MATH* *MATH* *MATH* The detailed operations in the *MATH* -th deciding block *MATH* can be shown as follows: *MATH* *MATH* *MATH* There are causal masks in the MSA so that the deciding block can build the temporal relationships among different trajectory tokens across *MATH* timesteps, which is helpful for decision-making in the POMDP setting.
+
+
+(3) PDiT Block. As shown in Figure [4], the PDiT block combines one perceiving block and one deciding block. Formally, the operations in the *MATH* -th PDiT block are: *MATH* *MATH* *MATH* In Eq.), the perceiving blocks in the same layer share model parameters across different timesteps, so the number of model parameters in PDiT is comparable to existing methods.
+
+
+Note that for any layer *MATH*, there are 2+ *MATH* tokens in *MATH*. This is because there are 3 tokens (i.e., *MATH*) for each timestep before *MATH* and *MATH* for timestep *MATH*. We use the last token *MATH* as the representation of all tokens, which is a conventional operation for causal Transformers.
+
+
+(4) PDiT Backbone Network. We stack *MATH* PDiT blocks to form the full PDiT network, ensuring that the spatial-temporal information is fully fused for good representation and decision. Then, we apply a dense connection design to concatenate the last token *MATH* from all PDiT blocks and apply an FFN upon the concatenation to generate the final action: *MATH* *MATH* *MATH* We found that the dense connection is empirically helpful for performance in the experiments.
+
+
+Why interleaving the perceiving and deciding blocks is better (than stacking all deciding blocks to the end)?
+
+
+Possible reasons are as follows. First, the outer is to make decisions.
+Once it receives the output from the perceiving, it should directly take actions instead of further abstractly embedding the representations by stacking multiple deciding blocks. Second, this interleaving design encourages the information interaction between the perceiving and deciding blocks (but not mixed or fused up). Third, stacking too deep transformer layers may also cause losing focus.
+
+
+TABLE
+
+
+Training Methods
+
+
+This paper focuses on designing networks that are generally applicable to different deep RL settings, so we restrain ourselves from modifying the RL training algorithms and use the existing algorithms to train PDiT. Specifically, we train PDiT with PPO [*REF*] based on Stable-baseline3, CQL [*REF*] based on D3rlpy, and Reinforcement Learning via Supervised Learning (RvS) [*REF*] based on the official Decision Transformer (DT). As shown by Table [1], these algorithms cover a lot of RL settings. We refer the readers to their original papers for more details.
+
+
+TABLE
+
+
+TABLE
+
+
+TABLE
+
+
+Experiment
+
+
+Setting 
+
+
+Evaluation Environments.
+
+
+We use Atari, MuJoCo, and BabyAI as the evaluation environments. Specifically, Atari has image observations and discrete action spaces; MuJoCo has proprioception observations and continuous action spaces; while BabyAI has hybrid image-language observations and discrete action spaces. We consider these environments because they are credible benchmarks and their settings are diverse.
+
+
+Baseline Deep Networks.
+
+
+Since PDiT is based on Transformers, we will mainly compare it with other Transformer-based networks. (1) Environment with image observations: we compare with NatureCNN [*REF*], ResNet [*REF*], ResNet + Transformer (i.e., Catformer [*REF*]), ResNet + Transformer + Gating + LSTM (i.e., CoBERL [*REF*]). (2) Environments with proprioception observations and hybrid observations: we compare with MLP, DT [*REF*], Transformer-based Behavior Cloning (i.e., GATO [*REF*]).
+
+
+Hyperparameter Tuning.
+
+
+To ensure fair comparison, we follow recent works [*REF*; *REF*] and report results of most baselines from their original papers. We believe that these results are already tuned to the best by the original authors. For baselines run by us (only ResNet, Catformer, CoBERL and GATO), the common hyperparameters (e.g., training steps, learning rate, discount factor) are set as the open-source code repositories, while some specific hyperparameters (e.g., the number of network layers, embedding size) are tuned using the random grid-search as PDiT.
+
+
+Result 
+
+
+Training with PPO under Atari Environments. The results are shown in Table. As can be seen, the conventional NatureCNN and ResNet can achieve satisfactory scores in most Atari environments. Compared to these conventional networks, ResNet + Transformer (i.e., Catformer) and ResNet + Transformer + LSTM + Gating (i.e., CoBERL) can achieve better average performance than NatureCNN but are worse than ResNet. It is because these mixed CNN-Transformer methods are unstable across different tasks, e.g., CoBERL gets a very high score in MsPacman, but the lowest score in SpaceInvaders. Compared to these baselines, PDiT achieves good performance in most testing cases.
+
+
+Training with RvS under MuJoCo Environments. As observed in Table, PDiT is better than DT and GATO, especially in practical datasets with complex distributions.
+Specifically, PDiT matches or exceeds DT and GATO by a small margin in &quot;Medium&quot; datasets generated from a single policy. In contrast, PDiT outperforms DT and GATO by a large margin in &quot;Medium-Replay&quot; datasets (also known as the &quot;Mixed&quot; datasets) that combine multiple policies.
+Since the mixed datasets with complex distributions are more likely to be common in practice, as mentioned in [*REF*], we expect that PDiT will work better than DT and GATO in practical applications.
+
+
+Training with CQL under MuJoCo Environments. In the previous experiments, we find that training with RvS can sometimes result in small improvements. One possible reason may be that the ability of RvS to stitch offline data is not as strong as TD-learning. Thus, we test whether training with CQL, the state-of-the-art in offline TD-learning, can further improve PDiT. The results in Table show that PDiT can improve CQL-MLP by 42.5% on average.
+
+
+Training with RvS under BabyAI Environments. The results shown in Table [2] demonstrate that PDiT is obviously better than DT and GATO under environments with hybrid image-language observations and sparse rewards.
+
+
+Summary: All of the above results together prove that the proposed PDiT is generally applicable to a lot of RL settings, i.e., different RL training algorithms and evaluation environments with diverse characteristics.
+
+
+More Results: We provide more results on other classical scenarios and multi-task reinforcement learning in the Appendix 4. To highlight, we perform multi-task reinforcement learning with one compact network, our PDiT, without changing the network architecture. We use multiple tasks (e.g., GoToRedBall, GoToObj, and GoToSeq) to train PDiT, then evaluate PDiT on each task separately. PDiT with multi-task learning achieves a better average return than baselines with single-task learning.
+
+
+FIGURE
+
+
+Ablation Study
+
+
+We consider the following ablation networks:
+
+
+1. Existing networks like DT: There is one Transformer, which is worse than PDiT as shown by Tables.
+2. w/o Perceiver: This removes the perceiving Transformer of PDiT, so only the deciding Transformer is used. In this network, the input of the deciding blocks is the observation embedding, which is generated by linearly mapping the whole observation with a trainable parameter.
+3. w/o Decision-maker: This removes the deciding Transformer of PDiT, so only the perceiving Transformer is used. In this network, the *MATH* observations are stacked in the same way as DQN and then processed by the perceiving blocks to generate the action.
+4. Vanilla-PDiT: There are two Transformers, but they are stacked naively as mentioned in Section [3.1].
+5. w/o Dense: There are two Transformers, but the dense connection design is removed from the PDiT. In this network, only the output of the last PDiT block is used to generate the action (i.e., *MATH*).
+
+
+TABLE
+
+
+FIGURE 
+
+
+The ablation results are shown in Table. (1) Compared to PDiT, Vanilla-PDiT has the maximum performance degradation. It implies that although two Transformers are necessary for PDiT, naively combining them cannot get the expected performance, and the design of interleaving the perception and decision makes the most contribution. (2) Besides, &quot;w/o Dense&quot; has the second worst performance: this result verifies that the dense connection design is important. This is intuitive and reasonable since the dense network feeds all the outputs of each deciding Transformer to the final output, with more abundant information. As far as we know, previous studies have shown that the dense connection is also important for networks that are based on the CNN [*REF*] and MLP [*REF*; *REF*], but PDiT is the first work to demonstrate this for purely Transformer-based networks. (3) Furthermore, both &quot;w/o Perceiver&quot; and &quot;w/o Decision-maker&quot; perform worse than PDiT, which indicates that both perceiving and deciding blocks are necessary for good performance.
+
+
+Visualization
+
+
+Feature Gradient Visualization.
+
+
+We visualize the feature gradient of different methods by Grad-CAM [*REF*], which is a typical method for visualization and explainability of deep networks. The results are shown in Figure [6].
+
+
+From the spatial perspective, PDiT generates more explainable gradient maps than other methods. As can be seen in Figure [6], the gradient of NatureCNN, ResNet, and PDiT is highly correlated with the objects in the observations in most cases. In contrast, Catformer and Vanilla-PDiT have disorganized gradient maps, and they sometimes generate unexplainable gradients, as shown by the Pong case.
+Furthermore, in the SpaceInvaders task, the gradient values are often positively-correlated with the density of the invaders (namely, the attention color is darker where there are many invaders that are close to the agent).
+
+
+From the temporal perspective, PDiT generates more stable gradient maps than other methods. For example, when the observation changes slightly over a small time step, its gradient map does not change significantly. Thus, PDiT may learn consistent temporal representations for good decision-making, which may explain its stable performance across different tasks. In contrast, gradient maps of NatureCNN and Catformer have changed a lot.
+
+
+Attention Weight Visualization.
+
+
+In the above section, we have visualized the feature gradient of different methods by Grad-CAM. In this section, we visualize the attention weights of the MSA operation from the perceiving and deciding Transformers of our PDiT, as shown in Figure.
+
+
+The analyses from the spatial perspective. For the PDiT&apos;s perceiving block: Here, we use the integration token as the key in the MSA operation because it serves as the integrated representation of all observation patches. As we can see, the observation image&apos;s top and bottom regions get higher attention weights since the top region is the game score, and the bottom region contains the paddles and balls, which are important for the game. In contrast, the central region of the observation image is mainly the background, which may have little influence on the game, so the attention weight values of the middle part are small. Based on this visualization, we conclude that the perceiving Transformer of PDiT can indeed capture important spatial information for good decision-making.
+
+
+The analyses from the temporal perspective. From the deciding block&apos;s perspective: Here, we use four observations to form the observation history to match the setting of the original DQN [*REF*]. As we can see, the current observation *MATH* usually gets the highest attention weights (i.e., the color on the diagonal is darker); moreover, the observation (e.g., *MATH*) close to the current timestep gets higher attention weight than the far away ones (e.g., *MATH* and *MATH*); therefore the most updated information can be attended and used for decision-making. Based on this visualization, we conclude that PDiT (and the deciding Transformer) can indeed capture important temporal information for good decision-making.
+
+
+Conclusion and Future Work
+
+
+This paper proposed the Perception and Decision-making Interleaving Transformer (PDiT) network for deep RL. The key insight is cascading two specialized Transformers in a very natural way: the perceiving one processes the observations for good environmental perception, while the deciding one focuses on good decision-making. As far as we know, specializing perception and decision by a pure Transformer-based network is achieved for the first time. The experiments demonstrated that PDiT can achieve good results in many RL settings. Furthermore, PDiT can extract explainable representations from both spatial and temporal perspectives.
+
+
+With the goal to conceptually demonstrate the potential advantages of interleaving perception and decision-making for deep RL, we simply implement PDiT using the basic Transformer [*REF*]. We expect that PDiT could further improve the performance with more advanced networks like Swin Transformer [*REF*] and dedicated optimization skills like contrastive learning [*REF*] (although this is not the focus of this paper). We give more discussions about the limitations and future directions in Appendix 5.

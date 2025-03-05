@@ -1,0 +1,212 @@
+EgoPlan-Bench: Benchmarking Egocentric Embodied Planning with Multimodal Large Language Models
+
+
+Introduction 
+
+
+In recent years, Large Language Models (LLMs) [*REF*; *REF*; *REF*; *REF*] demonstrate strong performance in general-purpose natural language tasks. By seamlessly integrating the impressive reasoning and generalization ability of LLMs with multi-modal comprehension capabilities, Multimodal Large Language Models (MLLMs) inherently have the potential to serve as embodied task planners, which are expected to predict feasible actions given a specific task goal, real-time task progress and visual observations. Embodied task planning is crucial in enabling autonomous agents to plan for complex tasks in everyday environments, paving the way for versatile AI assistants.
+
+
+FIGURE
+
+
+However, embodied planning in real-world scenarios presents significant challenges, as it requires a comprehensive understanding of the dynamic and complicated visual environment and the identification of the key information relevant to the tasks. The model needs to comprehend various types of fine-grained visual information such as the object states and spatial relationships between objects. Moreover, for long-horizon tasks, models are expected to process a series of past visual observations to assess the task progress and make informed plans that better facilitate task completion.
+
+
+As exemplified in Figure [1], in order to decide the next appropriate action for the task goal &quot;mixing the meat with yogurt&quot;, the model must be able to understand and track several state changes of the yogurt container and the spoon, and clearly identify the white paste of yogurt on the meat that requires further stirring in the current observation.
+
+
+FIGURE
+
+
+So we ask how far are the current MLLMs from becoming an embodied planning generalist in real-world scenarios? Despite the emergence of various benchmarks [*REF*; *REF*; *REF*; *REF*] specially designed to evaluate MLLMs across a wide range of dimensions, there is a notable absence of a benchmark designed for objectively evaluating the capabilities of MLLMs in embodied planning, especially for practical real-world tasks that involve complex visual inputs. Large-scale egocentric videos [*REF*; *REF*] capturing daily human activities from the first-person perspective serve as a valuable resource for research in this area. However, as illustrated in Figure, existing egocentric video question-answering (QA) benchmarks [*REF*; *REF*] mainly focus on analyzing the comprehension ability of models based on a complete video demonstration. In contrast, an embodied task planning benchmark emphasizes on evaluating the planning capability of a model to predict feasible actions for a specific task goal, given the real-time task progress shown in partial video input and current visual observation.
+
+
+To mitigate the aforementioned gap, this paper establishes a rigorous Egocentric Embodied Planning Benchmark called EgoPlan-Bench, for real-world embodied planning, which is sourced from egocentric videos [*REF*; *REF*] that showcase everyday human activities. All the evaluation data has undergone strict manual screening, as illustrated in Figure [\. Drawing upon the attributes of the egocentric video sources, our benchmark exhibits three main characteristics. 1) Realism of Tasks: The tasks are extrapolated from authentic real-world videos, offering a closer reflection of daily human needs and showcasing greater variety than artificially constructed tasks. 2) Diversity of Actions: The benchmark involves a diverse set of actions, requiring interaction with hundreds of different objects and extending beyond basic manipulation skills such as picking and placing items. 3) Intricacy of Visual Observations: The visual observations come across various real-world scenes, where objects vary in appearance, state, and placement. Besides, the visual inputs can span extensive periods, making it difficult for models to monitor task progression and detect critical changes in object states.
+
+
+We evaluate a wide range of MLLMs on our benchmark. The results indicate that our benchmark poses significant challenges for existing MLLMs, and there is still a long way to go before these models evolve into generalist embodied task planners. In light of the empirical findings, we construct an instruction-tuning dataset EgoPlan-IT in an automatical way, which is specialized for enhancing Egocentric Embodied Planning. We further fine-tune a baseline MLLM with EgoPlan-IT, and the experiment results show that the fine-tuned model significantly improves performance in both in-domain and out-of-domain evaluations. It demonstrates the feasibility for MLLMs to learn generalizable commonsense for task planning from real-world videos. [The fine-tuned model can also be applied to guide a robot in completing long-horizon tasks in a simulated environment, which showcases the potential of MLLMs as the &quot;brain&quot; of an embodiment in accomplishing complex tasks.]
+
+
+In summary, our main contributions include:
+
+
+-  We introduce an evaluation benchmark called EgoPlan-Bench for real-world embodied planning based on egocentric videos, which features realistic tasks, diverse actions, and intricate visual observations.
+-  We evaluate a wide range of MLLMs and find that our benchmark poses significant challenges for them. We further provide a detailed analysis of the possible reasons and future directions in this area.
+-  We construct an instruction-tuning dataset EgoPlan-IT specifically for Egocentric Embodied Planning in real-world scenarios. The model tuned on this dataset demonstrates robust performance gains on the proposed benchmark and [the potential to act as a task planner for guiding embodied agents.]
+
+
+Related Work
+
+
+Large Foundation Models for Embodied Planning. The growing number of studies incorporating large foundation models into embodied planning processes can be broadly categorized into two main trends. The first trend focuses on utilizing Large Language Models (LLMs) [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*] to facilitate reasoning and planning based on textual information.
+Research in this direction often depends on external modules, which convert multi-modal environment information into text [*REF*; *REF*; *REF*] or ground LLM predictions to environment affordance [*REF*; *REF*; *REF*; *REF*].
+However, these approaches are constrained by the accuracy of the external modules, which may lead to error propagation. The second trend focuses on Multimodal Large Language Models (MLLMs) for end-to-end embodied planning, which extends LLMs with multi-modal perception abilities. PaLM-E [*REF*] is the first work to demonstrate the potential of this approach. Subsequent works, such as EmbodiedGPT [*REF*] and Otter [*REF*; *REF*], construct instruction data based on egocentric videos [*REF*] for model pretraining and show qualitative evidence of emergent embodied planning abilities. Nonetheless, these studies have not conducted a comprehensive and objective evaluation of embodied planning in real-world scenarios.
+
+
+Egocentric Video QA Benchmarks. Egocentric videos provide a distinctive perspective for active engagement with the real world. Over the years, numerous egocentric video datasets have been developed [*REF*; *REF*; *REF*].
+Large-scale daily lifelog datasets such as Epic-Kitchens [*REF*] and Ego4D [*REF*] offer fine-grained information on human-object interactions, making them valuable resources for embodied AI research. Existing egocentric video QA benchmarks primarily assess models&apos; understanding of activities and objects in a given egocentric video demonstration. These questions range from visual concept recognition [*REF*] to spatial, temporal, and causal relationship reasoning [*REF*]. However, none of these benchmarks address the specific needs of embodied planning, where a more practical question and answer would involve a task goal instruction and a prediction of the next executable action that has not yet occurred but is helpful for achieving the given task goal.
+
+
+Multimodal Large Language Models. Recent advancements in Large Language Models (LLMs) [*REF*; *REF*; *REF*; *REF*] have led to significant achievements in language understanding and generation. As a result, there is a growing interest in developing Multimodal Large Language Models (MLLMs) that combine LLMs&apos; impressive language capabilities with multi-modal perception abilities [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Typical research involves integrating representations from pretrained visual encoders into LLMs&apos; input embedding space through pretraining on image-text interleaved datasets [*REF*; *REF*; *REF*; *REF*; *REF*].
+Recent studies extend this approach to incorporate video inputs, enhancing LLMs&apos; video comprehension capabilities. Some works even advance MLLMs to include visual generation abilities [*REF*; *REF*]. In this paper, we aim to provide a comprehensive evaluation of these models, particularly focusing on their performance in Egocentric Embodied Planning.
+
+
+EgoPlan-Bench 
+
+
+FIGURE
+
+
+As illustrated in Figure, given a language instruction demonstrating the task goal, Egocentric Embodied Planning aims to decide the next appropriate action based on the visual input. The visual input includes a video showing a sequence of previous video frames indicating the task progress, with the last frame indicating the current egocentric observation. The proposed EgoPlan-Bench contains 3.4K high-quality human-verified multiple-choice questions derived from existing egocentric video sources [*REF*; *REF*]. In Sec. [3.1], we first introduce the egocentric videos we used to build the benchmark. We illustrate how to automatically [extract] task goals from these videos in Sec. [3.2] and construct questions based on the extracted task goals in Sec. [3.3]. We then report the detailed data statistics in Sec. [3.4] and finally describe our evaluation strategy in Sec. [3.5]. The entire benchmark construction pipeline is demonstrated in Figure.
+
+
+Egocentric Video Sources 
+
+
+Unscripted, egocentric videos encompass a wide range of daily human tasks and diverse actions, making them an ideal and challenging medium for evaluating embodied planning. We select two large-scale and well-annotated datasets, Epic-Kitchens [*REF*] and Ego4D [*REF*], as our video sources. In Epic-Kitchens, each video is annotated with dense narrations and start/end timestamps of actions.
+The narrations are expressed as brief verb-object phrases. Ego4D offers similar annotations, except that it only provides a single timestamp for each action and the narrations are expressed as brief sentences like &quot;C does something&quot;. We convert Ego4D narrations to verb-object phrases as Epic-Kitchens with GPT-4 [*REF*] and derive the start and end timestamps for each action segment following the EgoVLP framework [*REF*].
+
+
+Task Goal Extraction
+
+
+Hierarchical Task Goal Identification. Egocentric videos, which capture tasks ranging from simple (involving fewer than three actions) to complex (entailing a long sequence of actions), present challenges in identifying task goals due to their varying lengths. To address this, we introduce a hierarchical reasoning strategy to identify task goals. As illustrated in Figure, given the dense narrations of actions, we utilize GPT-4 to decompose video content into three levels: overall goal *MATH* subgoal *MATH* secondary subgoal. For instance, the goal to &quot;make coffee with milk and toast with butter and jam&quot; is divided into the subgoals of &quot;making coffee with milk&quot; and &quot;making toast with butter and jam,&quot; with the former further broken down into secondary subgoals like &quot;brew coffee into mug&quot; and &quot;merge coffee and milk.&quot; This hierarchical approach allows GPT-4 to efficiently summarize tasks of varying complexity by organizing them into a structured framework, similar to chain-of-thought reasoning. Our findings suggest that prompting GPT-4 to generate all task goals at once may lead to difficulties due to the extensive information presented in longer videos. The Detailed prompt can be found in the supplementary material.
+
+
+Task Goal Filtering. Given the variance in video lengths, the task hierarchy across different videos might not align consistently.
+Specifically, the complexity of the overall goal in a shorter video could be equivalent only to a secondary subgoal in a more extended video. To address this variance, we aggregate the overall goals, subgoals, and secondary subgoals extracted from various videos under the unified term &quot;task goals&quot;. We then refine this set by filtering based on the requisite number of actions, retaining only those task goals that involve between 4 to 20 actions to maintain a moderate level of task complexity.
+
+
+Multiple-Choice Question Answering 
+
+
+Automatic QA Generation. Following the mainstream MLLM benchmarks [*REF*; *REF*], we evaluate Egocentric Embodied Planning with multiple-choice questions, which facilitates the convenient computation of accuracy as an objective metric. With the filtered task goals, we use templates to automatically generate questions. As shown in the blue box in Figure, the underlined words indicate the part to fill in with different task goals. With the same task goal, we can derive several question-answering (QA) pairs that differ in task progress and current observations. For example, given a task goal involving *MATH* actions, we can obtain *MATH* corresponding QA pairs with each action as the ground-truth answer. We align the visual input with the ground-truth answer and randomly sample three distinct actions under the same task goal as negative choices.
+
+
+Visual Input Alignment. The visual input attached to each QA pair contains the historical observations since the whole task begins and right before the ground-truth action occurs. The last frame of the visual input indicates the current observation for planning the next action. To prevent the models from cheating with the clues from hand-object interaction (e.g., a hand touching a tap implies turning it on or off), we set the end timestamp of the visual input as 0.5 seconds preceding the actual action segment.
+
+
+FIGURE
+
+
+Human Verification. To ensure the reliability and objectiveness of our EgoPlan-Bench, we rigorously refined the automatically generated QA pairs with the help of 10 professional annotators, all holding at least a bachelor&apos;s degree. Initially, annotators underwent a quality assurance phase, pre-annotating 50 samples following comprehensive guidelines.
+Their work was meticulously reviewed by two senior annotators. During the main annotation phase, pairs of annotators independently selected the most appropriate answers for each question, based on the task goal and visual cues, or flagged questions with unclear options for removal.
+We retained only those QA pairs where annotators&apos; choices were unanimous and aligned with the ground-truth answer. This process resulted in 3.4K high-quality multiple-choice QA pairs, closely correlated with visual observations.
+
+
+Data Statistics 
+
+
+The proposed EgoPlan-Bench, detailed in Table, includes 3,355 multiple-choice questions covering 2,406 task goals. Figure shows the distribution of task goals. Overall, there are 2,979 actions (verb-object phrases) from the questions&apos; candidate options, involving 202 distinct root verbs and 496 unique objects. The most common actions are illustrated in Figure, demonstrating the benchmark&apos;s variety of actions. Additionally, the visual observations of these questions originate from egocentric videos taken across 279 different scenes. This diversity in task goals, candidate actions, and visual scenes underscores the challenges presented by our benchmark.
+
+
+Evaluation Strategy 
+
+
+Inspired by [*REF*; *REF*; *REF*; *REF*; *REF*], we use the closed-set answer ranking strategy based on language completion distribution, rather than directly matching a model&apos;s free-form generation results with candidate options. From the output distribution of MLLMs, we can derive the likelihood *MATH* that an MLLM generates the content of each candidate action *MATH*, given the visual inputs *MATH* and the user instruction *MATH* as the multimodal context.
+
+
+This approach avoids the influence of option sequence in the prompt on the model&apos;s performance. More importantly, it is closer to the practical setting. An MLLM that achieves better performance on our benchmark indicates that it can output precise next-action plans with higher probability.]
+
+
+Evaluation Results
+
+
+TABLE
+
+
+Models
+
+
+We select 22 prominent MLLMs for a comprehensive evaluation, including BLIP-2 [*REF*], InstructBLIP [*REF*], InstructBLIP Vicuna [*REF*], LLaVA [*REF*], MiniGPT-4 [*REF*], VPGTrans [*REF*], MultiModal-GPT [*REF*], Otter [*REF*], OpenFlamingo [*REF*], LLaMA-Adapter V2 [*REF*], GVT [*REF*], mPLUG-Owl [*REF*], Kosmos-2 [*REF*], Qwen-VL-Chat [*REF*], LLaVA1.5 [*REF*], VideoChat [*REF*], Video-ChatGPT [*REF*], Valley [*REF*], Video-LLaMA [*REF*], SEED-LLaMA [*REF*], InternLM-Xcomposer-VL [*REF*], [GPT-4V [*REF*]].
+
+
+Performance Analysis
+
+
+FIGURE
+
+
+The performance of various MLLMs on our EgoPlan-Bench is shown in Table [1]. Notably, the majority of these models exhibit only marginally better results than random guessing, with the highest-performing model attaining a mere 37.98% accuracy, indicating that current MLLMs lack the ability as real-world embodied task planners. In the supplementary material, we present common failure cases of these models. Our analysis reveals that most MLLMs tend to select options that are semantically closer to the given task goal.
+However, they often fail to pay adequate attention to the vital aspect of visual observations. Common mistakes such as overlooking completed actions or misinterpreting key object states can significantly affect their overall performance in Egocentric Embodied Planning.
+
+
+Case Study with GPT-4V
+
+
+Since GPT-4V achieves the best performance among all the evaluated MLLMs, we use it for a qualitative case study to delve deeper into why current MLLMs may underperform on our benchmark. As depicted in Figure, we require GPT-4V to explicitly summarize the task progress and describe the current observation before planning the next action. 
+
+
+Our observations indicate that while GPT-4V successfully identifies obvious actions, like &quot;removing the lid of yogurt container&quot; or &quot;measuring yogurt with a spoon,&quot; it might overlook more subtle state changes that are critical to the task&apos;s objective. For instance, GPT-4V fails to recognize that yogurt has been added to the meat, as indicated by the white paste visible on the meat post-measurement. Furthermore, even when the yogurt has been placed on the countertop in the final frame, GPT-4V erroneously maintains that the current observation shows &quot;a hand holding a spoon containing yogurt.&quot; This misinterpretation of the visual input leads to incorrect next plans, such as concluding that the next action is to &quot;Add yogurt to meat,&quot; when this step has already been completed. This case study highlights a key area for improvement in MLLMs&apos; processing of visual cues in the context of real-time task execution.
+
+
+Future directions may include: 1) developing advanced algorithms or incorporating sophisticated training datasets that highlight subtle visual changes, 2) enhancing contextual understanding of MLLMs to make more informed plans based on comprehensive visual input analysis relevant to specific task goals, and 3) integrating real-time feedbacks for adaptability in dynamic environments. These improvements would enhance MLLM performance in Egocentric Embodied Planning and expand their applicability in real-world scenarios.
+
+
+Enhancing Egocentric Embodied Planning Capability by Instruction Tuning
+
+
+Given the suboptimal performance of the evaluated MLLMs on EgoPlan-Bench, we investigate enhancing the Egocentric Embodied Planning capabilities of MLLMs through instruction-tuning. Specifically, we construct an instruction-tuning dataset, EgoPlan-IT, to enable MLLMs to effectively learn embodied planning experience from real-world videos.
+In this section, we first describe the data preparation process in Sec.
+[5.1]. Then we introduce the framework of a baseline MLLM in Sec. [5.2] and the training objectives in Sec. [5.3]. In Sec. [5.4], we demonstrate the effectiveness of our data and instruction-tuning strategy through experiments.
+
+
+FIGURE
+
+
+Data Preparation 
+
+
+Construction of EgoPlan-IT. Following the automatic data construction pipeline in Sec. [3], we additionally tailor an instruction dataset EgoPlan-IT, which contains 50K instruction-following pairs as shown in the bottom half of Figure, for Egocentric Embodied Planning.
+To assess the robustness of our instruction tuning approach, we exclusively utilize video data from Epic-Kitchens [*REF*] for the creation of this training set. This enables us to assess the performance of the enhanced model on both the in-domain (Epic-Kitchens) and out-of-domain (Ego4D) subsets of our evaluation data, which will be discussed in detail in Section [5.4]. For increasing the efficiency of the dataset construction, we do not include human annotations in this process.
+
+
+Auxiliary Data for Action Recognition. To reduce the learning difficulty of the model, we also construct an auxiliary dataset for action recognition based on the visual inputs of the 50K training samples from EgoPlan-IT. For the example shown in the bottom half of Figure, the instruction of the auxiliary sample would be a simple query for action recognition such as &quot;Can you enumerate the actions in the video, describing each with a short verb-noun combination?&quot;, and the response is the concatenation of corresponding action narrations such as &quot;Open yogurt, scoop yogurt, put yogurt on meat, put down yogurt.&quot;
+
+
+Increasing Instruction Diversity. In order to increase the diversity of instructions, we also include an additional collection of 164K instruction data, which integrates the 150K image-instruction dataset from LLaVA [*REF*], the 3K image-detail-description dataset from MiniGPT-4 [*REF*] and the 11K video-instruction dataset from VideoChat [*REF*].
+
+
+Model Framework 
+
+
+We use Video-LLaMA [*REF*] as a baseline MLLM for investigation. As illustrated in Figure [3], the vision processor of Video-LLaMA comprises four components, including an Image Encoder to extract features from video frames, a position embedding layer for adding temporal information, a Video Q-former for aggregating frame representations, and a linear layer for producing video embedding vectors that match the dimensions of LLM token embeddings.
+
+
+To enhance the model&apos;s ability to process visual inputs for Egocentric Embodied Planning, we organize historical observations based on actions and retain the most recent *MATH* clips. For each action segment, we choose *MATH* uniformly spaced keyframes, creating an aggregated video representation. To emphasize the current observation, we treat it as a separate single-frame clip, extracting a unique representation for it.
+The token embeddings for placeholders &apos;&lt;&apos; *MATH* &apos;&gt;&apos; and &apos;&lt;Observation&gt;&apos; in the textual prompt are substituted with the embeddings corresponding to the *MATH* -th action segment and the current observation, respectively, within the LLM.
+
+
+Training Objectives 
+
+
+To fine-tune the model, we mix the 50K specialized EgoPlan-IT data together with the 50K auxiliary data for Action Recognition and the 164K diverse instruction data. The autoregressive loss function is defined as: *MATH* *MATH*, *MATH* where *MATH* and *MATH* denote the given visual observations and the language instruction respectively, and *MATH* signifies the sequence of answer tokens preceding the current prediction token *MATH*. *MATH* is the trainable parameters including the full parameters of the Video Q-Former and the Linear Layer, and the LoRA [*REF*] parameters of the language model. Inspired by the RRHF mechanism [*REF*], we add a contrastive loss to the fine-tuning loss: *MATH* *MATH*, *MATH*  *MATH* *MATH*, *MATH*  *MATH* *MATH*. *MATH* Here, for each instruction-following pair, a random action distinct from the ground-truth answer is selected under the same task goal to serve as a &apos;negative&apos; answer. The model is then constrained to ensure that its score for the &apos;positive&apos; answer (*MATH*) exceeds that for the &apos;negative&apos; answer (*MATH*). This operation aims to ensure a more balanced consideration of both the language instruction and the visual context in Egocentric Embodied Planning.
+
+
+Experiments 
+
+
+TABLE
+
+
+Main Results. The results in Table [2] clearly indicate that the baseline model (Video-LLaMA) tuned on our data outperforms the previous state-of-the-art model, [GPT-4V], by a considerable margin. Notably, it shows a remarkable 23.25% increase in accuracy over its vanilla version across the overall evaluation set.
+Furthermore, the enhanced model demonstrates robust domain transfer capabilities, outperforming the vanilla version by 13.98% on the out-of-domain evaluation subset. This indicates that the experience developed through instruction-tuning on our Ego-IT data is effectively transferable to Egocentric Embodied Planning in new environments.
+
+
+Ablations. Our analysis of the ablated versions of the enhanced model reveals several key insights. Notably, employing the LoRA strategy, integrating contrastive loss, diversifying instructions, and fine-tuning with auxiliary action recognition data consistently enhance performance across domains. Contrastive loss contributes the most to the model&apos;s improvement. Furthermore, fine-tuning the model with in-domain action recognition auxiliary data boosts in-domain performance but does not significantly improve domain transferability.
+
+
+Applications in Guiding Embodied Agents. Embodied planning could facilitate various downstream applications, including personalized virtual assistants, robotics for complex tasks, adaptive gaming experiences, and so on. We demonstrate how to apply the MLLM tuned on EgoPlan-IT as a task planner for guiding embodied agents, through a qualitative analysis in a simulated environment, VirtualHome [*REF*]. The model is deployed in a zero-shot setting.
+As depicted in Figure [4], we use the model to predict feasible actions for an agent to execute step by step. [We employ the beam search decoding algorithm with a beam width of five, choosing the top-one prediction for implementation.] As shown in Figure [4], the model&apos;s predictions closely align with the visual progress and real-time observation at each step, successfully guiding the embodied agent to complete a long-horizon task.
+This application case highlights the promising usage of the MLLM and instruction-tuning dataset specialized for Egocentric Embodied Planning, underscoring the significant research potential of this area. More examples can be seen in the supplementary material.
+
+
+FIGURE 
+
+
+Conclusion and Discussion
+
+
+In this work, we introduce EgoPlan-Bench, a sophisticated benchmark to evaluate Multimodal Large Language Models (MLLMs) in Egocentric Embodied Planning, where a model is expected to plan step-by-step executable actions by considering task progress, current visual observation, and open-form task goal. The evaluation results of various models reveal that current MLLMs have not yet developed into generalized embodied planners. We further construct EgoPlan-IT, an instruction-tuning dataset, to facilitate the learning of high-level task planning from human videos. The model tuned on EgoPlan-IT exhibits a significant performance enhancement on our benchmark. Moreover, it can be applied as an effective task planner for guiding embodied agents to complete long-horizon tasks within a simulated environment. Currently, we have not considered the situation of replanning if the agent fails to complete the given task, as the cases are rare in existing egocentric video sources. Nevertheless, our benchmark construction approach is general, and in the future, we can expand our benchmark by recording videos in such scenarios to further investigate this area.

@@ -1,0 +1,229 @@
+mango: A Modular Python-Based Agent Simulation Framework
+
+
+Introduction 
+
+
+Complex technical systems are everywhere. Especially today&apos;s infrastructure gains in complexity constantly. Most of these systems include many heterogeneous components with non-linear dynamics that interact with each other. The challenge for research software development is to model and simulate these systems to gain insight into their behavior.
+
+
+One option to deal with these complexities is using agent-based modeling and simulation. An agent, as defined by [*REF*], is software that perceives its environment through sensors and acts upon that environment through actuators. Designing agents and their behaviors, interactions, and knowledge models is complex. First, it is challenging to develop the different agents, their behaviors, responsibilities, and communication protocols due to the usually complex environment in which they act. Second, implementing these agents to be usable in different use cases while still being maintainable must be rigorously supported by the used agent framework.
+
+
+It is difficult to adapt such agents to a research software simulation for large-scale models, agent-based control, and optimization applications while being able to validate the agents in real-world environments. This requires bridging the gap between research and industry while maintaining applicability in both areas. Thus, the framework needs to scale well in a scientific computing environment while running on low-end hardware with network communication. It is also necessary that the agents&apos; implementations for both environments must be identical.
+
+
+We present mango as a new Python-based agent framework that tackles the outlined challenges. It is developed as an evolution of aiomas and is mainly applied in the energy domain. The framework enables simulations with agents running on one or more processes on the same machine. Distributing these agents over different machines is possible without changing their implementations. Furthermore, we propose a novel composition-based role system to support modularization and reusability.
+On top, the mango library contains a collection of common agent functionalities, optimization schemes, and other valuable tools.
+
+
+This paper is structured as follows. First, the related work is introduced and discussed. Then, the main functionalities and the architecture of mango are described. Furthermore, two applications demonstrate mango as a framework. This is followed by a list of projects and publications where mango is used, and finally, a short conclusion is drawn.
+
+
+Related frameworks 
+
+
+There are several existing agent frameworks. However, most are no longer maintained, developed for different purposes, or very application-specific. We categorize these frameworks into three different groups.
+
+
+Agent-based modeling framework
+
+
+These frameworks focus on building agents in a defined space to model interactions and observe emergent behavior of the complex system. With this approach, it is possible to model various scenarios, such as pandemics, animal behavior, or humans interacting as individuals within their environment. Popular implementations of this type are mesa [*REF*] for Python, Agents.jl [*REF*] for Julia, or NetLogo [*REF*], which even provides a custom language and GUI for the agent modeling. There are two core differences to our presented framework. First, mango emphasizes agent communication, including all necessary details like the protocol or the codec. This allows mango agents to be usable in real-world applications for validation purposes. Second, while mango focuses more on communication, it focuses less on simulation in a predefined (physical) space. Implementing and simulating this in mango would also be possible but requires much more work than in these specialized frameworks.
+
+
+Application-specific agent framework
+
+
+The term agent framework has multiple meanings, one of which is the application-specific agent framework. These frameworks do not aim to provide a general-purpose tool for simulating agents but provide particular applications in which agents (or agent-like entities) can be created, specialized, simulated, or deployed. For example, agentMET4FOF [*REF*] provides specific tools for meteorological agent-based simulations and can be considered a domain-specific extension to an agent-based modeling framework. The Wallet Framework for .NET [*REF*] emphasizes building digital identity wallets based on sovereign identities using the distributed ledger. For this, agents are used as the primary modeling entity. We conclude that mango has a different scope, provides more general tools, and is not domain-specific and, therefore, is rather a general-purpose framework.
+
+
+Multi-agent system framework
+
+
+The third category emphasizes agent communication, deployability, and a generic approach to modeling agents and their environments. One popular candidate is JADE [*REF*], which provides various modeling options to design an agent and its communication. It uses FIPA ACL [*REF*] messages for communication purposes. However, JADE is not actively developed anymore. It is missing a modular architecture and is developed in Java, which is not popular for scientific applications.
+Another Java framework is JIAC [*REF*], which is based on the principle of inversion of control built on the Spring Framework [*REF*]. It has a lot of options to distribute agents on nodes, it is possible to reuse agents&apos; actions, and it has an integrated rule engine to define agent behavior easily. However, it is not maintained anymore and is not applicable outside Java Spring applications. The framework JACK [*REF*] provides a dedicated language to implement agents and tools to build upon the BDI-architecture [*REF*], but it is also discontinued and proprietary software. In JavaScript, the agentframework [*REF*], similar to JIAC, is based on dependency injection. Lastly, the Python framework SPADE [*REF*] is based on the XMPP platform and does not provide different communication protocols.
+
+
+We conclude the three categories are not quite comparable, and mango is part of the third category. In this category, the frameworks are proprietary, discontinued, or restricted to different areas of agent-based simulation software.
+
+
+Software description 
+
+
+The main objective of mango is to create, set up, and execute simulations with communicating agents. Applications can involve distributed control of large systems (e.g., electrical energy systems, traffic lights, etc.), distributed optimization algorithms, and generally any distributed algorithms and behavior analyses. The framework is written in Python with asyncio as a basis to enable asynchronous message exchange in single process applications and to avoid blocking IO in general.
+
+
+In mango, agents can be implemented using an abstract base class or by composition with the help of a role system. Agents &quot;live&quot; in so-called containers, representing the agents&apos; environment as their gateway to communicate with other agents. The type of the container specifies the communication protocol and the message codec. Messages can be wrapped in FIPA ACL messages [*REF*]. On top of the core mango, a general-purpose library mango-library contains implementations for frequent applications like coalition formation.
+
+
+FIGURE
+
+
+Architecture 
+
+
+One of the main benefits of mango is its modular architecture, depicted in Figure [1], which ensures that most main features can be extended easily. The containers are implemented using a base container class, which implements all common logic. Codecs are designed as plug-ins for containers. New codecs can be implemented by inheriting from &apos;mango.messages.codecs.Codec&apos; and assigned to the appropriate containers. Every agent inherits the base class &apos;mango.Agent&apos;. To avoid a cyclic dependency, an abstraction layer is introduced between an agent and its container and between a role and its agent. Another important aspect is the architectural impact of mango.
+Generally, mango does not strictly enforce specific agent architectures due to the different styles of implementing agents and its general loosely coupled, modular structure. However, our philosophy is that a framework should support users to structure their applications to achieve their quality goals. Roles force the user to think about the different responsibilities an agent should fulfill. When used correctly, this role metaphor leads to a strong separation of concerns and supports further modularization due to the more declarative style of implementing the agent logic.
+
+
+Main functionalities 
+
+
+In the following, we describe the main functionalities of mango. We omit technical code-snipped-aided documentation at this point. We refer to the developer documentation linked in Table [1].
+
+
+Container
+
+
+The container is responsible for everything network related to the agent. This includes sending and receiving messages, but also message distribution to the correct agent and (de-)serialization of messages.
+Messages between agents of the same container are passed directly without creating network traffic.
+
+
+There are three container implementations: TCP, MQTT, and EC. The TCP container constantly listens to a TCP port and sends all messages using a plain TCP connection. For better efficiency, the connections are buffered and pooled internally. The MQTT container starts an MQTT server using paho-mqtt. The agents can subscribe and send messages to MQTT channels. The last one, the EC (external connection) container, can be used to couple mango with external simulators or co-simulation tools. This is necessary to set up complex communication simulations with simulators like OMNeT++ [*REF*].
+
+
+Agents and roles
+
+
+The two ways to define agents represent two different, often controversially discussed, approaches to programming object-oriented languages: inheritance and composition. It is not the responsibility of the framework to enforce one of the two approaches but to offer a choice.
+
+
+The abstract class &apos;mango.Agent&apos; for inheritance provides a scheduler and the context object for accessing the container. In most cases, the abstract method &apos;handle_message&apos; will be overridden to implement the agents&apos; behavior for specific messages. The method gets called every time a message arrives. For proactive tasks and for sending messages, the scheduler can be used.
+
+
+For composition, the role system has been implemented. This system uses the generic &apos;mango.RoleAgent&apos; as the base for adding roles. A role represents one responsibility of the agent as an entity. For example, in the coalition formation, the &apos;CoalitionParticipant&apos; could be one role whose responsibility is to manage its participation in coalitions. To implement roles, the &apos;mango.Role&apos; interface can be used. To handle messages, roles can add message handler methods through their role context, representing the role&apos;s environment (the agent and the container). Proactive actions are defined using the scheduler. A role can implement lifecycle hook-ins to execute custom logic when created or deleted. There are managed singleton models for which roles can register as observers to share data between roles. Alternatively, there is the option to use a shared data container.
+
+
+Codecs
+
+
+There are two codecs currently implemented: JSON and protobuf. The codec is defined when creating the container and will then be used for every message exchanged by this container (incoming and outgoing). Both codecs are extendable for custom data classes. The JSON codec supports several Python data structures out of the box.
+
+
+Messages
+
+
+In mango, every object can be a message as long it is encodable and decodable by the codec. The FIPA ACL message [*REF*] is supported and optionally acts as a wrapper for any custom message.
+
+
+Scheduling
+
+
+To realize agent simulations, every agent has a &apos;scheduler&apos;, which manages all tasks (including tasks for sending messages). The scheduler can start or stop a task and recognize whether a task has been finished or is sleeping.
+
+
+Multiprocessing
+
+
+To ensure the utilization of multi-core systems, the framework uses multiprocessing (due to the lack of real multithreading in CPython) for parallelization. There are two different ways to shift workload to another process. First, the scheduler can execute &apos;ProcessTasks&apos;.
+Second, using agent processes will move agents to different processes but link them by IPC to the main container using a mirror container. The first approach should be applied when single long-running tasks must be processed, and the second when agents generally need a lot of time to process and send messages.
+
+
+Application 
+
+
+As mango is a general-purpose agent framework, it can be used in various domains without restrictions. Until now, it has mainly been applied to energy domain scenarios. In the following, we introduce a simple example to show how the framework can be used. After that, a more sophisticated example will show an energy case study from a recent research project.
+
+
+Hello world example 
+
+
+This example includes the definition of two agents: the Caller-Agent and the Receiver-Agent. The Caller-Agent starts the conversation by scheduling a message for five seconds in the future (see Figure [2]).
+The Receiver-Agent will answer using the same content (see Figure [3]). After that, the caller will answer again until 100 messages are sent. This results in a message ping-pong. The simulation is started using a TCP container with a clock, which can be set to a custom time to start the Caller-Agents&apos; initial message. To wait for the results, &apos;tasks_complete_or_sleeping&apos; is called (see Figure [4]).
+
+
+FIGURE
+
+
+Grid congestion example 
+
+
+FIGURE
+
+
+In this case study we present a more complex application scenario of the mango framework. It originates from the ZDIN-ZLE and is called mosaik-cohda. In power systems, grid operators must ensure that equipment such as transformers or power lines are not overloaded. In this energy scenario, the goal is to prevent an imminent congestion by using the flexibility of multiple heat pumps to decrease energy consumption in a specific area of the grid. The heat pumps are controlled by mango-agents.
+
+
+The scenario can be divided into three steps. In the first step, one agent acts as a leader and informs all agents about the objective (a joint reduction of the load profile), thus building the coalition to avoid congestion. The second step is to negotiate which heat pump will reduce its load at what time and by how much. The agents thus solve a distributed optimization problem. Each agent can deviate from its original schedule through the flexibility of its heat pump. Depending on the load reduction that the other agents can contribute, different own load adjustments are best suited to achieve the desired total load reduction in all time intervals via the cluster schedule.
+
+
+This optimization problem is solved using the COHDA heuristic [*REF*], which is also initiated by the leader agent.
+Once a cluster schedule is determined, the agents execute it in the simulation by adapting their control commands to the heat pump simulators.
+
+
+This procedure is embedded in a larger scenario (connected by mosaik [*REF*]), in which the grid operator detects the congestion and requests flexibility contribution from specific heat pump agents, so it needs to be executed multiple times. It is also necessary to modularize and reuse some of the existing implementations, as in the same context, numerous other scenarios involve similar objectives but with a different composition (e.g., different flexibility models, different negotiation initiators, etc.).
+
+
+The scenario has been implemented using the role system to address these requirements. Therefore, the responsibilities of the agents were identified in the system, and four different roles were built.
+
+
+FlexReceiverRole
+
+
+- This role is responsible for receiving the flexibility of the agents&apos; heat pump. The flexibility is sent as part of the input values.
+
+
+FlexNegotiationStarterRole
+
+
+- This role is responsible for leading the coalition and, therefore, also for starting the negotiation.
+
+
+FlexCohdaRole
+
+
+- This role extends COHDA with a schedule generation approach [*REF*] to estimate the optimal flexibility contribution.
+
+
+FlexTerminationRole
+
+
+- This role will detect and manage the global termination of the distributed optimization. Consequently, it will also announce the termination by sending the final result.
+
+
+These roles are complemented by the roles from the mango-library to build up the coalition. The process with the participating roles at every step is depicted in Figure [5].
+
+
+Impact 
+
+
+The framework is currently actively used for several research projects.
+In the following, we list the most relevant example publications and projects mango is used for.
+
+
+Agent Dynamics in Energy Systems
+
+
+- In [*REF*], the authors used mango to model and simulate a multi-agent system, in which agents perform coalition formation based on the energy balance in the electricity, heat, and gas networks. The resulting dynamics were used to analyze the effect of the topology on the coalition formation.
+
+
+Multi-Purpose Battery Storage Swarm
+
+
+- The MIRAGE project was concerned with developing a battery storage swarm based on mango. Individual mango agents locally optimized battery storages, i.e., generated demand or generation forecasts of other assets, and determined the flexibility of the battery storage according to the fulfillment of their local application [*REF*]. In aggregate, the flexibility of the swarm was offered to energy markets to generate additional benefits. The mango agents could compensate for deviations due to forecast inaccuracies in a self-organized manner. A hybrid field-laboratory test of the mango framework was conducted.
+
+
+Distributed Blackout Restart
+
+
+- In [*REF*], Stark et al. presented a flexible black start service for restoring an electrical system alongside impaired ICT after a blackout event. The multi-agent system - implemented in mango - addressed the restoration of the power system as a distributed optimization problem.
+
+
+Effect of communication topologies
+
+
+- In [*REF*], the authors employed mango to investigate the impact of communication topologies, which provide an overlay that directs communication between agents in distributed optimization heuristics. They also presented an approach for adapting the communication topology at runtime and studied the effects of various static and dynamic topologies on optimization performance in terms of solution quality, convergence speed, and collaboration cost.
+
+
+Evaluation of ancillary services markets
+
+
+- The REMARK project develops an open-source toolbox for the evaluation of market designs for ancillary services (e.g. reactive power or redispatch). Key actors such as the grid operator, market operators, and market participants are modeled as mango agents.
+Special emphasis is put on the partially AI-based strategic market participants and the investigation of the effects of the market design on the power system.
+
+
+Conclusion 
+
+
+This paper presents mango, a Python-based agent framework that addresses the complexities of agent-based simulations, especially in communication. It is designed for modularity and maintainability and enables quick agent implementation using three communication protocols and two message codecs. The frameworks&apos; real-world relevance and versatility are highlighted through a detailed application to grid congestion and other usages in papers and industry projects. We conclude that mango is a valuable tool for bridging the gap between research and real-world scenarios and promotes well-established best practices in software development.

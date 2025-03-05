@@ -1,0 +1,197 @@
+Large Language Model (LLM) as a System of Multiple Expert Agents: An Approach to solve the Abstraction and Reasoning Corpus (ARC) Challenge
+
+
+Introduction
+
+
+The Abstraction and Reasoning Corpus (ARC) Challenge is a key milestone in the march towards artificial general intelligence (AGI) as it requires forming concepts and abstractions [*REF*]. Fig.
+[1] illustrates a sample ARC task. One of the key difficulties of the ARC challenge is that it requires doing something counter to mainstream deep learning -- learning from very few samples. Deep learning typically uses tens of thousands of samples to do well. Humans, in comparison, can learn how to identify different animals by just one or two different observations. For instance, a child can identify a giraffe in real life for the first time, even though the only other time they may have been exposed to a giraffe was through a cartoon flash card. Such capabilities are not well endowed in modern AI systems, and that means that such AI systems will need to be trained extensively before deploying in the real world. After deploying them in the real world, they will also be limited in their ability to adapt and learn as the environment changes.
+
+
+FIGURE
+
+
+In contrast, traditional symbol-based systems (e.g., GOFAI [*REF*]) can &quot;learn&quot; quite fast, as any new situation can be interpreted without any learning phase, provided that there are existing symbols which can represent it. However, the history of GOFAI has shown that it is difficult to engineer these symbols, and at many times, even humans face difficulty to come up with symbols as they may not be able to express it in words.
+
+
+As can be seen, there are shortcomings with the above two approaches, and a new kind of approach will be needed in order to learn fast and generalise to new situations, in order to even have a chance at solving the ARC Challenge. In this paper, we address this challenge by proposing to use Large Language Models (LLMs) as a system grounded in functional action spaces to tackle the ARC challenge. This can be said to be an intermediate ground between both deep learning and GOFAI approaches - The functional action spaces are more flexible than symbols in GOFAI; LLMs which are a form of deep learning that are adaptable to new situations via prompting. Specifically the contributions of the paper are as follows:
+- We showcase a novel method of using LLMs as a system of multiple expert agents (without any pre-training) to solve the ARC Challenge.
+- We highlight the importance of a combination of multiple abstraction spaces from which to associate the input space to the output space.
+- We demonstrate the feasibility of grounding in functional space for program synthesis by LLMs.
+
+
+Related Work
+
+
+FIGURE
+
+
+ARC Challenge. The ARC challenge [*REF*] comprises 400 public training tasks, 400 public evaluation tasks and 200 private test tasks. Each of these tasks has multiple &quot;Task Demonstration&quot; Input/Output grids, of which the task-taker must infer a common relation out of them. This common relation is then applied to the &quot;Test Input&quot;, from which we get the &quot;Test Output&quot;. The &quot;Test Output&quot; must match perfectly for it to be considered solved. The grids comprise grid sizes of 1x1 to 30x30, of which pixels can take on 10 different values.
+
+
+Domain Specific Language (DSL) Approaches. The majority of ARC Challenge solutions are mainly DSL ones [*REF*; *REF*; *REF*]. This is also the case for the first-place solution of the ARC Kaggle competition (WEBSITE).
+
+
+LLM-Based approaches. One way to approach the ARC challenge will be to use text to describe the visual characteristics of objects [*REF*]. Indeed, 88% of ARC tasks can be solved via language description alone without input-output examples as shown in Fig. [2] [*REF*]. For certain problems, denoting pixels in terms of objects can significantly boost the solve rate from 13 to 23 out of 50 object-related ARC tasks [*REF*]. Some work has also been done to do end-to-end input to program description generation with just LLMs alone to some success [*REF*]. Other approaches have used Decision Transformers [*REF*] to find a sequence of primitive actions from the input to output [*REF*], however, as noted by the authors, huge amounts of data (10000 training data for 2000 testing data) are needed to train this method, it is unlikely it can generalise to unseen inputs. Recently, LLMs have been used to take the ASCII text view of the grid as input for next token prediction and have solved 85 out of 800 ARC tasks [*REF*].
+
+
+Code as Skills and Environmental Feedback. Voyager is an embodied lifelong learning agent powered by LLMs [*REF*]. It features a skill library of functions to build up complex behaviour, and an iterative prompting mechanism with the environment to learn from environmental feedback. Ghost in the Minecraft [*REF*] does something similar as well, though they constrain the action space to a list of functions. Similarly, we use code generation with primitive functions to approximate using a skill library, and use iterative prompting using ARC task output as feedback to learn from the environment.
+
+
+Our Method. In line with the existing LLM approaches, we agree that we should use language as an alternate abstraction space in addition to the original pixel grid. Unlike existing approaches, we believe we should use more than one abstraction space. Hence, the LLM will be both the Builder and the Describer in Fig. [2], but the Builder can also reference input-output pairs. We also believe we should integrate LLMs with a kind of DSL approach, but can afford to have an even more expressive DSL because an LLM is able to do matching of functions via semantics much more effectively than traditional DSL approaches.
+
+
+Broad Overview of Method
+
+
+FIGURE
+
+
+In this section, we provide an overview of our proposed approach and discuss several key ideas behind it. We have not implemented out all parts of the proposed approach, but it is already doing well. Generative Pre-trained Transformer 4 (GPT-4) is a multimodal LLM created by OpenAI and released in March 2023 [*REF*]. For now, we exclusively use GPT-4 for our model, as we empirically observe that GPT-3.5 and other open source models are not able to perform well enough for this method to work. The overall method is shown in Fig.
+
+
+Problem Type Classification (Not Implemented). ARC tasks test various concepts. If we can use past examples to ground the LLM, and let the LLM decide what problem category an ARC task belongs to, we can proceed with a specialised workflow to target solving that particular style of task. Presently, we simply run through all the various agent types and select the agent types which work. Implementing this classifier will not affect performance but will significantly help reduce the costs.
+
+
+Useful Abstraction Spaces. While GPT-4 has proven to be a general purpose solver, being (currently) a text-based model, GPT-4 lacks some of the innate human priors necessary to solve the ARC challenge. For example, GPT-4 is not able to identify objects accurately from text alone. Objects are defined as continuous sections of the grid with the same non-zero value. Hence, providing such an object view as an abstraction space using text greatly helps with the GPT-4&apos;s ability to form associations with the input-output pair and is better able to find a solution [*REF*]. Moreover, we can provide more than one abstraction space to GPT-4, which can increase the chance that one or more abstraction spaces contain a simple mapping from input to output, thereby reducing the complexity of the problem. Do note that these abstraction spaces are unchangeable, and are fixed since the beginning of learning. Hence, the agents will have to do processing based on these fixed priors.
+
+
+Encoding Human Biases via Helper/Primitive Functions. An initial implementation of using GPT-4 to solve ARC was done with just prompting the human biases and action spaces via text. This did not do so well due to lack of grounding using words alone. A key innovation in this work is to use primitive functions as action spaces, as a way to encode human priors. If we could use functions for grounding, and express the semantic meaning of the function in words, GPT-4 could use the function to provide the code needed for the solution. Hence, the problem now becomes finding out what are the primitive functions we need to encode in order for the LLM to solve any generic ARC problem.
+
+
+Using Memory for Additional Context (Not Implemented). New problems might mix and match aspects of previous solutions, so having a memory bank to provide examples of similar solved problems in the past can help to ground the LLM to better generate the answer. This is currently not implemented due to constraints of context length. Once the context length for GPT-4 increases or fine-tuning becomes available, we intend to let each agent have memory of relevant previously solved problems and their solutions, so that it can ground the agent&apos;s output. This is akin to Retrieval Augmented Generation [*REF*].
+
+
+Utilising Feedback from Environment. Another key idea is that a learning system would need to utilise feedback from the environment, and so a recursive loop feeding in feedback from the environment (whether there is compile error, whether the code matches the intended output) can help a lot in getting the right answer. This is akin to what is done in Voyager and Ghost in the MineCraft [*REF*; *REF*].
+
+
+LLMs as a System. Humans do not operate with only one system. We have various systems to call for various tasks. Similarly, we can have multiple expert agents for each task (such as Object View, Pixel View, Grid View) and call on them to give their interpretation of the task, and select the most promising agent. This greatly helps narrow the search space for the solution. Then, we utilise the specialised functions this agent has and solve the problem. Interfacing this agent with environment feedback, the problem-type specific abstraction space, past examples and action spaces can greatly help filter and ground GPT-4 to generate a plausible solution. We believe that, with better grounding via expert agents, better abstraction space representations and better primitive function grounding, we will eventually be able to solve most of the ARC tasks using the proposed approach.
+
+
+Detailed Overview of Method
+
+
+We now go into some details of our method. Refer to Appendix [11] and [12] for the full GPT-4 prompt.
+
+
+Different Abstraction Spaces
+
+
+We utilise various ways of encoding the abstraction spaces so that GPT-4 can better associate between the Input-Output pairs. It has been shown in Image-Joint Embedding Predictive Architecture (I-JEPA) [*REF*] and Stable Diffusion [*REF*] that prediction in the latent/abstraction space leads to better downstream tasks than predicting in the input space. However, instead of just one abstraction space, we believe that there are many possible abstraction spaces which are fixed, and it is up to the solver to choose which is the best for the task at hand. We believe by incorporating more useful views and refining current ones, we can solve more ARC tasks.
+
+
+For our method, we use only three views - Grid View, Object View, Pixel View - and that has already achieved quite good results. In brief, Grid View provides the entire grid representation, except we change the pixel numbers to characters so that we do not bias GPT-4 to treat it as an arithmetic problem to perform arithmetic on the pixel values. This also has the added benefit of ensuring that GPT-4 has not seen the ARC tasks before as it is now of a different form. The Object View groups pixels that are contiguous together, so that they can be manipulated as a group. Pixel View gives the coordinates for each pixel, which can help with more fine-grained movement tasks or relational tasks between pixels. Refer to Appendix [13] for more details.
+
+
+JSON-based output format
+
+
+LLMs are well known for being verbose and also relatively free-form in the output, making it hard for any automated program to use it. Here, we explicitly ask GPT-4 to output in a JSON format via prompting. This JSON format also facilities Chain-of-Thought (CoT) prompting [*REF*], as it is done in a specific sequence to encourage broad to specific thinking.
+
+
+CoT Prompting
+
+
+CoT enables the output to be structured and the LLM will be able to condition the generation of the later output based on the earlier ones.
+This enables a more broad to specific style of prompting, helping the LLM to think and reflect on various areas, narrowing the search space, and ultimately may help to solve the problem.
+
+
+Here, we do CoT prompting directly using JSON format (See Appendix [14] for some examples of GPT output in this JSON format). We ask GPT-4 to output:
+
+
+1. &quot;reflection&quot;: &quot;reflect on the answer&quot;,
+2. &quot;pixel_changes&quot;: &quot;describe the changes between the input and output pixels, focusing on movement or pattern changes&quot;,
+3. &quot;object_changes&quot;: &quot;describe the changes between the input and output objects, focusing on movement, object number, size, shape, position, value, cell count&quot;,
+4. &quot;helper_functions&quot;: &quot;list any relevant helper_functions for this task&quot;,
+5. &quot;overall_pattern&quot;: &quot;describe the simplest input-output relationship for all input-output pairs&quot;,
+6. &quot;program_instructions&quot;: &quot;Plan how to write the python function and what helper functions and conditions to use&quot;,
+7. &quot;python_program&quot;: &quot;Python function named &apos;transform_grid&apos; that takes in a 2D grid and generates a 2D grid. Output as a string in a single line with *MATH* n and *MATH* t.&quot;
+
+
+Helper/Primitive Functions
+
+
+For the functions, we basically zero-shot prompt by stating the function name plus the input parameters and the description of the function. We find that this format of zero-shot prompting works very well for most functions, especially if the name of the function is already indicative of what it does. This is very similar to the approach taken in Visual ChatGPT [*REF*], as well as OpenAI Functions (WEBSITE). As this method of prompting is not sufficient to imbue biases that are not inherent in text (i.e. rotation, flipping), we also provide one-shot examples of how to use the function.
+
+
+Conditional Functions:
+
+
+Rather than letting GPT-4 free-form generate its own code, we ask it to generate a conditional flow on the primitive functions. This greatly helps to reduce compilation errors. Such a conditional flow is needed, as some ARC tasks require using logic that only applies if a particular condition is met (e.g., turn the shape red if it has exactly 6 cells).
+Without this conditional flow, the program would need many more steps before it can solve the problem. An example of such a conditional flow is: If {condition}: {Primitive Function}
+
+
+Methodology
+
+
+Select Problems by Context Length. We firstly filter the ARC training set problems to only those whose Grid View and Object View (mono-color, no diagonals) can fit into a context length of 3000 tokens.
+This is important because later when we incorporate environmental feedback, we will need additional token length, and by empirical observation, 3000 tokens is necessary to guarantee some buffer token amount so that the entire prompt can fit within 8000 tokens later. This is the current maximum context length for the GPT-4 web browser, as well as for the basic GPT-4 API. In the future, we envision that our approach can work for more ARC tasks when the context length for GPT-4 increases.
+
+
+Mass Sampling and Filtering. Next, we use the OpenAI API for GPT-4 May 24 2023 version with a temperature of 0.7 to ensure a diverse range of outputs. We use the OpenAI API and the web browser interface for GPT-4 interchangeably. We employ a mass sampling and filtering process to generate code, much like in AlphaCode [*REF*] (see Fig.
+[3]). Grid View is always there unless there is context length limitation. We can choose between toggling Object View (10 types) and Pixel View for the agents (at least one must be active), which leads to a total of *MATH* agents (See Appendix [13] for details). We utilise each expert agent three times each, with at most three feedback loop iterations, and filter the output codes which can solve the Task Demonstration to try it out on the Task Input. If there are multiple such codes, we randomly pick three to test it out. Any of these three solutions passing the Test Input will be counted as a solve, which is in line with the Kaggle competition and Lab 42&apos;s [ARCathon](WEBSITE).
+
+
+FIGURE 
+
+
+TABLE
+
+
+TABLE
+
+
+TABLE
+
+
+Results
+
+
+Overall. Overall, as shown in Table, our method solves 50 out of 111 Training Set ARC tasks which could fit within the context length.
+This is about a 45% solve rate, which is quite remarkable as the current ARC world record solve rate is 30.5% (though this is on the hidden test set), according to WEBSITE.
+
+
+Coding Issues. To see how many of the unsolved problems are due to coding issues, we check how many of them have the correct description as evaluated by a human, but not have the correct code. This turns out to be 8 out of 61, as shown in Table [1] (See Appendix [15] for details). This means that if we could learn the primitive/helper functions better and have a wider range to choose from, we can improve solve rate. To solve the rest of the problems, we will have to incorporate better views - it is observed that GPT-4 cannot solve line continuation tasks, especially for diagonal lines, grid manipulation tasks, and symmetry tasks easily, and these could easily be incorporated as additional views.
+
+
+Iterative Feedback. To see how much iterative environmental feedback helps, we look at number of tasks solved with the iterative environment feedback loop. This turns out to be 7 tasks out of 50, as shown in Table [2] (See Appendix [15] for details). This is quite significant, and highlights the importance of environmental feedback.
+
+
+Discussion
+
+
+The results are promising, and GPT-4 agents with various combination of views can solve different types of problems well, as compared to just using the original Grid View. It was also sometimes observed that Object View had to go with Pixel View for a consolidation of information across both views in order to solve the task. This reinforces the view that there should not be just one abstraction space, but multiple abstraction spaces which could be used in combination with each other.
+
+
+Empirical observation has shown that GPT-4 with primitive function grounding can solve more tasks than without. It is a better way at encoding priors than with just text alone. Overall, GPT-4 is great at solving tasks which are made up of a combination of primitive functions.
+
+
+It was observed that function names and descriptions are very important - GPT-4 tends to choose functions semantically similar to what it intends to do, and the changing of a function name to something irrelevant may cause it not to be used.
+
+
+Improvements
+
+
+GPT-4 agents cannot do tasks that have no relevant priors encoded in the primitive functions well, such as scaling of objects, symmetry, continuation of lines, overlay of grids with logical rules, grid manipulation like cropping, translating, changing of shape. Furthermore, it is weak when there is more than one relation, and this type of problems benefit from the iterative environment feedback loop. By setting the new input as the output that GPT-4&apos;s program outputs, it is in effect taking a step towards the solution and helps GPT-4 better associate the simpler input-output relationship.
+
+
+GPT-4 has been observed to use primitive functions not meant for the view, for example, Pixel View Agent using the get_objects function.
+Hence, giving too much context might affect performance. This is similar to *REF* when the performance declined after adding in relations between objects. This reinforces our idea that it is best to split up into multiple expert agents with separate views and only relevant primitive functions.
+
+
+Based on our experimental results, we propose new views/agents in Appendix [16].
+
+
+Future Work
+
+
+Currently, we use all agents in a brute-force manner for a task. In order to reduce computation (and cost), we could perhaps have a classifier which takes in previous examples as input to learn how to classify a new problem into a category, so that the right agents can be used to solve it.
+
+
+Currently, the primitive functions are hand-engineered based on observation of the first 50 tasks in the training set, and are also not a complete set. We will try to incorporate a way for GPT-4 to be prompted to create new primitive functions, and add those successful functions which could solve a new task to the list of primitive functions, much like Voyager [*REF*]. One way is to add any transform_grid function that is successful as a new primitive function, as long as the description of the function is different from existing ones.
+
+
+Conclusion
+
+
+Overall, LLMs as a system of multiple expert agents with environmental feedback is a promising approach towards solving the ARC Challenge. To facilitate further research using this approach, our code can be found at WEBSITE.

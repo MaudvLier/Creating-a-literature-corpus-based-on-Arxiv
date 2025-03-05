@@ -1,0 +1,141 @@
+LLM Augmented Hierarchical Agents
+
+
+Introduction
+
+
+Humans can generate and execute plans with temporally extended actions to perform complex tasks in a dynamic and uncertain world. We would like autonomous agents to have the same capabilities. Massive engineering efforts can lead to agents that are remarkably robust, such as rovers in space, and surgical and industrial robots. In the absence of such resources, techniques such as Reinforcement Learning (RL) can be used to extract robust control policies from experience. However, RL has many challenges, such as exploration under sparse rewards, generalization, safety, etc. This makes it difficult to learn good policies in a sample efficient way. Popular ways to tackle these problems include using expert feedback [*REF*; *REF*] and leveraging the hierarchical structure of complex tasks. There is significant prior work on learning hierarchical policies to break down tasks into smaller sub-tasks [*REF*; *REF*; *REF*].
+
+
+Hierarchical Reinforcement Learning (HRL) does indeed mitigate some of the problems mentioned above. However, as the number of options or skills increases, we face some of the same problems again. Using some form of supervision, such as providing details about the sub-tasks or intermediate rewards or high-level human guidance, is one approach [*REF*; *REF*; *REF*].
+
+
+FIGURE
+
+
+One of the reasons that humans are so good at dealing with unfamiliar situations is that we almost never solve problems from scratch.
+Presented with a new task and a library of skills, we are able to choose a subset of skills that seem most relevant and explore from there. We might perform some trial and error exploration (as in RL), but we quickly learn the right subset of skills as well as the correct sequence in which they need to be executed. For example, the door handles on newer cars lie flat against the door, unlike most other car door handles in existence. That presents a problem the first time you try to open one. Humans immediately narrow down to a few exploratory actions, like trying to get a finger under the handle or pushing on it in different places. We don&apos;t, unlike most RL algorithms might, tap the window or pull the side mirrors, as we believe that such options are causally irrelevant based on deep world knowledge.
+
+
+Large language models (LLMs) have been shown to encode a tremendous amount of knowledge about the world by virtue of being trained on massive amounts of text. We hypothesize that this knowledge can be leveraged to focus the training of hierarchical policies, making them significantly more sample efficient. In particular, we explore how large pretrained language models can be used to inject common sense priors into hierarchical agents.
+
+
+In this approach we assume access to several low level skills. These can be, for example, engineered planners or policies learned using RL and sub-task rewards. Based on a high-level task description and current state, the LLMs guide the agent by suggesting the most likely courses of action. Instead of random exploration, we use these suggestions to intelligently explore the various options. Because LLMs are not grounded in the domain, they are only used to bias action selection and their influence is reduced as training progresses. This results in a policy that can be deployed without depending on the LLM at run time. We evaluate this approach on several simulated environments (MiniGrid [*REF*], SkillHack [*REF*], and Crafter [*REF*]), showing that it can learn to solve complex, long-horizon tasks much faster than baseline methods. Experiments with a real robot arm in block manipulation tasks using a tabular Q-learning version of the same algorithm show that it can learn policies much faster with less experience in that domain. Our contributions are summarized as follows:
+
+
+-  an approach for using LLMs to guide exploration by extracting common sense priors; -  a hierarchical agent that uses these priors to solve long-horizon tasks; -  an evaluation of the framework in simulation as well as a simple real-world environment, showing that it performs significantly better than baselines; -  a discussion of (1) the advantages of our method compared prior work and (2) potential future work.
+
+
+Related Work
+
+
+Langauge and HRL There is significant prior work on hierarchical RL where the standard MDP is converted into a semi-Markov decision process (SMDP). The most common approach is to incorporate temporally extended actions, also known as options or skills [*REF*]. Typically, a low-level policy achieves sub-tasks by executing primitive actions and a high-level policy plans over temporally extended options or skills.
+Natural language is a popular way to specify sub-tasks and achieve generalization due to its inherent compositionality and hierarchical structure [*REF*; *REF*; *REF*; *REF*].
+Most of these methods specify or generate a high-level plan in natural language, which is then executed sequentially by a separate low-level policy. These approaches face challenges when operating in high-dimensional observation spaces. They also rely on manual data collection to train the high-level policies and are therefore difficult to generalize to new tasks [*REF*; *REF*; *REF*].
+
+
+RL and Foundation Models Recently, large language models such as GPT-3 have been used to build agents capable of acting in the real world based on language instructions [*REF*; *REF*]. The in-context learning and intelligent prompting strategies supported by these models have been used to design language-guided hierarchical agents.
+[*REF*] use LLMs as zero-shot planners to enable embodied agents to act in real world scenarios. Similarly, [*REF*] use LLMs along with affordance functions to generate feasible plans that guide a robot to achieve goals specified in natural language instructions. Our work is closely related to [*REF*], where they improve exploration by using LLMs to provide intermediate rewards and encourage the agent to seek novel states.
+
+
+Methods
+
+
+Problem Statement
+
+
+We consider a system that receives instructions in the form of natural language describing a task, similar to [*REF*]. The instructions can be long, may contain warnings and constraints, and may not include all of the necessary individual steps. We also assume that the agent has access to a finite set of skills or sub-policies that can be executed in sequence to solve long-horizon tasks. These skills can be hand-coded, or trained using reinforcement learning or imitation learning with manual reward design. They must be accompanied by a simple description in natural language, such as \&quot;pick up red block\&quot; or \&quot;open blue door\&quot;.
+They must also be able to detect sub-task completion to switch control back to the high-level policy. Given a finite set of options or skills, our objective is to obtain a high-level decision policy that selects among them.
+
+
+Using LLMs to Guide High-level Policies
+
+
+This section introduces our method for using LLMs to improve exploration in the high-level policy of an HRL system. The semantic knowledge and planning capabilities of LLMs improve high-level action selection given a task description and current state in the form of language. The core idea is to use LLMs to obtain a value that approximates the probability that a given skill or sub-task is relevant to achieve the larger goal.
+As mentioned earlier, each skill is accompanied by a language description *MATH* and the current trajectory is translated into language, *MATH*. There is also a high level instruction, *MATH*, describing the larger goal along with optional constraints.
+
+
+The LLM is used to evaluate the function *MATH* for each skill at every high-level decision step. Essentially, the LLM answers the following question: given the task, *MATH*, and trajectory so far, *MATH*, should we choose skill *MATH* ? The output of the LLM, &apos;yes&apos; or &apos;no&apos;, can easily be converted to an int (&quot;0&quot; or &quot;1&quot;). This kind of closed form question-answering prompt has been shown to work better than open ended prompts [*REF*]. After evaluating this for each of the *MATH* skills, we get *MATH*. For example, *MATH*. A &apos;LOG SOFTMAX &apos; function is applied to these logits to get the common sense priors from the LLM denoted by *MATH*. Relying entirely on *MATH* is not enough to solve complex tasks. At the same time, using RL and exploring without any common sense intuition is inefficient.
+Therefore we still use RL and sparse rewards to obtain high-level policies but also use the common sense priors, *MATH*, from the LLM to guide exploration. More details about the RL algorithms used are in the Experiments section. The action selection in the exploration policy samples actions from a categorical distribution where the logits are obtained by the policy head processing the state. These logits are biased with the common sense priors *MATH* and a weight factor *MATH*. So the action selection looks like this: *MATH*. Here, the action *MATH* is the temporally extended macro action or the skill. The weight factor starts from *MATH* and is annealed gradually until it reaches zero by the end of training. This means that the trained agent does not continue to reply on the LLM during deployment. This process is summarized in Algorithm.
+
+
+ALGORITHM
+
+
+LLM Queries and Prompt Design. We use the gpt-3.5-turbo GPT provided by OpenAI APIs. To reduce the number of API calls, the LLM responses for all possible combinations of *MATH* and *MATH* are cached. A simplified version of *MATH* is used to denote the current trajectory history using the past two actions. The main prompt used in our experiments has the following structure &apos;Goal:&apos; *MATH* &apos;, So far I have: &apos; *MATH* &apos;, Should I &apos; *MATH* &apos;? &apos;.
+The LLM is shown a few examples of responses to such queries and the prompt specifies that a one word Yes/No answer is required. Example prompts are in the Appendix.
+
+
+Experiments
+
+
+This section describes the experimental setup and results of testing the framework in three simulation environments and one real world robotic arm block manipulation task. The framework relies on communicating with the LLM using text. As mentioned earlier, each skill corresponds to a text description *MATH* and the larger goal is described using *MATH*. We assume access to a captioner that maps the current observation history to *MATH*. This could be automated by using modern vision to language models such as [*REF*], but that is left for future work. Instead we use a CLIP-based model along with an LLM in the experiments with a real robot to convert visual input to a discrete low dimensional state. More details about obtaining *MATH* are in the Appendix. In each environment, our method is compared with baseline hierarchical agents without any guidance from LLMs, and an oracle and a SayCan-like agent without affordances.
+
+
+TABLE
+
+
+MiniGrid Experiments
+
+
+Setup The experiments described in this section were performed on the MiniGrid environment by [*REF*], which is a simple grid world. The environment can be designed with multiple rooms with doors, walls, and goal objects. These objects can have different colors and the agent and goal objects are spawned at random locations. The action space is discrete which allows movement in the 4 compass directions, opening and closing doors, and picking up and dropping objects. We designed multiple tasks in this setup which can be broken down into smaller sub-tasks.
+
+
+-  The UnlockReach task consists of a random object in a room which are behind a locked door. The agent has to first find the right key based on the door color, unlock the door, and then navigate to the goal object.
+-  The KeyCorridor v0 task consists of a corridor with multiple rooms on either side. A goal object is inside a locked room whose key is in another room. The agent has to first find the key and then unlock the door to ultimately reach the goal -  KeyCorridor v1 is similar to v0, but some of the rooms have defective keys. The goal instruction comes with the rooms to avoid.
+This task is much more difficult for standard HRL methods.
+
+
+FIGURE
+
+
+Each task has a single reward that is only provided on successful task completion. The agents have access to several temporally extended skills: GoToObject, PickupObject, UnlockDoor, and OpenBox. These are conditioned on the type and color of the objects. For example the Object may refer to a key, ball, or box, and the color can be red, green, blue, yellow, etc. These low-level sub-tasks were pretrained and frozen using PPO [*REF*] and manual reward specification. The high-level policies are also trained using PPO where the sub-tasks are treated as actions. We compared against Vanilla HRL, Shaped HRL, an Oracle, and a SayCan-like method as described in Table [1] *REF*. The results are summarized in Figure [2] *REF*.
+It&apos;s clear that our method outperforms both the baseline HRL methods with and without shaped rewards. It is also able to converge to the optimal policy much sooner than the other methods. The Oracle and SayCan are not trained using RL and so we show their performance using horizontal lines. Although they are comparable to our method, one benefit of our method is that it does not rely on the LLM during deployment.
+
+
+SkillHack
+
+
+The NetHack Learning Environment [*REF*] is an RL environment based on the classic game of NetHack. It is notoriously difficult because of the large number on entities and actions, procedural generation, and the stochastic nature of the game. MiniHack [*REF*] and SkillHack [*REF*] are extensions of NetHack that enable creation of custom levels and tasks.
+They are simpler than the full game while retaining most of the interesting complexities. The SkillHack suite contains 16 skills such as PickUp, Navigate, Fight, Wear, Weild, Zap, Apply, etc. More details are in the Appendix. These skills can be executed sequentially to achieve larger tasks. We consider two such tasks - Battle, FrozenLavaCross.
+
+
+-  In the Battle task, the agent needs to PickUp a randomly placed Sword, Wield the Sword and finally Fight and kill a Monster.
+-  In the FrozenLavaCross task, the agent needs to PickUp either a WandOfCold or a FrostHorn based on what is available, then create a bridge across the lava with either ZapWandOfCold or ApplyFrostHorn. Finally, the agent must NavigateLava across the newly made bridge to reach the staircase on the other side.
+
+
+In this environment we compare against Vanilla HRL and an Oracle high-level policy. The low level skills are trained using IMPALA [*REF*] with the code provided by [*REF*]. The high-level policy is also trained using IMPALA where the policy skills are macro actions. As seen in the first two plots in Figure [3] *REF*, in both the tasks, Battle and FrozenLavaCross, our method clearly outperforms the HRL agent without LLM guidance.
+
+
+FIGURE
+
+
+Crafter
+
+
+Crafter [*REF*] is a 2D version of Minecraft which has the same complex dynamics but with a simpler observation space and faster simulation speeds. Similar to Minecraft, it involves collecting and building artifacts along an achievement tree. We modified the game slightly to make it easier by slowing down health degradation and having fewer dangers to fight. We evaluated on two tasks that have a natural hierarchical structure - MakeWoodPickaxe and MakeStonePickaxe. More details are in the Appendix. Similar to our other experiments we pretrain policies for multiple skills using PPO. The high level policy is then trained to select among these skills. The last two plots in Figure [3] *REF* show how our method performs better than the baseline HRL method.
+
+
+uArm Real Robot Experiments
+
+
+We also tested on a real robot arm on a simpler tabular Q-learning version of our method. uArm Swift Pro [*REF* -sdk] is an open-source desktop robotic arm.
+
+
+FIGURE
+
+
+We designed two block manipulation tasks - DeskCleanUp and SwapBlocks. Similar to the previous simulation experiments, we assume access to various skills that can be used to solve larger, more complex tasks. In our setup, video from a camera is used to convert the robot arm and block positions into an array of discrete values representing the state. From this simplified state, we are able to learn a high-level policy with tabular Q-learning. Like before, we calculate *MATH* using an LLM and access to *MATH*. Refer to the Appendix for more details.
+
+
+Figure *REF* show the results of our experiments. In the DeskCleanUp task, there are three locations with a tray and two blocks (red and green). The episode is initialized with blocks in random locations. The goal is to pick up the blocks and place them in the tray, essentially cleaning the desk. This task was trained for 100 episodes.
+In the SwapBlocks task there are also three locations (or zones) with two blocks in two random locations. The goal is to swap the positions of the blocks. In Figure *REF*, Swap - 100 denotes performance after 100 episodes and Swap - 300 is after 300 episodes. We can see that using LLMs to guide agent exploration give us better performance in fewer trials.
+
+
+Discussion
+
+
+In this work we present a framework for using LLMs to guide exploration in hierarchical agents. Instead of learning from random exploration without any prior knowledge, we use the LLMs to suggest high-level actions based on the task and current state. We evaluate our method on long horizon tasks in simulation environments as well as with a real robot. We show that out method performs better than baselines and does not require manual reward shaping. Moreover, once the agent is trained, it no longer depends on the LLM during deployment unlike some prior methods.
+
+
+This work can be extended in several ways to make it more end-to-end. We Currently assume access to a function that provides us language descriptions of the current trajectory and state. This can be automated using recent advancements in vision language models (VLM). It will also be interesting to extend this framework for more than one level or hierarchy to tackle longer tasks.

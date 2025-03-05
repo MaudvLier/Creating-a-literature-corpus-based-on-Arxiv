@@ -1,0 +1,456 @@
+Autonomous Large Language Model Agents Enabling Intent-Driven Mobile GUI Testing
+
+
+Introduction
+
+
+Testing mobile applications at the GUI level to ensure their quality in terms of functionality and usability is a critical part of app development. However, it also remains a costly task due to the ever-growing complexity of applications and inherent issues about the Android ecosystem such as rapid platform evolution and device fragmentation.
+
+
+To address the challenges in GUI testing, there has been a large amount of research efforts [*REF*; *REF*; *REF*] to automate the various aspects of mobile GUI testing. Most of the existing techniques focus on exploring the GUI states of a given app as much as possible. For example, DroidBot [*REF*] adopts a greedy exploration policy that prioritises unexplored widgets as a next exploration target. Humanoid [*REF*] adopt deep learning in hope to mimic human-like exploration paths by utilising pretrained models to weigh probable GUI actions, aligning them with frequently performed actions based on real human traces. More recently, reinforcement learning has been applied to GUI testing to effectively discover novel GUI states using curiosity-based reward functions [*REF*; *REF*; *REF*].
+While these approaches have revealed actual bugs in Android apps, we also note that their objectives remain exploration of app structures, typically quantified using activity or widget coverage, i.e., the number of Android activities (screens) or widgets that have been covered by the automated testing technique.
+
+
+However, a recent empirical study of Android developers [*REF*] reports that the primary test design strategy adopted by Android developers is to follow the usage model of the apps. Developers overwhelmingly prefer test cases that target individual features and use cases, which are higher level test objectives compared to activity coverage, a structural testing objective. The emphasis on more semantic test objectives can also be seen when developers are questioned about the format of automatically generated test cases that they ideally want. Surprisingly, the most popular choice is natural language rather than any test API scripts.
+Further, developers want expected outputs, as well as steps of use cases and specific app features, in the automatically generated tests. These results reveal a gap between what is being offered by automated Android testing techniques, and what developers want in test automation in Android.
+
+
+This paper presents [DroidAgent] with the aim of bringing the level of Android GUI testing automation closer to developer preferences and expectations. Instead of going after structural testing goals such as higher activity coverage, [DroidAgent] automatically comes up with natural language descriptions of specific tasks that can be achieved using the given App Under Testing (AUT), and subsequently tries to interact with the GUI of the AUT with specific intent to achieve those tasks. If successful, [DroidAgent] will produce a GUI test case script that can achieve the specific task, leaving the developer with both a natural language task description as well as executable test scripts. To the best of our knowledge, [DroidAgent] is the first Android GUI testing technique that can automatically generate high level testing scenarios based on sequences of identified tasks.
+
+
+[DroidAgent] achieves this by using multiple Large Language Model (LLM) instances that interact and externally act as an autonomous agent. LLMs have been used to automate Android GUI testing before, but either in more limited contexts, or with much less autonomy than [DroidAgent]. For example, Liu et al. [*REF*] proposed an approach to generate appropriate text inputs for a given GUI widget by prompting an LLM with textual descriptions of the current GUI state, while Wen et al. [*REF*] extended DroidBot [*REF*] to generate a sequence of GUI actions from a given textual description of task. Lately, GPTDroid [*REF*] showed that, given a summary of past exploration and descriptions of current GUI state, LLMs can choose a human-like next event to continue the exploration. Unlike existing approaches, [DroidAgent] sets its own testing goals autonomously, and can coherently follow long-term plans it has generated in order to accomplish those tasks. The autonomy of [DroidAgent] is inspired by the work on LLM-based cognitive architecture [*REF*] as outlined for software testing in Feldt et al. [*REF*].
+
+
+We have empirically evaluated [DroidAgent], using 15 apps from Themis benchmark  [*REF*], against four baselines: two traditional GUI state exploration techniques, DroidBot [*REF*] and Humanoid [*REF*], an LLM-based GUI state exploration technique, GPTDroid [*REF*], and a random GUI testing technique, Monkey [*REF*]. [DroidAgent] has automatically generated 374 unique tasks for 15 studied apps: a manual assessment shows that 85% of generated tasks are relevant and viable, while 59% are successfully accomplished by [DroidAgent]. While trying to achieve these tasks, [DroidAgent] also reports the highest average activity coverage of 61%, compared to 51% achieved by Humanoid. Our results suggest that LLM-based autonomous agents can potentially automate Android GUI testing at a higher, more semantic level than GUI state exploration, and that this can even improve lower-level coverage.
+
+
+The technical contributions of this paper are as follows:
+
+
+- We present [DroidAgent], an autonomous Android GUI testing technique that can set and execute app specific tasks on its own. It produces natural language descriptions of tasks, and test scripts that achieve them.
+
+
+- We empirically evaluate [DroidAgent] against four baseline techniques, using Android apps taken from a widely used Themis benchmark. Our results show that [DroidAgent] is capable of generating relevant and useful app usage tasks, which it subsequently accomplishes automatically by interacting with the GUI of the given app.
+
+
+- We provide a replication package of [DroidAgent] that includes its public implementation.
+
+
+The rest of the paper is organised as follows.
+Section [2] presents background information about Android testing as well as agents based on LLMs.
+Section [3] describes the internal architecture of [DroidAgent], while Section [4] presents an illustrative example of how [DroidAgent] operates when given an app.
+Section [5] describes the settings of our empirical evaluation, the results of which are reported in Section [6], while Section [8] discusses threats to validity. Finally, Section [9] concludes.
+
+
+Background 
+
+
+This section outlines some background information.
+
+
+GUI Testing on Android 
+
+
+In Android mobile applications, users primarily interact with GUI components such as buttons, text fields, and menus. A core component of an Anrdoid app is called an activity, which generally implements one screen (or one set of coherent functionalities) of a given app [*REF*]. The list of contained activities are available in the manifest file contained in any apps. An activity can be essentially viewed as a tree hierarchy, in which each node represents a GUI component, named &quot;widget&quot; in this paper, or a container grouping related widgets. Android SDK provides tools and interfaces to query such views and interact with the contained widgets, enabling actions like button presses or inputting text in textfields. Various testing frameworks [*REF* :android; *REF*] have been built on top of ADB (Android Debug Bridge), part of the Android SDK, for automation.
+
+
+Inference of possible actions
+
+
+GUI testing is often formulated as a problem of choosing the best next action based on a specific GUI state [*REF*; *REF*; *REF*; *REF*].
+The possible actions can be determined from actionable widgets with properties like &quot;clickable&quot; or &quot;editable&quot;. While the number of possible actions on a specific GUI state is limited due to the relatively small screen size of mobile devices, there can be numerous actions, especially when considering a list of items.
+
+
+GUI state description
+
+
+Humans typically perceive Android UI based on the visual appearance of views on screen. For language models, conveying such visual information can still be challenging. Previous work [*REF*; *REF*; *REF*] rather choose to use textual properties included in a widget (e.g., &apos;resource_id&apos;, &apos;content_description&apos;, and &apos;text&apos;), which provide a brief hint about the function of the widget.
+
+
+Specifically, Liu et al. [*REF*] combined textual descriptions of all the contained widgets, and used it as a dynamic context for prompting the language model to generate a next action.
+However, this makes it challenging to convey the hierarchical structure of GUI states and widgets. Meanwhile, another recent work [*REF*] adopt the style of HTML documents to represent hierarchical structure of an Android view. However, since LLMs are also trained on large codebases, and on relevant formats, for [DroidAgent] we adopt JSON notation to describe GUI state and, thus, to represent hierarchical data.
+
+
+Autonomous Agents with Large Language Models
+
+
+LLMs have been proven effective in various tasks, including software testing automation [*REF*; *REF*; *REF*; *REF*; *REF*].
+Yet, the primary use of LLMs has been through single, templated prompts possibly with few-shot examples of desired behavior [*REF*].
+Recent LLMs, like OpenAI&apos;s GPT-3.5 and GPT-4, can directly use external tools through function calls, making it easier for LLM-based libraries like LangChain [*REF*] and AutoGPT [*REF*] to support hybridising LLMs with external tools.
+
+
+By including additional memory structures to overcome the LLMs&apos; limited context lengths, autonomous agents can be built that combine both long-term planning and interaction with the use of external tools. The memory component of an LLM-driven autonomous agent can be implemented as key-value stores where a local neural network model embeds the text (value) to a vector (key). This embedding database is then used to find content similar to the current context, e.g., actions that have already been tried in the current state. In [DroidAgent], we use the ChromaDB library [*REF*] which implements such an embedding database for texts.
+
+
+With long-term memory and the ability to use tools, autonomous agents can be built to achieve significant goals. The design of such agent architectures can be based on cognitive architectures [*REF*], that was originally proposed as models of the human mind, e.g., multi-agent social simulation [*REF*], and 3D world exploration [*REF*], and typically also include planning and reflection. When designing [DroidAgent] it is particularly important that it can recover from undesired exploration paths and that it preserves knowledge about the application as exploration continues.
+In the following, we describe in detail how our agent-based design achieves this.
+
+
+FIGURE
+
+
+Framework 
+
+
+[DroidAgent] is designed with an agent-based architecture with four main LLM-based agents performing specific tasks: Planner, Actor, Observer, Reflector. It is further supported by three different memory modules (short, long, and spatial), with two retrieval modules that extract relevant information from memory and format it for use by the agents. The Actor and Observer form an &quot;inner&quot; loop trying to perform tasks which have been planned by the Planner and which is later reflected upon by the Reflector.
+Figure  illustrates the role of each component and highlights the main information flow. We describe individual components of [DroidAgent] below; further, Section [4] will provide a concrete working example.
+
+
+Task Planner 
+
+
+A key part of [DroidAgent] is the continuous planning of high-level tasks to be achieved. These tasks can also directly be used to &quot;describe&quot; what lower-level actions, performed by other agents, actually mean. Essentially, tasks are the basis for intent-driven testing. The tasks should ideally correspond to semantically meaningful steps when testing AUT, as well as align with coherent functionalities of the target application. In short, the tasks should be those that a human would want to achieve next, given the current testing state.
+
+
+Generating a viable but also diverse task is crucial, or the exploration risks being stuck trying to repeatedly perform impossible, irrelevant, or already achieved tasks. We achieve this by combining information from three different sources into a prompt for the planning LLM agent:
+
+
+High-level task history
+
+
+To continuously generate diverse and consistent tasks, the planner should be aware of the past exploration history. Instead of history of GUI actions, the planner is provided with textual summaries of *MATH* (20 in our experiment) most recent tasks, and *MATH* (five in our experiment) most relevant task knowledge. The historical information is inserted into long-term memory by the Reflector, described in [3.3] below, and then retreived and assembled by the task retriever, described in [3.4.1].
+
+
+Total and visited activities 
+
+
+[DroidAgent] maintains the number of times each activity has been visited in the spatial memory, and the Widget retriever then includes the list of covered/uncovered activities as a proxy for the exploration progress together with information about all activities as well as the activity of the current state.
+
+
+Initial knowledge 
+
+
+[DroidAgent] is designed to be initialised with initial knowledge. In default mode, a profile of a virtual user (persona), the ultimate &quot;goal&quot; of the persona, and a sentence denoting the beginning of the exploration, &apos;[PERSONA] started [APP_NAME]&apos; is used.
+
+
+In our experiment, we include the following goal description to facilitate overall diversity: &apos;[PERSONA]’s ultimate goal is to visit as many pages as possible and try their core functionalities&apos;.
+However, one can customise the goal to adapt to different exploration and testing modes as well. Assuming a social messenger app, the human tester invoking [DroidAgent] could provide a goal such as: &apos;[PERSONA]&apos;s ultimate goal is to check whether the app supports interactions between multiple users&apos;.
+
+
+We additionally guide the LLM implementing the Planner agent to further consider several generally desirable properties when generating a new task: diversity (the task should cover new functionality), realism (the task should be possible on the app), difficulty (the task should be feasible in the fixed action length limit), and importance (the task using core and basic functions of the app should be prioritised).
+
+
+Actor and Observer 
+
+
+The short-term working memory stores the current task&apos;s execution history, and is cleared after each planning step to register the newly planned task. Both the Actor and Observer access it to retrieve context, and save their actions and observations.
+
+
+Function-call based action selection
+
+
+Actor chooses the appropriate next action to achieve a given task. To reduce the number of tokens in LLM prompts, the Actor is given a set of action types (such as &quot;touch&quot; or &quot;set_text&quot;) as well as a list of widgets in the current screen, instead of combinations of them. Actor subsequently selects an Android action type, such as &quot;touch&quot; or &quot;set_text&quot;, as well as a target widget to apply the action to. The prior actions, most recent observation (response) of the application, and the critique of recent progress (explained below), are also provided to be considered when recommending the next action to try.
+
+
+Additional action types
+
+
+Actor also supports three types of actions not directly derived from the widgets of the current page: &quot;wait&quot;, &quot;back&quot;, and &quot;end_task&quot;. Mobile testing tools have struggled with detecting loading screens, often using prolonged wait times after each action. The loading screen&apos;s presence can be identified by checking for loading messages or icon resource identifiers, and we discovered that the LLMs we used can quite effectively detect loading screens and decide to wait. So, instead of a fixed long wait, we let the Actor decide when to wait. The &quot;back&quot; action is for navigating back, and the &quot;end_task&quot; action allows the Actor to conclude the task before the fixed max action limit (13 in our experiments).
+
+
+Observing and summarising the outcome(s)
+
+
+The state of GUI may change after taking an action.
+[DroidAgent] updates its perception of a screen with a structured textual representation (JSON). However, for the Actor to capture the current task context, it needs to be informed about the outcome of the previous action. We use a separate Observer agent to summarise the pertinent outcome of an action based on a diff of the prior and updated GUI states represented as multi-line strings. This is because representing both the prior and updated state would lead to long prompts that may confuse the LLM.
+
+
+Self-critique
+
+
+The Actor may not always choose the desired action. Once Actor starts down a wrong path by initiating an undesirable action, it becomes challenging to &quot;escape&quot; from that incorrect exploration trajectory.
+Therefore, besides offering action results as observations, we incorporate an additional element called &quot;self-critique&quot; into the Actor of [DroidAgent]. Periodically (after every three actions in the experiments), the self-critique element generates feedback based on the task execution history up to that point and the current GUI state description. This involves a separate prompt, which explicitly asks for both a review of the task execution history and, if the Actor appears to be struggling, a suggested workaround plan. The prompt is sent to a more advanced model, GPT-4, while the &quot;main&quot; conversation querying the next action is handled by GPT-3.5. Consequently, the generated critique is injected to the Actor&apos;s prompting context for selecting the next action.
+
+
+Task Reflector 
+
+
+Once a task execution round finishes, either by the Actor calling the &quot;end_task&quot; function or reaching the maximum action length limit, Reflector is activated to reflect on and create a concise description of the results of trying to perform the task (binary label indicating task success or failure as well). The input to this process is the entire task execution history including the self-critique and all observations from the working memory, the current GUI state, and the ultimate goal (from task planning). We instruct the Reflector to &quot;derive memorable reflections to help planning next tasks and to be more effective to achieve the ultimate goal&quot;. We found that this elaborate reflection process can help avoid that the overall system &quot;forgets&quot; useful knowledge acquired during task execution, given that individual agents summarise their knowledge. We also found that having different agents focused on specific tasks also helps avoid that involved LLM instances drifts from their purpose, i.e. starts hallucinating or straying from their intended function.
+
+
+Memory Retrieval Modules 
+
+
+Task Retriever 
+
+
+Long-term memory contains a history of performed task, i.e.
+task-specific knowledge as well as reflections on whether the task succeeded (indicates this task is supported by the app) or not.
+[DroidAgent] uses the textualised GUI state (basically a concatenation of widget properties) captured at task initiation as key/query for storing/retrieving task knowledge. This also allows the Planner to obtain task knowledge derived from past task executions from similar GUI states, helped by the task retriever.
+
+
+Widget Retriever 
+
+
+In manual GUI exploration, a tester accumulates knowledge about the AUT by interacting with widgets. Similarly, we introduce a memory type akin to human spatial memory, which lets the agent &quot;remember&quot; observations after interacting with a widget and to recall them for future interactions. To achieve this, the Observer stores the observations not only to the &quot;volatile&quot; working memory, but also to a specific widget knowledge (spatial) memory. Each widget is assigned with a signature containing the activity it is contained in, textual properties such as &apos;resource_id&apos;, &apos;content_description&apos;, and &apos;text&apos;; the signature of the target widget is used as a primary key to store and retrieve the observation. Additionally, the embedding of the GUI state serves as a secondary key in order to fetch observations from the actions performed from a similar state to the current one. To limit the amount of information that goes into the prompts the widget retriever summarises the *MATH* most relevant observations (5 in our experiments), per widget.
+This summary is then added to the widget dictionary in the JSON-formatted GUI state, under the property &apos;widget_role_inference&apos;.
+
+
+An Illustrative Example 
+
+
+In this section, we illustrate the execution of [DroidAgent] with an example. We use the &quot;AnkiDroid&quot; as the target application, a flashcard app for memorising various information. We inject a basic profile of a specific user persona, named &quot;Jade Green&quot; into the prompt of the Planner and Actor model, with account credentials associated with the app.
+
+
+Planning a new task
+
+
+The exploration begins with the task planning phase by Planner, where it sets a plan based on its goal and desirable properties of the task. The answer format is enforced by a template in the prompt; generated answer contains a reasoning step, a suggested task, and an end condition of the task. The end condition is further provided to Actor with the task itself to help Actor decide whether the task is accomplished or not. The following are the actual reasoning steps produced by [DroidAgent], for the task &quot;Create a new flashcard&quot;:
+
+
+FIGURE
+
+
+Executing the task
+
+
+Once a task is registered, Actor generates a sequence of GUI actions to achieve the task. The taken action and the observation, stored in the working memory, are again tied together as a virtual conversation thread between the app user and the agent. The following example is the excerpt from such a conversation thread. The texts for User are generated based on the action results from the Observer, whereas the &quot;virtual&quot; responses of Assistant are the stringified GUI actions previously performed. On the last User message, the current screen description, with the widget knowledge is appended.
+
+
+FIGURE
+
+
+Criticising the task execution
+
+
+The critique component periodically activates and generates feedback from the full task execution history as well as the current GUI state description. As other components, the generation of critique is enforced to follow a certain template of reasoning step. We demonstrate an actual critique example, pointing out that nothing has been added to the desired deck.
+
+
+FIGURE
+
+
+Reflecting on the task
+
+
+At the end of the task execution, the reflector generates a summary of the task result, and derives the knowledge from the task execution history. The following is the example of the task result and knowledge derivation with the given template for the step-by-step reflection.
+
+
+FIGURE
+
+
+Planning another task with learnt knowledge
+
+
+As an exploration continues on and discovers more widgets and activities, ideally, the task planning process should benefit from information about the past task executions. The subsequent task, &quot;attaching a photo to the flashcard&quot;, illustrated in Figure , is based on previously creating a new flashcard. The new task derives new knowledge from the observation that the app allows users to add images, audio clip, recording audio, and so on, to the flashcard. In future task planning, Planner retrieves such knowledge and generate a new task, &quot;Attach an audio clip to the flashcard&quot; with the following reasoning steps.
+
+
+FIGURE
+
+
+Evaluation 
+
+
+This section describes our experimental setup.
+
+
+Research Questions
+
+
+Our evaluation aims to answer the following questions.
+
+
+RQ1. Testing Effectiveness
+
+
+How does [DroidAgent] compare to existing exploration techniques in exploring diverse functions within a limited time budget? With RQ1, we aim to assess the diversity and depth of [DroidAgent]&apos;s exploration, primarily based on screen coverage.
+
+
+RQ2. Usefulness
+
+
+How effectively do the tasks generated by [DroidAgent] serve as maintainable testing scenarios, reflecting the supported functionalities of AUTs? With RQ2, we aim to find out whether the tasks generated by [DroidAgent] are useful as valid test scenarios, which can be used for regression testing or further test case generation.
+
+
+RQ3. Ablation
+
+
+How does each component of the agent architecture impact the agent&apos;s exploration effectiveness? With RQ3, we aim to assess the contribution of each component of the agent architecture to the overall exploration effectiveness.
+
+
+RQ4. Cost
+
+
+What is the monetary cost of running [DroidAgent] with the latest state-of-the-art large language models? With RQ4, we aim to present the present-day cost of running [DroidAgent], and provide a view for adopting [DroidAgent] in practice.
+
+
+Experimental Setup
+
+
+In this section, we describe our experimental setup.
+
+
+Subjects
+
+
+Table  shows the 15 subject apps we study. We start the app selection from the widely used Themis benchmark [*REF*], which originally contains 23 open-source Android apps. We are forced to exclude eight apps due to deprecated servers or APIs, three apps whose functionalities depend heavily on remote servers and are not easily resettable, one app that crashes on startup, and another that has only a single activity. We selected five additional apps from FDroid [*REF*] to broaden the range of our subject app categories.
+
+
+TABLE
+
+
+Metrics
+
+
+Our primary metric is screen coverage, with a specific focus on activity coverage in Android serving as an indicator for exploration diversity.
+Activity coverage is typically defined by the number of activities accessed during the exploration of the AUT. We only take account of internal activities that include the package name of the target application, since there can be external activities that do not represent any accessible screens within the AUT (they typically exist to detect memory leaks or to perform crash reports).
+
+
+While activity coverage is widely used and effective in evaluating the &quot;breadth&quot; of exploration, it doesn&apos;t necessarily capture the desired &quot;depth&quot; of the exploration. For instance, an exploration technique might navigate to a specific activity, it may also return to the previous one without any additional interaction. To further evaluate if the test cases generated by each technique encompass the target app&apos;s comprehensive functionality, we employ the concept of &quot;feature coverage&quot;. This represents the fraction of functional features covered by test cases, as delineated in the taxonomy suggested by Coppola et al. [*REF*]. Given that we do not have precise specifications for the subject apps, we categorise all discerned functional features of each app identified by all comparison target techniques, until the consensus of three authors. We then report the number of features covered by each technique.
+
+
+Baselines
+
+
+We compare [DroidAgent] with the following four baselines described below:
+
+
+- Monkey [*REF*]: Monkey is a widely used random Android GUI exploration tool for Android.
+- DroidBot [*REF*]: DroidBot is a systematic input generation tool for Android GUI exploration.
+- Humanoid [*REF*]: Humanoid incorporates a deep neural network model trained using real-world human interactions and produces a sequence of GUI actions.
+- GPTDroid [*REF*]: GPTDroid interacts with an LLM in a chat-like fashion to produce a series of GUI actions.
+
+
+Note that, since GPTDroid does not provide a replication package, we reimplemented it based on the description in the paper. However, one of their component is a distinct local language model that converts the natural-language LLM response into a GUI event. The construction of the model requires a large amount of labelled data, which we could not replicate in our experimental context. Therefore, we replaced this component with a function call-based action selector, the same we employed in implementing Actor in [DroidAgent]. Instead of the GPT-3 model mentioned in the original paper, we used the GPT-3.5 (16K context) model. We refer to this reimplemented version as GPTDroid in the rest of the paper.
+
+
+For each tool, we allocate a two-hour exploration budget. We set up an emulator (Nexus 7, API 25) with 2GB RAM and a 1GB SDCard. Each tool runs on a 64-bit Ubuntu 20.04 machine with an i7-1075H CPU (12 cores) and 32GB memory.
+
+
+Large Language Models
+
+
+We use GPT-3.5 model with extended 16K context length (&apos;gpt-3.5-turbo-0613-16k&apos; from OpenAI) for the action selection model implementing Actor and Observer of [DroidAgent]. The summarisation process of the widget knowledge retriever, as discussed in Section [3.4.2], requires a shorter prompting context, so we employ the standard GPT-3.5 model with a 4K context (&apos;gpt-3.5-turbo-0613&apos;) for this module. For the components crucial to outcomes, specifically the Planner, Reflector, and self-critique module of the Actor agent, we employ the GPT-4 model (&apos;gpt-4-0613&apos;).
+
+
+Results 
+
+
+We present the results of our evaluation in this section.
+
+
+Testing Effectiveness (RQ1)
+
+
+Table  displays the number of activities covered by [DroidAgent] compared to other testing techniques for each application. On average, [DroidAgent] achieves an activity coverage of 60.7%, slightly exceeding the best baseline, Humanoid, with an average coverage of 51.4%. A Wilcoxon signed rank test indicated that the number of activities covered by [DroidAgent] was statistically significantly higher than those covered by Humanoid (*MATH*). For those applications that [DroidAgent] discovers significantly more activities than other baselines, the functionalities supported by the applications are relatively intuitive and follow the common sense. However, [DroidAgent] finds it more difficult to visit more activities compared to other baselines against some specific AUTs: our analysis shows that these apps either have widgets that do not have any textual properties (e.g., the widgets in Scarlet-Notes consist of only icons or images without content descriptions), or has a single view containing distinct interactable subregions (e.g., Google Map view on osmeditor4android).
+
+
+FIGURE
+
+
+Figure [2] depicts the change in activity coverage over time. We observe the trend on the AnkiDroid app as a representative, in which the techniques including [DroidAgent] show a similar degree of activity coverage after two hours. Humanoid shows a relatively higher growth rate in the first 30 minutes compared to others, but it fails to discover more activities afterwards. Figure [1] illustrates one reason for this difference by showing a different exploration patterns of [DroidAgent] and baselines on the same activity accessed, MyAccount, in the AnkiDroid application. This activity can be easily covered by clicking &quot;Synchronization&quot; button on the main app screen, but the actual synchronisation with the server requires logging into the application first. [DroidAgent] succeeds to automatically sign into the application with the given profile, and wait for the synchronisation to be completed by selecting &quot;Wait&quot; action. On the other hand, Humanoid just triggers &quot;BACK&quot; action without any interactions on the activity.
+
+
+FIGURE
+
+
+Figure [3] compares the feature coverage between [DroidAgent] and Humanoid, the best-performing baseline in activity coverage. [DroidAgent] consistently covers a significantly larger number of features than Humanoid ([DroidAgent] average: 13.9, Humanoid average: 7.3) across all subjects; this holds even where Humanoid has higher activity coverage. The result suggests that [DroidAgent] doesn&apos;t just navigate the activities, but also engages in meaningful interactions to encompass the features of the AUTs. A Wilcoxon signed rank test indicated that the number of features covered by [DroidAgent] was statistically significantly higher than those covered by Humanoid (*MATH*).
+
+
+Additionally, we report the crashes found by each technique in Table . [DroidAgent] finds five crashes in total (one of them had been reported as a past GitHub issue), while Humanoid finds four crashes in total (one of them had been reported). It&apos;s worth noting that the current goal setting of [DroidAgent], as outlined in Section [3.1.3] focuses on the efficient exploration by covering core functionalities within a fixed time budget.
+
+
+Nevertheless, [DroidAgent] still shows crash finding capability on par with other baselines, suggesting its potential as a viable GUI testing technique. Further, we argue that the crash (which is exposed as an abrupt closing of the app) observed during a specific meaningful task, generated by [DroidAgent], is more readily understood by developers compared to those found during a lengthy yet meaningless GUI exploration. For instance, in the &quot;commons&quot; app, the application crashes when one attempts to upload a picture and then cancels the process mid-upload. The crash can be presented to a developer along with a task description of image uploading, which we believe aids in more effectively reproducing the issue.
+
+
+FIGURE
+
+
+Usefulness of Generated Testing Scenarios (RQ2)
+
+
+We answer RQ2 by assessing the viability and reliability of the generated tasks. We first present quantitative results for number of tasks, viability, and reliability, and then present a qualitative case study of some generated tasks.
+
+
+RQ2-1. Task statistics
+
+
+[DroidAgent] planned and executed on average 36 tasks (standard deviation: 8.8) per AUT.
+Figure [4] shows the distribution of the number of tasks generated per each application, and the number of actions (i.e., task length) that have been taken to complete each task. Although we set 13 as a maximum number of actions per task, the average task lengths vary across applications (min: 7.4, max: 11.2, mean: 8.9), as the Actor of [DroidAgent] can end the task earlier.
+
+
+FIGURE
+
+
+RQ2-2. Task reliability
+
+
+[DroidAgent]&apos;s Reflector labels the task result based on whether the task was successfully completed or not. To assess this classification of task results, we have manually checked and labeled the completion status of each task, as well as whether the tasks are viable with the AUT: a task is viable when it follows the supported functionality of the app, and completed when the relevant functionalities of the apps are utilised by the Actor.
+Figure [5] shows that, among all 374 unique tasks generated for 15 applications, we deemed 85% as viable, and 59% as completed by [DroidAgent]. Based on this manual labelling, we report that the Reflector achieves a relatively high level of accuracy in task result assessment, with precision of 0.72, recall of 0.77, and F1 score of 0.74.
+
+
+RQ2-3. Case study
+
+
+As a case study, we present a couple of tasks generated by [DroidAgent]. By producing test sequences in association with &quot;task&quot;, [DroidAgent] can create complex multi-task scenarios.
+
+
+FIGURE
+
+
+Case 1: Reusing created app data: We observe that [DroidAgent] is able to reuse app data created during the exploration. Figure [6] illustrates two consecutive tasks in the &quot;ActivityDiary&quot; app. [DroidAgent] tries to search for a specific activity and successfully inputs a valid query, &quot;Gym Workout&quot;, which is an activity name created during a previous task. Subsequently, [DroidAgent] verifies that the targeted activity appears on the screen and proceeds to view its details.
+
+
+Such patterns of reusing previously created internal app data are commonly observed in our subject applications. For instance, in the &quot;AnkiDroid&quot; app, tasks like reviewing the flashcard and rating the difficulty were conducted after creating a new flashcard. Compared to [DroidAgent], baseline techniques often struggle to access functionalities that require specific pre-existing app data. For example, they might search for an internal item using a query that is irrelevant and does not yield any search results.
+
+
+Case 2: Login Automation: Two of our subjects (commons, MaterialFB) require login steps at startup to access main functionalities. For baseline techniques, as done in prior research, we use login scripts (or setup scripts for simply skipping it). These scripts are either source from the benchmark (Themis) or crafted by the authors (FDroid subjects), aiming at simply bypassing the process. Conversely, [DroidAgent] can autonomously sign into both apps without these scripts when provided with the relevant account credentials in its persona profile, making the sign-in process seamlessly integrates into its exploration routine. [DroidAgent] also exhibits adaptability in handling the app&apos;s &quot;hidden&quot; login features, like the redirected login screen encountered during data synchronisation as previously highlighted (Figure [1]). Such scenarios cannot be handled by the login script without adequate prior knowledge of the app&apos;s features.
+It&apos;s worth noting that even with automated login scripts, the login process might fail due to issues like temporary server errors during login requests. [DroidAgent] can address such flakiness by adaptively retrying the failed action (e.g., re-clicking the login button), making it more resilient.
+
+
+Ablation (RQ3)
+
+
+Figure [7] compares the activity coverage of each of [DroidAgent]&apos;s ablation settings. We selected a subset of our subjects with more than ten activities. The &quot;NoKnowledge&quot; setting refers to the [DroidAgent] that excludes the use of knowledge retrievers. While it incorporates [DroidAgent]&apos;s Planner and Reflector, the task retriever does not supply task knowledge to the Planner. Furthermore, the GUI state descriptions given to the Actor and Planner lack widget knowledge, as the retriever is disabled.
+Similarly, the &quot;NoKnowledgeAndCritique&quot; setting refers to the [DroidAgent] that additionally excludes the use of the self-critique module of the Actor agent. Finally, the &quot;Actor-only&quot; setting refers to the [DroidAgent] that only utilises the Actor without self-critique module. It operates without registered task, consistently generating GUI actions based on the current GUI state and recent actions. Both the presence of knowledge retrievers and self-critique module seem to positively enhance [DroidAgent]&apos;s effectiveness in exploring the broader parts of the application.
+
+
+FIGURE
+
+
+FIGURE
+
+
+Cost (RQ4)
+
+
+Having demonstrated [DroidAgent]&apos;s ability to effectively explore app screens, a vital question arises: what is the cost of running the agent for app exploration and testing? We measured the total number of tokens contained in the prompt and the generated output both for GPT-3.5 and GPT-4 models, as shown in Figure [8].
+The number of tokens for the prompt depend on the complexity of GUI layout of each application. Accordingly, the present-time cost for running [DroidAgent] on a single application with a two-hour budget ranges between  *MATH* 22, summing up the cost from both the GPT-3.5 and GPT-4 models, averaging $18.1. Given the trend of decreasing cost per token charged by OpenAI, as well as the rapid advancements of open source LLMs, we expect the cost of running [DroidAgent] to be reduced and affordable.
+
+
+FIGURE
+
+
+Discussion
+
+
+This section decribes a couple of observed behaviour of [DroidAgent] that warrants some discussion and future work.
+
+
+Testing social applications
+
+
+So far, testing of social applications that would require multiple accounts has been considered out of scope for the existing exploration techniques. We demonstrate the potential of applying [DroidAgent] on testing multi-user interactions in Figure [9], which contains testing scenarios generated by [DroidAgent] with a custom goal of &quot;testing multiple user interactions&quot;. The first account created follows the persona profile, and the credentials for the second account is newly synthesised as a variation of the persona profile. Moreover, while creating the second account, [DroidAgent] encounters a truncated email address due to the length limit of the textfield, but later it successfully works around the issue by using a shorter email address.
+
+
+Testing external use of an mobile application
+
+
+A mobile application is not always used in isolation. In fact, it is both possible to temporarily navigate out of the app under test and return to the app (e.g., selecting a picture from the gallery app, share an app data via email), and start the app from the external app (e.g., opening a link from a browser). In the former case (temporary navigation to the external app), to avoid accidentally being out of the app too long, [DroidAgent] currently imposes a fixed interaction limit on external apps and returns to the target app automatically.
+However, we observe some cases that [DroidAgent] prematurely terminated essential interactions in the external app due to this limit.
+Additionally, some activities among the subject apps were exclusively triggered by external apps, such as the &apos;WidgetConfiguration&apos; activity, which is only accessed by an app launcher. By design, [DroidAgent] is not limited to the target app. Broadening [DroidAgent]&apos;s scope to test functionalities of AUT across multiple apps presents a promising avenue for future exploration.
+
+
+Threats to Validity 
+
+
+Our study might be affected by the inherent randomness associated with LLMs. Given the monetary constraints linked to API requests, we could not conduct multiple runs, potentially leaving biases. Additionally, one of the baselines, our version of GPTDroid, includes modifications to some of its components. In our implementation, we observed that the LLM context limit was reached post ten actions, forcing a reset of the preceding conversation prompt, an issue not tackled in the original paper.
+
+
+Our study utilised a relatively limited set of benchmarks as well as underlying LLMs, and therefore may not generalise. We tried to use an existing benchmark of Android apps, Themis [*REF*].
+Further studies of more apps and other open source LLMs are needed to address this threat.
+
+
+Conclusion 
+
+
+We present [DroidAgent], an autonomous testing agent for Android GUI testing. Unlike existing automated GUI testing tools for Android, [DroidAgent] sets its own meaningful tasks according to the functionalities of the app under test, and subsequently seeks to achieve them. Our empirical evaluation of [DroidAgent] against four baselines shows that [DroidAgent] is capable of exploring more Android activities on average, despite doing so while trying to achieve meaningful app specific tasks. [DroidAgent] also exhibits some novel behaviour, such as reusing data it created earlier for later interactions with the app, or creating multiple accounts to test the app. We believe autonomous agents can make significant contributions to automation of GUI testing.

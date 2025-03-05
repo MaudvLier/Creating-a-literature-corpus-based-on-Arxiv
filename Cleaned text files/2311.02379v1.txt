@@ -1,0 +1,121 @@
+Accelerating Reinforcement Learning of Robotic Manipulations via Feedback from Large Language Models
+
+
+Introduction
+
+
+Reinforcement Learning (RL) has shown its power in solving sequential decision-making problems in the robotic domain [*REF*; *REF*], through optimizing control policies directly from trial-and-error interactions with environments.
+However, there are still several challenges [*REF*], like sample inefficiency and difficulties in specifying rewards, limiting its applications to the field.
+
+
+Inspired by how we human beings learn skills from more knowledgeable persons such as teachers or supervisors, a potential solution for the above limitations is learning from human expert guidance, so as to inject additional information into the learning process. Human guidance has shown some benefits in terms of providing additional rewards or guidance to accelerate the learning of new tasks, including learning from human demonstrations [*REF*; *REF*] and feedback [*REF*; *REF*; *REF*; *REF*]. However, collecting sufficient human guidance is time-consuming and costly.
+
+
+Recently, Large Language Models (LLMs) have shown remarkable abilities to generate human-like responses in the textual domain [*REF*; *REF*], and their applications have been explored in the robotic domain. While some approaches prompt LLMs to instruct robots in performing tasks [*REF*; *REF*; *REF*; *REF*], they focus on utilizing LLMs&apos; common-sense knowledge to give high-level advice for employing pre-trained or hard-coded low-level control policies, which requires much data collection or expert knowledge respectively. Since these works do not perform policy learning when executing tasks with LLMs, the robots&apos; performance highly depends on the LLM&apos;s capabilities and consistent presence during the interactions each time tasks are executed. Moreover, owing to their limited experience in the continuous 3D robotic world, LLMs are hard to employ for low-level robotic motion control. Direct learning low-level control policies taking advantage of feedback from LLMs is a promising solution, which leads to a research question: can LLMs understand scene information in robotic space and provide appropriate feedback to supervise reinforcement learning agents?
+
+
+FIGURE
+
+
+To this aim, we propose the Lafite-RL (Language agent feedback interactive Reinforcement Learning) framework that enables RL agents to efficiently learn user-specified robotic tasks with LLMs&apos; real-time feedback, as shown in Fig . Before task learning, a human user with domain knowledge, but not necessarily robot programming knowledge, just needs to design two prompts: one to let the LLM understand the robotic scene, and the other to instruct it on how to evaluate the robot&apos;s behavior. Then, the LLM is able to provide interactive rewards mimicking human evaluative feedback, accelerating the RL process while freeing up human effort during the RL agent&apos;s numerous interactions with the task environment. Besides, the RL agent acquires information from the task environment and is robust to potential mistakes of the LLM. Experiments on RLBench tasks demonstrate our method&apos;s higher learning efficiency compared to the baseline method, which showcases that with easily designed prompts, an LLM&apos;s feedback is effective in accelerating RL in robotic manipulations.
+
+
+Related Works
+
+
+Reinforcement Learning from Human Guidance 
+
+
+There are several kinds of human guidance used for improving RL agents&apos; ability to solve sequential decision-making tasks [*REF*], mainly including human demonstrations [*REF*] and feedback such as evaluative scores [*REF*] and preferences [*REF*].
+
+
+Learning from human demonstrations. Inverse RL [*REF*; *REF*; *REF*] is an important technique of learning from human demonstrations, which focuses on inferring a reward function through observing collected human demonstrations. Then, the RL agent is able to learn policies efficiently with an estimated reward function that succinctly describes the current task. Other works combined imitation learning techniques with Deep RL [*REF*; *REF*], in which demonstrations are mostly used to initialize the agent&apos;s policy. However, those approaches normally require to collect high-quality demonstrations, which are not applicable to those task environments that are hard to demonstrate, e.g., when robots have a high degree of freedom.
+
+
+Learning from human feedback. Another set of helpful sources of information comes from diverse human feedback, mainly including evaluative scores [*REF*; *REF*; *REF*] and trajectory preferences [*REF*; *REF*; *REF*]. Some works allow humans to observe state-action pairs when the agent interacts with the environment following the current policy, and provide feedback either explicitly like via keyboard keys [*REF*; *REF*] or implicitly like natural language [*REF*; *REF*], gestures [*REF*], facial expressions [*REF*], or their combinations [*REF*; *REF*]. Instead of evaluating state-action pairs, learning from human preferences allows human experts to give feedback on a set of trajectories in terms of rankings or preferences [*REF*; *REF*]. Those forms of feedback are interactively collected and then injected into the RL processes in terms of rewards [*REF*; *REF*; *REF*] or policies [*REF*; *REF*; *REF*]. While the existence of numerous forms of human feedback, the quality of human feedback is also an important aspect when discussing how to inject external knowledge into the RL process [*REF*; *REF*].
+Recently, learning from human preferences has also shown its power in fine-tuning LLMs to make them generate more human-like responses [*REF*]. Despite the successes shown in the works mentioned above, they require a significant amount of human feedback, which is normally time-consuming and expensive to collect.
+
+
+Large Language Models in Robotics
+
+
+The recent advancements in LLMs exhibit their remarkable abilities to generate complex text on a wide range of topics [*REF*; *REF*].
+Likewise, some works utilize LLMs&apos; zero-shot reasoning capabilities to guide agents on robotic tasks [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+With several skills libraries either manually designed by experts or pertained on massive data, these approaches do not perform any model training but instead use LLMs as planners for giving advice in a high-level manner. In this sense, robots&apos; performance highly depends on the LLM&apos;s capabilities and requires the LLM&apos;s presence each time when the task is performed. Meanwhile, due to limited text corpora in the continuous 3D robotic world, LLMs struggle with direct low-level robotic motion control. In contrast to theirs, our framework aims to prompt the LLM to provide feedback to train RL-based models for use-specified tasks. After the training, the RL-based model is able to perform the task with a higher success rate without LLM&apos;s feedback or response.
+
+
+Several works use LLMs to provide rewards for RL. *REF* propose to prompt LLMs to define reward functions with specific parameters to optimize control policies on a variety of robotic tasks. However, their method relies on much manual work by experts, and the reward function is domain-specific and thus can not be applicable to broader domains. In contrast, our framework enables a normal human user to easily design the prompt, and interactive rewards are easy to understand and apply to various task domains. While *REF* and *REF* demonstrate the effectiveness of employing LLMs&apos; feedback in terms of preferences and evaluative scores in the RL context, they are mainly on textual world tasks like text summarizations [*REF*] and negotiation games [*REF*]. In contrast, we aim to enable RL agents to benefit from LLMs&apos; feedback when training on robotic manipulations, which requires LLMs&apos; reasoning ability to understand the robot&apos;s behavior in continuous 3D space.
+
+
+Language Agent Feedback Interactive Reinforcement Learning
+
+
+FIGURE
+
+
+We formulate the learning agent&apos;s interaction with the task environment in RL as a Markov Decision Process (MDP) in terms of a tuple *MATH*, where *MATH* is the set of states, *MATH* is the set of actions, *MATH* is the discount factor, *MATH* is the transition probability function, and *MATH* is the reward function that maps the state-action-state pair to a numerical reward *MATH*, such that at timestep *MATH*, the RL agent receives a reward *MATH* when transiting to state *MATH* after executing an action *MATH* at state *MATH*. By interacting with the environment, an RL algorithm seeks to learn an optimal policy *MATH* that maximizes the accumulated rewards.
+
+
+Inspired by the practice of letting humans provide evaluative feedback for the agent&apos;s behaviour as in Section [2.1], we propose the Lafite-RL framework that enables an LLM to generate real-time interactive rewards like a &quot;human teacher\&quot; to accelerate the robot&apos;s RL process. As shown in Fig., with designed prompts, for the request at timestep *MATH*, our framework enables the LLM to &quot;observe&quot; the transition *MATH* and understand the robot&apos;s motion *MATH* under the current task requirement and generate an evaluation for it.
+Then, with a language parser, the textual response is transformed to a numerical value and injected into the RL process.
+
+
+LLM as Scene Observer. We develop a scene descriptor to describe the scene based on the original information from the environment, including coordinates of the gripper and objects, the gripper&apos;s opening/closing state, and the gripper sensor information (if some object is detected or grasped). This description illustrates the movement from the previous state to the current state. We provide a prompt to the LLM that contains a function API: distance(objectA, objectB) since the LLM requires geometric information from the environment. In this way, the LLM is required to understand the robot&apos;s motion under the current task requirement, and then make several function calls that can help itself for further evaluation. Based on the original information from the environment, and some outputs after the function calls, the LLM is prompted to give the final evaluation of the robot&apos;s motion.
+
+
+LLM as Motion Evaluator. For the evaluation, LLM is prompted to infer which phase the agent is during this period, and then evaluate if the current motion is good or not. A long-horizon manipulation task consists of many steps that belong to several phases, i.e., the gripper is required to approach the desired object, grasp the desired object, and lift the desired object to the given place. Therefore, the LLM needs to estimate which phase it is currently in since the optimal behaviors for each phase are different. Then, the LLM will generate its judgment for this motion in terms of good move or bad move, which is formed into a numerical score by the language parser. Formally, the reward for the RL agent at time *MATH* is a combination of environment reward *MATH* and scaffolding reward *MATH* by an LLM: *MATH* *MATH* *MATH* The additional reward *MATH* is parsed from the LLM response, mapped as *MATH* *MATH*. *MATH* The language parser interprets the response of the LLM based on keyword detection. In case it fails to identify the LLM output as good move or bad move, it will pass on zero to the agent.
+
+
+Lafite-RL provides an interface for human users&apos; prompt engineering and RL agents&apos; training with LLMs&apos; continual real-time feedback. Table [1] shows snippets of prompts designed in Lafite-RL. Instead of explicitly designing the reward function, the human user describes the requirements of the task in natural language and guides the LLM to understand the scene information and evaluate the robot&apos;s motion accordingly.
+
+
+TABLE
+
+
+Experiments
+
+
+We evaluate Lafite-RL to determine the extent to which an LLM can assist RL for robotic tasks in terms of evaluative feedback. For the LLM setup, we choose Vicuna-13B v1.5 [*REF*] as the underlying LLM model, which is a lightweight open-source model fine-tuned on the LLaMA-2 [*REF*] model. For higher throughput and faster response time, we adopt the technique of vLLM [*REF*] as an augmentation of our local LLM. For the task learning setup, we chose a state-of-the-art RL algorithm, DreamerV3 [*REF*] as the underlying RL algorithm, and conducted experiments on RLBench [*REF*], a suite of large-scale benchmark and learning environments designed for robot manipulation tasks. Tasks in RLBench are viewed as challenging for RL agents, as their rewards are sparse, i.e., the agent only obtains scores on the goal state and zero otherwise.
+
+
+FIGURE
+
+
+Our environmental setup consisted of a Franka Emika Panda robot with one camera each on the wrist, front, and overhead sides, respectively. The action space is 4-dimensional, including delta values in x, y, and z directions as well as the manipulation of the gripper, and its observation space combines the visual space of the three camera inputs and the linear space of the gripper&apos;s low-dimensional state.
+
+
+FIGURE
+
+
+We choose two RLBench tasks in experiments, depicted in Fig., Push buttons and Take umbrella out of umbrella stand. Positions of buttons or umbrellas are randomly initialized for each episode. In all experiments, we set the maximum episode length as 100, the maximum training steps as 2e5, the reward scale for the task&apos;s goal state to 100, and the frequency of querying the LLM as every 4 timesteps. We choose the middle-size version of Dreamerv3 and keep other hyperparameters as defaults in [*REF*].
+Each experiment was repeated three times with different random seeds.
+
+
+TABLE
+
+
+In order to examine the influence of the interaction of the LLM, we report the learning curves regarding rewards, success rates, and episode length during the training process in Fig.
+Tab. [2] shows the success rate of each RL policy over 100 evaluation episodes after learning.
+
+
+We observe that, for the Push buttons task, success rates performed by Lafite-RL witness a jump at 20k steps and then continue to rise, while the rewards drop at the beginning, nadir at around 12k steps, and then continue to rise. In the case of the &quot;take umbrella\&quot; task, the RL agent initially faces challenges in its learning process, mainly due to the complexity of the task. Later Lafite-RL agent has a substantial increase compared to the baseline, indicating that, especially for a long-horizon task that requires a larger number of steps to accomplish (cf. Fig. right column), the guidance of an LLM proves to be particularly advantageous. In contrast, the Baseline did not perform well in two tasks in terms of slow-rising speed and low success rates and rewards. By the end of the training, Lafite-RL is able to achieve episode to be an average of 50 in both tasks, while the Baseline can only get around 80, which demonstrates the effectiveness of the control policy learned by Lafite-RL. During the evaluations after training, as shown in Table [2], Lafite-RL shows a much higher success rate on 100 episodes of evaluations, which showcases that after training with LLMs&apos; continual real-time feedback, RL agents are able to perform the task well independently.
+
+
+Discussion
+
+
+Our experiments have shown that an LLM can successfully provide interactive feedback, similarly as a human can do it, to significantly enhance RL. There are other strategies to accelerate RL, however, each incurs costs or relies on preconditions to be satisfied, for example, RLHF requires a human to be continually present; imitation learning requires trajectories being performed veridically beforehand; reward shaping requires suitable knowledge of the solution strategy. When these techniques are unavailable, or as a complementary technique, Lafite-RL offers a new alternative. However, it incurs its own costs, such as the need to prompt an LLM and frequent time-consuming interactions between the agent and the LLM. In our implementation, the agent requests LLM feedback at fixed-time steps to trade off costly feedback vs. cheaper feedback-less phases. More sophisticated strategies could let the agent dynamically request feedback only when it is expected to be particularly useful [*REF*]. At the same time, to use the LLM more efficiently, in addition to evaluative feedback as in this study, more informative feedback from LLMs like action instructions will be needed to guide the RL process.
+
+
+In the current Lefite-RL framework, a motion description is made based on the coordinates of objects in the environment, which might not be accessible in some environments, and other information like the gripper&apos;s angles or velocities is not involved. More spatial-related tools can be designed to serve as APIs to let LLMs better understand the scene in complex task environments. Currently, several vision-language foundation models are being developed [*REF*; *REF*].
+Their use can augment the LLM&apos;s understanding of the environment with more useful information, so as to provide better judgment and instructions. These visual capabilities will aid in the transfer from simulation to the real world.
+
+
+From an experimental perspective, it is desirable to conduct more experiments with a larger variety of tasks, as well as evaluate the model with respect to generalization to model-free RL algorithms.
+Towards deploying the model, studies with non-expert users as well as sim-to-real or training in the real world would also be further steps.
+
+
+Conclusion
+
+
+In this work, we introduce Lafite-RL, a framework aimed at enabling non-expert users to design prompts that instruct LLMs to give timely feedback during RL agents&apos; training in robotic tasks, so as to accelerate learning while freeing up human effort. Experimental results show that with easily designed prompts, an LLM&apos;s feedback is effective in speeding up reinforcement learning interactively. Since LLMs are known to be skilled in high-level actions, our results in the low-level robotic manipulation domain demonstrate the potential of LLMs, where we have not used them directly for control but to guide an agent&apos;s learning. In summary, our approach shows substantial potential for utilizing LLMs for interactively enhancing reinforcement learning.

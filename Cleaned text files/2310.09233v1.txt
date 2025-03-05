@@ -1,0 +1,295 @@
+AgentCF: Collaborative Learning with Autonomous Language Agents for Recommender Systems
+
+
+Introduction
+
+
+With the recent advancements in large language models (LLMs), LLM-powered agents demonstrate impressive capabilities in autonomous interaction and decision making [*REF*; *REF*; *REF*; *REF*].
+By scaling their numbers, these agents exhibit the emergence of human-like behaviors at both the individual and population levels [*REF*; *REF*].
+This observation highlights the potential of employing LLM-powered agents to simulate human social behaviors, such as daily lives in Smallville [*REF*] and software development [*REF*].
+
+
+Typically, existing studies primarily focus on simulating human dialogue using semantic knowledge of LLMs. However, in addition to dialogue, real-world human behaviors also involve non-verbal aspects like user-item interactions in recommender systems, which implicitly reflect user preferences and have the potential to facilitate personalized user modeling. To simulate such behaviors, some work verbalizes these interaction records into natural language text to prompt LLMs [*REF*; *REF*]. Nevertheless, we argue that this method struggles to capture the underlying behavioral patterns of these interactions, due to the gap between universal language modeling and personalized behavior modeling. For example, shoppers who buy diapers on Friday also tend to buy beer [*REF*]. This behavioral pattern can be effectively captured by collaborative filtering models [*REF*; *REF*], but confuse LLMs as the two items are semantically unrelated. Therefore, it is crucial to develop methods to better characterize human behaviors in LLM-powered simulations.
+
+
+Focused on this research topic, in this work, we take recommender systems, a common web application, as the testbed to study the simulation of user-item interactions with LLM-power agents. Typically, in addition to directly prompting LLMs based on user historical interactions [*REF*; *REF*], there are also some studies that employ agents to perform recommendations, by introducing specialized tools and planning strategies [*REF*; *REF*].
+Especially, RecAgent [*REF*] develops an LLM-based simulator, regarding users as agents. However, these studies mainly focus on characterizing user-side behaviors using universal LLMs, neglecting the effect of item-side modeling in this two-sided interaction process. In recommender systems, users possess personalized preferences for items, while items have potential adopters. Modeling the two-sided relations between users and items is crucial for enhancing personalized recommendations [*REF*].
+
+
+Considering these issues, our solution is inspired by the collaborative learning idea from previous recommendation models (e.g., BPR [*REF*] and NCF [*REF*]). In these methods, users and items are modeled as equally important parts and the recommender is essentially a preference function that measures user-item affinity based on the two sides. During the optimization process, the parameters related to users and items are collaboratively optimized, making the recommender better fit interaction records. Therefore, to facilitate the comprehension of user-item relations by LLM-powered agents, our idea is to simulate both user agents and item agents, and mimic the optimization process of traditional recommenders. The merits of such a method are twofold. Firstly, it can model the user-item interaction by autonomous interaction between user and item agents, instead of verbalizing the interaction as plain text [*REF*]. Secondly, it enables mutual optimization of user and item agents to capture their two-sided relations, rather than simulating user behaviors individually. We are also aware of several studies, such as Reflexion [*REF*] and Self-Refine [*REF*], optimize general-purpose agents for better decision-making in downstream tasks. However, these methods are task-focused or user-focused, optimizing agents through their own exploration, which is essentially self-learning rather than collaborative learning emphasized in our approach.
+
+
+To this end, we propose the agent-based collaborative filtering approach, named AgentCF. Unlike previous studies that mainly focus on user simulation, our approach considers not only users but also items as agents. Both kinds of agents are equipped with memory modules, maintaining the simulated preferences and tastes of potential adopters.
+This involves their intrinsic features as well as acquired behavioral information. As the key of our approach, we collaboratively optimize the user agents and item agents, leveraging the remarkable decision-making and reflection abilities of LLMs. At each step, we prompt user and item agents to autonomously interact, thereby exploring whether these simulated agents can make consistent decisions with real-world interaction records. Then, based on the feedback obtained from these interactions, we design a collaborative reflection mechanism that enables user agents and item agents to reflect on and adjust their memory in a mutual manner. In this way, the simulated preferences of user agents and item agents mutually aggregate, and can be propagated to other agents in subsequent interactions. Thus, it implicitly models the collaborative filtering idea through interactions.
+
+
+We evaluate our proposed approach through extensive experiments on real-world datasets. Results show that our approach effectively simulates user-item interactions, achieving promising performance on recommendation tasks compared to several classical recommendation models and LLM-based recommenders. Moreover, within our framework, user and item agents engage in free communication, creating various types of interactions (user-user, item-item, and collective), wherein they exhibit personalized behaviors similar to those of real-world individuals. The results also spark the development of next-generation user behavior simulation. The main contributions of this work are as follows:
+
+
+*MATH* We consider both users and items as agents, and develop a user-item interaction simulation approach for recommender systems, emphasizing the modeling of two-sided interaction relations.
+
+
+*MATH* We collaboratively optimize the user and item agents, design a collaborative reflection mechanism, and employ it to achieve mutual update of user and item memory.
+
+
+*MATH* Extensive experiments demonstrate the effectiveness of our approach in simulating personalized interactions.
+
+
+Methodology
+
+
+In this section, we present the proposed agent-based collaborative filtering approach, named AgentCF. Our approach enables user agents and item agents to collaboratively learn from user-item interactions in recommender systems. The overall framework of our proposed AgentCF is depicted in Figure .
+
+
+Preliminaries
+
+
+FIGURE
+
+
+To ease the understanding of our approach, we first describe the traditional recommendation setting, and then introduce our task setting and the overview of our approach.
+
+
+Traditional Recommendation Setting. In a recommender system, there exists a set of users *MATH*, a set of items *MATH*, and a set of their interaction records (often grouped by users in chronological order), denoted by *MATH*. To conduct recommendation, a preference function *MATH* is built to capture the preference degree of user *MATH* over item *MATH*, where an interacted item (i.e., positive item, denoted by *MATH*) would receive a higher score than an item that the user does not interact with (i.e., negative item, denoted by *MATH*). For example, BPR [*REF*] builds a personalized pairwise ranking model that compares the preference over two candidate items, and NCF [*REF*] employs neural networks to fit user-item interaction relationship. Subsequently, the learning of preference function *MATH* can be converted into a standard gradient-based function fitting problem based on training data *MATH* in machine learning [*REF*].
+
+
+Our Task Setting. In this work, we follow the traditional recommendation setting above and incorporate LLM-powered agents into recommender systems. Different from prior studies [*REF*; *REF*] only considering task or user agents, item agents are also included in our work and will be a crucial part of developing our approach. Notably, we slightly reuse the notations, and use *MATH* and *MATH* to denote a user agent and an item agent, respectively. Specifically, a user agent *MATH* is expected to capture the preference of the corresponding real user, and an item agent *MATH* is expected to reflect the corresponding item characteristics and potential adopters&apos; preferences. Following such a setting, the original user-item interaction will be simulated by autonomous interaction between the user and item agents. In our work, we consider a ranking task that ranks a candidate list *MATH* for a user agent *MATH* based on LLMs: *MATH*. Different from traditional recommendation models, the LLM that implements *MATH* will be fixed during the optimization process.
+
+
+Overview of AgentCF. To implement the agents, the memory mechanism (i.e., storing the past states, actions, and contexts [*REF*]) and the reflection mechanism (i.e., revising the agents&apos; states or recognitions [*REF*; *REF*]) have been widely explored in various task scenarios. However, existing work often employs a task-focused (e.g., ReAct [*REF*]) or user-oriented simulation approach (e.g., RecAgent [*REF*]), and the objects (e.g., the items in recommender systems) involved in this process are not explicitly considered. Since the recommendation task essentially needs to model the two-sided interaction relation between users and items, we argue that item agents are important to simulate the real interaction scenario in recommender systems. Without incorporating item agents, it is difficult to explicitly model the essential idea &quot;like alike&quot; (i.e., like the items that are adopted by similar users) in collaborative filtering [*REF*]. Notably, our approach has two technical contributions in adapting autonomous language agents for recommender systems:
+
+
+*MATH* Collaborative memory-based optimization. Instead of simply prompting LLMs with user&apos;s historical interactions [*REF*; *REF*], we aim to refine (without gradient update) both the simulated user and item agents through their mutual interactions. At each time step, these agents are prompted to conduct autonomous interactions, and then collaboratively reflect on the disparities between their decisions and real-world interaction records. In this way, the simulated user and item agents can accordingly adjust or update their memories, enabling them to better fit the real-world interaction behaviors.
+
+
+*MATH* Implicit preference propogation. Different from prior studies [*REF*; *REF*], a notable feature of our approach is that we update the memory of both users and item agents for each interaction record. This enables the item memory to be injected into the preferences of users who interact with it. When new interactions occur, subsequent users will be also informed about the preference of previous adopters of this item. The same process can also be applied to the user side. In this case, our approach essentially models the collaborative filtering idea by propagating preferences from user-item interactions.
+
+
+Collaborative Agent Optimization 
+
+
+In this part, we present the collaborative optimization process that is developed based on both user and item agents, and discuss how it relates to the classic collaborative filtering approach.
+
+
+Memory Design
+
+
+To specialize the LLM-powered agents for recommender systems, different from prior studies [*REF*; *REF*], we equip both user and item agents with memory modules, maintaining their intrinsic features and collaborative information.
+
+
+User Memory. For user agents, the memory module aims to store various kinds of useful information that reflects the user preferences.
+Since real-world user preferences often change dynamically, we equip each user agent *MATH* with short-term memory *MATH* and long-term memory *MATH*. Especially, short-term memory is a natural language text that describes the recently updated preference of the user agent, which can be initialized with their general preferences like &quot;I enjoy listening to CDs&quot;. Furthermore, long-term memory is a pool of historical preference texts that can store the evolving process of user preference.
+When engaged in a new interaction, user agents can directly access their short-term memory, while retrieving relevant information from their long-term memory.
+
+
+Item Memory. For item agents, we equip them with adjustable memory modules to record information about their own characteristics as well as the preferences of their adopters, e.g., a rock CD may be ideal for energetic guitar-driven enthusiasts. However, unlike user memory, we only equip each item agent *MATH* with a unified memory module *MATH*, since item information is relatively stable through time. Item memory can be initialized by their identity information, such as titles and categories, and will be continuously updated with user preferences when making new interactions. This process can largely complete the global characteristics of an item in real-world systems and enable the propagation of preference information, which is the key to collaborative learning in our approach.
+
+
+Autonomous Interactions for Contrastive Item Selection 
+
+
+Given the initialized agents, our task is to optimize these agents and enable them to simulate real-world user-item interactions. To achieve this, we first explore the behavior alignment between these simulated agents and real-world individuals, so as to provide feedback for updating these agents. This involves testing whether the agents can make consistent decisions with real-world interaction records when selecting candidates. We can also consider this process as the &quot;forward computation&quot; of the recommender models (e.g., BPR [*REF*]) when comparing the preference over two items by a user.
+
+
+Specifically, we employ the real user behavioral sequences (arranged in chronological order) as &quot;training data&quot;. At each step of these interactions, we present a contrastive pair of both a positive item *MATH* and a negative item *MATH* as candidates for user agents to select from. Intuitively, agents lacking personalization mainly rely on commonsense knowledge to select popular candidates and those positioned higher in the display list for interaction. To increase the discrimination difficulty, we deliberately introduce popular bias and position bias in candidate selection: we sample a negative item with high popularity in the dataset and then place it before the positive item in the selection list. Then, the user agent *MATH* is tasked with selecting an item *MATH* from the candidates and providing explanations *MATH* for this choice, by collaboratively considering the preference from its memory and the features from the memories of candidates: *MATH* *MATH* *MATH*. 
+
+
+Collaborative Reflection and Memory Update 
+
+
+The above process has enabled agents to simulate the interaction behaviors. Next, we derive the feedback signal by comparing the agents&apos; decisions with real-world interaction data, and employ it to collaboratively optimize the involved user agent and item agents, serving as the &quot;backward update&quot; part of traditional recommenders. Since LLMs are fixed in this work, there is no explicit gradient-based learning process as in traditional recommender models [*REF*]. Thus, we mainly update the associated memories of user and item agents.
+
+
+Based on the agent&apos;s decision *MATH* and explanation *MATH* generated above, we prompt both user and item agents to reflect on and adjust the misconceptions in their simulated preferences and features.
+We refer to this process as collaborative reflection, as it emphasizes the collaborative learning of the user-item relations, by performing reflection based on both user and item memories. It is different from task-specific reflection (e.g., ReAct [*REF*]) and user-oriented reflection (e.g., RecAgent [*REF*]), which construct the self-reflection only from the perspective of the task solver or user. Specifically, if a user agent makes the right choice that aligns with the real behavior, we inform it about the correctness and store the related interaction information in its memory.
+For an incorrect choice, we introduce the following collaborative reflection mechanism to revise agents&apos; memories and behaviors accordingly, enabling user agents to simulate real interaction behaviors and the involved item agents to align with the adopter&apos;s preferences: *MATH* *MATH* *MATH* where *MATH* denote the reflected short-term memory of user *MATH* and *MATH* denote the reflected memory of item *MATH*. *MATH* is the updated long-term memory of user *MATH*, which appends the user&apos;s previous short-term memory and can be retrieved when making a new interaction. Note that we do not modify the memory of the negative item agent, because we find that LLMs tend to over-complain the negative item agent&apos;s drawbacks, disregarding the fact that it may also be attractive for other users. From Equation  and (a similar prompting method in Equation ), we can see that the reflection is actually derived based on the memories of user agent *MATH*, positive item agent *MATH*, and negative item agent *MATH*. Therefore, such a reflection mechanism enables user and item agents to better understand their two-sided interaction relations by effectively discriminating between positive instances and negative instances.
+
+
+At each step of interaction (i.e., optimization), we iterate the selection process (Section [2.2.2]) and the collaborative reflection process (Section [2.2.3]) until user agents make choices consistent with those of real users or reach the maximum round of iterations. In essence, throughout the collaborative optimization process, the simulated user and item agents follow the decision-making process of real-world individuals, progressing step by step. This makes user agents become more personalized and item agents aggregate the preferences of adopters by learning from interactions, improving the simulation of user-item interactions. The implementation details and prompts are presented in Appendix [7] and [8].
+
+
+Connection with Classical Recommendation Models
+
+
+In the field of recommender systems, various models such as BPR [*REF*] and NCF [*REF*] are developed.
+In general, these models set parameters (typically hidden embeddings) to represent user preferences and item characteristics, and optimize them to fit user-item interaction records through two stages, namely forward preference evaluation (estimating preference score) and backward parameter update (performing gradient update). In this way, users or items that display similar interaction behaviors can have similar representations in parameter space, thus capturing the collaborative filtering idea.
+
+
+Our approach mimics the optimization process of traditional recommenders. The user and item memories can be considered as their language-based parameters (i.e., embeddings). The item selection process (Section [2.2.2]) and collaborative reflection process (Section [2.2.3]) correspond to the forward and backward stages in recommendation models. In our approach, explicit gradient optimization is not employed. Instead, the collaborative reflection plays a similar role of &quot;semantic gradient&quot;, steering how user and item agents adjust themselves. Moreover, based on the collaborative reflection, the user and item agents mutually interact and aggregate each other&apos;s preference information, which is then propagated to new agents in subsequent interactions. Therefore, by establishing preference propagation from interactions of user and item agents, our approach incorporates the idea of collaborative filtering.
+
+
+Agent Interaction Inference 
+
+
+After the above memory-based optimization, our approach can simulate highly personalized user agents and preference-aware item agents. In this part, we further study how to employ these simulated agents to infer the potential user-item interactions, focusing on the ranking task for a list of candidates *MATH*.
+
+
+Basic Prompting Strategy. Since both user and item agents are collaboratively optimized to model their two-sided relations, as the basic prompting form, we directly prompt the LLM with the agents&apos; simulated user preferences and the candidate item features. This enables the LLM to serve as a collaborative recommender: *MATH* *MATH* *MATH* where *MATH* is the short-term memory of user agent *MATH*, *MATH* are the corresponding memories of the candidate item agents, *MATH* is the number of candidates, and *MATH* is the ranking result.
+
+
+Advanced Prompting Strategies. Although short-term memory describes the current preference of a user agent, retrieving their specialized preferences from long-term memory toward candidates can allow them to make more personalized inferences. In addition, when interaction records are sparse and preference propagation is limited, we can further incorporate user historical interactions into prompts, enabling LLMs to serve as sequential recommenders. These two improvement strategies can be denoted as follows: *MATH* *MATH* *MATH* where *MATH* is the retrieved specialized preference from the long-term memory of user agent *MATH* by taking the memories of candidate items as queries, and *MATH* are the corresponding memories of the *MATH* historical interactions with items *MATH*.
+
+
+Based on the optimized user agents and item agents, our method can better simulate diverse interaction behaviors observed in the real world, such as user-item interactions, users&apos; social behaviors, and even collective behaviors within recommender systems. Moreover, since we activate items as agents, it enables us to explore the potential feasibility of &quot;inventing&quot; more novel and fascinating interactions among inanimate objects. For example, item-to-item agent interaction can be useful in item cold-start scenarios by spontaneously propagating collected user preference to new items (See Section [3.4.2] for in-depth analysis experiments).
+
+
+Experiments 
+
+
+Experimental Setup
+
+
+Datasets
+
+
+Following previous work [*REF*; *REF*], we conduct experiments on two text-intensive subsets of Amazon review dataset [*REF*]: &quot;CDs and Vinyl&quot; and &quot;Office Products&quot;. Due to expensive API calls, we have to further sample subsets from these two datasets. Specifically, considering the effect of data sparsity on collaborative filtering recommenders, we randomly sample two subsets (one dense and one sparse) from each dataset, with each subset containing 100 users, exploring more diverse interaction scenarios. The statistics of the datasets are summarized in Table. Note that we use the dense datasets for further analysis experiments, as they better demonstrate the interactions among agents.
+
+
+Evaluation Metrics
+
+
+To evaluate the performance, we take NDCG *REF* as a metric, where K is set to 1, 5 and 10. Following existing studies [*REF*; *REF*], we employ the leave-one-out strategy for evaluation. Specifically, we consider the last item in each historical interaction sequence as the ground-truth item. By adopting the model as a ranker, we rank the target item alongside nine randomly sampled items. To further reduce randomness, we conduct three repetitions of all test instances and report the average results.
+
+
+Baseline Models
+
+
+We compare the proposed method with the following baseline methods:
+
+
+*MATH* BPR [*REF*] leverages matrix factorization to learn the representations of users and items by optimizing the BPR loss.
+
+
+*MATH* SASRec [*REF*] captures the sequential patterns of user historical interactions by utilizing a transformer-encoder.
+
+
+*MATH* Pop ranks candidates based on their popularity, which is measured by the number of interactions.
+
+
+*MATH* BM25 [*REF*] ranks candidates according to their textual similarity with user historical interactions.
+
+
+*MATH* LLMRank [*REF*] uses the ChatGPT as a zero-shot ranker, considering user sequential interaction histories as conditions.
+
+
+For our approach, we consider three major variants: *MATH*, *MATH*, and *MATH*  (corresponding to Equation). As our simulated user and item agents are optimized on sampled datasets, we compare our method with BPR and SASRec by training them on the sampled datasets, referred to as *MATH* and *MATH*. We also report the performance of these two models when trained on the complete dataset for reference, denoted as *MATH* and *MATH*. The Pop model, which relies on statistics to make recommendations, is trained on the complete datasets.
+Since LLMRank and BM25 are zero-shot models, training them on the complete dataset would be meaningless. Therefore, we directly evaluate their performance on the sampled datasets. Scaling agents for larger datasets is left as future work.
+
+
+TABLE
+
+
+Overall Performance
+
+
+We compare our approach with the baseline methods on four datasets and present the results in Table . We can find:
+
+
+(1) Our approach outperforms other baselines in most scenarios, highlighting the effectiveness of collaborative learning for simulating personalized agents. Specifically, the performance achieved by adopting our model as a collaborative filtering recommender (AgentCF *MATH*) demonstrates the efficacy of preference propagation in modeling the collaborative filtering idea. In addition, retrieving user agents&apos; specialized preferences toward candidates (AgentCF *MATH*) enables more personalized inferences. In sparse interaction cases (Office dataset), incorporating user historical interactions to enhance the prompt and enabling LLMs to serve as a sequential recommender (AgentCF *MATH*) can make better performance.
+
+
+(2) Our model exhibits superior or comparable performance to traditional recommendation models when trained on datasets of the same scale (sampled datasets). Furthermore, our model even achieves comparable performance to traditional recommenders trained on full datasets, when dealing with sparse scenarios. Although our model still has room for improvement in other scenarios, it is worth emphasizing that our model is trained using only approximately 0.07% of the complete dataset. These results further demonstrate the generalization capability of our approach.
+
+
+(3) Existing tuning-free methods, such as Pop, BM25, and LLMRank, exhibit unsatisfactory performance. Specifically, although LLMRank employs ChatGPT to model user preferences by introducing user historical interactions as prompts, similar to conclusions in [*REF*; *REF*], its performance falls significantly behind that of traditional models. This highlights the gap between user behavior patterns and universal knowledge of LLMs, which hinders the effectiveness of LLMs in capturing user preferences from their behaviors.
+
+
+Further Model Analyses
+
+
+Ablation Study
+
+
+Our proposed agent-based collaborative filtering approach contains the agents&apos; autonomous interaction part, the optimization of user agents, and the optimization of item agents. The details of prompts are presented in Appendix [8]. To verify the effectiveness of each component, we conduct the ablation study on two dense datasets and record the results in Table.
+
+
+(1) *MATH* Autonomous Interaction: In this scenario, we directly provide real user interaction records to agents, and prompt them to explore the reasons behind real user&apos;s decisions. The performance gap reveals that comparing agents&apos; autonomous interactions with real-world interaction records can generate comprehensive feedback about the misalignment between simulated agents and real-world individuals, which enhances the efficacy of reflection.
+
+
+(2) *MATH* User Agent: To remove user agent optimization, we directly represent each user with their historical interactions, without any memory update. The performance decline indicates that the simple verbalized text of user interaction behavior can not reflect user underlying preferences, emphasizing the efficacy of adjusting agents&apos; personalized memories by enabling them to autonomously simulate real user behaviors. Although prompting LLMs with user historical interactions can yield better results in the Office dataset, we argue that this is due to the dataset&apos;s longer item description text, allowing LLMs to effectively serve as sequential recommenders. However, even in this case, stimulating LLM-powered item agents can lead to improved performance, further demonstrating the significance of facilitating items to capture preferences of adopters.
+
+
+(3) *MATH* Item Agent: Not optimizing item agents (i.e., representing items with corresponding identity information) also leads to worse performance, highlighting the effectiveness of behavior-involved item-side modeling in capturing two-sided interaction relations between users and items. Notably, item agents play a crucial role in simulating collaborative filtering recommender systems, by updating their memory with user preference information and propagating this information to new agents through interactions.
+
+
+FIGURE
+
+
+Performance Copmarison w.r.t. Position Bias and Popularity Bias 
+
+
+In this part, we evaluate our approach&apos;s ability to simulate personalized agents, by obliquely examining whether they are susceptible to position and popularity bias in ranking candidates, as general LLMs heavily rely on such common-sense knowledge to make judgments. The results in Figure  show that an LLM prompted by user historical interactions (LLMRank) is influenced by both popularity bias and position bias. It tends to select popular items and those positioned higher. In contrast, our approach, although inevitably affected by these biases, performs enhanced stability. This confirms that our approach simulates personalized user agents, enabling them to rank candidates based on their personalized preferences rather than relying solely on general knowledge.
+
+
+Effectiveness of Collaborative Reflection 
+
+
+To explore the efficacy of collaborative reflection in agent optimization, we evaluate the change in the alignment between agents and real users as optimization progresses. In this experiment, we extract the last three interactions from user behavior sequences to optimize agents, which we refer to as three optimization steps. At each step of optimization, we test whether these agents can select the positive item from two candidates before and after optimization. As illustrated in Figure [1], continuous optimization enables user agents to align their preferences with real users, leading to an increasing number making correct choices on initial attempts (i.e., before optimizing at this step). Moreover, around 95% of user agents can make correct choices after collaborative reflection, highlighting its effectiveness.
+
+
+Simulations on Other Types of Interactions
+
+
+User-user Interaction Simulation
+
+
+FIGURE
+
+
+Real-world users often seek advice from others when interacting with unfamiliar items. For example, they may browse reviews on shopping websites or consult with friends for information. To explore whether user agents can exhibit similar social behaviors, we simulate user-user interaction via AgentCF, where user agents read and write reviews.
+Specifically, given the test items that test users haven&apos;t interacted with, we first ask other user agents, who have previously interacted with these items, to write reviews. The test users are then prompted to read these reviews and make decisions. We compare the decisions of the test users before and after viewing these reviews and present the results in Figure [2]. As we can see, the simulated user agents exhibit behaviors akin to those of real users. They show a growing inclination to purchase items upon encountering positive reviews, refrain from purchasing after encountering negative reviews, and trust reviews from users with similar preferences. We present the user agents&apos; explanations for attitude changes after viewing reviews, as well as their discussions about items in Appendix [8.2].
+
+
+Item-item Interaction Simulation 
+
+
+Recommender systems face challenges in suggesting new items. In this part, we aim to alleviate the cold-start problem by exploring autonomous interactions between new and popular item agents. Specifically, we prompt these new item agents, equipped with identity information such as titles and categories, to interact with and learn from popular item agents that have extensive interaction records. This helps warm up cold-start item agents by estimating adopter preferences and adjusting their memory. Then we prompt user agents to rank the new items among nine other randomly sampled but well-trained items, and compare the ranking results obtained using cold-start memory and adjusted memory. As illustrated in Figure [3], the interaction process enhances the propagation of collected user preferences to new items and improves ranking performance. Notably, we find that even interactions with agents that differ in identity information can also alleviate the cold-start problem to some extent. This implies that the new item agents do not simply replicate other agents&apos;s memories, but rather comprehend the relationship between identity information and personalized memory. It indicates that item-item interactions activated by AgentCF benefit recommender systems.
+
+
+FIGURE
+
+
+Process of Preference Propagation
+
+
+As previously mentioned, our approach achieves preference propagation via collaborative optimization. Here we illustrate this process in detail. Specifically, we first initialize the memory of a seed user agent with special preference descriptions that do not spontaneously emerge during normal optimization. The user and item agents are then prompted to autonomously interact and optimize their memories. We showcase the optimized memories of several agents in Figure [4]. As we can see, through collaborative optimization, user and item agents mutually interact, acting as bridges that facilitate the propagation of their preferences to other agents with similar interaction behaviors. To assess preference propagation efficiency, we ask each user agent about their possession of the seed user&apos;s preferences. The results are presented in Figure [5]. We observe that through continuous interactions, an increasing number of user agents with similar behaviors to the seed user can express similar preferences.
+Additionally, as the interaction scope expands, the proportion of user agents expressing such preference gradually decreases. This indicates that information decay during the propagation process, in line with real-world information diffusion principles [*REF*]. These results demonstrate the potential of our method in developing collaborative filtering systems as a cradle for potential collective intelligence.
+
+
+FIGURE
+
+
+Collaborative Advertisements Creation 
+
+
+FIGURE
+
+
+Existing work indicates that cooperation among multiple LLMs can improve the results generated by individual LLM [*REF*; *REF*].
+This is a manifestation of collective intelligence. To explore its potential in recommender systems, we simulate a typical scenario: the creation of advertisements. Specifically, we simulate several advertiser agents proficient in different aspects of advertising, such as personalization, creativity, and attractiveness. Given an advertisement draft generated by individual LLM, we prompt these agents to critique and offer suggestions, aiming to generate higher-quality advertisements.
+As illustrated in Figure [6], through the collaboration among these agents, our approach utilizes the strengths of each aspect and generates more appealing advertisements for users.
+
+
+Related Work
+
+
+LLM-powered Agents. Recently, LLM-powered agents have shown the potential to develop Artificial General Intelligence (AGI) due to their capabilities in reasoning and planning [*REF*; *REF*]. Equipped with memory [*REF*; *REF*] and reflection [*REF*; *REF*] modules, these agents can store their past experiences and make better decisions for future behaviors. Numerous studies have been proposed to employ agents for simulating human-like interactions, including daily lives in smallville [*REF*], debate [*REF*; *REF*; *REF*], and even game-playing [*REF*; *REF*; *REF*].
+These studies inspire us to explore the application of LLM-powred agents in simulating user-item interactions.
+
+
+Language Model For Recommendation. Numerous attempts have been made to leverage language models for solving recommendation tasks [*REF*; *REF*; *REF*; *REF*].
+Specifically, these studies mainly prompt language models to infer user preferences based on user historical interactions [*REF*; *REF*; *REF*].
+However, due to the gap between universal knowledge of LLMs and domains-specific user behavior patterns, they may fall short in providing personalized recommendations [*REF*; *REF*].
+To solve this, several studies propose to incorporate knowledge of LLMs to enhance recommendation models, rather than taking LLMs as recommenders [*REF*; *REF*].
+Some work also specializes LLMs for recommendation by fine-tuning them on recommendation data, which can be time-consuming [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Recently, researchers attempt to incorporate agents into recommender systems, focusing on facilitating recommendations or user behavior simulations [*REF*; *REF*; *REF*; *REF*; *REF*].
+However, these studies mainly focus on user behavior, neglecting the modeling of user-item relations, which is the core of recommender systems. Unlike these methods, we further regard items as agents and propose the agent-based collaborative filtering approach, enabling user and item agents to model their two-sided relations.
+
+
+Conclusion and Future Work
+
+
+In this paper, we proposed AgentCF, an agent-based collaborative filtering approach for simulating user-item interactions in recommender systems. We creatively consider not only users but also items as agents, allowing for the modeling of their two-sided relations through interactions of LLM-powered agents. Specifically, we develop a collaborative learning approach that optimizes both kinds of agents together, where these agents perform autonomous interactions and reflect on the disparities between their decisions and real-world interaction records. During this process, user and item agents mutually align their preferences, and propagate this information to other agents in subsequent interactions, implicitly modeling the collaborative filtering idea. The simulated user and item agents exhibit human-like behaviors in various types of interactions (user-item, user-user, item-item, and collective interactions), demonstrating the effectiveness of AgentCF.
+
+
+In the future, we will explore more types of real-world scenarios and their corresponding interactions. In addition, AgentCF is a small step to simulate not only humans but also inanimate objects with LLM-based agents. It holds the promise of enhancing inanimate objects with autonomy and emerging intellectual agent ecosystems that connect everything, which will be studied in our future work.

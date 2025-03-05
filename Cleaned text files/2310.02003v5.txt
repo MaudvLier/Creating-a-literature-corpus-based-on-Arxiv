@@ -1,0 +1,247 @@
+L2MAC: Large Language Model Automatic Computer for Extensive Code Generation
+
+
+Introduction
+
+
+Transformer-based Large Language Models (LLMs), such as GPT-3 ([Brown et al., 2020]), Instruct GPT ([Ouyang et al., 2022]), and the most recent GPT-4 ([OpenAI, 2023]), have achieved unprecedented success in generating high-quality user-directed text. Despite their impressive capabilities, these models are inherently restricted by a fixed context window of size c, which limits the number of tokens and, consequently, the characters they can process. This limitation manifests itself critically in tasks that require the generation of extensive and logically coherent output structures, such as the generation of large codebases. Therefore, although existing LLMs excel in generating short isolated code snippets ([Chen et al., 2021]), they struggle to produce codebases that are both extensive and internally consistent due to the information loss and contextual truncation imposed by the finite context window. But practical code is rarely a short snippet, so this limitation undermines the applicability of LLMs to solving real-world tasks that require the dynamic integration of multiple outputs and attendance to distant information.
+
+
+A natural solution is to extend the LLM agent with an external memory store. However, existing methods primarily serve to extend the implicit knowledge of LLMs through an external corpus ([Zhong et al., 2022]), to facilitate long conversational or document summarization tasks ([Liang et al., 2023]), or to maintain precise values for variables ([Hu et al., 2023]).
+In the latter case, the approaches simply interface the LLM with a dictionary or a database, which does not adjust to other tasks. In other settings, current approaches adopt simplistic memory management strategies that append new information sequentially without any provision for in-place modification. This makes any error essentially irreversible, a critical limitation when generating codebases, and restricts the possibility of adapting previously generated code as the task progresses. Compounding these shortcomings, these methods do not include mechanisms for maintaining syntactic or semantic consistency within the memory store, a vital requirement for the generation of coherent and interdependent code structures. Thus, existing methods are ill-suited for extensive large code-generation tasks.
+
+
+FIGURE 1
+
+
+An effective method for extensive code generation requires the following three core properties: (P1) Task-Oriented Context Management: At each computational step, the context for the LLM agent should contain the information required to complete the current instruction. The context is dynamically managed to prevent exceeding the fixed context window size of tokens.
+
+
+(P2) Precise Read/Write Tools for Entire Memory: The LLM agent should possess read/write operations that can interact precisely with the memory store to fetch and update relevant files.
+
+
+(P3) Checking the Generated Output: The outputs of the LLM agent are checked for both mistakes and when the current instruction has been completed. When mistakes are detected, such as syntactically invalid code, or failing self-generated functional unit tests, they can attempt to be fixed by iterating the discovered errors with the LLM agent.
+
+
+With these considerations, we introduce L2MAC, the first practical LLM-based general-purpose stored-program computer (von Neumann architecture) framework, an LLM-based multi-agent system, and instantiate it for long code generation tasks as Code-L2MAC. A Control Unit (CU) orchestrates the execution of the individual LLM agents and their interaction with the memory store, thus satisfying the three stipulated properties. As outlined in Figure [1], an LLM agent first generates a task-oriented instruction list from a detailed user-specified task. The CU tailors the LLM agent&apos;s context (P1), so that it always includes the next unresolved instruction in and information about the execution of past iterations (agents), and declutters the context when approaching its limit. It also endows the LLM agent with the ability to read and update any existing region of the memory store or extend it with new outputs (P2). Furthermore, the CU plays a crucial role in checking the generated output (P3). It feeds the LLM agent with syntactical checker errors and requests the LLM agent to generate checks alongside generating output, here unit tests when generating code, which are verified at each update of the memory file store to trigger corrective actions if needed, thereby ensuring that the extensive output in memory is both syntactically and functionally consistent.
+
+
+Code-L2MAC, demonstrating its state-of-the-art capabilities in generating large codebases to solve for the first time high-level system design tasks of creating entire applications and for generating code achieving a 90.2% Pass@1 score on the HumanEval benchmark ([Chen et al., 2021]). Also, we show L2MAC works for general-purpose extensive text-based tasks, such as writing an entire book. Additionally, we gain insight and understanding of how Code-L2MAC can leverage tools to execute and verify code by self-generating its own unit tests and use these to correct for generation errors whilst generating large interrelated code structures that fulfill detailed complex user-specified task feature requirements.
+
+
+Background
+
+
+Large Language Models (LLMs). Essentially, an LLM is a probabilistic function l: *MATH*, ingesting a list of elements of the alphabet Σ of lengths c and outputting a distribution over the elements from which one is drawn ([Vaswani et al.,2017]). We refer to c as the length of the context.
+For example, GPT-4 and GPT-3 have fixed context windows of 8, 192 and 4, 097, respectively.
+Consequently, as discussed in [Schuurmans 2023], an LLM at inference time can be formalized as a finite-state machine ([Dolfing &amp; Hetherington,2001]). Given the well-known and exceptional extension from finite-state machines to Turing machines [Turing et al. 1936] that leads to the practical framework of stored-program computers, it is natural to envision a parallel extension for LLMs.
+
+
+Stored-Program Computer (SPC). Originally termed the von Neumann architecture ([Von Neumann, 1945]), is a combination of a processor (arithmetic and logic unit), a Control Unit (CU), and memory capable of storing both instructions and data, SPCs set the foundation for modern computer design. Where the control unit manages the interaction between the processor and the data. A fundamental property of a general-purpose SPC is that it can be reprogrammed to automatically execute a program (ideally to solve a specified task) without manual intervention.
+Specifically, the CU extracts from memory, data and instructions and correspondingly sets the input and state of the processor (P1) and then overwrites a memory register with the output (Appendix [A]). Thus, the SPC extends the processor&apos;s arithmetic and logic abilities with the ability to manipulate memory (P2). An often overlooked but vital function of the CU is error-checking of the processor&apos;s output (P3). &quot;Stochastic&quot; effects of temperature, voltage change, or radiation can cause errors in a processor ([Nicolaidis, 2010]), including misspecified inputs leading to overflows. Therefore, CUs implement output checks such as parity bit checks and usually corresponding error-correcting mechanisms ([Harris &amp; Harris, 2010]).
+
+
+3. L2MAC FRAMEWORK
+
+
+Now we outline the L2MAC framework for the first practical LLM-based SPC, with an instantiation for coding illustrated in Figure [1]. L2MAC consists of three main components: the LLM processor, the memory file store, and the Control Unit (CU) that controls the flow of the execution, thus endowing the LLM agent with read-and-write capabilities, among other capacities -- this is illustrated in Figure [2]. Some choices are deliberately left open to differentiate the key functionalities needed from how we tackle them in our implementation for code generation, which we detail in the next section.
+
+
+1. LLM-based Processor
+
+
+An inherent element of L2MAC is the Large Language Model (LLM), which is responsible for the actual generation of the output for the task.
+An LLM can be visualized as a more complex atomic unit of computation *MATH*, where, for instance, Σ = 50, 257 tokens ([Radford et al., 2019]); rather than being restricted to only deterministic arithmetic and logical operations on binary sequences, that is, *MATH*, e.g., for a standard 64-bit processor ([Hennessy &amp; Patterson 2011]). This allows for a more flexible and powerful (yet more expensive) computation unit, which can be used to solve a different range of tasks.
+*MATH* 
+As a side note, the Church-Turing Thesis posits that both Universal Turing Machines (UTMs) and SPCs are capable of simulating each other and, therefore, are models of the same class of computational processes [Von Neumann 1945] (Appendix [A.1]). Recently, it has been shown that augmenting an LLM with an external read-and-write memory allows it to simulate a UTM ([Schuurmans,2023]). However, we do not aim to reproduce the capabilities of the current hardware SPC in arithmetic and logic operations but rather explore the powerful abilities of LLM-SPCs as automatic computers.
+
+
+FIGURE 2
+
+
+Leveraging an LLM within the L2MAC framework offers distinct advantages to exploit and challenges to overcome, categorized to the properties of P1, P2, and P3. Here, L2MAC benefits from the LLM&apos;s awareness of external tools with which it can interact with assisted by the Control Unit. This capability enables requests for memory reads/writes (P2) and additional output checks (P3).
+
+
+In contrast, the use of an LLM also imposes constraints that need to be addressed, such as the impediments of a limited context window to prevent incongruencies caused by the lack of attention to distant information; that is, we have to handle context correctly (P1).
+Furthermore, the stochastic nature of LLM&apos;s output ((Σ)) is a significant risk in situations where precision and correctness are key. Thus, crucial to effectively updating an interrelated memory is the ability to enforce periodic checks on its output to ensure a level of correctness and consistency (P3) ([Liventsev et al., 2023]).
+
+
+2. Memory
+
+
+Following an SPC, we distinguish between two types of memory, that of the instruction registry and the file store. On the one hand, the instruction registry contains the prompt program that will be used to determine the state of the processor. In L2MAC, given the LLM processor, this corresponds mainly to the strings that will be incorporated into the context of the LLM agent at each execution. In a basic implementation, lists the sequential steps needed to complete the task, either specified by the user or automatically generated -- where each step will be executed by a separate LLM agent.
+
+
+On the other hand, the file store D stores the rest of the information relevant for the processor to read, write, and evaluate, with the final output ultimately stored in D.
+
+
+3. Control Unit
+
+
+The control unit (CU, cf. Figure [2]) is responsible for managing the context window for the LLM, encompassing both its inputs and outputs, executing the LLM, checking its outputs for errors, and enabling it to call tools (functions) -- including reading and writing.
+We further detail the CU, including a block diagram figure and pseudocode for its operation in Appendix [B].
+First, we start with how the CU interacts with the LLM.
+
+
+1. Task-Oriented Context Management (P1)
+
+
+Context formalism. The CU uses the LLM as a multi-turn dialog system, filling its context window
+
+
+C with a combination of messages m which can come from the user Mu, an LLM response Mr, a function (tool) output Mf, or the CU Mc, so that m ∈ {Mu, Mr, Mf, Mc}. Consequently, at turn t then the context window *MATH* is of the form *MATH*.
+
+
+To make L2MAC an automatic computer=, the CU prompts the LLM to fill the initially empty instruction registry I with a list of instructions *MATH* where each will be executed in Given a set A, let *MATH*, *MATH* denote the set of lists of arbitrary length composed of elements in A.
+
+
+We define what we mean by an &apos;automatic&apos; computer in Appendix [A.2].
+
+
+the LLM processor. L2MAC then loads an empty context window of an LLM agent with the first instruction *MATH* and iterates the CU control flow loop (Figure [2]) until all instructions have been achieved. The LLM can signal when the current instruction *MATH* has been completed through calling a special function &apos;step_complete&apos; at which point the CU evaluates the file store using its evaluator module (discussed in Section [3.3.3]) to check for any introduced errors. If none are found, it asks the LLM to summarize the generated output in the current context window *MATH* as a message *MATH* Mrs and resets the context window as *MATH*.
+
+
+Overcoming the fixed context window constraint. The input to the LLM cannot exceed the context window constraint c: the combined length of the initial context *MATH* and the additional messages buffer *MATH* must fit in the context window, that is, *MATH*. However, the length of ∆Ct+1 is not known a priori, so the CU should have a way of handling the cases where ∆Ct+1 exceeds the context margin c C^t^. This can be achieved through a combination of three different strategies: (1) minimize the occurrence by promoting the task at each time step to be small enough and economizing the filling of the context C; and if the situation occurs, (2) store in the file store D as much relevant output as possible from the current C^t^ and (3) update or include a new summary message with I(k) as in-context tuning for the next iteration.
+
+
+Regarding (1), through appropriate crafting C^t^, the CU can prompt the LLM to plan sub-steps for the current instruction (most likely the original task prompt given by the user) and then target each sub-step in the following iterations. For illustration, in a coding setting, (2) can be achieved by storing the generated code so far to avoid rewriting it in the next iteration, and (3) by initializing a new prompt with a summary Mrs of the current progress and helpful information to complete the current instruction, e.g., which files should be read or modified, or the current progress made fixing errors -- (3) is further detailed at the bottom right of Figure [2].
+
+
+2. Precise Read/Write tools for entire memory (P2)
+
+
+The need for a reading mechanism that retrieves the relevant information at each iteration is evident and has been reasonably explored in previous literature. In contrast, previous work on memory (as shown in Section [5]) has paid little attention to the writing component, which gets mostly reduced to the appending of new prompts and LLM outputs ([Liang et al.,2023]; [Zhong et al.,2022]; [Cheng et al.,2023]; [Wu et al.,2022]) or updating the values of very structured and thus restrictive forms of memory ([Modarressi et al., 2023]), e.g., variables or tables ([Hu et al., 2023]).
+
+
+These approaches make sense for summarization, dialogs, and database manipulation tasks but are not suitable for long interconnected output generation tasks, such as generating large codebases for system design tasks. Indeed, in such settings, the possibility of downstream subtasks (j) demanding extensions of previous outputs (such as modules in a codebase) due to imperfect planning, plus the non-determinism and possible hallucination of LLMs, make it probable to require modifications of previously stored memories D to rectify these defects, as shown in Section [6.2].
+
+
+In L2MAC it is thus key to implement read/write interactions with any part of the memory. We want the agent to be able to scan on demand, retrieve parts of the memory that it considers relevant, and potentially update them. In the next Section [4], we detail our implementation of an LLM with a write component that allows it not only to add new information to but also to delete and update any of its contents, an essential element that allows L2MAC to succeed in long output generation tasks.
+
+
+3. Checking the generated output (P3)
+
+
+As discussed in Section [3.1] and [3.3.2], the intrinsic stochasticity of LLMs and the well-known phenomenon of hallucination ([OpenAI, 2023]) make it likely that incoherent or erroneous outputs occur during long interactions, which can be disastrous, for example, in coding. More profoundly, changes (e.g., to a function) to satisfy a given instruction (j) can hamper the solution to formerly completed instructions (i), i &lt; j. Therefore, it is essential to incorporate two key checks, one to check the generated outputs for errors using a given evaluator module, and the other to check when the current instruction has been completed in the current context *MATH* (c.f. top diamond in Figure [2]).
+
+
+We consider the simplest case of sequential instructions of a prompt program and discuss more complicated control flow paradigms in Appendix [I].
+
+
+We use ⊕: List(A) × List(A) → List(A) as the concatenation of two lists on the set A. We abuse notation by considering any a ∈ A as a singleton {a}.
+
+
+Error checking and error correction. Using a given evaluator module, which can process the existing file store, i.e., (D), allows when run, errors to be detected and returned to the LLM as an evaluator message Mfe. The evaluator is domain-specific; for example, in coding tasks, this can correspond to syntactical code checkers or self-generated unit tests that verify the correctness
+
+
+D E
+
+
+E
+
+
+of the output for an instruction (i). Crucially, these self-generated unit tests also help test the existing functionality of previously generated instructions (j). Naturally, evaluation checks should be enforced on the file store after each writing operation to ensure that new additions are correct and consistent with previous files. These result in messages Mfe that are provided for in-context learning so that the LLM can correct the errors, ∆Ct+1 ∆Ct+1 Mfe, and iterate by rewriting until the evaluator checks pass, if any are present.
+
+
+Checking for current instruction completion. To ensure continued execution in a multi-turn dialogue LLM system until completion, we request the LLM to decide on the next step to take, which can involve executing a tool ([Wang et al., 2023a]).
+This is achieved through a cycle prompt message Mcc that also asks the LLM if the instruction has been completed. Cycle prompting is necessary to account for different instructions requiring a variable number of turns to complete, and to protect against hallucinations where the LLM agent only discusses the instruction (i) and does not generate a solution or store it in memory. Overall, this ensures that the LLM provides a solution for the given instruction within the current context (P3).
+
+
+4. CODE-L2MAC
+
+
+Now, we use our LLM automatic computer (L2MAC) framework and instantiate it to complete large codebase generation tasks, which we call Code-L2MAC. We distinguish the general-purpose task long-generation framework from the code instantiation to detach the core components from task domain decisions that can be appropriately adapted to other task domains. We provide the full details of the implementation in Appendix [C]; yet here we highlight some notable design decisions on the memory layout (in particular,) and the read logic. There are different potentially valid alternatives for the read component in L2MAC (e.g., [Wu et al. 2022])). However, to promote a transparent read component, we make the following choices.
+
+
+D
+
+
+We specify the memory file store, be composed solely of files, each shorter than the residual margin of the context window after accounting for preliminary messages in any iteration and instruct the LLM agent to assign each file a semantically meaningful descriptive path. For example, a file name models/user.py suggests that it contains the data model for the user class. This choice is not only valuable for a human reader but also crucial for our Read-and-Write implementation, as it allows the LLM to infer the content of existing files and prioritize those that it might need to read to complete its current instruction. Given the list of file paths, the LLM can request that the contents of any be appended into its context C^t^. Although the path-to-content link is not absolute, empirically, this read implementation can perform well (Section [6]), when coupled with the context management logic of the CU. Specifically, if the LLM reads the content of certain files and reaches the context window limit, it can include in its subsequent iteration summary indications of which files should be read and which should be excluded in order to generate the code necessary to complete the current instruction. This approach thereby enables the LLM to systematically scan all memory, with the scanning order guided by priorities previously established from the file path names.
+
+
+Related Work
+
+
+In the following, we review the existing memory-augmented LLM-based approaches, focusing on approaches applicable to completing large-generation coding tasks -- and summarize their main differences in Table [1].
+We provide an extended discussion of additional related works, including those of other single-turn code generation methods and memory-augmented LLMs in Appendix [D].
+
+
+Single LLMs. These are limited to generating an output of the maximum size of the context window and form the most popular baseline widely used for coding. Examples include Codex ([Chen et al., 2021]), GPT4 ([OpenAI, 2023]), GPT-Engineer ([Osika, 2023]) and Code LLama ([Rozière et al., 2023]).
+
+
+Reflecting LLMs. These enhance the performance of LLMs by having the LLM reflect retrospectively on the output of an evaluator and the actions taken ([Shinn et al., 2023]; [Madaan et al., 2023]). These verbal reflections are used as in-context learning ([Dong et al., 2022]) to improve performance when attempting the task again. By using a validator, such as self-generated unit tests, this simple idea has
+
+
+^8^More precisely, no longer than half such margin to ensure the LLM can rewrite any file within its context.
+
+
+TABLE 1
+
+
+Memory-augmented LLMs. Most work on this topic focuses on long conversational/text summarization tasks ([Liang et al., 2023]; [Zhong et al., 2022]; [Cheng et al., 2023]), or mathematical/database reasoning ([Hu et al., 2023]).
+Methods in the first group usually focus exclusively on the read component of memory. The same happens with ([Wu et al.,2022]), which, through k-NN retrieval for next-token predictions, enhances perplexity for multiple tasks, including coding.
+However, read-only implementations are sensitive to the inconsistency and &quot;stochasticity&quot; of LLMs, which might break code, that the method cannot then fix. [Modarressi et al. 2023] proposes updating memories, but they use tuples with two subjects and their relation, so they have no clear application to coding tasks.
+Similarly, the memory of mathematical/database reasoning methods use a dictionary of values or a structured database, which again is not applicable to different settings (e.g., coding).
+
+
+Autonomous agent LLMs with memory. [Richards 2023]; [Shrestha &amp; Watkins 2023]; [Nakajima 2023] formulate a fully autonomous LLM-based agent in a reinforcement learning environment to complete a given task ([Wang et al., 2023a]). They build and update their own plans from a few user-given high-level goals. When coding, these agents reprogram and reformulate their step plan at runtime without safeguarding the original intentions, resulting in frequent deviations from the task ([Wang et al.,2023a]; [Sato et al.,2023]). In comparison, Code-L2MAC is designed to be automatic, i.e., it fulfills the detailed user-specified task without altering or forgetting parts. The only existing autonomous agent LLM with applicable memory capable of writing, reading, and executing code is AutoGPT ([Richards,2023]). It tackles the context window constraint by iteratively summarizing previous actions completed at every k-th turn into a rolling summary kept in the context. Like other agents, the first step of AutoGPT is to summarize the user-specified task into a name, role, and five one-sentence goals for the agent to complete; this summary is kept in context throughout execution. AutoGPT and associated methods have two key limitations compared to Code-L2MAC (cf. Figure [3]):
+
+
+(1) they compress the user-specified task into a mere six-sentence description, and (2) they compress the previous action history, thus losing crucial information. In code generation tasks, (2) indicates forgetting which files exist and their content, which is compounded by continual re-planning.
+
+
+Experiments and Evaluation
+
+
+In this section, we evaluate Code-L2MAC and verify that it significantly outperforms state-of-the-art methods for generating code and large codebases for system design tasks. Due to the absence of an existing benchmark for large codebase generation tasks, we introduce one to enable comparison with other methods. Furthermore, there are also no automated tools to validate the generation of codebases for system design tasks either, therefore we propose evaluation metrics to compare the methods.
+
+
+Benchmark tasks. We evaluate against three standard system design codebase generation tasks whose prompt questions are taken from real-world system design interview questions ([Xu &amp; Lam, 2020]; [Martin,2023]), and the HumanEval benchmark ([Chen et al., 2021]); with all details in Appendix [E].
+
+
+Evaluation metrics. Large-scale codebase generation is unique in that the generated code can satisfy the high-level user-specified task feature requirements through various possible implementation approaches. To quantify the degree to which the user-specified features in the initial prompt are effectively implemented in the generated code, we introduce a performance metric named Features %. This metric numerically represents the proportion of input features that are fully and functionally implemented in the output codebase. The Features % is obtained by using a separate GPT-4 API call, which iteratively examines the entire generated code to verify the functional implementation of all input features, counting the number of fully implemented features.
+We quote this as a percentage of the features implemented over the total features specified by the user. A detailed description and a motivating example of this implementation are provided in Appendix [G]. We also incorporate standard code generation evaluation metrics ([Hasemer, 2018]), such as the number of lines of code generated LOC and the number of errors Errors in the codebase as determined by a code syntactical analyzer ([Thénault, 2023]).
+Furthermore, each method is instructed to generate unit tests to check that the generated code is valid; therefore, we quote how many of these self-generated unit tests pass as Tests Passed. We give each metric with their 95% confidence intervals throughout. Moreover, we detail these metrics and the experimental setup in more detail in Appendix [G].
+
+
+TABLE 2
+
+
+Benchmark methods. To assess whether Code-L2MAC is state-of-the-art, we compare it with the most competitive and popular autonomous agent LLM with memory AutoGPT ([Richards, 2023]), based on GPT4 and capable of reading, writing, and persisting, using a vector embedding memory to complete given tasks autonomously. We also compare with code reflecting LLM methods of CodeT ([Chen et al., 2022]), Self-Refine ([Madaan et al., 2023]), Reflexion ([Shinn et al., 2023]) and a single GPT4 LLM (GPT4) ([OpenAI,2023]) -- we make all these competitive by providing them with the same tools that Code-L2MAC uses. We provide the method implementation details, hyperparameters, and experimental details in Appendix [F].
+
+
+1. Main results
+
+
+We evaluated all the benchmark methods across all our system design tasks with results tabulated in Table [2]. Code-L2MAC fully implements the highest percentage of user-specified task feature requirements across all tasks by generating fully functional code that has minimal syntactical errors and a high number of passing self-generated unit tests -- therefore, Code-L2MAC is state-of-the-art for completing these system design large codebase generation benchmark tasks. We further evaluated Code-L2MAC on the standard HumanEval benchmark ([Chen et al., 2021]) and observe that it achieves a state-of-the-art score of 90.2% Pass@1 (Appendix [H.1]). Also, we show L2MAC works for general-purpose extensive text-based tasks, such as writing an entire book (Appendix [H.2]).
+
+
+2. Insight experiments
+
+
+This section provides an in-depth empirical analysis of the efficacy of Code-L2MAC compared to its benchmark counterparts, AutoGPT and GPT-4. Specifically, we examine the core properties we suggested an effective extensive code generation framework should possess: task-oriented context management (P1), precise read/write tools (P2), and output error checking and correcting (P3).
+
+
+Can Code-L2MAC correctly perform task-oriented context management? (P1). To explore if the benchmarked methods during operation contain the information within their context to complete the task directly, we adapted our Features % metric to count the number of user-specified task feature requirements that are retained within the methods task instructions instead, i.e., those instructions that are eventually fed into its context window during its operation, as shown in Figure [3] (a). Empirically, we observe that Code-L2MAC is able to retain a high number of user-specified task feature requirements within its instructions and perform instruction-oriented long-running tasks. We note that AutoGPT also initially translates the user-specified task feature requirements into task instructions; however, it does so with higher compression -- condensing the information into a mere six-sentence description. This process results in the loss of crucial task information necessary for completing the overall task correctly, such that it aligns with the detailed user-specified task.
+
+
+FIGURE 3
+
+
+ago, and through its understanding, create new files that interrelate with the existing files, and most importantly update existing code files as new features are implemented. To derive insight, we plot a heatmap of the reading, writing, and when files are created at each write operation step during one episode in Figure [4].
+We observe that Code-L2MAC has an understanding of the existing generated code that allows it to update existing code files, even those originally created many instruction steps ago, and can view the files when it is not certain and update the files through writing to the files. In contrast, AutoGPT often only writes to files once, when initially creating them, and can only update files that it knows about that are retained within its current context window. Although it also has a read file tool, it often forgets about the files that it created many iterations ago due to its context window handling approach of summarizing the oldest dialog messages in its context window, i.e., a continual lossy compression of the previous progress made during operation of completing the task.
+
+
+Can Code-L2MAC check the generated output and error correct (P3)? When using a probabilistic model (LLM) as a generator to output code, errors can naturally occur in its outputs. Therefore, we wish to verify if, when errors do appear, the respective benchmark methods can error-correct the codebase. We plot the number of syntactical errors in the codebase during a run where errors are made in Figure [3] (b). We observe that
+
+
+FIGURE 4
+
+
+Moreover, Code-L2MAC generates unit tests alongside the functional code and uses these as an error checker to inspect the functionalities of the codebase as it is generated and can use these errors to fix the codebase to pass unit tests that now fail after updating part of an existing file. We show this in Figure [3] (c) and observe that AutoGPT, whilst prompted to also write unit tests for all code generated, is unable to use these tests as an integrity error check, which could be compounded by the observation that AutoGPT forgets which files it has previously created and hence unable to modify the existing forgotten code files as new modifications are made, leading to incompatible code files.
+
+
+Conclusion and Future work
+
+
+In this paper, we present L2MAC, the first LLM-based general-purpose stored-program computer framework that effectively and scalably augments LLMs with a memory store for long output generation tasks where this was not previously successfully achieved. Specifically, Code-L2MAC, an application for long code generation tasks, surpasses existing solutions -- and is an immensely useful tool for rapid development. This work is not without limitations. L2MAC&apos;s performance is inherently bounded by its underlying LLM across various tasks, from planning to tool use. Further, the current design imposes an implicit constraint on the scale of the codebase by listing all file names within the context window, which could readily be improved. These, and among many other aspects such as complex instruction flows, re-programming the instructions, and interpretable prompt programs pose exciting open directions for future work to build upon as detailed in Appendix [I].

@@ -1,0 +1,184 @@
+Revisiting Plasticity in Visual Reinforcement Learning: Data, Modules and Training Stages
+
+
+Introduction
+
+
+The potent capabilities of deep neural networks have driven the brilliant triumph of deep reinforcement learning (DRL) across diverse domains [*REF*; *REF*; *REF*]. Nevertheless, recent studies highlight a pronounced limitation of neural networks: they struggle to maintain adaptability and learning from new data after training on a non-stationary objective [*REF*; *REF*], a challenge known as plasticity loss [*REF*; *REF*].
+Since RL agents must continuously adapt their policies through interacting with environment, non-stationary data streams and optimization objectives are inherently embedded within the DRL paradigm [*REF*]. Consequently, plasticity loss presents a fundamental challenge for achieving sample-efficient DRL applications [*REF*; *REF*].
+
+
+Although several strategies have been proposed to address this concern, previous studies primarily focused on mitigating plasticity loss through methods such as resetting the parameters of neurons [*REF*; *REF*; *REF*], incorporating regularization techniques [*REF*; *REF*; *REF*] and adjusting network architecture [*REF*; *REF*; *REF*]. The nuanced impacts of various dimensions within the DRL framework on plasticity remain underexplored. This knowledge gap hinders more precise interventions to better preserve plasticity. To this end, this paper delves into the nuanced mechanisms underlying DRL&apos;s plasticity loss from three primary yet underexplored perspectives: data, agent modules, and training stages. Our investigations focus on visual RL (VRL) tasks that enable decision-making directly from high-dimensional observations. As a representative paradigm of end-to-end DRL, VRL is inherently more challenging than learning from handcrafted state inputs, leading to its notorious sample inefficiency [*REF*; *REF*; *REF*].
+
+
+We begin by revealing the indispensable role of data augmentation (DA) in mitigating plasticity loss for off-policy VRL algorithms. Although DA is extensively employed to enhance VRL&apos;s sample efficiency [*REF*; *REF*], its foundational mechanism is still largely elusive. Our investigation employs a factorial experiment with DA and Reset. The latter refers to the re-initialization of subsets of neurons and has been shown to be a direct and effective method for mitigating plasticity loss [*REF*]. However, our investigation has surprisingly revealed two notable findings: (1) Reset can significantly enhance performance in the absence of DA, but show limited or even negative effects when DA is applied. This suggests a significant plasticity loss when DA is not employed, contrasted with minimal or no plasticity loss when DA is utilized. (2) Performance with DA alone surpasses that of reset or other interventions without employing DA, highlighting the pivotal role of DA in mitigating plasticity loss.
+Furthermore, the pronounced difference in plasticity due to DA&apos;s presence or absence provides compelling cases for comparison, allowing a deeper investigation into the differences and developments of plasticity across different modules and stages.
+
+
+We then dissect VRL agents into three core modules: the encoder, actor, and critic, aiming to identify which components suffer most from plasticity loss and contribute to the sample inefficiency of VRL training. Previous studies commonly attribute the inefficiency of VRL training to the challenges of constructing a compact representation from high-dimensional observations [*REF*; *REF*; *REF*; *REF*; *REF*]. A natural corollary to this would be the rapid loss of plasticity in the encoder when learning from scratch solely based on reward signals, leading to sample inefficiency. However, our comprehensive experiments reveal that it is, in fact, the plasticity loss of the critic module that presents the critical bottleneck for training. This insight aligns with recent empirical studies showing that efforts to enhance the representation of VRL agents, such as meticulously crafting self-supervised learning tasks and pre-training encoders with extra data, fail to achieve higher sample efficiency than simply applying DA alone [*REF*; *REF* -from-Scratch]. Tailored interventions to maintain the plasticity of critic module provide a promising path for achieving sample-efficient VRL in future studies.
+
+
+Given the strong correlation between the critic&apos;s plasticity and training efficiency, we note that the primary contribution of DA lies in facilitating the early-stage recovery of plasticity within the critic module. Subsequently, we conduct a comparative experiment by turning on or turning off DA at certain training steps and obtain two insightful findings: (1) Once the critic&apos;s plasticity has been recovered to an adequate level in the early stage, there&apos;s no need for specific interventions to maintain it. (2) Without timely intervention in the early stage, the critic&apos;s plasticity loss becomes catastrophic and irrecoverable. These findings underscore the importance of preserving critic plasticity during the initial phases of training. Conversely, plasticity loss in the later stages is not a critical concern. To conclude, the main takeaways from our revisiting can be summarized as follows:
+
+
+- DA is indispensable for preserving the plasticity of VRL agents.
+(Section [3])
+- Critic&apos;s plasticity loss is a critical bottleneck affecting the training efficiency.
+(Section [4])
+- Maintaining plasticity in the early stages is crucial to prevent irrecoverable loss. (Section [5])
+
+
+We conclude by addressing a longstanding question in VRL: how to determine the appropriate replay ratio (RR), defined as the number of gradient updates per environment step, to achieve optimal sample efficiency [*REF*]. Prior research set a static RR for the entire training process, facing a dilemma: while increasing the RR of off-policy algorithms should enhance sample efficiency, this improvement is offset by the exacerbated plasticity loss [*REF*; *REF*; *REF*]. However, aforementioned analysis indicates that the impact of plasticity loss varies throughout training stages, advocating for an adaptive adjustment of RR based on the stage, rather than setting a static value. Concurrently, the critic&apos;s plasticity has been identified as the primary factor affecting sample efficiency, suggesting its level as a criterion for RR adjustment. Drawing upon these insights, we introduce a simple and effective method termed Adaptive RR that dynamically adjusts the RR according to the critic&apos;s plasticity level. Specifically, Adaptive RR commences with a lower RR during the initial training phases and elevates it upon observing significant recovery in the critic&apos;s plasticity. Through this approach, we effectively harness the sample efficiency benefits of a high RR, while skillfully circumventing the detrimental effects of escalated plasticity loss. Our comprehensive evaluations on the DeepMind Control suite [*REF*] demonstrate that Adaptive RR attains superior sample efficiency compared to static RR baselines.
+
+
+Related work
+
+
+In this section, we briefly review prior research works on identifying and mitigating the issue of plasticity loss, as well as on the high RR dilemma that persistently plagues off-policy RL algorithms for more efficient applications. Further discussions on related studies can be found in [Appendix] [8].
+
+
+Plasticity Loss.   Recent studies have increasingly highlighted a major limitation in neural networks where their learning capabilities suffer catastrophic degradation after training on non-stationary objectives [*REF*; *REF*]. Different from supervised learning, the non-stationarity of data streams and optimization objectives is inherent in the RL paradigm, necessitating the confrontation of this issues, which has been recognized by several terms, including primacy bias [*REF*], dormant neuron phenomenon [*REF*], implicit under-parameterization [*REF* -parameterization], capacity loss [*REF*], and more broadly, plasticity loss [*REF*; *REF*]. Agents lacking plasticity struggle to learn from new experiences, leading to extreme sample inefficiency or even entirely ineffective training.
+
+
+The most straightforward strategy to tackle this problem is to re-initialize a part of the network to regain rejuvenated plasticity [*REF*; *REF*; *REF*]. However, periodic Reset [*REF*] may cause sudden performance drops, impacting exploration and requiring extensive gradient updates to recover. To circumvent this drawback, ReDo [*REF*] selectively resets the dormant neurons, while Plasticity Injection [*REF*] introduces a new initialized network for learning and freezes the current one as residual blocks. Another line of research emphasizes incorporating explicit regularization or altering the network architecture to mitigate plasticity loss. For example, [*REF*] introduces L2-Init to regularize the network&apos;s weights back to their initial parameters, while [*REF*] employs Concatenated ReLU [*REF*] to guarantee a non-zero gradient.
+Although existing methods have made progress in mitigating plasticity loss, the intricate effects of various dimensions in the DRL framework on plasticity are poorly understood. In this paper, we aim to further explore the roles of data, modules, and training stages to provide a comprehensive insight into plasticity.
+
+
+High RR Dilemma.   Experience replay, central to off-policy DRL algorithms, greatly improves the sample efficiency by allowing multiple reuses of data for training rather than immediate discarding after collection [*REF*]. Given the trial-and-error nature of DRL, agents alternate between interacting with the environment to collect new experiences and updating parameters based on transitions sampled from the replay buffer. The number of agent updates per environment step is usually called replay ratio (RR) [*REF*; *REF*] or update-to-data (UTD) ratio [*REF*; *REF*]. While it&apos;s intuitive to increase the RR as a strategy to improve sample efficiency, doing so naively can lead to adverse effects [*REF*; *REF*]. Recent studies have increasingly recognized plasticity loss as the primary culprit behind the high RR dilemma [*REF*; *REF*; *REF*]. Within a non-stationary objective, an increased update frequency results in more severe plasticity loss. Currently, the most effective method to tackle this dilemma is to continually reset the agent&apos;s parameters when setting a high RR value [*REF*]. Our investigation offers a novel perspective on addressing this long-standing issue. Firstly, we identify that the impact of plasticity loss varies across training stages, implying a need for dynamic RR adjustment. Concurrently, we determine the critic&apos;s plasticity as crucial for model capability, proposing its level as a basis for RR adjustment. Drawing from these insights, we introduce Adaptive RR, a universal method that both mitigates early catastrophic plasticity loss and harnesses the potential of high RR in improving sample efficiency.
+
+
+Data: data augmentation is essential in maintaining plasticity 
+
+
+In this section, we conduct a factorial analysis of DA and Reset, illustrating that DA effectively maintains plasticity. Furthermore, in comparison with other architectural and optimization interventions, we highlight DA&apos;s pivotal role as a data-centric method in addressing VRL&apos;s plasticity loss.
+
+
+A Factorial Examination of DA and Reset.   DA has become an indispensable component in achieving sample-efficient VRL applications [*REF*; *REF*; *REF*; *REF*]. As illustrated by the blue and orange dashed lines in Figure [1], employing a simple DA approach to the input observations can lead to significant performance improvements in previously unsuccessful algorithms. However, the mechanisms driving DA&apos;s notable effectiveness remain largely unclear [*REF*]. On the other hand, recent studies have increasingly recognized that plasticity loss during training significantly hampers sample efficiency [*REF*; *REF*; *REF*].
+This naturally raises the question: does the remarkable efficacy of DA stem from its capacity to maintain plasticity? To address this query, we undertake a factorial examination of DA and Reset. Given that Reset is well-recognized for its capability to mitigate the detrimental effects of plasticity loss on training, it can not only act as a diagnostic tool to assess the extent of plasticity loss in the presence or absence of DA, but also provide a benchmark to determine the DA&apos;s effectiveness in preserving plasticity.
+
+
+FIGURE
+
+
+The results presented in Figure [1] highlight three distinct phenomena: [*MATH*] In the absence of DA, the implementation of Reset consistently yields marked enhancements. This underscores the evident plasticity loss when training is conducted devoid of DA. [*MATH*] With the integration of DA, the introduction of Reset leads to only slight improvements, or occasionally, a decrease. This indicates that applying DA alone can sufficiently preserve the agent&apos;s plasticity, leaving little to no room for significant improvement.
+[*MATH*] Comparatively, the performance of Reset without DA lags behind that achieved employing DA alone, underscoring the potent effectiveness of DA in preserving plasticity.
+
+
+FIGURE
+
+
+Comparing DA with Other Interventions. We assess the influence of various architectural and optimization interventions on DMC using the DrQ framework. Specifically, we implement the following techniques: [*MATH*] Weight Decay, where we set the L2 coefficient to *MATH*. [*MATH*] L2 Init [*REF*]: This technique integrates L2 regularization aimed at the initial parameters into the loss function. Specifically, we apply it to the critic loss with a coefficient set to *MATH*. [*MATH*] Layer Normalization [*REF*] after each convolutional and linear layer. [*MATH*] Spectral Normalization [*REF*] after the initial linear layer for both the actor and critic networks.
+[*MATH*] Shrink and Perturb [*REF*]: This involves multiplying the critic network weights by a small scalar and adding a perturbation equivalent to the weights of a randomly initialized network.
+[*MATH*] Adoption of CReLU [*REF*] as an alternative to ReLU in the critic network. We present the final performance of different interventions in Figure, which indicates that DA is the most effective method. For further comparison of interventions, see [Appendix] [9.3].
+
+
+Modules: the plasticity loss of critic network is predominant 
+
+
+In this section, we aim to investigate which module(s) of VRL agents suffer the most severe plasticity loss, and thus, are detrimental to efficient training. Initially, by observing the differential trends in plasticity levels across modules with and without DA, we preliminarily pinpoint the critic&apos;s plasticity loss as the pivotal factor influencing training. Subsequently, the decisive role of DA when using a frozen pre-trained encoder attests that encoder&apos;s plasticity loss isn&apos;t the primary bottleneck for sample inefficiency. Finally, contrastive experiments with plasticity injection on actor and critic further corroborate that the critic&apos;s plasticity loss is the main culprit.
+
+
+Fraction of Active Units (FAU).   Although the complete mechanisms underlying plasticity loss remain unclear, a reduction in the number of active units within the network has been identified as a principal factor contributing to this deterioration [*REF*; *REF*; *REF*].
+Hence, the Fraction of Active Units (FAU) is widely used as a metric for measuring plasticity. Specifically, the FAU for neurons located in module *MATH*, denoted as *MATH*, is formally defined as: *MATH* *MATH* *MATH* where *MATH* represent the activation of neuron *MATH* given the input *MATH*, and *MATH* is the total number of neurons within module *MATH*. More discussion on plasticity measurement can be found in [Appendix].
+
+
+Different FAU trends across modules reveal critic&apos;s plasticity loss as a hurdle for VRL training. Within FAU as metric, we proceed to assess the plasticity disparities in the encoder, actor, and critic modules with and without DA. We adopt the experimental setup from [*REF*], where the encoder is updated only based on the critic loss. As shown in Figure [2], the integration of DA leads to a substantial leap in training performance. Consistent with this uptrend in performance, DA elevates the critic&apos;s FAU to a level almost equivalent to an initialized network. In contrast, both the encoder and actor&apos;s FAU exhibit similar trends regardless of DA&apos;s presence or absence. This finding tentatively suggests that critic&apos;s plasticity loss is the bottleneck constraining training efficiency.
+
+
+FIGURE
+
+
+Is the sample inefficiency in VRL truly blamed on poor representation?   Since VRL handles high-dimensional image observations rather than well-structured states, prior studies commonly attribute VRL&apos;s sample inefficiency to its inherent challenge of learning a compact representation.
+
+
+FIGURE
+
+
+We contest this assumption by conducting a simple experiment. Instead of training the encoder from scratch, we employ an ImageNet pre-trained ResNet model as the agent&apos;s encoder and retain its parameters frozen throughout the training process. The specific implementation adheres [*REF*], but employs the DA operation as in DrQ.
+Building on this setup, we compare the effects of employing DA against not using it on sample efficiency, thereby isolating and negating the potential influences from disparities in the encoder&apos;s representation capability on training. As depicted in Figure , the results illustrate that employing DA consistently surpasses scenarios without DA by a notable margin. This significant gap sample inefficiency in VRL cannot be predominantly attributed to poor representation. This pronounced disparity underscores two critical insights: first, the pivotal effectiveness of DA is not centered on enhancing representation; and second, sample inefficiency in VRL cannot be primarily ascribed to the insufficient representation.
+
+
+Plasticity Injection on Actor and Critic as a Diagnostic Tool.   Having ruled out the encoder&apos;s influence, we next explore how the plasticity loss of actor and critic impact VRL&apos;s training efficiency.
+
+
+FIGURE
+
+
+To achieve this, we introduce plasticity injection as a diagnostic tool [*REF*]. Unlike Reset, which leads to a periodic momentary decrease in performance and induces an exploration effect [*REF*], plasticity injection restores the module&apos;s plasticity to its initial level without altering other characteristics or compromising previously learned knowledge. Therefore, plasticity injection allows us to investigate in isolation the impact on training after reintroducing sufficient plasticity to a certain module. Should the training performance exhibit a marked enhancement relative to the baseline following plasticity injection into a particular module, it would suggest that this module had previously undergone catastrophic plasticity loss, thereby compromising the training efficacy. We apply plasticity injection separately to the actor and critic when using and not using DA. The results illustrated in Figure and [Appendix] [9.4] reveal the subsequent findings and insights: [*MATH*] When employing DA, the application of plasticity injection to both the actor and critic does not modify the training performance. This suggests that DA alone is sufficient to maintain plasticity within the Walker Run task. [*MATH*] Without using DA in the initial 1M steps, administering plasticity injection to the critic resulted in a significant performance improvement. This fully demonstrates that the critic&apos;s plasticity loss is the primary culprit behind VRL&apos;s sample inefficiency.
+
+
+Stages: early-stage plasticity loss becomes irrecoverable 
+
+
+In this section, we elucidate the differential attributes of plasticity loss throughout various training stages. Upon confirming that the critic&apos;s plasticity loss is central to hampering training efficiency, a closer review of the results in Figure [2] underscores that DA&apos;s predominant contribution is to effectively recover the critic&apos;s plasticity during initial phases. This naturally raises two questions: [*MATH*] After recovering the critic&apos;s plasticity to an adequate level in the early stage, will ceasing interventions to maintain plasticity detrimentally affect training? [*MATH*] If interventions aren&apos;t applied early to recover the critic&apos;s plasticity, is it still feasible to enhance training performance later through such measures? To address these two questions, we conduct a comparative experiment by turning on or turning off DA at certain training steps and obtain the following findings: [*MATH* Turning off DA] after the critic&apos;s plasticity has been recovered does not affect training efficiency. This suggests that it is not necessary to employ specific interventions to maintain plasticity in the later stages of training.
+[*MATH* Turning on DA] when plasticity has already been significantly lost and without timely intervention in the early stages cannot revive the agent&apos;s training performance. This observation underscores the vital importance of maintaining plasticity in the early stages; otherwise, the loss becomes irrecoverable.
+
+
+FIGURE
+
+
+We attribute these differences across stages to the nature of online RL to learn from scratch in a bootstrapped fashion. During the initial phases of training, bootstrapped target derived from low-quality and limited-quantity experiences exhibits high non-stationarity and deviates significantly from the actual state-action values [*REF* -LIX]. The severe non-stationarity of targets induces a rapid decline in the critic&apos;s plasticity [*REF*; *REF*], consistent with the findings in Figure [2]. Having lost the ability to learn from newly collected data, the critic will perpetually fail to capture the dynamics of the environment, preventing the agent from acquiring an effective policy. This leads to catastrophic plasticity loss in the early stages. Conversely, although the critic&apos;s plasticity experiences a gradual decline after recovery, this can be viewed as a process of progressively approximating the optimal value function for the current task. For single-task VRL that doesn&apos;t require the agent to retain continuous learning capabilities, this is termed as a benign plasticity loss.
+Differences across stages offer a new perspective to address VRL&apos;s plasticity loss challenges.
+
+
+Methods: adaptive RR for addressing the high RR dilemma
+
+
+Drawing upon the refined understanding of plasticity loss, this section introduces Adaptive RR to tackle the high RR dilemma in VRL. Extensive evaluations demonstrate that Adaptive RR strikes a superior trade-off between reuse frequency and plasticity loss, thereby improving sample efficiency.
+
+
+High RR Dilemma.   Increasing the replay ratio (RR), which denotes the number of updates per environment interaction, is an intuitive strategy to further harness the strengths of off-policy algorithms to improve sample efficiency. However, recent studies [*REF*; *REF*] and the results in Figure [4] consistently reveal that adopting a higher static RR impairs training efficiency.
+
+
+FIGURE
+
+
+The fundamental mechanism behind this counterintuitive failure of high RR is widely recognized as the intensified plasticity loss [*REF*; *REF*]. As illustrated in Figure, increasing RR results in a progressively exacerbated plasticity loss during the early stages of training.
+Increasing RR from *MATH* to *MATH* notably diminishes early-stage plasticity, but the heightened reuse frequency compensates, resulting in a marginal boost in sample efficiency. However, as RR continues to rise, the detrimental effects of plasticity loss become predominant, leading to a consistent decline in sample efficiency. When RR increases to *MATH*, even with the intervention of DA, there&apos;s no discernible recovery of the critic&apos;s plasticity in the early stages, culminating in a catastrophic loss. An evident high RR dilemma quandary arises: while higher reuse frequency holds potential for improving sample efficiency, the exacerbated plasticity loss hinders this improvement.
+
+
+Can we adapt RR instead of setting a static value?   Previous studies addressing the high RR dilemma typically implement interventions to mitigate plasticity loss while maintaining a consistently high RR value throughout training [*REF*; *REF*; *REF*].
+Drawing inspiration from the insights in Section [5], which highlight the varying plasticity loss characteristics across different training stages, an orthogonal approach emerges: why not dynamically adjust the RR value based on the current stage? Initially, a low RR is adopted to prevent catastrophic plasticity loss.
+In later training stages, RR can be raised to boost reuse frequency, as the plasticity dynamics become benign. This balance allows us to sidestep early high RR drawbacks and later harness the enhanced sample efficiency from greater reuse frequency. Furthermore, the observations in Section [4] have confirmed that the critic&apos;s plasticity, as measured by its FAU, is the primary factor influencing sample efficiency. This implies that the FAU of critic module can be employed adaptively to identify the current training stage. Once the critic&apos;s FAU has recovered to a satisfactory level, it indicates the agent has moved beyond the early training phase prone to catastrophic plasticity loss, allowing for an increase in the RR value. Based on these findings and considerations, we propose our method, Adaptive RR.
+
+
+BOX
+
+
+Evaluation on DeepMind Control Suite.   We then evaluate the effectiveness of [Adaptive RR] in improving the sample efficiency of VRL algorithms. Our experiments are conducted on six challenging continuous DMC tasks, which are widely perceived to significantly suffer from plasticity loss [*REF*]. We select two static RR values as baselines: [*MATH* Low RR=*MATH*], which exhibits no severe plasticity loss but has room for improvement in its reuse frequency. [*MATH* High RR=*MATH*], which shows evident plasticity loss, thereby damaging sample efficiency.
+Our method, [Adaptive RR], starts with RR=*MATH* during the initial phase of training, aligning with the default setting of DrQ. Subsequently, we monitor the FAU of the critic module every *MATH* episodes, i.e., *MATH* environment steps. When the FAU difference between consecutive checkpoints drops below a minimal threshold (set at *MATH* in our experiments), marking the end of the early stage, we adjust the RR to *MATH*.
+Figure [5] illustrates the comparative performances. [Adaptive RR] consistently demonstrates superior sample efficiency compared to a static RR throughout training.
+
+
+FIGURE
+
+
+FIGURE
+
+
+Through a case study on Quadruped Run, we delve into the underlying mechanism of [Adaptive RR], as illustrated in Figure [6]. Due to the initial RR set at *MATH*, the critic&apos;s plasticity recovers promptly to a considerable level in the early stages of training, preventing catastrophic plasticity loss as seen with RR=*MATH*. After the recovery phases, [Adaptive RR] detects a slow change in the critic&apos;s FAU, indicating it&apos;s nearing a peak, then switch the RR to a higher value.
+Within our experiments, the switch times for the five seeds occurred at: *MATH* M, *MATH* M, *MATH* M, *MATH* M, and *MATH* M. After switching to RR=*MATH*, the increased update frequency results in higher sample efficiency and faster convergence rates. Even though the critic&apos;s FAU experiences a more rapid decline at this stage, this benign loss doesn&apos;t damage training. Hence, [Adaptive RR] can effectively exploits the sample efficiency advantages of a high RR, while adeptly avoiding the severe consequences of increased plasticity loss.
+
+
+We further compare the performance of Adaptive RR with that of employing Reset [*REF*] and ReDo [*REF*] under static RR conditions. Although Reset and ReDo both effectively mitigate plasticity loss in high RR scenarios, our method significantly outperforms these two approaches, as demonstrated in Table. This not only showcases that Adaptive RR can secure a superior balance between reuse frequency and plasticity loss but also illuminates the promise of dynamically modulating RR in accordance with the critic&apos;s overall plasticity level as an effective strategy, alongside neuron-level network parameter resetting, to mitigate plasticity loss.
+
+
+FIGURE
+
+
+Evaluation on Atari-100k.  To demonstrate the applicability of Adaptive RR in discrete-action tasks we move our evaluation to the Atari-100K benchmark [*REF*], assessing Adaptive RR against three distinct static RR strategies across 17 games. In static RR settings, as shown in Table, algorithm performance significantly declines when RR increases to 2, indicating that the negative impact of plasticity loss gradually become dominant. However, Adaptive RR, by appropriately increasing RR from 0.5 to 2 at the right moment, can effectively avoid catastrophic plasticity loss, thus outperforming other configurations in most tasks.
+
+
+Conclusion, Limitations, and Future Work
+
+
+In this work, we delve deeper into the plasticity of VRL, focusing on three previously underexplored aspects, deriving pivotal and enlightening insights: [*MATH*] DA emerges as a potent strategy to mitigate plasticity loss.
+[*MATH*] Critic&apos;s plasticity loss stands as the primary hurdle to the sample-efficient VRL.
+[*MATH*] Ensuring plasticity recovery during the early stages is pivotal for efficient training. Armed with these insights, we propose Adaptive RR to address the high RR dilemma that has perplexed the VRL community for a long time. By striking a judicious balance between sample reuse frequency and plasticity loss management, Adaptive RR markedly improves the VRL&apos;s sample efficiency.
+
+
+Limitations.   Firstly, our experiments focus on DMC and Atari environments, without evaluation in more complex settings. As task complexity escalates, the significance and difficulty of maintaining plasticity concurrently correspondingly rise. Secondly, we only demonstrate the effectiveness of Adaptive RR under basic configurations. A more nuanced design could further unlock its potential.
+
+
+Future Work.   Although neural networks have enabled scaling RL to complex decision-making scenarios, they also introduce numerous difficulties unique to DRL, which are absent in traditional RL contexts.
+Plasticity loss stands as a prime example of these challenges, fundamentally stemming from the contradiction between the trial-and-error nature of RL and the inability of neural networks to continuously learn non-stationary targets. To advance the real-world deployment of DRL, it is imperative to address and understand its distinct challenges. Given RL&apos;s unique learning dynamics, exploration of DRL-specific network architectures and optimization techniques is essential.

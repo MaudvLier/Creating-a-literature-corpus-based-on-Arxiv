@@ -1,0 +1,195 @@
+Sequential Planning in Large Partially Observable Environments guided by LLMs 
+
+
+I. Introduction
+
+
+Sequential planning in an environment is to find a sequence of actions or a policy that can meet an objective. As the state space size of the environment increases it becomes increasingly difficult to find a workable plan to a point such that the problem seems intractable with traditional graph or tree based search algorithms. On top of that due to partial observability, the complete state space of the environment may not be determined completely. In such scenario model free reinforcement learning (RL) can help tackle the problem to a certain extent. Model free RL is like a trial-and-error based learning where an optimal policy is learnt guided by rewards provided by the environment. Monte-carlo tree search [1] is such an effective method that has provably tackled very large state spaces. However, its search space can also explode if the action space is large. It will require too many trials to converge to a near optimal policy. This is true for all other pure RL based approaches, that solely relies on reinforcements to determine a policy. In a delayed reward environment, the challenge becomes prominently significant. Due to absence of frequent reward signals the search becomes mostly random for a significant amount of time and that adds to the combinatorial explosion. Purely RL based approaches also face challenges in adapting to sudden changes in the environment.
+
+
+Humans can adeptly handle intricate planning tasks in real-world scenarios with large state space, large action space and even in partial observability. Suppose a person wants to drink water while she visited her friend&apos;s place. She didn&apos;t know the water source, but predicts that it might be in the kitchen. Once she finds it, she knows thar she came closer to her goal. After that, she needs to find a way to dispense water into some container, such as a cup and drink it. There can be lot of actions she might take in an unknown home layout, but she would usually achieve her goal in handful number of trials or steps. Human does that as they have extensive knowledge on how common things work, how different objects are related and what actions causes what changes.
+
+
+Large language models or LLMs pretrained on large amount of real-world text data captures meaningful correlations of words. With sufficiently expressive representation of the problem environment in natural language, the LLM can generate fairly accurate shallow plans. With proper prompting, LLMs can predict sequence of actions in text format that may meet the objective in the environment. However, LLMs are not reasoning machines. They can generate shallow plans reasonably well but may fail to do deep reasoning and generate a lengthy policy. They also get stuck in local minima due to their greedy approach and fails to explore significantly. For example, if initially the human starts from outside, she doesn&apos;t observe there is a kitchen in the home. To find a drinkable water source she needs to explore and find the kitchen and then the water source. A LLM based agent might instead try to locate irrelevant water sources in its current observation range, like wet clothes tied outside.
+
+
+In short, pure RL based approaches face the problem of combinatorial explosion. Pure LLM based approaches face the problem of shallow reasoning and lack of exploration. We propose to combine the best of two approaches in a novel way to alleviate both the problems. We propose to build a state space model of the environment by trying out different actions, recording observations and rewards. The model would provide an anytime best policy, based on what is known at any moment. Wherever random exploration of actions is needed, the LLM is used to predict the best sequence of actions. We incrementally build a memory of learnings about the environment based on all previous trials. The accumulated learnings help the LLM to more accurately predict the sequence of actions in future. Building a state space model guarantees the exploration of the environment and keeps a balance of exploration and exploitation. The use of LLM helps to dampen the combinatorial explosion of action space and state space where random exploration is needed.
+
+
+We tested our method in Scienceworld [2] environment. It is collection of scientific tasks, all represented in natural language. The environment has huge number of possible actions and objects, making it a huge state space. The environment is partially observable, such that the state information is not explicitly available. The latent state needs to be derived from the observations. The full environment is not visible initially. Experimental results reveal our developed agent completed or nearly completed all tasks and surpassed all prior state of the art methods by a wide margin.
+
+
+II. Related Works
+
+
+There is a rich literature on sequential planning in large environments.
+DRRN [3], KGA2C [4] and CALM [5] are deep reinforcement learning based approaches to solve large text-based environments. They usually require very large number of interactions with the environment before coming up with a workable plan. Delayed reward in the environment amplifies the problem further. There are another class of planning algorithms for large POMDPs, called as direct search algorithms [11,12,13]. They don&apos;t rely much on the state space information but do a search in solution space. But they also can have very high complexity if the action space or solution size is large. LLM based agents like SayCan [6], ReAct [7], Reflexion [8], CLIN [9] exploits the large pretraining of an LLM with real-world semantic knowledge and uses it to suggest next best actions without further significant training.
+These approaches use intelligent step-by-step prompting tricks and maintains problem specific memories to be used by the LLM to optimize action selection. However, these methods are susceptible to premature convergence to suboptimal pathways and struggle with exploration. These methods are limited by the depth of reasoning needed to choose an action as LLMs have limited capability of reasoning on text at one go.
+
+
+III. Approach
+
+
+The problem environment -- *MATH*, is modelled as deterministic Partially Observable Markov Decision Process (POMDP) [10]. Many real-world problems can be formulated in this model. The environment can be modeled as the following tuple: *MATH*.
+
+
+𝑆 → a finite set of states, 𝐴 → a finite set of actions, 𝑂 → a finite set of observations, 𝑠0 → initial state, 𝑇 → goal state, the observations can be encoded in certain way to derive the latent state. Each state is assigned a value augmented with an exploration term, similar to one used in UCB1 [14]. The agent chooses the path to maximize the upper confidence bound of the value of states. The action plan is generated based on the selected pathway. If a leaf node is reached or a random exploration needed in a node that is yet to be fully expanded, a foundational LLM is prompted to generate rest of the action sequence.
+
+
+Once an action plan is generated, it is executed in the environment. The perceived observations, states and rewards are used to update the state space graph and the value of the nodes. The observations and rewards are also used to update a consolidated learnt memory in text format that can be further used by the LLM for future action planning. Instead of random selection of actions for exploration, the LLM can provide a better educated guess on the actions required to reach the goal state, thereby damping the search space.
+
+
+IV. State space Graph based Planning
+
+
+The agent takes actions in the environment and based on the perceptions received it builds a state space graph of the environment. The rewards are used to update the values of the states. The values of the states are updated using Temporal Difference (TD) learning. The state space graph is eventually used to determine the optimal policy. The complete planning process can be divided into following major steps. Namely, plan selection, plan exploration, simulation, state space learning.
+
+
+A. Plan selection
+
+
+Each state in the state space graph is assigned a value 𝑉(𝑠) based on the future rewards it receives from the current state. Thereafter an augmented value is calculated for each state by the by adding an exploration term to 𝑉(𝑠), where 𝐶 is a constant, 𝑁 is total number of simulations of all the parent states of 𝑠 and 𝑛𝑠 is total number of simulations of state 𝑠. *MATH* deterministic state transition function after applying an action, *MATH* deterministic observation *MATH* function after applying an action, *MATH* reward function for getting reward after applying an action, 𝜏 → policy or sequence of actions that might meet the objective.
+
+
+FIGURE 1
+
+
+From current state the action is selected that produces a valid child state with maximum *MATH* in the state space graph. This selection continues until a leaf node is reached or maximum *MATH* of the child state is less that the default exploration *MATH* or a closed loop is detected. The selected path is converted to sequence of actions that serves as the first part of action plan. Along with the action plan, a list of actions to be avoided from the current state (if any) is also returned. If the final state in the returned action plan has other child nodes, then the actions corresponding to those edges are returned as actions to be avoided. Those actions can be avoided because they might either be invalid actions or lead to states that are already explored and have not enough values to be explored further. The list of actions to be avoided and the current state are properly annotated in text format and returned as additional instructions (𝛷) for the LLM to guide the search through action space.
+
+
+B. Plan exploration
+
+
+The formula of *MATH* as stated in equation 1 captures both the metrices for exploitation and exploration. The value of a state depicts how much the state can be exploited to reach towards the goal state. The second term in *MATH* measures how less a state and its children states has been explored. *MATH* maintains a balance between exploration and exploitation in the state space graph. But this will work only for the visited or known states that are available in the state space graph. As the agent starts to interact with the environment, most of the states remain unexplored. There needs to be a way to select actions and explore the unexplored states. A simple random policy may quickly become intractable if action space is large. To explore the unexplored states the LLM is prompted to generate an action plan from the current state. For each state a default explore *MATH* is calculated by the following formula, where 𝑉𝑑𝑒𝑓𝑎𝑢𝑙𝑡 is default value of an unexplored state, 𝐾𝑠 is a default exploration factor for state 𝑠.
+
+
+*MATH*.
+
+
+For each state 𝑠, a child state 𝑠′ is selected that has the maximum value of the following metric. Each edge contains the following items. 𝑎 → action name, 𝑟(𝑠, 𝑎) → reward obtained by taking the action, 𝑠𝑠 → start node, 𝑠𝑒 → end node.
+
+
+If an action is invalid then the sink of the edge goes to a fixed invalid node (𝑠⊗) in the graph. The graph starts with a fixed root node and the initial state is connected to the root node. Once the required nodes and edges are created from 𝑥𝐴𝑆 the values of all nodes are updated using TD learning. The following TD(0) update is applied for each state in the state space graph to update the value, where 𝛼 is a constant step size parameter and 𝛾 is constant decay factor.
+
+
+*MATH*.
+
+
+This update is carried out for 𝑖 iterations, in the expectation that the values of the states would converge. The update is interrupted in between if the average change in values of all states is below a threshold in an iteration. After completing the value update process, the *MATH* gets updated for all states as per equation 1. The factor 𝐾𝑠 also gets updated for each state as per equation 4.
+
+
+*MATH*.
+
+
+V. Using LLMs as Probabilistic Oracle
+
+
+If *MATH* then the subsequent action plan is generated using the LLM from the current state 𝑠.
+
+
+The factor 𝐾𝑠 estimates amount of exploration needed from the current state based on how many un-tried actions are left.
+
+
+𝐾𝑠 is calculated as following, where |𝑎𝑠| is total number of possible actions from state 𝑠, |𝑎̅̅̅𝑠 | is total number of actions already taken in state 𝑠 and 𝑛 is a non-linearity factor greater than 1.
+
+
+Large language models or LLMs are deep neural networks, mostly based on transformer architecture, are trained on large corpus of text data. They can be used for text completion for a given input text snippet.
+Recently, LLMs like GPT4, was able to generate human like responses for many input texts on wide variety of subjects. Due to its rigorous and extensive real-world training data, it is able to capture lot of real-world semantics in its model in the form of correlation among words. Even though it just does next word prediction, but due to attention mechanism the predicted next words are *MATH* generally semantically aligned with the whole meaning of the prior text. 𝐾𝑠 ensures that exploration gets reduced as greater number of actions are tried from a state and eventually drops to 0 if all actions are tried out.
+
+
+C. Simulation
+
+
+Once an action plan is generated it is executed in the environment in sequence. For each action the corresponding observation is recorded as action-observation sequence (𝑥𝐴𝑂) and state information is recorded as action-state sequence (𝑥𝐴𝑆). The corresponding reward for each action and total number of available actions from a state is also recorded in
+
+
+𝑥𝐴𝑆  Eventually this sequence is used to update the state space graph.
+𝑥𝐴𝑂 is used to update the learnings in text format. If an action is invalid then it is marked as invalid in the 𝑥𝐴𝑆 
+
+
+D. State space learning
+
+
+After simulation the state space graph is updated using 𝑥𝐴𝑆. For each action-state sequence the start state and end state are searched in the state space graph. If an edge between the states does not exists, the edge is added. If the state nodes do not exist the nodes are created. If the edge already exists then corresponding state visit count is incremented. Each node in the state space graph stores the following items.
+
+
+𝑠 → encoded description of the state, 𝑉(𝑠) → value of the state, 𝑛𝑠 → number of visits in the state, |𝑎𝑠| → total possible actions from the state.
+
+
+FIGURE 2
+
+
+If everything about the problem environment can be represented in text form (states, actions, observations, feedback), LLMs can be used to generate a sequence of actions. Fig.2 represents the architecture of the agent. As mentioned in Section IV, the LLM is used to generate an exploration plan where a random exploration is needed in the state space graph, due to unavailability of no further state space information. The action plan is generated by the action plan generator. Before generating an action plan, it queries the state space graph to select the best plan as per the method mentioned in section IV-A. The rest of the action plan is generated from the final state of the selected action plan. The generated action plan is appended with the selected action plan from the state space graph. The final action plan is executed in the environment by the action plan executor. It carries out the simulation step mentioned in Section IV-C. The action plan generator and action plan executer are run for several iterations in sequence, after which the environment is reset. Each reset marks end of an episode and begin of a new one.
+After each episode, the recorded action-observation sequence along with previous learnings (if any) are fed into a Learner agent. It generates a set of learnings about the environment in free text format.
+
+
+The action plan generator generates a sequence of actions that might meet the objective (𝑡𝜉) in the environment from the current given state. It takes the objective, a prior description of the environment (𝑑𝜉), current state description (𝑠𝜉), previous learnings about the environment (𝑙𝜉), action-observation trace (𝑥𝐴𝑂), list of actions to be avoided from the current state, as parameters and generates a text prompt. The text prompt is sent to LLM to get an action plan (𝜏′). If the output is not generated in correct format it is resend to the LLM again. The objective and prior description of the environment is set during initialization of the task.
+Intermittently the task objective is replaced with the following text (exploration objective - 𝑡𝑒𝑜) to promote exploration and enrich the learnings.
+
+
+&quot;Create a long sequence of actions to explore and know more about the environment&quot;.
+
+
+In each run of action plan generator, the task objective is replaced with exploration objective by the following probability, where 𝜎 is a constant and 0 &lt; 𝜎 &lt; 0.5, 𝑁𝑒𝑥𝑝 is total number of times exploration objective has been run. We set 𝜎 = 0.3.
+
+
+The current state description is obtained from the state-space graph. The current state is the final state of the selected action plan from the state space graph. The list of actions to be avoided is also obtained from the state space graph.
+
+
+ALGORITHM 
+
+
+B. Learner
+
+
+The learner is an LLM agent that generates learnings about the envirnoment. It takes the 𝑥𝐴𝑂 trace of an episode, the previous learnings, feedback after running the last episode, as parameters and creates a prompt for the LLM. The LLM generates updated learnings as list of text. The learnings are generated in the format &quot;X Y Z&quot;, where X and Z are entities, subject, object, events from 𝑥𝐴𝑂 trace and Y is relation between X and Z. This captures all the important relationships of entities in the environment that can be used to meet the objective.
+
+
+VI. Experimental Results
+
+
+We opted for ScienceWorld [2], an interactive text-based environment that demands intricate interactive reasoning processes for resolving a multitude of science-theory-based tasks across various classes, such as thermodynamics, genetics, friction, and more. This virtual space encompasses ten sub-locations: foundry, greenhouse, outside area, art studio, workshop, kitchen, living room, bedroom, bathroom, and a hallway connecting internal spaces. The complexity of the environment, characterized by multiple objects, their respective states, and action templates, results in an intractable search space for any agent. Both the action space and state space is huge. The complete state space of the environment is not visible at the beginning. There are no state information available from the environment. It needs to be derived from the observations.
+
+
+We developed neoplanner in Python3. The code is available at WEBSITE.
+We tested the agent in 7 different environments. For each environment the agent runs for several episodes. At the start of each episode the environment is reset and agent is initialized at the same start location. During an episode the agent tries multiple actions and cumulative reward is calculated. The total reward is transformed into natural language feedback in same way as done in [9]. The reward is log transformed before adding into 𝑥𝐴𝑆, that is eventually used to update state space graph. We used the GPT4-turbo model as LLM. Table I shows the total reward gained by different methods across multiple environments. Our proposed method surpasses all state of the delayed reward setting, where a reward is obtained only after performing several actions towards the objective. For example, the &quot;boil&quot; task is a delayed reward task. It receives very infrequent rewards and rewards are obtained only after performing several actions towards boiling water. The RL methods performed poorly for this task as they barely found any signals to traverse through large state space. The generative language based agents performed better in these tasks. As they capture lot of real-world semantics, with proper description of the environment, and continual learnings, they are able to select better action plans.
+However, these methods mostly ignore the numerical reward signals and rely on textual feedbacks. This causes rapid convergence to suboptimal plans and the agent struggle with exploration [9]. Our proposed agent used both generative language based action planning and policy generation through state space graph search. This helps to keep a balance between exploration and exploitation without drowning into combinatorial explosion during exploration.
+
+
+Most of the generative language based agents generate action plans by finding the next best action. Thus, they have to query the LLM every time an action needs to be taken. On a contrary, neoplanner queries the LLM to find a sequence of actions at one go, such that the number of calls to the LLM can be reduced. This potentially reduced the cost of generating the action plan.
+
+
+The agent started with a blank memory with no learnings. While solving a task it generated several task related learnings about the environment.
+For example, in the &quot;use-thermometer&quot; task it generated following learnings among many other.
+
+
+&quot;thermometer in kitchen can be moved to inventory&quot;, &quot;agent can move between kitchen, living room, hallway, art studio, greenhouse, bedroom, workshop&quot;
+
+
+The same set of learnings are used to bootstrap for the next task. For solving the next task &quot;measure-melting-point-known-substance&quot; some of the learnings are useful, but many are not useful. While solving this task it updated its learnings related to the current task. It generated some learnings like &quot;picking up chocolate from fridge and focusing on it is part of the task&quot; art methods by wide margin. interactions for neoplanner depicts the total number of interactions done with the environment. The metrices for all state of the art methods have been taken from [9].
+
+
+A. Discussion
+
+
+Pure RL methods can be effective sometimes, but as they focus mostly on the reward signals, the number of training trials required can be enormous. The problem amplifies in delayed reward setting, where a reward is obtained only after performing several actions towards the objective. For example, the “boil” task is a delayed reward task. It receives very infrequent rewards and rewards are obtained only after performing several actions towards boiling water. The RL methods performed poorly for this task as they barely found any signals to traverse through large state space. The generative language based agents performed better in these tasks. As they capture lot of real-world semantics, with proper description of the environment, and continual learnings, they are able to select better action plans. However, these methods mostly ignore the numerical reward signals and rely on textual feedbacks. This causes rapid convergence to suboptimal plans and the agent struggle with exploration [9]. Our proposed agent used both generative language based action planning and policy generation through state space graph search. This helps to keep a balance between exploration and exploitation without drowning into combinatorial explosion during exploration. Most of the generative language based agents generate action plans by finding the next best action. Thus, they have to query the LLM every time an action needs to be taken. On a contrary, neoplanner queries the LLM to find a sequence of actions at one go, such that the number of calls to the LLM can be reduced. This potentially reduced the cost of generating the action plan. The agent started with a blank memory with no learnings. While solving a task it generated several task related learnings about the environment. For example, in the “usethermometer” task it generated following learnings among many other. “thermometer in kitchen can be moved to inventory”, “agent can move between kitchen, living room, hallway, art studio, greenhouse, bedroom, workshop” The same set of learnings are used to bootstrap for the next task. For solving the next task “measure-melting-pointknown-substance” some of the learnings are useful, but many are not useful. While solving this task it updated its learnings related to the current task. It generated some learnings like “picking up chocolate from fridge and focusing on it is part of the task”. Thus, the agent is capable of adapting its learnings. Pure RL methods can be effective sometimes, but as they focus mostly on the reward signals, the number of training trials required can be enormous. 
+
+
+B. Scope of improvements
+
+
+Though the agent completed the objective for many of the tasks and received maximum reward (100), yet for few tasks, it didn&apos;t follow the ideal shortest action plan. Several irrelevant actions (that didn&apos;t cause changes in reward) are chosen as part of the action plan. For example, in the &quot;boil&quot; task, the actions &quot;pick up sodium chloride&quot; and &quot;mix sodium chloride&quot; are part of the plan but they are irrelevant. This is because it just moved from states to states during exploration, and followed the rewards. The actions that yielded rewards came after the above 2 actions. A state space pruning strategy may be used to handle this scenario. Irrelevant states within the action plan maybe identified in the states space graph and pruned.
+
+
+The plan generated is not the ideal and shortest one. In the &quot;boil&quot; task, the agent turned on the stove containing metal pot with water, waited for several iterations, and directly focused on the steam. The ideal plan would be to measure the temperature of the water every certain interval. If it exceeds 100𝑜C then the task is complete. This problem can be tackled by representing policies as programs in a programming language instead of just sequence of action texts.
+Representing policies as programs would allow to implement all type of logical and mathematical constructs in the policy. That would allow implementation of reasoning within the policy.
+
+
+As the agent starts solving a new task with learnings from previous task, the LLM generates action plans tuned for the previous task and it takes a while to update the memory and adjust the generation of action plan for new task. This happens due to presence of irrelevant learnings for the current task (relevant for the previous). For the &quot;boil&quot; and &quot;freeze&quot; tasks, this problem was prevalent and the action plan was not converging. So, we took the memories from &quot;chemistry-mix&quot; and ran few episodes of &quot;boil&quot; and &quot;freeze&quot; alternately to come up with a common relevant memory. This problem can be alleviated by a better memory management strategy, so that only relevant memories for the current task are fetched.
+
+
+VII. Conclusion
+
+
+Combining RL method of searching state space and querying LLM to generate an action plan have proven to be effective in solving large environments with a relatively smaller number of interactions with the environment. Neoplanner constructs the state space graph and updates the value of the states as it interacts with the environment. The same state space graph is exploited to find action plans progressively. It also generated learnings about the environment in text format as it continued interaction. The learnings helped in continuous improvement of the action plan. The agent demonstrated adaptability of the learnings as the task changed. The learnings also generalized as the number of trials progressed. Neoplanner was able to completely solve several tasks and nearly solve rest of them. With better memory management of the learnings, the agent could converge towards the objective even faster.
+Also representing the plan as a program can help to reduce the plan size and make it more general to apply on other similar tasks.

@@ -1,0 +1,204 @@
+ToolChain*: Efficient Action Space Navigation in Large Language Models with A* Search
+
+
+Introduction
+
+
+Large language models (LLMs), such as GPT [*REF*; *REF*; *REF*; *REF*] and PaLM [*REF*; *REF*], have exhibited remarkable capabilities of reasoning and instruction-following across a wide range of tasks [*REF*]. Recently, instructing LLMs to utilize external tools for complex real-world problems has emerged as a topic of growing importance [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+For complicated tasks, LLM-based autonomous agents integrate LLMs with various external tools (APIs), generating solutions that involve intermediate reasoning steps [*REF*; *REF*; *REF*; *REF*].
+Given a problem description, the goal of an agent is to determine a chain of API function calls that can be executed sequentially toward a valid solution. However, given an action space of hundreds of candidate API functions, each comprised of various function names and parameters available at every planning step, searching for a globally optimal solution becomes highly challenging.
+
+
+FIGURE
+
+
+Existing methods that leverage LLMs as autonomous agents for decision-making and reasoning can be broadly classified into four categories (Figure [1]): (1) open-loop methods [*REF*; *REF*; *REF*; *REF*; *REF*] generate a complete plan for problem-solving without any adaptation during the execution; (2) greedy closed-loop methods [*REF*; *REF*; *REF*; *REF*; *REF*] leverage environmental feedback to greedily determine the next step in the plan; and (3) closed-loop methods [*REF*; *REF*] incorporate environment feedback to continuously monitor system behaviors and modify subsequent plans accordingly. However, such unidirectional navigation systems have two major limitations: error propagation, originating from a mistaken action and leading to a faulty loop; limited exploration, despite being equipped with plan refinement strategies, most existing methods only explore a small portion of the large action space, falling into locally optimal solutions. To this end, few studies initiate exploring (4) tree search-based methods [*REF*; *REF*] for leveraging multiple reasoning paths simultaneously and evaluating branches to decide the next course of action. However, existing tree search-based algorithms, such as depth-first search (DFS) [*REF*] and Monte Carlo Tree Search (MCTS) [*REF*], require exhaustive exploration of nearly all potential actions within the entire decision space, resulting in inefficient searches for globally optimal solutions.
+
+
+To address these limitations, we propose ToolChain*, an efficient A* tree search-based planning method for LLM-based agents. We formulate the tool-use planning process as a decision tree, where each node represents a potential API call for a given step. Aligned with the traditional A* search algorithm, the proposed ToolChain* determines which paths to extend based on both the cost of the current path and an estimated future cost required for completing the current plan. With task-specific cost functions, erroneous actions will be penalized and mitigated, as these actions cause additional costs when propagated along the path, leading the path to be progressively de-prioritized and left unexpanded over iterations. In addition, unlike the simulation stage in MCTS, which requires multiple steps to simulate until a terminal state during rollout, the future cost estimation in ToolChain* enables expansion of only the next step. With efficient node expansion, ToolChain* effectively searches for globally optimal solutions within a manageable number of steps.
+
+
+Our main contributions are as follows: (1) We propose ToolChain*, a novel A*-like tree search algorithm, to develop autonomous LLM-based agents for complex planning and reasoning tasks; (2) ToolChain* formulates the action space as a decision tree, effectively mitigating error propagation and expanding search space; and (3) ToolChain* significantly accelerates LLM-based agents in navigating expansive action tree spaces, striking a balance between exploring unvisited actions and exploiting global optimal solutions.
+
+
+Preliminaries 
+
+
+Problem Formulation. Leveraging LLMs as agents for problem solving can be conceptualized as a planning process. For initialization, the LLM agent is augmented with access to a pool of *MATH* candidate API functions, denoted as *MATH*, along with a natural language task description *MATH* from the task space *MATH*. The objective of the LLM agent is to translate the task description *MATH* into an ordered sequence of *MATH* API function calls *MATH*. Specifically, considering the task description *MATH* as the initial state *MATH*, we sample the plan *MATH* by prompting the LLM agent with the API definitions *MATH* and demonstration samples *MATH* as: *MATH*, where *MATH* is a probability simplex function. The final output is derived after executing the entire plan *MATH*, where *MATH* indicates a plan executor.
+
+
+Tree Search-Based Systems. Tree search methods frame a planning problem as a search over a decision tree, where each node *MATH* represents an action *MATH*, accompanied by a state *MATH* indicating a valid path from the initial state to the current action. When exploring the tree space, tree search approaches expand *MATH* potential child nodes *MATH* of the current node *MATH* via sampling from the potential action set generated by LLMs *MATH* and add the new nodes to the tree state space *MATH*. With value functions for state evaluation, tree search-based methods aim to identify a path from the root node *MATH* to the leaf nodes with the highest value or lowest cost. Our proposed ToolChain* is a tree search-based method.
+
+
+Monte Carlo Tree Search. MCTS, which employs heuristic exploration to construct its search tree, has achieved great success in decision-making tasks, such as GO [*REF*]. Its variant, UCT [*REF*], has been adopted in [*REF*] for the development of LLM-based agents. Specifically, it initiates from the root node of the task description *MATH* and moves down the tree by selecting optimal actions (child nodes) until the leaf node. Then, MCTS introduces one or multiple child nodes based on available actions provided by LLMs and identifies the most promising node *MATH*. From the newly expanded node *MATH*, MCTS requires LLM agents to execute a simulated rollout until a terminal state is reached. Upon completing the simulation, a result is returned from *MATH* all the way back to the root node, accompanied by the value function *MATH* to update all the scores on the selected path.
+
+
+FIGURE
+
+
+MCTS vs. A* Search. Despite the performance gains attained by MCTS in planning and reasoning tasks, its direct application to LLM agents comes with significant execution costs. The rollout mechanism within MCTS requires multiple LLM calls to prompt the next actions until a terminal state. Furthermore, unlike two-player zero-sum games, the planning tasks essentially operate as one-player games, where value functions estimated by random rollouts might exhibit significant inaccuracies. To mitigate the issue, ToolChain* is proposed based on a more efficient A* search algorithm. A comparison between MCTS and our proposed ToolChain* is illustrated in Figure . Unlike MCTS, A* search necessitates only a single LLM call for determining the next actions during expansion according to two cost functions, *MATH*, quantifying the cost of the path from the root node to *MATH*, and *MATH*, a heuristic function estimating the cost of the most promising path from *MATH* to the goal.
+
+
+ToolChain*: A Tree Search Perspective on External Tool Use 
+
+
+In this section, we introduce the ToolChain* that enables LLM-based agents to efficiently navigate the action space to identify a valid solution path for problem-solving (Figure [2]). First, we outline the framework of ToolChain*(Section [3.1]), consisting of three iterative stages: selecting the most promising path in the explored decision tree, expanding the potential following actions along the selected path, and subsequently updating the cost functions. Within ToolChain*, the cost function is composed of two components: cumulative cost *MATH* (Section [3.2]) and future score *MATH* (Section [3.3]).
+
+
+FIGURE
+
+
+Overview 
+
+
+ToolChain* is a best-first search algorithm, efficiently guiding LLM agents in generating a sequence of API function calls as a solution plan. We formulate the action space as a search tree *MATH*, where each node *MATH* represents an action *MATH*, accompanied by a state composed of the initial task description *MATH* and previous actions.
+This facilitates the translation of action sequence planning into a navigation task originating from the root node of the decision tree.
+ToolChain* starts the search tree *MATH* with a single root node, corresponding to the input input problem description *MATH*. At each step, it selects a node *MATH* from the frontiers of *MATH* (denoted as *MATH*) according to the cost function.
+Then, it expands *MATH* with the LLM to generate a set of *MATH* potential i.i.d. actions *MATH* for the next step and grows *MATH* with the generated actions. Finally, we update the actions into new nodes *MATH* and update their cost functions accordingly.
+Algorithm  describes the procedure in detail.
+
+
+FIGURE
+
+
+ALGORITHM
+
+
+Selection. Given a search tree *MATH*, we denote its nodes as *MATH*. The frontier *MATH* contains all the leaf nodes in *MATH* that have yet to be explored. Given our objective to minimize the total cost of the final solution, the optimal next node to expand would be the most promising plan as part of the best solution. Assume we possess a cost function oracle *MATH*, which provides the cost of the best plan incorporating *MATH* to address the problem *MATH* under *MATH*. Then, we can select the next node with the lowest cost: *MATH*.
+A proper design of the value function *MATH* not only augments search efficiency but also aids in identifying globally optimal solutions.
+
+
+Expansion. Once the node *MATH* with the minimum cost estimation *MATH* has been selected, we expand the search tree with *MATH* potential actions for the next step. These actions are sampled from the potential action set generated by LLMs *MATH*, given the API definitions *MATH* and demonstration examples *MATH*. For the generated actions or reasoning steps *MATH*, we establish their corresponding nodes under node *MATH*. Contrasting with the approach in MCTS [*REF*], which requires multiple calls to *MATH* until a terminal state during rollout, our expansion only requires a single call to generate the possible actions at the next step.
+
+
+Update. Denote the search tree *MATH* after expansion of node *MATH* as *MATH*. Given that new nodes have been incorporated and the original tree structure has changed, we need to update the frontier nodes as *MATH*. With the new frontier nodes *MATH*, we can compute their corresponding cost functions for the next selection-expansion-update iteration.
+
+
+Cost Function. We draw inspiration from A* algorithm to design and update the cost function *MATH*. Specifically, A* selects the path that minimizes *MATH*, where *MATH* is the current node, *MATH* represents the cost of the path from the start node to *MATH*, and *MATH* is a heuristic function estimating the cost of the cheapest path from *MATH* to the goal.
+
+
+Design of Cumulative Cost *MATH*. 
+
+
+During the planning process, we assess the cumulative cost of actions in the current plan and guide the planning based on the assessment. For each node *MATH* in the searching tree, we design a single-step value function *MATH* ranging from 0 to 1 and formulate the cost as its complement *MATH*. Thus, the cumulative cost of *MATH* can be computed by summing up all the single-step costs of its ancestor nodes *MATH*: *MATH*. More specifically, we combine two different value functions, the task-specific heuristic function from reference data (long-term memory) *MATH* and the self-consistency frequency by LLM *MATH*, to compute cumulative cost *MATH*: *MATH* *MATH* *MATH* where *MATH* is a weight parameter for the geometric mean.
+
+
+Task-Specific Heuristic Function *MATH*. We can also maintain a long-term memory with successful experiences and compute a heuristic score accordingly. The long-term memory starts from a seed set of demonstration examples provided in a specific dataset and is iteratively extended with successful plans during evaluation. Each example within the long-term memory is represented as a plan *MATH*. The number of actions *MATH* in the plan varies case-by-case. To leverage the successful experiences for evaluating the current plan, we compute the longest common sub-sequence (LCS) score between the current generated plan *MATH* and each plan *MATH* in the long-term memory *MATH*, where *MATH* indicates the length of the plan. Following this, we compute the cumulative functions as the highest LCS score *MATH*, measuring the proportion of success in the plan relative to the experiences accumulated in the long-term memory.
+
+
+Self-consistency Frequency *MATH*.
+Self-consistency [*REF*] is an ensemble approach that samples *MATH* i.i.d. actions at the next step *MATH*. We then select the semantically different actions from the *MATH* generated samples as the set of potential next steps. For tool-use scenarios, as the actions are strict in format of API functions and parameters, we directly construct the set with non-repeating actions. For reasoning scenarios, however, actions represent intermediate thought processes articulated in natural language. Inspired by [*REF*], we apply a DeBERTa-large model [*REF*] fine-tuned on natural language inference (NLI) dataset MNLI [*REF*] to determine whether the two generated actions entail each other semantically. This allows us to discard actions that are semantically equivalent, only retaining those that offer distinct reasoning as potential next steps.
+Lastly, we consider the frequencies of different actions in the set as their corresponding cumulative score, given by *MATH*.
+
+
+Design of Future Cost *MATH*. 
+
+
+Similar to the formulation of cumulative cost *MATH*, we integrate two distinct reward functions, the task-specific heuristic function *MATH* and the Imagination Score by LLM *MATH*, to compute *MATH*: *MATH* *MATH* *MATH* where *MATH* is the geometric mean weight for future cost.
+
+
+Task-Specific Heuristic Function. Similar to the heuristic function in the cumulative cost (Section [3.2]), we continue to leverage the long-term memory to compute the future score. From the long-term memory, we can derive the average relative position score of the action *MATH* appearing in the plans *MATH*: *MATH*, where *MATH* indicates the relative position of action *MATH* in the plan *MATH*. Note that the action space can be infinite, and the long-term memory may not cover all potential actions relevant to unseen tasks. Thus, given an action node *MATH*, we compute its future score as the heuristic score of the lexically closest action covered in the long-term memory: *MATH*.
+
+
+Imagination Score by LLM. Directly querying LLMs for self-evaluation of the future cost at the current step often yields over-confident scores [*REF*]. To address this, we enable LLMs to imagine more concrete future steps until the target *MATH*. However, it is worth noting that the imagined actions may not align with the real executed actions in future plans. To this end, we compute the future score as the proportion of current steps present in the imagined plan, i.e., the ratio of the number between the current node *MATH* ancestors to the target node *MATH*: *MATH*. A higher score suggests that the imagined plan closely captures the path to the current step, indicating that fewer remaining steps are needed to accomplish the task in the imagination of LLMs.
+
+
+Experiments 
+
+
+In this section, we demonstrate the effectiveness and efficiency of ToolChain* through comprehensive experiments across a wide range of tool-use scenarios from ToolBench [*REF*] (Section [4.2]).
+In addition, we conduct extensive experiments on GSM8K [*REF*] (Section [4.3]) to showcase the generalization of ToolChain* on pure reasoning tasks without tool interaction.
+
+
+Experimental Setup
+
+
+Datasets. We evaluate ToolChain* on four tool-use environments in ToolBench [*REF*] and one reasoning task in GSM8K [*REF*]. For tool-use scenarios, we select environments with both a vast action space comprising a large number of function tools, and a requirement of a deep solution path with multiple API functions (, complicated tasks), including Home Search, Trip Booking, Google Sheets, and Virtual Home. Given that numerical reasoning requires multi-step computations to calculate answers, we choose GSM8K [*REF*] for evaluation on math reasoning.
+Dataset details are available in Appendix [10.1].
+
+
+Baselines. For environments from ToolBench, we compare ToolChain* with the state-of-the-art LLM planning algorithms from three main categories, including open-loop systems (GPT [*REF*]), closed-loop systems (ReAct [*REF*] and Adaplanner [*REF*]), and tree search-based systems (Tree-of-Thoughts [*REF*] and MCTS [*REF*]).
+For mathematical reasoning problems, we employ a similar set of baselines as in the tool-use tasks. However, we exclude ReAct and AdaPlanner from mathematical reasoning evaluations. This is because they heavily depend on high-quality environment feedback to adjust action plans, which is unavailable in the GSM8K dataset. Additionally, since the action steps in the tool-use scenarios inherently form coherent sequences, we limit our comparison of ToolChain* to Chain-of-Thought [*REF*] and Self-Consistency [*REF*] only for the math reasoning task, and exclude it from the ToolBench evaluations. Baseline details can be found in Appendix [10.2].
+
+
+Tool Use: ToolBench 
+
+
+TABLE
+
+
+We conduct experiments across four distinct planning tasks to assess the effectiveness and efficiency of ToolChain* in tool usage. The objective is to generate a sequence of API function calls to formulate a solution plan for each given task. For instance, these tasks include questions or requirements from users, &quot;Could you help me find train tickets to Cape Coral?&quot;. We present the main results, visualize the case study, analyze time-wise efficiency, and discuss ablation studies within the tool-use scenarios as follows. We report the success rate as the evaluation metric. Detailed task setup for ToolBench is available in Appendix [8.3].
+
+
+Results. Table [9] presents the main experiment results on ToolBench.
+Our proposed ToolChain* consistently outperforms across nearly all datasets, surpassing state-of-the-art baselines by margins of *MATH* and *MATH* with the base LLMs GPT-3.5-turbo and GPT-4, respectively. In comparison with the strongest closed-loop baseline AdaPlanner, ToolChain* improves the average success rate by *MATH*. This improvement is because AdaPlanner relies heavily on environmental feedback, which may not always be available in the tool-use scenarios.
+Without such high-quality feedback, closed-loop methods tend to explore a restricted trajectory within the action space, making them more susceptible to propagating errors from previous actions to future plans.
+
+
+FIGURE 
+
+
+Moreover, ToolChain* not only surpasses the strongest tree search-based method, MCTS, but also shows the ability to exploit a better solution plan within the same exploration budgets. This is because our proposed task-specific cost function allows ToolChain* to prioritize the expansion of the most promising branches. Additional analysis is available in Appendix [10.3].
+
+
+Case Study.
+Figure  depicts an example of ToolChain*(GPT-4) and ReAct [*REF*] on a &quot;take shower&quot; task in Virtual Home dataset. According to the ground truth ([green], &quot;shower&quot;), ToolChain* generates the correct action plan ([blue], &quot;shower&quot;) with an expanded search space, whereas the baseline searching method gets trapped in a locally optimal solution ([red], &quot;soap&quot;). This suggests that by formulating and expanding upon a tree-based action space, ToolChain* is capable of effectively searching for the globally optimal solution in complex multi-step planning tasks.
+
+
+TABLE
+
+
+Efficiency Evaluation. In terms of efficiency, we evaluate the running time of ToolChain* against all the baselines based on GPT-3.5-turbo, as depicted in Figure . Remarkably, ToolChain* is *MATH* faster than the most efficient tree search-based method, Tree-of-Thoughts (BFS). This efficiency gain may stem from the proposed superior cost function, which efficiently navigates the most promising paths.
+Additionally, ToolChain* outpaces the best-performing tree search-based method, MCTS, by an impressive *MATH*. This discrepancy arises because ToolChain* focuses on expanding only the immediate next action during exploration. In contrast, MCTS goes through a more exhaustive process, simulating the entire future plan step by step using a rollout mechanism. Efficiency results based on GPT-4 are available in Appendix [10.5].
+
+
+FIGURE
+
+
+Ablation Studies. We conduct ablation studies to evaluate the effectiveness (success rate) of both the cumulative and future cost functions (Table ). The results suggest that each component of the cumulative and future cost functions contributes to the performance of ToolChain*. This verifies the efficacy of our proposed cost functions in guiding the search through the decision tree. In addition, eliminating either the entire cumulative or future cost results in a marked decline in the success rate. Relying exclusively on the future cost results in a sharp performance drop of *MATH*, deteriorating ToolChain* to a greedy strategy that favors the shortest solution plans with the least number of actions. Conversely, if the search is guided only by the cumulative cost, ToolChain* essentially mirrors the behavior of the BFS algorithm, yielding similar performance. Further ablation study analysis can be found in Appendix [10.6].
+
+
+Math Reasoning: GSM8K 
+
+
+Beyond tool-use scenarios, we demonstrate the flexibility of ToolChain* by generalizing its application to mathematical reasoning for solving math word problems. We conduct experiments on the entire set of GSM8K and also a subset of hard questions from GSM8K collected in ToolQA [*REF*]. Detailed task setup for GSM8K is available in Appendix [8.4].
+
+
+TABLE
+
+
+Results. Table presents the main experimental results (accuracy) for GSM8K and its challenging subset from ToolQA. Similar to tool-use studies (Table [9]), ToolChain* consistently outperforms all baselines in both the original set and the challenging subset. These results demonstrate the flexibility and generalization capabilities of ToolChain* in mathematical reasoning tasks. Notably, ToolChain* demonstrates greater advantages over other baselines on ToolQA (hard questions) than on GSM8K, indicating its superior capability in solving complicated tasks. This is because simpler questions are composed of simple and static reasoning, eliminating the need for multiple branches.
+In contrast, challenging questions often involve complex reasoning, numerous intermediate steps, and multiple solution paths. The superior performance on hard subsets emphasizes the capability of ToolChain* in solving complicated reasoning problems. Furthermore, the efficiency analysis presented in Figure  indicates that ToolChain* ranks among the most efficient tree-based search baselines and has a time efficiency comparable to closed-loop systems without a tree structure. Detailed case studies of action space exploration and efficiency analysis with the number of valid actions are available in Appendix [10.4] and [10.5], respectively.
+
+
+Discussion: Empirical Analysis
+
+
+From the comprehensive evaluations in planning and reasoning tasks presented in Sections [4.2] and [4.3], we validate that ToolChain* addresses the two core limitations of open-/closed-loop LLM-based agents, error propagation in multi-step solutions and constrained exploration in expansive action spaces. Meanwhile, we demonstrate ToolChain* a more efficient searching strategy compared to existing tree search-based agents. From the scaling-up analysis in Figure [7] in Appendix [10.5], alongside experimental results in Table [9] and efficiency metrics in Figure [3], we identify a crucial trade-off between effectiveness and efficiency in the direct application of tree search-based reasoning methods to complex tool use scenarios.
+
+
+FIGURE
+
+
+To validate ToolChain* in solving these issues, we summarize key findings from experiments as follows: (1) From the main experimental results shown in Tables [9], ToolChain* surpasses open-/closed-loop and tree search baselines in complex multi-step planning and reasoning tasks, effectively mitigating error propagation. A visualization example of how ToolChain* gradually abandons the faulty path and mitigates error propagation is available in Figure [4] in Appendix [10.4]. (2) From case studies in Figures, [4], and [5], ToolChain* navigates the path toward an optimal solution by formulating the action space as a decision tree, thereby extensively broadening the exploration space. (3) From Figures [3] and [6], ToolChain* significantly accelerates the search process compared to other tree search-based methods, achieving time efficiency even comparable to closed-loop systems without a tree structure. (4) From tool-use in ToolBench to math problems in GSM8K, we show that ToolChain* is a plug-and-play generalizable framework applicable to a wide range of planning and reasoning problems. Notably, it exhibits exceptional proficiency in solving more challenging tasks, like ToolQA, compared to baselines. Additional results in Appendix [11] and [12] show that ToolChain* can generalize to a wide range of complex reasoning tasks and open-source LLMs (, LLaMA 2 [*REF*]). (5) There is a trade-off between search depth (i.e., limitations on the number of steps) and the quality of the solution path (Figure ). ToolChain* efficiently searches optimal solutions within limited steps, striking a balance between exploration and exploitation.
+
+
+Related Works
+
+
+LLMs for Tool Use. Recent advances have leveraged LLMs as autonomous agents to master tools and generate solution plans for complicated problems [*REF*; *REF*; *REF*].
+Interacting with various tools, LLM agents can augment themselves with real-time factual knowledge [*REF*; *REF*], multi-modality understanding [*REF*; *REF*; *REF*], computational abilities [*REF*; *REF*], code interpretabilities [*REF*; *REF*], and domain-specific functionalities [*REF*; *REF*]. However, many existing methods either concentrate on individual tool-use scenarios [*REF*; *REF*] or simply inject human-made heuristic ordering rules for multi-tool utilization [*REF*; *REF*]. With the increasing number of potential API functions at each step and the escalating sequence of actions for complex problem solutions, the action space expands exponentially, thereby diminishing their effectiveness.
+ToolChain* frames the planning challenge across various tools as navigation through the action space to efficiently identify a valid solution path.
+
+
+LLMs with Search Algorithms. The majority of LLM-based agents with open- or closed-loop systems rely on linear reasoning or planning structure. To explore multiple branches in the action space, self-consistency [*REF*] samples multiple chains of thoughts, which can be considered as multiple i.i.d. solution paths in the decision space, selecting the best answer through majority voting.
+Maieutic prompting [*REF* -etal-2022-maieutic] generates a tree of explanations, enforcing logical consistency. [*REF*] adopts beam search to decode and improve Chain-of-Thoughts reasoning chain. CoRe [*REF* -etal-2023-solving] proposes to fine-tune both the reasoning step generator and verifier to solve math word problems, incorporating MCTS for reasoning decoding.
+Tree-of-Thoughts [*REF*] utilizes heuristic approaches, including depth- and breadth-first search to identify better reasoning pathways.
+Additionally, RAP [*REF*] combines a world model with rewards within an advanced MCTS search approach. However, many search-guided planning approaches face the trade-off between efficient exploration of an expansive action space against the effective exploitation of global optimal solutions. To avoid exhaustive exploration like MCTS, we propose ToolChain* to combine efficient A* search with the effective reasoning ability of LLMs.
+
+
+Conclusion
+
+
+In this paper, we propose ToolChain*, an A* tree search-based planning algorithm to augment LLMs with external tools for complicated real-world planning and reasoning tasks. Compared to existing open- or closed-loop LLM agents, ToolChain* formulates the action space as a decision tree, thereby effectively mitigating error propagation and extensively expanding the search space. Furthermore, ToolChain* significantly accelerates the search process compared to other tree search-based methods, enabling tree search in complicated action space and striking a dynamic balance between exploration and exploitation. We demonstrate ToolChain* as a generalizable framework in a wide range of planning and reasoning tasks with both closed- and open-source LLMs.
+By achieving significant improvements over state-of-the-art baselines, ToolChain* showcases its potential as an efficient planning algorithm, navigating LLM-based agents in addressing complex real-world challenges.

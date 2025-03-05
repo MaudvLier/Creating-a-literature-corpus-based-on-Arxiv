@@ -1,0 +1,306 @@
+LLM-Powered Hierarchical Language Agent for Real-time Human-AI Coordination
+
+
+INTRODUCTION
+
+
+Developing Artificial Intelligence (AI) agents that can attain human-level performance has been a long-standing goal for AI research [*REF*, *REF*] have emerged as promising tools in this endeavor, owing to their strong reasoning and generalization abilities.
+LLM-powered AI agents have exhibited significant potential across diverse domains, including code generation [*REF*, *REF*, *REF*, *REF*], content creation [*REF*, *REF*, *REF*], tool utilization [*REF*, *REF*, *REF*, *REF*], and robotics [*REF*, *REF*, *REF*, *REF*]. Meanwhile, LLM-powered agents have exhibited the ability to mimic human-like behaviors when interacting with other players [*REF*, *REF*] leading to a revolution in human-AI coordination.
+
+
+AI agents powered by LLMs commonly rely on LLM APIs and hand-crafted complex prompts. A notable challenge within this paradigm is the high latency associated with the inference process due to API calls, ranging from seconds to minutes [*REF*]. The inference time may not be regarded as bottleneck in scenarios with low-frequency interactions, such as code generation. However, the limitation of high inference latency becomes apparent in human-AI coordination applications, which requires real-time responses and high-frequency interactions, such as video games [*REF*, *REF*, *REF*]
+
+
+In this work, we consider Overcooked as our real-time human-AI coordination testbed. Overcooked is a cooperative cooking game where players collaborate at a rate of approximately 3Hz to serve orders within a time budget. We further develop language-based communication in Overcooked to allow human-like cooperation. An ideal language agent is expected to exhibit real-time responsiveness, strong reasoning capabilities, and effective language-based communication with human players for the best performance in such a fast-paced game. Fig.
+*REF* shows a concrete example. When paired with an AI player, a human player might instruct the AI player by saying &quot;Chop 3 tomatoes.&quot; The AI player needs to accurately interpret and follow the command by swiftly picking up and chopping the specified number of tomatoes. Upon completion, the AI player needs to inform the human player of the ongoing progress, e.g., by saying &quot;I&apos;ve chopped 3&quot;, for future cooperation. Afterward, the human player might directly say &quot;one more&quot;, which itself looks semantically ambiguous. The AI player must correctly infer the true command from the history commands and promptly chop one more tomato.
+
+
+Traditional gaming AI usually employs smaller models or script policies, emphasizing fast inference for real-time responses to the game dynamics.
+Yet, this efficiency comes at the cost of limiting task completion and intra-player interaction abilities [*REF*, *REF*, *REF*, *REF*,*REF*] We propose a Hierarchical Language Agent (HLA) for real-time human-AI coordination in Overcooked. Inspired by System 1 and System 2 thinking [*REF*], HLA combines both robust reasoning and interaction capabilities from a large model and real-time inference from a smaller model and a reactive policy. In particular, HLA employs a hierarchical framework that consists of three modules: a proficient LLM for intention reasoning and language-based communication, a lightweight LLM for interpreting commands and high-level planning, and a script policy for executing low-level actions swiftly.
+We denote the proficient LLM as Slow Mind. The lightweight LLM, referred to as Fast Mind, generates macro actions, and the reactive script policy is referred to as Executor, which transforms macro actions into atomic actions. Human commands are processed simultaneously through both the Slow Mind and Fast Mind to enhance real-time performance. The reactive policy further ensures the feasibility of actions and high-frequency interactions. We consider three baseline agents, each lacking a specific HLA component. Our evaluation involves experiments on action latency, reasoning with simple and complex commands, and human studies. HLA demonstrates a remarkable advantage, being an order of magnitude faster than the best competitor in real-time action responsiveness. Furthermore, HLA outperforms the baseline agents significantly in command reasoning ability. Human studies confirm these findings, showing that HLA achieves approximately 50% higher game scores and receives the highest human preference. More demonstrations can be seen on our WEBSITE.
+
+
+FIGURE 
+
+
+RELATED WORKS
+
+
+Language Agents. Prior works train instruction-following agents with paired datasets of text and trajectories in games [*REF*, *REF*], visual navigation [*REF*, *REF*] and robotics [*REF*, *REF*]. However, these works are limited to simple domains. Recently, with the advances of Large Language Models, a class of works start to utilize the strong reasoning power of LLMs to interact with complex domains including web scenarios [*REF*, *REF*, *REF*], simulated environments [*REF*, *REF*, *REF*, *REF*], real-world environments [*REF*, *REF*, *REF*, *REF*]. These recent efforts use prompt engineering to elicit the power of LLMs [*REF*, *REF*]. Some recent works try to combine LLMs that play different functionalities in a cooperative manner [*REF*, *REF*, *REF*, *REF*]. In our work, we study the availability of language agents in response speed sensitive environments.
+
+
+Human-AI Cooperation. Building AI agents that can cooperate with humans is a longstanding challenge. Prior works study human-AI cooperation without communication in games such as Hanabi [*REF*, *REF*] and Overcooked [*REF*, *REF*, *REF*], and in robotics [*REF*, *REF*]. Language commands from humans are used to guide intelligent agents in visual navigation [*REF*, *REF*] and robotics [*REF*, *REF*]. Cicero [*REF*] trains a language agent that can speak and make decisions like a human in the game of Diplomacy from a large volume of human play data. However, Diplomacy is a turn-based game and therefore has low real-time requirements. Recently, there are attempts in using LLM for human-AI interaction in domains including web scenarios [*REF*, *REF*], health [*REF*, *REF*], games [*REF*, *REF*] and other applications [*REF*, *REF*, *REF*]. Similar to us, there are some concurrent works that use LLM for decision-making in the game of Overcooked [1], [*REF*, *REF*].
+
+
+We focus on improving real-time user experience in settings that demand rapid responses during human-AI interaction.
+
+
+LLM Inference Speedup. The long inference latency of existing LLM-based agents is not desirable in domains that demand a fast response speed. &quot;Skeleton-Of-Thought&quot; [*REF*] generates responses with a skeleton structure and uses parallel inference to reduce latency.
+Model compression methods achieve faster inference by distilling the knowledge of LLMs into smaller language models [*REF*, *REF*, *REF*, *REF*, *REF*] and performing quantization [*REF*, *REF*, *REF*]. In our work, we adopt a hierarchical design that leverages LLMs for reasoning and language interaction and small models for fast reaction in real-time gaming.
+
+
+TESTBED: THE OVERCOOKED GAME
+
+
+Environment Details
+
+
+Overcooked is a cooperative cooking game where participants must work together to prepare, cook, and promptly serve a variety of dishes. The Overcooked environment [*REF*, *REF*] simulates and simplifies the original Overcooked game and provides an RL training interface as a common testbed for real-time human-AI coordination. Throughout the game, orders continuously appear, each accompanied by a strict deadline. Players must prepare dishes in accordance with these orders and ensure they are delivered on time for rewards. Failed deliveries incur penalties. To finish an order, players must follow a precise sequence of steps: retrieving the necessary ingredients, chopping them, mixing them as per the recipe, cooking them to make a dish, plating the dish before it overcooks, and finally, serving it at the counter. Fig. depicts the cooking process of the game. Each player can perform one of the 4 actions at each time step, i.e., up, down, left, and right, to control the character&apos;s position and to interact with other objects.
+
+
+We implemented a collection of enhancements to the environment with full details described in Appendix [A.] In particular, we further extend the original environment by developing a chat interface to allow natural language communication between human and AI players. Human players can either pause the game and send text messages to the AI through an additional chat window or directly speak to the AI player during gameplay. Similarly, the AI player can respond to human players through either text or speech.
+
+
+We also design 4 distinct maps as shown in Fig. In each game, a human player (the pink beard character) collaborates with an AI player (the blue character) to complete the orders. The first two maps, Ring and Bottleneck, assess general human-AI cooperation capabilities. The third map, Partition, completely separates the two players, therefore they must cooperate to finish any order. In the fourth map, Quick, we raise the number of concurrent orders and accelerate the action frequency to intensify the gameplay.
+
+
+FIGURE 2
+
+
+Challenges of Overcooked
+
+
+Real-time Cooperation. The Ovecooked game is particularly time-sensitive. It requires all players to adjust their game strategy in time and take swift actions, so that the orders do not timeout, and the dishes are not overcooked. The real-time requirement of the game indicates that, if an AI agent wants to leverage LLM&apos;s strong capabilities, it cannot adopt the conventional approach of directly prompting the LLM to generate its next action. This approach leads to substantial latency, making it impractical for this game.
+
+
+Command Reasoning. When playing the original Overcooked game, human players often give commands that are semantically ambiguous or overly complex. We collect some common human commands and present the typical scenarios as follows.
+
+
+- Quantity specification. The player asks others to &quot;chop 3 tomatoes.&quot; - Semantic analysis. Instead of giving direct commands such as &quot;cook the soup,&quot; the player gives hints, &quot;the soup order is about to timeout.&quot; - Ambiguous reference. The player first asks others to &quot;chop some tomatoes,&quot; then says &quot;one more.&quot; Here the &quot;one&quot; implicitly refers to a chopped tomato.
+
+
+In such scenarios, the AI agent must consider various factors, such as human commands, environment composition, and historical actions, to determine the true intentions of the human player and respond accordingly. A basic reactive agent lacking reasoning capabilities will struggle to comprehend human commands, let alone collaborate effectively with humans to complete the game.
+
+
+METHOD
+
+
+Overview
+
+
+As described in Sec. [3,] the AI agent needs real-time responsiveness, command reasoning ability, and bilateral communication capability. A key observation in our testbed is that the AI agent can perform reasoning about human commands and communicate with humans at a regular frequency while atomic actions should be generated at a high frequency. Meanwhile, LLM-based agents are better at generating high-level moves than producing atomic actions. Therefore we propose Hierarchical Language Agent (HLA) as depicted in Fig. HLA consists of three components: a proficient LLM, i.e., Slow Mind, that interprets human commands from the full game history and generates chat feedback; a lightweight LLM, i.e., Fast
+
+
+Mind, that delivers high-level moves, which we call &quot;macro actions&quot;, at a medium frequency; and a reactive policy, i.e., Executor, that is implemented as pre-defined scripts and transforms macro actions into atomic actions to interact with the environment at a high frequency.
+We will describe Slow Mind, Fast Mind, and Executor in the following sections respectively.
+
+
+Slow Mind
+
+
+Slow Mind is empowered by a proficient LLM. The main functionality of Slow Mind is to interpret vague human commands into concrete intentions, keep track of command completion progress, and provide responses containing key information and useful suggestions to the human partner. Also, Slow Mind sends the inferred human intention to Fast Mind and indicates to Fast Mind whether the command is successfully completed.
+
+
+To this end, we devise Slow Mind to have two stages. The first stage, Intention Reasoning Stage, infers human intention given the command and command history when the human issues a new command. The second stage, Chat &amp; Assessment Stage, periodically checks command completion and generates reply messages to the human partner based on the inferred intention. We use GPT-3.5 [*REF*] here as GPT-3.5 features strong reasoning and communication power.
+
+
+1. Intention Reasoning Stage. To interpret human commands, the LLM is provided with the command history and environmental information. The LLM interprets the vague command into concrete intentions that best reflect needs of the human partner. For instance, when the current soup orders are &quot;Alice Soup&quot; and &quot;David Soup&quot;, the command &quot;Cook the first soup on the orders&quot; should be interpreted as &quot;Cook Alice Soup&quot;. We note that this intention reasoning stage is carried out only once when a command is issued. The inferred intention is then stored by Slow Mind and sent to Fast Mind. The prompt used in Intention Reasoning Stage is shown in Fig.
+
+
+FIGURE 5
+
+
+FIGURE 4
+
+
+2. Chat &amp; Assessment Stage. In Chat &amp; Assessment Stage, the LLM generates chat messages to the human partner and performs completion assessment. The chat messages cover different aspects of information including consent to the commands, planning of the AI agent, and information about the environment. The completion assessment is used as a tool to keep track of command completion progress. Once the human command is judged as completed, the inferred intention will be cleared and Fast Mind will be reminded of completion of the command.
+
+
+The LLM takes as input the inferred intention, current orders, environment state, and action history. We note that we use a compact representation for the action history by expressing consecutive repeated actions in the form of &quot;action × repetition times&quot; to reduce the length of the action history.
+
+
+Different from Intention Reasoning Stage that is only executed once when a new command arrives, Chat &amp; Assessment Stage runs periodically to actively monitor the command completion progress and provide positive messages to the human partner. Notably, Chat &amp; Assessment Stage runs in different modes according to whether there exists an unaccomplished human command. When a human command is not completed yet, Chat &amp; Assessment Stage runs at full functionality. When there are no ongoing human commands, Slow Mind switches to a more casual mode that only generates chat messages and does not perform completion assessment.
+
+
+Outline of the prompt used in Chat &amp; Assessment Stage is shown in Fig. We note that, when there are no ongoing human commands, completion assessment is disabled and the human&apos;s intention is ommited from the input prompt.
+
+
+FIGURE 6
+
+
+FIGURE 7
+
+
+Fast Mind
+
+
+As argued in Sec. [4], Fast Mind produces high-level moves at a medium frequency while following human commands. We call these high-level moves macro actions. The current macro action set in our testbed includes chopping vegetables, serving soup, putting out the fire, and so on. A detailed description of macro actions can be found in Sec. [4.4].
+
+
+Despite having superior decision-making capabilities, a powerful LLM as used in Slow Mind is not applicable in Fast Mind due to huge inference latency. Therefore a lightweight LLM is more suitable. On the other hand, while a lightweight LLM such as Llama2-13B-chat can successfully follow a human command when the command is concise and clear, it often generates sub-optimal moves that lead to a lower score when there are no ongoing commands and violates the command when the human partner gives a vague command.
+
+
+Taking these factors into account, we design Fast Mind that generates macro actions to interact with the environment, as depicted in Fig. Fast Mind is empowered by a lightweight LLM (quantized version [*REF*] of Llama2-13B-chat [*REF*]). To better ground human Intention Reasoning Stage, the inferred intention is sent to Fast Mind, and Fast Mind switches to use the inferred intention instead of the raw command to generate macro actions. Later when the command is evaluated as completed by Slow Mind, the conditional input for Fast Mind is switched to the chat messages produced by Slow Mind, which helps the agent to better align its action with conversational response.
+
+
+4.3.2 Macro Action Generation. We obtain action probability by the output probability of each macro action conditioned on the prompt prefix. Fig. illustrates the structure of the employed prompt. Each potential macro action candidate fills in the [&lt;next action&gt;]{.underline} variable to evaluate its output probability. The action history contained in the output prompt is to remind the agent of its past actions.
+
+
+Lightweight LLM used in Fast Mind may result in sub-optimal actions when managing complicated tasks. We therefore employ an action filter to filter out sub-optimal macro actions. The selection probabilities are calculated based on the probabilities output by the language model and the task-relevant value of each available macro action according to Eq. [(1)] commands into moves, Fast Mind works with Slow Mind cooperatively with a conditional prompt mechanism. Lastly, Fast Mind avoids sub-optimal moves with an action-filtering mechanism.
+
+
+FIGURE 8 
+
+
+1. Intention Selection. To better align macro action generation with vague human commands, Fast Mind also uses the inferred intention from Slow Mind as input. To prevent macro action generation from being blocked by the intention reasoning stage of Slow Mind, Fast Mind uses the raw human command as input before Slow Mind successfully infers the intention. This asynchronous execution nature results in the conditional prompt mechanism used by Fast Mind as depicted in Fig. When Slow Mind is analyzing the command, Fast Mind uses as input the raw command, action history, and availability of actions. As soon as Slow Mind completes 𝑎 under current state 𝑠, 𝑃𝐿𝐿𝑀 (𝑎|𝑠) represents the probability of the language model outputting macro action 𝑎, 𝑉 (𝑎|𝑠) represents the value of macro action 𝑎 contributing to the task reward. The values for 𝑉 (𝑎|𝑠) are hardcoded, and their detailed information can be found in the Appendix [B.2.] 𝛼 is a dynamic adjustment term and is smaller when the human command is not assessed to be met and is larger when it is. Finally, we adopt a greedy selection scheme, i.e. macro action with the greatest 𝑈 (𝑎|𝑠) is selected.
+
+
+Executor
+
+
+At the lowest level of HLA, Executor employs a script policy to convert macro actions generated by Fast Mind into atomic actions to interact with the environment. The established macro action set includes the following types.
+
+
+- Chop: Transform an ingredient into its chopped form.
+- Mix: Combine chopped ingredients for cooking.
+- Cook: Utilize mixed ingredients to cook a soup.
+- Plate: Transfer a ready soup to a plate.
+- Serve: Deliver a plated soup to the delivery point.
+- Putout: Extinguish a fire on a pot using an extinguisher.
+- Drop: Plate charred soup and discard it into a bin.
+
+
+Most macro actions are equipped with a specified target, such as &quot;Chop Lettuce&quot; and &quot;Cook Bob Soup&quot;, consequently resulting in a total set of 21 macro actions. Implementation details of the reactive policy can be found in Appendix [B.2.] Given a macro action as a high-level goal, Executor chooses the most appropriate move and performs path planning to the target. We empirically found this to be particularly beneficial as shown in Sec.
+[5.3.]
+
+
+Note that the reactive policy of Executor shares similarities with goal-conditioned reinforcement learning [*REF*, *REF*], which can, in turn, be trained by typical reinforcement learning algorithms [*REF*]. We remark this as a topic for future studies.
+
+
+EXPERIMENT
+
+
+In this section, we consider three baseline agents to verify the hierarchical structure of HLA. We first test the real-time responsiveness of HLA and baselines by measuring action response latency. Moreover, we use a simple command set to evaluate the cooperative ability of each agent and a more complex command set to test command reasoning ability.
+Finally, we conduct human studies to collect the game scores and the human preference of all agents.
+
+
+Baseline
+
+
+To validate the effectiveness of the proposed hierarchical framework, we introduce three baseline agents, each lacking a certain component of the original HLA.
+
+
+- Slow-Mind-Only Agent (SMOA). We remove the Fast Mind and let the Slow Mind produce macro actions. Current available macro actions are added to the input of the Slow Mind. The action filter is disregarded as GPT-3.5 is incapable of evaluating the probability for each macro action.
+- Fast-Mind-Only Agent (FMOA). We remove the Slow Mind, including both Intention Reasoning Stage and Chat &amp; Assessment Stage. Due to the absence of Chat &amp; Assessment Stage, the dynamic adjustment term 𝛼 in held static in Eq. [(1)]. We set a maximum length for action history, beyond which the human intention is assumed as fulfilled. History of human commands, current orders, and environment states are incorporated additionally into the input of Fast Mind.
+- No-Executor Agent (NEA). We remove the Executor and let the Fast Mind choose atomic actions to control the agent directly. In addition to the original input, the Fast Mind of the NEA incorporates environmental state information, such as the positions of all items on the map.
+
+
+Details of the baseline agents can be found in Appendix [C.]
+
+
+Latency
+
+
+We use macro action latency and atomic action latency to measure the real-time responsiveness of HLA and baseline agents. The macro action latency is defined as the time interval between receiving a human command and subsequently generating a macro action. And the atomic action latency is, in turn, the latency of an atomic action. In order to simulate the natural human-AI coordination, we build a command set and issue each command to the AI agent to evaluate its response latency.
+Details about latency measurement method and the command set can be found in Appendix [D.1.]
+
+
+The results of macro action latency and atomic action latency are depicted in Tab. where lower number implies a faster action response time. The macro action latency of NEA is marked as &quot;/&quot; since it generates atomic actions directly. In HLA, when a human command is received, it is concurrently dispatched to both the Slow Mind and the Fast Mind therefore we report the macro action generation time of the Fast Mind.
+
+
+Regarding the macro action latency, HLA produces 74.3% lower latency than SMOA and 53.5% lower latency than FMOA, suggesting that the hierarchical design significantly contributes to reducing response latency. FMOA exhibits a marginally shorter response time than SMOA, which can be attributed to the shorter inference time of the lightweight LLM, as well as the elimination of the intention completion assessment module in Slow Mind. Regarding the atomic action latency, HLA exhibits an order of magnitude advantage over the best competitor (0.28 vs.
+0.08), demonstrating the real-time responsiveness of HLA. Among all agents, NEA performs the highest atomic action latency, indicating the importance of Executor that interacts with the environment with high frequency.
+
+
+TABLE 1
+
+
+Performances with Simple Commands
+
+
+An ideal AI agent should cooperate seamlessly with human players to achieve high game score, either in the absence of explicit human commands or after human commands is fulfilled. Thus, we design two test cases where the human player either remains silent or speaks very little. In both cases, the human player only chops ingredients and does not perform other tasks.
+
+
+- No Command: The human player does not issue any command throughout the game.
+- One Command: The human player asks the AI agent to prepare a specific soup at the start of the game, and the order for this soup only appears once at the start of the game.
+
+
+We employ game score as a metric to assess the cooperative ability of HLA and baseline agents. The game score ascends every time an order is finished in time and descends whenever an order expires. We test both No Command and One Command on Map Quick and replicate the experiment five times with the same order sequence and keep the same experiment conditions. The average game scores under different test cases are depicted in Fig. where the black line denotes standard deviation. Visualization of the gaming process can be found in Appendix [E.2.]
+
+
+NEA fails to complete basic tasks, such as picking up things or approaching the target, and frequently gets stuck, therefore misses all soup orders and achieves minimum score of −20. This underscores the vital role played by the Executor, which translates macro actions into atomic actions. SMOA adequately follows the human command in the One Command case, but often overcooks dishes due to its high response latency, thus also performs poorly. In the No Command case, FMOA serves the desired soups successfully but underperforms compared to HLA, primarily due to a high latency. However, in the One Command case, FMOA keeps making the requested soup even if it does not appear on the order list. In other words, FMOA fails to confirm the completion of a human command leads to suboptimal actions that do not fulfill the orders.
+
+
+FIGURE 
+
+
+Interpreting Complex Commands
+
+
+To see how well the agents comprehend and respond to commands of varying complexity, we design a complex command set comprising the following three challenges outlined in Sec. [3.2.]
+
+
+- Quantity specification (Quantity). We consider commands with specific numbers, e.g. &quot;Chop 3 Lettuce.&quot; or &quot;Cook Bob Soup once.&quot; - Semantic analysis (Semantics). For example, the human gives a hint, &quot;Alice Soup is about to timeout!&quot; instead of a direct command like &quot;Cook Alice Soup.&quot; - Ambiguous reference (Ambiguity). For example, after asking the agent to chop two onion, the human player asks, &quot;Chop 1 more.&quot; The AI agents need to infer the true intention based on environmental context and history commands.
+
+
+We generate 10 different commands for each challenge. The details of the complex command set can be found in Appendix [D.2.] Each individual command is tested for 5 times. A command is considered successful if it succeeds at least 3 out of 5 attempts within 60s. In such cases, the command is labeled as passed, and its completion time is calculated as the average time taken for successful attempts. Otherwise, it is marked as failed and its completion time is marked as the maximum time of 60s. We report the average success rate and average completion time of commands in each challenge subset.
+
+
+Tab. shows the results of HLA and baseline agents. NEA fails to execute any complex command and thus produces the worst performance. Except NEA, FMOA exhibits the lowest success rate and the highest completion time when handling ambiguous commands, highlighting the significance of intention reasoning through the Slow Mind. SMOA performs poorly on quantity and semantics commands, displaying the longest completion time, indicating that although the Slow Mind can interpret commands, it suffers from prolonged latency. HLA surpasses baseline agents with a notable advantage in both success rate and completion time, which demonstrates the effectiveness of the hierarchical design.
+
+
+Ablation study on the two-stage design of Slow Mind. The AI agent needs to infer human intentions and evaluate whether human commands are completed. In HLA, these tasks are performed separately by the two stages of Slow Mind. In this section, we consider two variants of Slow Mind to validate our two-stage design on interpreting complex commands.
+
+
+TABLE 2
+
+
+- HLA without Intention Reasoning (no IR). We remove the In-
+
+
+tention Reasoning Stage and use human commands directly as intentions for Chat &amp; Assessment Stage.
+
+
+- HLA with one-stage Slow Mind (one-stage). We combine the Intention Reasoning Stage and the Chat &amp; Assessment Stage within Slow Mind, which now infers human intention, chats, and assesses intention completion simultaneously.
+
+
+The results are shown in Tab. HLA with one-stage Slow Mind
+
+
+exhibits the longest completion time and the lowest success rate. We hypothesize that this is due to Slow Mind having to handle multiple tasks simultaneously, resulting in poorer performance and longer inference time. HLA without Intention Reasoning performs worse than HLA(full) across all challenge subsets, particularly on ambiguous commands, indicating the significance of incorporating the Intention Reasoning Stage.
+
+
+TABLE 3
+
+
+Human Studies
+
+
+1. Experiment Setting. We invite 60 volunteers for the human-AI experiment and divide them into 4 groups, each of which consists of 15 volunteers playing on a specific map. All volunteers are provided with a detailed introduction to the basic gameplay and the experiment process. They are fully aware of all their rights and experiments are approved with the permission of the department.
+Considering the poor performance of NEA observed in Sec.
+[5.3,] we only evaluate SMOA, FMOA, and HLA in this section. Each volunteer plays with the three AI players on the same map for two gaming phases, the preparation phase and the competition phase. During the preparation phase, volunteers are required to collaborate with each of the three AI players for at least one round. In this process, human players familiarize themselves with the environment and engage in casual interactions with the AI players to explore their behaviors. In the competition phase, volunteers can only play one round of the game with each of the three AI players to achieve the highest possible score. We record the game scores and ask the volunteers to rank the three AI players based on their gaming experience. We report the game scores and human preferences of SMOA, FMOA, and HLA in the following subsections.
+
+
+2. Game Score. The average game scores on various maps from the competition phase are presented in Tab. A high variance in scores can be attributed to the discrete nature of task rewards, where finishing an order yields 15 to 20 points. SMOA exhibits the lowest scores on all maps due to its high response latency. Compared to SMOA, FMOA performs slightly better, averaging a 10-point advantage in scoring on each map. HLA outperforms both SMOA and FMOA across all maps with ∼ 50% higher game scores, reflecting a significant advantage. In particular, HLA achieves a game score increase of over 40 points, i.e. serving at least two additional orders, on Partition and Quick when compared to baseline agents. This highlights HLA&apos;s effective collaboration ability and real-time responsiveness.
+
+
+TABLE 4
+
+
+Behavior Analysis. We additionally calculate the ratio of valuable macro actions performed by each AI player, as well as the frequency of fire accidents on all maps during the competition phase. A macro action is considered valuable if it produces a positive utility value upon execution. Conversely, useless macro actions may either be inherently invalid or become unexecutable due to high inference latency. We analyze three common macro actions, including Chop ingredients,Cook soups and Serve orders. The results are documented in Tab.
+*REF* HLA stands out by executing the highest quantity of valuable macro actions and minimizing fire accidents, significantly outperforming SMOA and FMOA. Notably, the ratio of Serve macro action executed by HLA is 100%, indicating not only its capability to serve the correct order but also to do so promptly. This further helps to explain the excellent performance of HLA with regard to reasoning and real-time responsiveness.
+
+
+TABLE 5
+
+
+3. Human Preference. In this section, we report the human preference on different AI players. Fig. and Fig. show the language communication preference and the overall preference of human participants respectively. Numbers indicate the difference of players who prefer row AI player over column AI player.
+
+
+Communication Preference. Fig. illustrates human feedback on communication accuracy, as well as consistency between chat messages and actions. The data is derived from both the preparation and competition phases. More than 20% of human players prefer HLA over SMOA and FMOA in terms of language communication accuracy as well as the consistency between chat messages and actions. We can also observe that FMOA outperforms SMOA with an advantage of ∼20% human preference, primarily due to SMOA&apos;s high latency according to the collected feedback. This underscores the pivotal role of real-time responsiveness of effective language communication.
+
+
+Overall Preference. Fig. reports the overall human preference of the preparation phase and the competition phase.
+Human participants expressed a strong preference for HLA over SMOA and FMOA, with a preference rate exceeding 30%. This preference was particularly evident during the competition phase, where HLA was favored over SMOA by as much as 50%. Human preference for FMOA remains higher than that for SMOA, at around 30%, aligning with the conclusion of communication preferences. Overall preference is a comprehensive metric of how human players evaluate an AI player&apos;s actions and communication. The strong preference on HLA indicates that it exhibits superior cooperative skills, faster responsiveness, and more consistent language communication.
+
+
+FIGURE 10
+
+
+FIGURE 11
+
+
+CONCLUSION
+
+
+We propose Hierarchical Language Agent, an AI agent that can cooperate with humans using natural language in environments that require real-time execution. Throughout the comprehensive experiments in an extended Overcooked, our method consistently excels in terms of game score, response latency, and human preference, showcasing reliable real-time human-AI cooperation. Our method could be improved in a few key areas: substituting GPT-3.5 with GPT-4 in the Slow Mind for enhanced semantic analysis, and replacing the scripted executor with an automatic one developed through goal-conditioned reinforcement learning to streamline scripting and boost low-level execution performance.

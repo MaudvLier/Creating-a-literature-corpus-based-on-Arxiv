@@ -1,0 +1,168 @@
+Motif: Intrinsic Motivation from. Artificial Intelligence Feedback
+
+
+Introduction
+
+
+*MATH* Where do rewards come from? *MATH* An artificial intelligence agent introduced into a new without prior knowledge has to start from a blank slate. What is good and what is bad in this environment? Which actions will lead to better outcomes or yield new information? tasking an agent with the goal of opening a locked door. The first time the agent finds a key, it will have no idea whether this could be useful for achieving the goal of opening a door: it has to learn this fact by interaction. A human, instead, would know by mere common sense that picking up a key is generally desirable for opening doors. Since the idea of manually providing this knowledge on a per-task basis does not scale, we ask: what if we could harness the high-level knowledge humanity has recorded on the Internet to endow agents with similar common sense?
+
+
+Although this knowledge may not provide a direct to how an agent should manage its sensors or, it bears answers to the fundamental questions above. This holds true for many of the environments where we would want to deploy an agent. However, the knowledge on the Internet is highly unstructured and amorphous, making it difficult to find and reuse. Fortunately, by learning on Internet-scale datasets, Large Language Models (LLMs) absorb this information and make it accessible [Brown et al. 2020]. Nonetheless, empowering a sequential decision-making agent with this source of common sense is far from trivial.
+
+
+FIGURE 1
+
+
+While an LLM&apos;s knowledge typically exists at a high level of abstraction, a decision-making agent often operates at a lower level of abstraction, where it must process rich observations and output fine-grained actions in order to achieve a desired outcome. For an agent to harness this prior and know what to look for in an environment, it is necessary to build a bridge between an LLM&apos;s high-level knowledge and common sense, and the low-level sensorimotor reality in which the agent operates. We propose to bridge this gap by deriving an intrinsic reward function from a pretrained LLM, and using it to train agents via reinforcement learning (RL) [Sutton &amp; Barto 2018]. Our method, named Motif, uses an LLM to express preferences over pairs of event captions extracted from a dataset of observations and then distills them into an intrinsic reward. The reward is then maximized directly or in combination with an extrinsic reward coming from the environment. A guiding principle in the design of Motif is the observation that *MATH* it is often easier to evaluate than to generate *MATH* [Sutton 2001]; [Schulman 2023]. Motif&apos;s LLM expresses preferences over textual event captions; these are only required to be coarse descriptions of events happening in the environment rather than fine-grained step-by-step portrayals of the current observations. The LLM is not even asked to understand the low-level action space, which may be composite or continuous. In comparison, an approach using an LLM as a policy typically requires a complete text interface with the environment [Wang et al. 2023]; [Yao et al. 2022]. When using Motif, the LLM remains in the space of high-level knowledge it was trained on, but leverages the capabilities of deep RL algorithms to deal with decision-making under rich observation and action spaces.
+
+
+We apply Motif to the challenging NetHack Learning Environment (NLE) [Ku¨ttler et al. 2020] and learn intrinsic rewards from Llama &apos;s preferences [Touvron et al. 2023] on a dataset of gameplays.
+This dataset, collected by policies of different levels of proficiency, only contains observations from the environment, without any action or reward information. Using this framework, we show that the resulting intrinsic reward drastically improves subsequent learning of a policy by RL. Motif excels in both relatively dense reward tasks, such as maximizing the game score, and extremely sparse reward tasks, such as the oracle task. To our knowledge, our paper is the first to make progress on this task without leveraging expert demonstrations. Notably, *MATH* an agent trained only through Motif&apos;s intrinsic reward obtains a better game score than an agent trained directly with the score itself *MATH*.
+
+
+In addition to quantifying Motif&apos;s strong game performance, we also delve into the qualitative of its produced behaviors.
+First, we show that Motif&apos;s intrinsic reward typically yields behaviors that are more aligned with human gameplay on NetHack. Second, we find tendencies of Motif to create *MATH* anticipatory rewards *MATH* [Thomaz et al. 2006]; [Pezzulo 2008] which ease credit assignment while being consistent with human common sense. Third, we uncover a phenomenon that we name *MATH* misalignment by composition *MATH*, due to which the joint optimization of an aligned intrinsic reward and a task reward yields a misaligned agent with respect to the latter. Fourth, we demonstrate that the performance of the agent scales favorably in relation to both the size of the LLM and the amount of information contained in the prompt. Fifth, we investigate how sensitive the performance is to slight variations in the prompt. Sixth, we demonstrate it is possible to steer the agent&apos;s behavior by prompt modifications, naturally generating a set of semantically diverse policies.
+
+
+Background
+
+
+A Partially Observable Markov Decision Process (POMDP) [˚Astr¨om, Karl Johan, 1965] is a tuple *MATH*, where S is the state space, A is the action space, O the observation space and γ is a discount factor. First, an initial state *MATH* is sampled from the initial state distribution µ. At each time step *MATH*, an observation ot is sampled from the emission function, *MATH*. This observation is given to the agent, which then produces an action at leading to an environment transition *MATH* and, upon arrival to the next state and sampling from the emission function, a reward *MATH*. The goal of the agent is to learn a policy *MATH* which maximizes the expected discounted cumulative reward *MATH*. Each observation ot has a (potentially empty) textual caption *MATH* as a component. Weassume access to a dataset of observations *MATH*. This type of dataset departs from the more typical ones, employed for instance in offline RL, which normally contain information about actions and possibly rewards (Levine et al., 2020). It is often much easier in practice to obtain a dataset of observations, for example videos of humans playing videogames (Hambro et al., 2022b), than to record actions or to rely on a possibly non-existing reward function. We do not assume any level of proficiency in the policies that generated the dataset, but we assume sufficient coverage.
+
+
+Code is available at WEBSITE
+
+
+FIGURE 2
+
+
+Method
+
+
+The basic idea behind our method is to leverage the dataset D together with an LLM to construct a dataset Dpref of preferences, and then use Dpref for training an intrinsic reward function. This intrinsic reward is then incorporated into an RL algorithm interacting with the environment. We next describe in detail the three phases characterizing our method, which are also depicted in Figure 2. Dataset annotation In the first phase, we use a pretrained language model, conditioned with a prompt possibly describing a desired behavior, as an annotator over pairs of captions. Specifically, the annotation function is given by LLM *MATH*, where C is the space of captions, and *MATH*is a space of choices for either the first, the second, or none of the captions. Allowing a refusal to answer when uncertain reduces the noise coming from mistaken annotations and helps in normalizing the reward function (Lee et al., 2021). Concretely, we construct a dataset of preferences over pairs *MATH*,*MATH* where observations o(j) 1,o(j) 2 ∼Daresampled from the base dataset and annotations *MATH* *MATH* are queried from the LLM. Reward training For deriving a reward function from the LLM’s preferences, we use standard techniques from preference-based RL (Wirth et al., 2017), minimizing a cross-entropy loss function on the dataset of pairs of preferences Dpref to learn a parameterized reward model FORMULA is the probability of preferring an observation to another. (1) Reinforcement learning training Once we have trained the intrinsic reward model rϕ, we use it to define an intrinsic reward rint, and provide it to an RL agent, which will optimize a combination of the intrinsic and extrinsic rewards: *MATH*. In some of our experiments, weset α2 = 0,tohave agents interact with the environment guided only by the intrinsic reward. For simplicity, we do not further fine-tune the reward function on data collected online by the agent, and instead fully rely on the knowledge acquired offline.
+
+
+1. Learning from Artificial Intelligence Feedback on NetHack
+
+
+We apply our method to the game of NetHack [Ku¨ttler et al. 2020] an extremely challenging video game in which the player has to go through multiple levels of a procedurally generated dungeon, exploring, collecting and using items, and fighting monsters. NetHack is an interesting domain for testing intrinsic motivation approaches: it is rich and complex, and the reward signal coming from the environment (e.g., the game score, or the dungeon level) can be sparse and not necessarily aligned with what a human would evaluate as good gameplaying.
+
+
+To instantiate Motif on the NLE, which provides access to NetHack-based tasks, we follow the strategy described above, integrating it with domain-specific choices for the dataset of observations, the LLM model and prompting strategy, the reward model architecture and post-processing protocol, and the agent architecture and RL algorithm. We now provide the main information these different choices. Further details can be found in the Appendix [B] and Appendix [G].
+
+
+*MATH* *MATH* Dataset generation *MATH* *MATH* A convenient feature of NetHack is that the game displays a text message in about 10% to 20% of game screens, typically describing events happening in the game. These include positive events, such as killing a monster, negative events, such as starving, or neutral events, like bumping into a wall. Every message is part of the observation, which also includes a visual representation of the game screen and numerical features such as the position, life total and statistics of the agent. Thus, messages can be interpreted as captions, and we use them as the input that we feed to the LLM to query its preference. To construct a reasonably diverse dataset, we collect a set of 100 episodes at every 100 million steps of learning with the standard NLE RL baseline CDGPT5 [Miffyli 2022] and repeat the process for 10 seeds. The CDGPT5 baseline is trained for 1 billion steps to maximize the in-game score. We analyze these choices in Appendix [H.3].
+
+
+*MATH* D *MATH* *MATH* *MATH* LLM choice and prompting *MATH* *MATH* We employ the 70-billion parameter chat version of Llama [Touvron et al. 2023] as annotator to generate pref from. We determined via a preliminary analysis (shown in Appendix [C]) that this model has sufficient knowledge of NetHack and common-sense understanding to be useful as an annotator, even with no domain-specific fine-tuning. We modify the model&apos;s system prompt from its default, and write a prompt that tasks the model with evaluating pairs of messages extracted from. We use a form of chain of thought prompting [Wei et al. 2022 asking the model to provide a brief summary of its knowledge of NetHack, and an analysis of its understanding of the messages presented, before expressing a preference.
+
+
+*MATH* D *MATH* *MATH* D D *MATH* *MATH* *MATH* Annotation process *MATH* *MATH* We use a regular expression to identify one of the labels in in the LLM&apos;s output text. In case of a failure in finding one of the them, we ask the model again by continuing the conversation, and remove the pair from the dataset if the second attempt also fails. When two messages are exactly the same, as can happen in roughly 5% to 10% of the cases (e.g., due to empty *MATH* Y *MATH* messages), we automatically assign the label *MATH* y *MATH* = ∅ without any further processing.
+
+
+*MATH* *MATH* Intrinsic reward architecture and post-processing *MATH* *MATH* We train the intrinsic reward *MATH* rϕ *MATH* by optimizing Equation [1] *REF* by gradient descent. For simplicity, we only use the message as the part of the given to this reward function, and process it through the default character-level one-dimensional convolutional network used in previous work [Henaff et al. 2022]. To make it more amenable to RL optimization, we transform the reward function *MATH* r *MATH* *MATH* ϕ *MATH* *MATH* *MATH* produced by the training on *MATH* D *MATH* pref into:
+
+
+FORMULA where *MATH* N *MATH* (message) is the count of how many times a particular message has been previously found during the course of an episode. The transformation serves two purposes. First, it employs episodic count-based normalization, as previously utilized in [Raileanu &amp; Rockta¨schel 2020]; [Mu et al. 2022]; [Zhang et al. 2021]. This transformation helps in overcoming some of the major limitations of a Markovian reward function [Abel et al. 2021 encouraging the agent to diversify the observed outcomes and preventing it from getting fixated on objects with which it cannot interact due to its limited action space or skills. Second, applying a threshold below *MATH* ϵ *MATH* reduces the noise coming from training based on preferences from an imperfect LLM. We ablate these choices in Appendix [H.].
+
+
+*MATH* *MATH* Reinforcement learning algorithm *MATH* *MATH* We train agents using the CDGPT5 baseline, which separately encodes messages, bottom-line features, and a cropped-field-of-view version of the screen. The is based on PPO [Schulman et al. 2017] using the asynchronous implementation of *MATH* Sample Factory *MATH* [Petrenko et al. 2020]. We additively combine intrinsic and extrinsic rewards. We will specify what weight is given to each reward function, depending on the experiment.
+
+
+FIGURE 3
+
+
+Experiments
+
+
+We perform an extensive experimental evaluation of Motif on the NLE.
+We compare agents trained with Motif to baselines trained with the extrinsic reward only, as well as a combination between and intrinsic reward provided by Random Network Distillation (RND) [Burda et al. 2019b]. RND is an established intrinsic motivation baseline and it has previously been shown to provide performance improvements on certain tasks from the NLE [Ku¨ttler et al. 2020]. We evaluate baselines in Appendix [F], showing that none of them is competitive with Motif. We report all experimental details in Appendix [G], and additional experiments and ablations in Appendix [H].
+
+
+1. Performance on the NetHack Learning Environment
+
+
+To analyze the performance of Motif, we use five tasks from the NLE.
+The first one is the score task, in which the agent is asked to maximize the game score proper to NetHack. This task is considered the most important one in the NLE, the score being also the metric of agent used in previous NetHack AI competitions [Hambro et al. 2022a]. The other four are tasks. We employ three variations of a dungeon descent task (staircase, staircase (level 3), staircase (level 4)), in which the agent only receives a reward of 50 when it enters the second, third and fourth dungeon level respectively. We additionally use the extremely sparse reward oracle task, in which the agent gets a reward of 50 when it finds *MATH* the oracle *MATH*, an in-game character that resides in a specific branch of the dungeon, at a depth level greater than five.
+
+
+Figure [1] reports the performance of Motif and related baselines on the score task. While, as shown in previous work [Ku¨ttler et al. 2020]; [Zhang et al. 2021] existing intrinsic motivation approaches offer minimal benefits on this task, Motif significantly enhances the agent&apos;s performance. In, training an agent only through Motif&apos;s intrinsic reward function and no extrinsic reward already generates policies collecting more score than the baselines that directly maximize it. To the best of our knowledge, this is the first time an agent trained with deep RL using only an intrinsic reward is shown to outperform one trained with the environment&apos;s reward on a relatively dense-reward task. When combining intrinsic and extrinsic rewards, the score improves even further: Motif largely surpasses the baselines in terms of both final performance and sample efficiency. We provide more insights into the behavior induced by the intrinsic reward in Section [4].
+
+
+We show the success rate of Motif and the baselines on the sparse reward tasks in Figure [3]. On the staircase task, in which the agent has to reach the second dungeon level, Motif has better sample efficiency than the baselines, albeit featuring worse asymptotic performance than RND. On the other more complex staircase tasks, the agent only receives a reward from the environment when it reaches dungeon level 3 or 4. Since the LLM prefers situations which will likely lead to new discoveries and progress in the game, the intrinsic reward naturally encourages the agent to go deep into the dungeon. Thus, Motif is able to make significant progress in solving the tasks, with just its intrinsic reward and even more when combining it with the extrinsic reward, while an agent trained with either the extrinsic reward or RND has a zero success rate. On the oracle task, the hardest task in the set, no approach ever reported any meaningful progress without using human demonstrations [Bruce et al. 2023] due to the extremely sparse reward. In Figure [3] we show that, when combining intrinsic and extrinsic reward, Motif can achieve a success rate of about 30%.
+
+
+2. Behavior and Alignment Analysis
+
+
+From which type of behavior do the large performance gains provided by Motif come from? We now analyze in-depth the policies obtained using Motif&apos;s intrinsic reward and the environment&apos;s reward, showing that Motif&apos;s better performance can be attributed to the emergence of complex strategies.
+
+
+We then characterize these behaviors and discuss their with human intuition.
+
+
+*MATH* *MATH* Characterizing behaviors *MATH* *MATH* It is customary to measure the gameplay quality of an agent on NetHack using the game score [Ku¨ttler et al. 2020]; [Hambro et al. 2022a]. While the score is indeed a reasonable quality measure, it is a representation of a behavior that can be fairly rich in a complex and open-ended environment such as NetHack. To more deeply understand the relationship among the kind of behaviors discovered via the intrinsic reward, the extrinsic reward and their combination, we characterize policies using metrics similar to the one proposed in [Bruce et al]. 2023] and [Piterbarg et al]. 2023]. Figure [4] shows that the three agents qualitatively different behaviors. The agent trained only with the extrinsic reward greedily goes down into the dungeon, is very risky, as each new dungeon level will generate more challenging monsters and present situations. The agent trained only with Motif&apos;s intrinsic reward has a behavior tailored for survival, more aligned to a player&apos;s behavior, killing more monsters, gaining more experience levels and staying alive for longer. The agent trained with a combination of Motif&apos;s intrinsic reward and the environment reward leverages their interplay and achieves the best of both worlds, acquiring the survival-oriented skills implied by the intrinsic reward but leveraging them at the cost of a shorter lifespan to go down into the dungeon with better combat skills, collecting more gold and score.
+
+
+FIGURE 4
+
+
+*MATH* *MATH* Alignment with human intuition *MATH* *MATH* Motif&apos;s intrinsic reward comes from an LLM trained on data and then fine-tuned on human preferences. It is natural to wonder whether the of the LLM with human intentions will be converted into a behavior that follows human. In Appendix [H], we provide evidence of human-aligned behavior, in addition to Figure [4], with agents trained with Motif being less likely to kill their pet. The agent also exhibits a natural tendency to explore the environment.
+Indeed, many of the messages most preferred by Motif are related to the exploration of the environment (e.g., &quot;The door opens.&quot;), which would also be preferred by humans (see Appendix [D]). When compared to traditional intrinsic motivation approaches, this has profound consequences.
+Typical approaches define the *MATH* novelty *MATH* as a feature of a state and let the RL algorithm solve the credit assignment problem to find special states that might lead to novel states. Motif goes a step beyond that: it directly rewards states that, under some assumption about a policy, will likely lead to new discoveries (such as opening a door), an anticipatory reward-crafting behavior that has been observed in humans [Thomaz et al. 2006]. This brings Motif&apos;s intrinsic reward conceptually closer to a value function [Ng et al. 1999] and eases credit assignment for the RL algorithm. In other words, via its LLM, Motif effectively addresses both *MATH* exploration *MATH* (by leveraging prior knowledge) and *MATH* credit assignment *MATH* (by anticipating future developments in a reward function), which may explain Motif&apos;s strong performance.
+
+
+*MATH* *MATH* Misalignment by composition in the oracle task *MATH* *MATH* We now show how the alignment with human intuition can break when combining Motif&apos;s intrinsic reward with the environment reward. We have seen in Figure [3] that Motif reaches a good level of performance on the challenging oracle task, in which the agent has to find the oracle *MATH* *MATH* @ *MATH* *MATH* by going deep into the dungeon and after facing significant challenges. However, if we inspect the behavior learned by Motif, we observe something surprising: it almost never goes past the first level. Instead, as shown in Figure [5], the agent learns a complex behavior to hack the reward function [Skalse et al. 2022] by finding a particular hallucinogen. To do so, the agent first has to find a specific monster, a yellow mold *MATH* *MATH* F *MATH* *MATH*, and defeat it. As NetHack is a procedurally generated game with hundreds of different monsters, this does not happen trivially, and the agent must survive thousands of turns to get this opportunity.
+Once the yellow mold is killed, the agent has to eat its corpse *MATH* *MATH* *MATH* *MATH* to start hallucinating. In this state, the agent will perceive monsters as characters typically found in other parts of the game, such as a Yeti *MATH* *MATH* Y *MATH* *MATH*. Normally, the agent would attack this entity, but to hack the reward, it must completely avoid being aggressive and hope to survive the encounter. If it does so and the hallucination state is not over, it will hallucinate the monster as an oracle *MATH* *MATH* @ *MATH* *MATH*. As the NLE detects that a nearby character appears to be the oracle, the task will be declared as completed. To summarize, *MATH* the agent learns to find hallucinogens to dream of the goal state, instead of actually going there *MATH*. This unexpected behavior is not found by the agent that optimizes the extrinsic reward only. At the same time, the intrinsic reward, despite being generally aligned with human&apos;s intuition, creates in the agent new capabilities, which can be used to exploit the environment&apos;s reward function. We name the underlying general phenomenon *MATH* misalignment by composition *MATH*, the emergence of misaligned behaviors from optimizing the composition of rewards that otherwise lead to aligned behaviors when optimized individually. We believe this phenomenon may appear in other circumstances (e.g., for chat agents) and is worthy of future investigations.
+
+
+FIGURE 5
+
+
+3. Sensitivity to LLM Size and Prompt
+
+
+So far, we trained agents with Motif using a fixed LLM and a fixed prompt. In this section, we seek to understand how interventions along these variables influence the agent&apos;s behavior.
+
+
+*MATH* *MATH* Scaling behavior *MATH* *MATH* We first investigate how scaling the LLM annotator impacts the downstream performance of the RL algorithm. If the LLM has more domain or common-sense knowledge, we can expect the reward function to more accurately judge favorable events in NetHack.
+We train a Motif agent on staircase (level 3) with a combination of extrinsic reward and intrinsic rewards obtained from Llama 7b, 13b, and 70b. In Figure [6a], we show that larger LLMs lead to higher success rates when used to train agents via RL. This result hints at the scalability of Motif, which could potentially take advantage of more capable LLMs or domain-specific fine-tuned ones.
+
+
+For completeness, we report in Appendix [H] that Motif performs well, albeit with lower success rate, also on a modified version of the oracle task, in which success is only valid when the agent is not hallucinating.
+
+
+FIGURE 6
+
+
+*MATH* *MATH* Effect of task-relevant information in the prompt *MATH* *MATH* The regular prompt we provide to the agent includes a few keywords that act as hints for constructive NetHack gameplay (i.e., maximizing the score, killing monsters, collecting gold, and going down the dungeon). What if we let the model entirely rely on its own knowledge of NetHack, without providing any type of information about the game? With a *MATH* zero-knowledge *MATH* prompt, the only way for the intrinsic reward to be effective is for an LLM to not only be able to discern which messages are more or less aligned to a given goal or gameplaying attitude but also to infer the goal and the attitude by itself. We report the prompts in the Appendix. Figure [6b] shows the performance of Motif trained using only the intrinsic reward on the score task. The results show two points: first, Motif exhibits good performance also when the annotations come from a zero-knowledge prompt, denoting the capability of the LLM to naturally infer goals and desirable behaviors on NetHack; second, adding knowledge in this user-friendly way (through a single sentence in the prompt) significantly boosts the performance, demonstrating that Motif unlocks an intuitive and fast way to integrate prior information into a decision-making agent.
+
+
+*MATH* *MATH* Sensitivity to prompt rewording *MATH* *MATH* LLMs are known to be particularly sensitive to their prompt, and different wordings for semantically similar prompts are known to cause differences in task performance [Lu et al. 2022] *REF*. To probe whether this is the case also in the context of Motif, we design a *MATH* reworded *MATH*, but semantically very similar, prompt and compare the performance of Motif trained with the default and the reworded prompts, with the combination of intrinsic and extrinsic rewards. While we do not observe significant performance differences in the score task (see Appendix [H]), we show in Figure [6c] that the intrinsic reward implied by the reworded prompt, in interaction with the extrinsic reward, induces a significantly different behavior compared to the one derived from the default prompt. In particular, while Motif equipped with the default prompt finds the &quot;hallucination technique&quot; to hack the reward function, and does not need to go down the dungeon, the version of Motif that uses the reworded prompt optimizes the expected solution, learning to go down the dungeon to find the oracle. This is due to emergent phenomena resulting from the combination of the LLM&apos;s prompt sensitivity and RL training: a change in the prompt affects preferences, that are then distilled into the intrinsic reward, which in turn leads to a behavior. We believe studying this chain of interactions is an important avenue for future safety research.
+
+
+1. Steering towards Diverse Behaviors via Prompting
+
+
+A major appeal of Motif is that its intrinsic reward can be modulated by prompts provided in natural language to an LLM. This begs the question of whether a human can leverage this feature not only to provide prior information to the agent but also to steer the agent towards particular behaviors, aligned with their intentions. To demonstrate this, we add different modifiers to a base prompt, generating three agents encouraged to have semantically diverse behaviors. The first agent, *MATH* The Gold Collector *MATH*, is incentivized to collect gold and avoid combat. The second agent, *MATH* The Descender *MATH*, is encouraged to descend the stairs but avoid confrontation. The third agent, *MATH* The Monster Slayer *MATH*, is encouraged to combat monsters. For each prompt, we show in Table [1] the messages most preferred by the corresponding reward function and the ratio of improvement over the *MATH* zero-knowledge *MATH* prompt. For each agent, we calculate this ratio on the most relevant metric: gold collected for *MATH* The Gold Collector *MATH*, dungeon level reached for *MATH* The Descender *MATH*, and number of monsters killed for *MATH* The Monster Slayer *MATH*.
+
+
+TABLE 1
+
+
+The results show that the agent&apos;s behavior can indeed be steered, with noticeable improvements across all prompts, being more than twice as effective as the baseline at collecting gold or combat. Inspecting the most preferred messages, *MATH* The Gold Collector *MATH* gets higher rewards for collecting gold, but also for discovering new rooms; *MATH* The Descender *MATH* is encouraged to explore each level of the dungeon better; *MATH* The Monster Slayer *MATH* is led to engage in any kind of combat.
+
+
+Related Work
+
+
+Learning from preferences in sequential decision-making has a long history [Thomaz et al. 2006; Knox &amp; Stone 2009]. In the field of natural language processing, learning from human [Ouyang et al. 2022] or artificial intelligence [Bai et al. 2022] feedback has created a paradigm shift driving the latest innovations in alignment of LLMs. More closely related to our work is [Kwon et al]. 2022 that also proposes to use LLMs to design reward functions, albeit working with complete trajectories that include the state of the game and the actions at each time step. In comparison, Motif studies the role of artificial intelligence feedback in a challenging long horizon and open-ended domain where the resulting rewards are used as intrinsic motivation [Schmidhuber 1991]. Another closely related work is [Du et al. 2023] which leverages LLMs to generate goals for an agent and defines rewards by measuring the cosine similarity between the goal description and the observation&apos;s caption. Motif instead builds on the capabilities of LLMs to anticipate future developments when providing on current events. A separate line of work considers leveraging LLMs as agents interacting directly in the environment [Yao et al. 2022]; [Wang et al. 2023]. However, this introduces the to ground the LLM in both the observation and action space [Carta et al. 2023]. We further contextualize our approach by discussing more related work in Appendix [A].
+
+
+Conclusions
+
+
+We presented Motif, a method for intrinsic motivation from artificial intelligence feedback. Motif learns a reward function from the preferences of an LLM on a dataset of event captions and uses it to train agents with RL for sequential decision-making tasks. We evaluated Motif on the complex and open-ended NetHack Learning Environment, showing that it exhibits remarkable performance both in the absence and in the presence of an external environment reward. We empirically analyzed the behaviors discovered by Motif and its alignment properties, probing the scalability, sensitivity and steerability of agents via LLM and prompt modifications.
+
+
+We believe Motif to be a first step to harness, in a general and intuitive manner, the common sense and domain knowledge of LLMs to create competent artificial intelligence agents. Motif builds a bridge between an LLM&apos;s capabilities and the environment to distill knowledge without the need for complicated textual interfaces. It only relies on event captions, and can be generalized to any in which such a captioning mechanism is available. A system like Motif is well-positioned for directly converting progress in large models to progress in decision-making: more capable LLMs or prompting techniques may easily imply increased control competence, and better multimodal LLMs [Alayrac et al. 2022]; [Man˜as et al. 2023] could remove the need for captions altogether. Throughout a large part of this paper, we analyzed the behavior and alignment properties of Motif. We encourage future work on similar systems to not only aim at increasing their capabilities but to accordingly deepen this type of analysis, developing conceptual, theoretical and methodological tools to align an agent&apos;s behavior in the presence of rewards derived from an LLM&apos;s feedback.

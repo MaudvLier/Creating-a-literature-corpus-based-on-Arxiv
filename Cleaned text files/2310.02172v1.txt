@@ -1,0 +1,207 @@
+Lyfe Agents: Generative agents for low-cost real-time social interactions
+
+
+Introduction
+
+
+Generative models, particularly large language models (LLMs), demonstrate impressive potential to mimic human behavior ([Bubeck et al. 2023]). However, a salient difference remains: while all animals, including humans, are autonomous, characterized by self-driven, adaptive, continuous interactions with the environments, standalone LLMs fall short of these capabilities. An emerging strategy to bridge the autonomy gap is to recursively call LLMs in response to new environmental inputs. A notable example is the generative agent framework proposed by [Park et al. 2023]. It leverages LLM capabilities in combination with a continuously-updating memory stream that stores agents&apos; experiences. Items in the memory stream are retrieved to guide the LLM in continually generating actions, plans, and reflections. This approach has led to a remarkable level of agent autonomy and coherence.
+
+
+However, autonomy can come at a high cost. In this and other works [Gravitas 2023]; [Qian et al. 2023], decision making processes -- from setting destinations to rating memory importance -- often rely heavily on expensive LLMs. In comparison, reinforcement learning agents and non-human animals can exhibit autonomy and long-term goal-oriented behavior with a substantially lower computational footprint and little or no use of language.
+
+
+Our goal for this work is to create cost-effective autonomous intelligent agents, and we do so by adopting design principles of the animal brain and other non-LLM agents. With this approach, we developed agents that cost about 30-100 times less than that of [Park et al. 2023]. Our main guiding principle is to be resource-rational ([Lieder &amp; Griffiths 2019]). Specifically, we opt for fast, computationally-light processes over slow, computationally-intensive ones, unless performance quality demands otherwise. Therefore, we limit LLM queries to only the necessary cases, e.g. for sophisticated reasoning and conversation. Furthermore, reducing our reliance on LLMs also cuts the response latency within the multi-agent environment, enabling seamless real-time user interactions.
+
+
+We developed a range of techniques for Lyfe Agents to balance cost with intelligence and autonomy. In this work, we focus on three of them, inspired by the neuroscience, cognitive science, and reinforcement learning literature. First, we use a hierarchical action selection mechanism to guide agents&apos; high-level decisions with minimal reliance on the LLM. Second, we introduce a Selfmonitoring process that facilitates self-consistency by maintaining a summary of relevant recent events in parallel with the goal-driven, executive decision-making. Finally, we devise a hierarchical memory architecture and introduce a Summarize-and-Forget (SaF) method that improves the quality of memory storage and retrieval.
+
+
+Complementing the cognitively inspired agent architecture, we develop a virtual multi-agent environment platform called LyfeGame to facilitate social behavior and support user interactions. Within this environment, we curate a set of scenarios of varying complexity, and test the ability of Lyfe Agents to diffuse, gather, and reason about information through social interactions. The scenarios include (1) solving a murder mystery, (2) deciding which school club to join for extracurricular activities, (3) securing a medicine for a sick member. Each of these scenarios highlights a unique facet of social coordination. We perform preliminary evaluations of Lyfe Agents using these scenarios, and demonstrate their potential to directly enrich human social life through dialogues and actions grounded in background stories and virtual interactions.
+
+
+Modular Agent Architecture
+
+
+In this section, we present a high-level overview of the modular architecture underlying Lyfe Agents&apos; brains (Fig. [2]a).
+Then we highlight three brain-inspired architectural components of Lyfe Agents. These components are designed with the common principle of judicious use of LLMs at run-time in order to support real-time interactions with agents and humans, intelligently and autonomously.
+
+
+In general, natural-language inputs are processed by a sensory module, the output of which is added to the agent&apos;s internal states. The internal states are a collection of agent-specific states that are continuously updated both by external inputs and through internal recurrent processing. The recurrent nature of the internal state updates underlies the agents&apos; autonomy. In addition to the dynamic internal states, the agents have a Memory system that stores their experiences. Finally, the internal states provide contexts and inputs for action selection, typically by populating LLM prompts.
+
+
+Sensory processing Since the input to our agents are text-based (see Section [3]), we use a fast and low-cost sensory processing module that identifies novel inputs and feeds those to the internal states.
+
+
+FIGURE 2
+
+
+Internal states The internal states are a collection of text-based states, including the current goal, related memory retrieved from a Memory module, summary of recent events, working memory of sensory inputs, etc (Fig. [2]a). Specifically, an agent&apos;s goal is an open-ended natural language statement that describes the state of mind or motivation of the agent. For example, an agent&apos;s goal might be &quot;As a doctor, I want to help diagnose and treat those around me&quot;.
+Retrieved memory is a small group of text-based memories returned by querying the Memory system. The act of querying the Memory system is an internal action that is itself conditioned on internal states.
+Self-monitor summary is a high-level abstraction of ongoing events (more below).
+
+
+Memory system The memory system is composed of a hierarchy of vector databases. Each stores agent&apos;s experiences in pairings of natural language texts and their vector embeddings. Given a natural language query, we retrieve a small number of memory items based on embedding similarities.
+
+
+Action selection The action outputs of an agent can be external, interfacing with the environment such as talking, or internal such as reflection. At a given step, the agent decides on an action within an action category, or option (more below).
+
+
+1. Option-Action Selection
+
+
+Lyfe Agents choose actions in a hierarchical fashion, similar to other LLM-powered agent frameworks ([Park et al. 2023]; [Wang et al. 2023a]; [Gravitas 2023]). A simple implementation is for the agent to first choose a high-level action (or an &quot;option&quot;) such as use search engine, followed by a lower action at each step such as search a specific item. While this method can be appropriate for many applications, it brings challenges to our goal of building real-time, low-cost social agents. For example, to have a conversation, our agents would have to first choose the option talk, then choose what to say. This could require two separate LLM calls, resulting in higher costs and latency, or one combined call that compromises output quality. To tackle this challenge, we take ideas from hierarchical reinforcement learning (HRL) in machine learning ([Bacon et al. 2017]; [Sutton et al. 1999]) and the brain ([Graybiel 1998]). In HRL, a &quot;manager&quot; chooses an option or high-level action that lasts for an extended amount of time while subsequent low-level actions are selected by a &quot;worker&quot;. This design can allow the manager to focus on long-horizon decision making, see [Pateria et al. 2021] for a review.
+
+
+In Lyfe Agents, a cognitive controller module (like HRL&apos;s manager) selects options, inspired by the brain&apos;s prefrontal cortex ([Miller &amp; Cohen 2001]). More specifically, the cognitive controller takes in the agent&apos;s goal along with other relevant internal states. Using an LLM call, it then outputs an option along with a subgoal (Fig. [2]b). Since the agent&apos;s goal may be too abstract or long-term to justify the choice of an option, the subgoal serves to orient the agent&apos;s actions at an intermediate level between low-level actions and the high-level goal.
+
+
+Once an option is selected, actions are chosen within that option over subsequent steps until a termination condition is met. For example, a selected option may be to talk, then at each step, the specific action of what to actually say is determined by an LLM call. Important for cost-reduction, the termination condition for an option is checked by fast, non-LLM methods, such as time-based triggers or, for agents in conversations, repetition detection which exits conversations that start to lack semantic novelty after some point.
+
+
+This framework can have the additional benefit of making agents more strongly goal-oriented. Committing to an option gives agents more time to execute the underlying intention of that option choice. In contrast, agents tend to be more fickle when choosing both options and actions at every time step. For instance, we found that agents using the above basic architecture exited conversations three times faster than Lyfe Agents equipped with option-action selection.
+
+
+2. Self-Monitoring for Goal Adherence
+
+
+To improve contextual awareness and goal perseverance of our agents, we introduce a selfmonitoring module, inspired by suggestions that self-monitoring is a key component for conscious experience in humans ([Dehaene et al. 2021]). This module maintains a narrative-style summary of recent events with an emphasis on novel and goal-related content, see Appendix [A.2] for examples. Using an LLM call, the self-monitoring module takes in the old summary, internal states containing recent events, and the agent&apos;s motivation to generate an updated summary (Fig.
+[2]c). The new summary highlights information that is novel or relevant to the agent&apos;s goals.
+
+
+The self-monitoring module provides agents with better context-awareness by distilling goal-relevant content from a stream of disparate and unorganized information. This coherent and focused narrative is then used in downstream processes like action selection.
+In contrast, passing an unfocused collection of disparate information directly for downstream LLM calls severely impacts performance (see Section [4.1.2]).
+
+
+Another advantage of maintaining a self-monitoring summary is to preserve information longer term if it is highly relevant to an agent&apos;s goal. Without this summary, we observed that agents frequently forgot their ongoing tasks or actions. The self-monitoring summary helps agents have actions that are more coherent and adhering to their goals.
+
+
+Furthermore, the self-monitoring module operates asynchronously with the action selection module. This design choice means that the self-monitoring module can operate independently and not be limited by the real-time constraints of action selection, allowing for the summary to be updated at a slower, more deliberate time-scale. This both lowers computational cost and provides an opportunity for more thoughtful summary refinement.
+
+
+3. Summarize-and-Forget memory
+
+
+The core function of memory is not just about storage and retrieval; it is about discerning the relevance of information for future use.
+While many contemporary memory systems, such as Vector databases ([Pinecone 2021]; [Research 2017]) support highly efficient information retrieval, we still face the challenge of intelligently determining which information to retain and which to discard. Here we describe three elements of our hierarchical Summarize-and-Forget memory architecture that tackles this challenge.
+
+
+Standard memory systems typically struggle with the unfiltered accumulation of recent information, resulting in clutter and inefficiency. Addressing this, we introduce a dual-memory architecture: recentmem for immediate summaries and longmem for enduring storage, modeled after the
+
+
+complementary roles of the hippocampus and neocortex in the brain&apos;s memory systems ([McClelland et al. 1995]). In particular, recentmem is dedicated to capturing immediate self-monitoring summaries. Upon reaching a specified capacity, these memories are transitioned to longmem. Having a dual memory system allows for intelligent transition methods to ensure that only the most salient memories find their way into long-term storage (Fig. [2]d).
+
+
+Our approach to transitioning memories uses a cluster-then-summarize technique. Memories are clustered based on similarity before being refined into high-level summaries using an LLM (Appendix [A.3]). This ensures that the stored content is not just raw data but possesses semantic richness, enhancing the quality of memories for downstream processes.
+
+
+Addressing the challenge of memory redundancy, our architecture integrates a new forgetting algorithm inspired by the brain ([Brown &amp; Lewandowsky 2010]; [Georgiou et al. 2021]). Rather than merely trimming data, this algorithm assesses and removes older memories that closely resemble new ones (determined by embedding similarities). This mechanism ensures that memories securing their place in recentmem or longmem are not just redundant repetitions, but unique and relevant, granting agents access to a multifaceted information spectrum.
+
+
+At its core, our Summarize-and-Forget Memory system does more than just store information---it attempts to understand it.
+
+
+A Multi-Agent Environment For Emergent Social Interactions
+
+
+Virtual environment To provide a world for the Lyfe Agents, we developed a custom virtual environment platform (LyfeGame) using the powerful Unity game engine (Appendix [B]). Our platform can support a large number of distinct environments. For this work, we focus on a specific 3D environment we named SakuraMachi (Japanese for Town of Cherry Blossom) (Fig. [1]). This environment contains key landmarks such as hotel, library, convenience store, flower shop, etc. that agents may navigate towards. The agents are integrated into the environment with virtual bodies controlled by their artificial brains.
+
+
+Observations and actions Agents receive a range of observations (see Appendix [B]) as they live in the environment. Most relevant is the conversation they receive from other agents and human players. To facilitate &quot;in-person&quot; interactions, an agent can only receive conversations from others in their vicinity. In accordance, agents can choose to talk and what they say will be received by agents and players around them. Other than talk, another external action our agents may choose is to move, which will advance the agents to their selected destination within the environment. Our vicinity-based dialogue setup leads to group conversation dynamics that differs from existing generative agents work which only support one-on-one dialogues ([Park et al. 2023]; [Qian et al. 2023]). Group conversations can greatly facilitate information transmission, but also brings fresh challenge for the agents such as when and how to leave a group conversation (a familiar problem for humans as well).
+
+
+Agent individuality To foster rich, meaningful interactions among agents, each agent is assigned a unique background story, among a set of identifiable traits (see Appendix [G]). Specifying agent personas this way not only guides the agent&apos;s behavior but also serves as a reference to maintain consistency with its established character.
+Agents&apos; background stories are authored as items in their long-term memory, which itself expands progressively through interactions within the environment. Since long-term memory items are continuously queried and retrieved, each agent&apos;s unique background story and experience shape their individualized experience in the virtual world.
+
+
+Experiments
+
+
+To evaluate the autonomy and social reasoning capabilities of our agents, we designed a series of experimental scenarios that focus on different aspects of social behavior: a murder mystery, a high school activity fair, and a patient-in-help scenario (Appendix [D.4]). Throughout these experiments, our agents consistently demonstrated the ability to acquire, transmit, and reason with information in a goal-oriented manner. Notably, they also exhibited human-like emotions, reactions, and decision-making patterns reminiscent of real-life social interactions. Ablation studies further highlighted the crucial role of our architectural designs in shaping Lyfe Agents&apos; social behaviors. The ablations also revealed that memory-augmented LLM agents alone often fall short in sustaining goal-oriented social behavior.
+
+
+FIGURE 3
+
+
+1. Scenario 1: Murder Mystery
+
+
+We first study a murder mystery scenario (Fig. [3]a). In this setting, the agent Ahmed has been murdered the previous night by his business rival Francesco. Meanwhile, Dmitri witnessed Francesco fleeing the scene with a bloody knife. These and other events are directly implanted into agents&apos; long-term memories, setting their background stories (Appendix [G]). Although Dmitri may pinpoint Francesco at the crime scene, this scenario is complicated by various interpersonal relationships and motives. Dmitri, for instance, was a romantic rival of Ahmed, casting doubt on the reliability of his testimony. Francesco, in a bid to evade blame, is self-motivated to deny any wrongdoing, and he indeed attempts to deflect suspicion.
+Further complicating matters, allies of Francesco, like Marta, may defend him when confronted by others. Given these intricacies, navigating through the diversions to identify the real evidence can be challenging, even for human players.
+
+
+In this scenario, our agents showcased remarkable motivation and capabilities in efficiently disseminating and assimilating information (Fig. [3]b). Within just 15 minutes of agent-agent interactions, the police officer agent was able to identify Francesco as the primary suspect over 60% of the time, even in the most challeging 9-agent setting. Our agents displayed the capability to resist and filter distracting information by reflection and reasoning processes.
+
+
+We further examined the dynamics of information transmission across the entire agent group (Fig. [3]c). Dmitri&apos;s key testimony against Francesco can be spread to other agents, who may integrate this information in their memories. When interviewed post-simulation, they might retrieve this information. Our analysis revealed that information has a reasonable chance of being spread (or lost) at every step along the way (Fig. [3]d). These analyses can help pinpoint potential bottlenecks in information transmission among virtual agents.
+
+
+1. Information exchange and opinion change
+
+
+We observe that agent&apos;s ability to form and adjust self-consistent opinions, underscoring the similarity between agent and human reasoning. At the beginning, agents formulate initial hypotheses regarding the suspect based on reflections and reasoning anchored in distinct background narratives (Fig. [4]). For instance, considering a memory event where the victim cheated on Aaliyah with Yi, other agents harbored significant suspicion towards Aaliyah due to a potential motive of animosity towards the victim. However, with the accumulation of more incriminating evidence, agents&apos; suspicion shifted towards Francesco, especially in light of critical information from the crime scene and a bloody knife testimony provided by witness Dmitri. It is notable that for agents who acquired the evidence of the bloody knife, post-simulation interviews affirm a change in their stance, now identifying Francesco as the primary suspect.
+
+
+FIGURE 4
+
+
+2. Ablation test
+
+
+To study the contributions of the three core mechanisms introduced, we ran ablation tests on the murder mystery scenario. Overall, we found that ablating the option-action structure (i.e. choosing an option at every step) does not improve performance (Fig. [3]b), despite significant increase in cost per action step. Whereas ablating either self-monitoring or Summarize-and-Forget (SaF) memory dramatically lowers the performance (more details below). Note that in all ablation experiments, the agents still include an intact LLM and a vector database. These results highlight that a simple memory-augmented LLM architecture is not sufficient for solving the murder mystery scenario.
+
+
+Self-monitoring Summary Ablation The self-monitoring summary offers agents a structured and consecutive insight into both internal and external events, effectively capturing what an agent is actively focusing on. When we ablated the self-monitoring module, we found that agents are limited to short-term, fragmented memories stored in the recent memory bank, making agents lose track of the bigger picture. As a result, agents without self-monitoring consistently under-perform when compared to Lyfe Agents (Fig. [3]b). This stark difference underscores the crucial importance of an agent&apos;s capacity for ongoing situational tracking and adaptation. Indeed, this continuous monitoring, as facilitated by the self-monitoring summarization mechanism, is instrumental in boosting an agent&apos;s awareness, agility, and competence in complex and demanding scenarios (see Appendices [A.2] and [E.2] for more details).
+
+
+Memory Ablation In our ablation study on memory architecture, we focus on the SaF method and the 3-tier hierarchical structure. We evaluate agents that use a plain memory system, consisting only of a single list of memory items, with no forgetting algorithm nor summarization for memory updating. Across conditions (3, 6, 9 agents), the full Lyfe Agents consistently surpass their simpler counterparts (Fig. [3]b), emphasizing the advantages of our brain-inspired memory architecture. This advantage is largely attributed to efficient tossing of irrelevant data, ensuring optimized and focused memory storage (see further details in Appendices [A.3] and [E.3]).
+
+
+2. Scenario 2: Activity Fair
+
+
+To assess how agents&apos; preferences and social relationships shape their choices, we introduce the Activity Fair scenario (Fig.
+[5]a). It emulates the common school challenge of deciding which social club to join, where students often need to strive for a delicate balance between friendship, romance, and personal interests. In this scenario, Lorenzo and Julian are motivated to form new clubs for anime and soccer, respectively, while the other six students are merely provided initial preferences. At the end of the simulation, agents are prompted to name their club preference with no restrictions (Appendix [D.3]).
+
+
+We found that agents are preferentially influenced by others they consider close to them. For example, Yi doesn&apos;t know much about anime, but she is aware that her crush, Arjun, likes anime, and she ends up choosing the anime club with about 60% probability (Fig.
+[5]b). Further highlighting how social relationships shape choices, we examine Fatima. She likes music and has no initial tendency to choose anime club (Fig. [7]), yet, as Yi&apos;s best friend, she ends up choosing the anime club with a similarly high probability (56%). In contrast, Aaliyah started out with no clear preference for any club (Fig. [7]), and ends up choosing the anime club much less frequently (22%). Beyond information diffusion, these results demonstrate how agents&apos; behaviors are strongly influenced by their inter-agent relationships.
+
+
+FIGURE 5
+
+
+3. Cost analysis
+
+
+Autonomous agents are inherently more expensive than their non-autonomous counterparts. Consider a typical chat-bot, it will not initiate a conversation with the human users, let alone converse with other bots. Autonomous chat-bots, however, might continuously engage in dialogues, leading to potentially unbounded costs. This challenge becomes even more daunting when we need the autonomous agents to provide low-latency responses for real-time human interactions. Low-latency implies that agents can have fast response to each other as well, potentially leading to rapid-paced back-and-forth conversations between agents that get expensive very quickly. Much of our work presented here is aimed to tackle these challenges. As a result, Lyfe Agents achieve a rather low cost of 0.5 US dollar per agent per human hour (Fig. [6]) (See Appendix [F] for more discussions).
+
+
+FIGURE 6
+
+
+Related Work
+
+
+LLMs as Agents LLMs evidently capture a large variety of social behaviors in their training data ([Kosinski 2023]; [Park et al. 2022]; [Hagendorff 2023]). Beyond traditional natural language processing (NLP) tasks, LLMs showcase an impressive ability to comprehend human intent and execute instructions ([Wang et al. 2023c]; [Chen &amp; Chang 2023]). Even OpenAI&apos;s GPT-4 alone shows potential in navigating complex domains that require deductive, multi-step reasoning ([Liu et al. 2023b]). However, standalone LLMs, importantly, function as conditional probability models, and are not sufficient to ensure consistent agentic behavior that incorporates a breadth of relevant context ([Bisk et al. 2020]; [Phelps &amp; Russell 2023]; [Shapira et al. 2023]; [Chen et al. 2023a]).
+
+
+Modular Agent Architecture To simulate a coherent autonomous agent navigating a complex environment, there is a need for modular approaches that combine diverse objectives captured by separate architectures ([Andreas 2022]; [Mahowald et al. 2023]). Modular agent architecture composed of an LLM and a memory module has found success in various domains including (1) assistant-type task management and execution ([Gravitas 2023]; [Nakajima 2023]), (2) scientific reasoning ([Lin et al. 2023]) and software development ([Qian et al. 2023]), (3) continuous skill learning ([Wang et al. 2023a]; [Zhao et al. 2023]), and learning from experience ([Shinn et al. 2023]; [Zhu et al. 2023]; [Xie et al. 2023]), (4) simulating human-like social interactions ([Liu et al. 2023a]; [Park et al. 2023]), and user behavior in recommendation systems ([Wang et al. 2023b]) as well as social networks ([Gao et al. 2023]), and (5) multi-agent collaboration ([Zhang et al. 2023]) and interaction with humans [Zhou et al. 2023]. More broadly, ([Sumers et al. 2023]) proposes a framework for systematizing the develop-ment of cognitively inspired LLM-powered agents with memory. Analogous to the above-referenced works, Lyfe Agents are defined by a modular architecture comprised of the LLM-powered actor, self-monitor, and memory.
+
+
+Achieving Coherency With Memory Storage and Retrieval In some cases, agents&apos; cognitive architecture includes proxies of memories in the form of a comprehensive record of agents&apos; past verbal interactions ([Liu et al. 2023a]; [Qian et al. 2023]). Increasingly, the cognitive architecture more closely simulates human-cognition, thereby including a frequently updated short-term memory in addition to a long-term memory used for retrieval ([Park et al. 2023]; [Wang et al. 2023b]). One common way to alleviate the memory capacity limitations as noted in ([Shinn et al. 2023]) is to implement the long-term memory as a vector embedding database, which can be done with off-the-shelf instances ([Research 2017]; [Pinecone 2021]; [Langchain 2022]; [Technologies 2019]). Our approach includes cognitively inspired memory modules, including a text-based working memory, and short-term and long-term memories in the form of custom vector embedding databases. A small selection of existing generative agent implementations incorporates selective memory storage via forgetting. ([Gao et al. 2023]) filters out memory items based on recency, and ([Wang et al. 2023b]) additionally incorporates a custom importance score. Our approach introduces a novel cluster-then-summarize and forgetting paradigm that discards redundant memories and diversifies stored memories.
+
+
+LLM Calls and Operational Costs LLM queries are often essential for forming agent personas, memory consolidation, and action selection, which leads to substantial operational costs for generative agents. The cost of an LLM query scales linearly with the prompt size ([Chen et al. 2023b]), which can expand as agents accumulate more relevant information. Moreover, a large portion of cost is incurred as a result of the fact that many frameworks require inference at each time step within the environment: exploring in Minecraft required an iterative prompting mechanism, where the LLM is queried multiple times until a self-verification module confirms task completion ([Wang et al. 2023a]), and simulating 25 generative agents over a two-day period incurred thousands of dollars in token credits ([Park et al. 2023]). To mitigate these costs, SwiftSage employs a smaller, fine-tuned LLM for short-term action decoding, significantly reducing the tokens per action (tpa) to 757.07 ([Lin et al. 2023]). However, the use of GPT-4 in SwiftSage results in costs 15 times higher than those associated with GPT-3.5. In our approach, we only use GPT-3.5 and restrict LLM queries by adopting a hierarchical action selection framework, as detailed in Fig. [2]b.
+
+
+Conclusion and Discussion
+
+
+We presented Lyfe Agents, a type of generative agents that are more cost-effective and support real-time human interactions in 3D virtual worlds. We developed several brain-inspired techniques that substantially reduced LLM usage while preserving high-level autonomy and social reasoning.
+
+
+While promising, our agents have limitations. Their interactions still rely heavily on natural languages, despite the 3D virtual setting.
+While our environment offers the potential for pixel-space vision and simulated robotic bodies, our framework hasn&apos;t yet incorporated these aspects. Furthermore, the scarcity of interactable objects in our environment restricts agents&apos; grounded actions.
+
+
+While high-throughput evaluation of generative agents is currently challenged by the absence of large-scale standardized benchmarks, many studies, ours included, have utilized custom benchmarks. Recognizing the value of uniformity for comparability, we intend to explore the establishment of standardized benchmarks in subsequent works.

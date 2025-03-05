@@ -1,0 +1,186 @@
+RoboGPT: an intelligent agent of making embodied long-term decisions for daily instruction tasks
+
+
+Introduction
+
+
+Embodied AI tasks, including visual navigation and robotic manipulation, have developed quickly [Brohan et al. 2023a] Future robots are expected to use navigation and manipulation to assist humans in carrying out more difficult daily tasks by following natural language instructions, e.g., &apos;make dinner&apos; or &apos;wash dishes&apos; [Brohan et al. 2023a;b] Some approaches, such as template planning [Inoue &amp; Ohashi 2022; Min et al. 2022] or expert-guided planning [Pashevich et al. 2021; Bhambri et al. 2023], have yielded some results when dealing with 7 types of daily instruction tasks. However, the existing agents cannot truly understand the instruction tasks: including object quantities, prefix content, and object dependencies, so still struggle with long-term decisions and nomenclature diversity when faced with daily tasks beyond the predefined types.
+
+
+Large Language Models (LLMs) have made significant progress in the field of natural language processing [Touvron et al. 2023b] Due to their extensive internalized world information, LLMs have been investigated to solve complex robot planning problems [Song et al. 2023] However generic LLMs are overly broad and lack robotics expertise, hence the plans they produce are frequently impractical for robots to employ directly [Ahn et al. 2022; Lin et al. 2023; Song et al]., [2023] For instance, given a task &apos;If you are a robot and give me a plan of: slice an apple&apos;, the generated plan is &apos;Gather material&apos;, &apos;wash your hands&apos;, &apos;prepare the apple&apos;, &apos;\...&apos;, which is not executable for robot. Even the LLM-Planner with detialed prompt [Song et al. 2023] produces some illogical planning of complex daily tasks.
+
+
+To address LLMs planning feasibility issues, this paper enhances the LLMs planning capability with expertise in the robotics domain, fine-tuning and improving the LLMs planning process to ensure logical validity and optimal execution. We create specialized robotic dataset of 67k robot commands includes complicated robotics activities to overcome the lack of domain-specific data. Ultimately, the fine-tuned LLM using this dataset demonstrates improved performance in the embodied instruction following tasks.
+
+
+In addition to understanding instruction tasks with long-term decisions, the agent must consider the environment to find objects mentioned in the instruction. The mapping of instruction&apos;s targets to the objects in the environment remains a challenge, i.e., the instruction nomenclature diversity challenge. For instance, the task is &apos;put an apple on the table&apos;, while common table types in the environment are: &apos;side table&apos;, &apos;dining table&apos;, and &apos;dresser&apos;. The previous methods [Inoue &amp; Ohashi 2022; Min et al. 2022] usually predict a type of table &apos;side table&apos; based on experience and plan &apos;find side table&apos;. When &apos;side table&apos; is not available in the environment, the agent fails to find the &apos;table&apos;, leading to task failure. To address this problem, we introduce environment feedback and re-planning to align environment and instruct task objects.
+
+
+Not only for the monotony and simplicity of current daily tasks [Shridhar et al. 2020; Lin et al. 2023] this paper proposes RoboGPT agent for handling complex daily instruction tasks, including RoboGPT planner, Re-Plan module and RoboSkill. RoboGPT, the planning module, combines the world knowledge of LLM and the expert knowledge of robots through fine-tuning and enhancing Llama [Touvron et al. 2023a] on the collected 67K robotic dataset. It can handle hundreds of complex daily tasks and provide the proper sub-goals, some of which even require more than thirty sub-goals, e.g., &apos;making coffee and cleaning fruits&apos;.
+Notably, RoboGPT 1) can understand the prefix content to modify the planning sub-goals according to the environments; 2) can understand the object dependencies to find invisible objects which is in containers, e.g., &apos;put the apple from microwave into the garbage&apos;, RoboGPT plans &apos;find the microwave first&apos;, while current methods directly find apples, failing to find them always; 3) understand object quantities to handle tasks with more than two objects beyond other methods. Furthermore, we create a low-computational Re-Plan module to check if the environment object name match sub-goals and find equivalent replacement objects, such as &apos;table&apos; replaced by &apos;dining table&apos;. The Re-Plan module addresses the instruction task&apos;s nomenclature diversity challenge by adapting planning to the environment. Additionally, we improve Roboskill&apos;s navigation and interaction abilities by integrating the Fast SAM module [Zhao et al. 2023] To sum up, our contributions in this paper are mainly as follows:
+
+
+- We propose a LLMs-based planner, RoboGPT, with the new robotic dataset, which combines the LLMs&apos; common sense with the robotics expertise knowledge. As far as we known, the robotic dataset collected by us is the first high-quality, large-scale, daily task planning dataset. After fine-tuning on the new dataset, RoboGPT with strong generalization can plan hundreds of daily work tasks (even finding invisible objects in containers) and replan based on the environment, surpassing ChatGPT and other planning methods.
+- A Re-Plan module is developed with low computational needs to enable the planning process to dynamically adapt to the environment, addressing the nomenclature diversity difficulty in instruction tasks. Re-Plan module receives more precise environmental information providing by the perception model integrated Fast SAM provides, improving the task execution success rate on ALFRED tasks.
+- The RoboGPT agent demonstrates superior performance compared to the state-of-the-art (SOTA) models on both the ALFRED benchmark and tasks involving generalization.
+
+
+Related Work
+
+
+Languages instruction-based policy has been a popular research area in robotics, e.g., visual language navigation, visual question and answering, and daily tasks [Xu et al. 2021; Shridhar et al. 2020] This paper addresses a long-term daily tasks that require navigation and interaction. Hierarchical planning methods, which use rules or expert guidance to create plans and execute low-level policies to achieve them, have proven effective [Min et al. 2022; Inoue &amp; Ohashi 2022; Song et al. 2023] These methods assume the agent has domain knowledge or expert assist in a closed universe.
+
+
+FIGURE 1
+
+
+Planning issues are often described using PDDL or answer set programming in recent works [Brewka et al. 2011] A rule-based, search-based or sampling-based planning algorithm has worked for mobile robots [Segovia-Aguas et al. 2021; Ding et al. 2020] and robotic manipulators [Cohen et al. 2010; Garrett et al. 2020] However, they use specialist-created symbolic and logical representations of planning, limited in generalizability and cannot handle unforeseen scenarios.
+Scholars are investigating language model-based planners (LLMs) as planning systems to address weak generality [Zeng et al. 2023; Singh et al. 2023; Ding et al. 2023] For instance, prompt engineering methods discover and extract robot-friendly planning [Yang et al. 2023; Vemprala et al. 2023] Some planning methods use a procedural language for LLMs [Liang et al. 2023] While the planning is made in an open-loop process without the world information [Huang et al. 2022; 2023; Liang et al. 2023] Saycan [Ahn et al. 2022] and Text2Motion [Ahn et al. 2022; Lin et al. 2023] utlize LLM to predict the sub-goals and select feasible actions based on environment or geometric constraints. LLMs can adjust the robot&apos;s plan online by calling LLMs multiple times [Song et al. 2023] However, the findings suggest that LLMs performance in long-term task planning is frustrating, limited with feasibility and correction, even in seemingly uncomplicated tasks. In this paper, LLM-based planning is improved with a new robotic dataset and re-planning to increase feasibility and planning correctness.
+
+
+RoboGPT Agent System
+
+
+A RoboGPT agent system is proposed for daily instruction tasks, including RoboGPT planner, RePlan module and RoboSkill (show Figure [1]). Given a task instruction, RoboGPT planner decomposes it into logical sub-goals. RoboSkill performs navigation or manipulation skills based on subgoals, produces actions that interact with the environment, and finishes all sub-goals sequentially. If a sub-goal is not completed, the Re-Plan module receives the feedback and generates a new plan based on the data received from the environment. Two key points need to be noted:
+- Beyond the current monotonous and simple daily tasks, RoboGPT agent builds a more complex and diverse dataset, and the RoboGPT (a task planner with common-sense awareness of daily tasks and robot expertise) is trained to solve the long-term decision challenge, even finding invisible objects in containers.
+- Due to the nomenclature diversity between the instruction and the environment, the same object can have multiple linguistic representations. The Re-Plan maps multiple instruction target representations to environment objects to solve the nomenclature diversity challenge. Moreover, a more accurate perception module is designed to work with Re-Plan to provide feasible re-planning.
+
+
+1. ROBOGPT PLANNER
+
+
+Although LLMs already demonstrate remarkable performance in general-purpose scenarios. LLMs still underperform in vertical domains like robotics due to a lack of domain expertise and data. Within an academic budget, training a LLM in a specialized domain requires a strong pre-trained LLM and high-quality training data. Therefore, this paper builds a 67K high-quality robot planning dataset and chooses the Meta&apos;s strong Llama model, to design a planning model for handling daily tasks with long-term decisions.
+
+
+FIGURE 2
+
+
+Public data for robots with long-term decisions daily tasks&apos; planning is scarce. The most relevant ALFRED task [Shridhar et al. 2020] contains just 8K expert trajectories for 7 types of tasks, which is insufficiently diverse. As a result, we not only extract 60K samples of various types from the ALFRED data, but we also employ self-instruction to produce 7K samples with a greater variety of task descriptions and types.
+
+
+ALFRED&apos;s data: In ALFRED task, 8k expert trajectories contain high-level instructions (task instructions), and low-level instructions (planning descriptions), e.g., a high-level instruction is: &apos;Put a clean sponge on a metal rack&apos;, and the low-level instructions are: &apos;Go to the left and face the faucet side of the bath tub. Pick up left most green sponge from the bath tub. Turn around
+
+
+\... left of the lotion bottle&apos;. The low-level instructions carry much scenario-specific environmental information, making migration to another scenario difficult. Thus, we turn the detailed low-level instructions into sub-goal phrases. After analysis, we abstract each task&apos;s consistent planning into a single series of sub-goals. e.g., rewrite the above low-level instructions as &apos;find a sponge; pick up the sponge; find a sink; put the sponge in the sink; \... put the sponge on the metal rack&apos;. The planned sub-goals are all combinations of robot skills like navigation, grasp, open, put and so on. Thus, it can be applied to any robot and task scenario. From the 7 types of ALFRED tasks, we deduce 5 new tasks and construct planning templates to enrich robot planning data, generating a total of 60K samples.
+
+
+Self-instruction data: The data from ALFRED demonstrations has the limitations of insufficient diversity (only 7+5 types) and low quality, which hinder the generality of the tuned model. The low quality data is due to the fact task instructions are obtained by crowdsourcing 3 individuals to watch videos, and roughly 20% of the descriptions are inaccurate [Shridhar et al. 2020] While human-written instruction data is also limited in quantity, diversity and creativity. Following the Self-Instruct(W[ang et al. 2023] we generate instruction, and sub-goal samples from LLMs, then filter invalid or similar samples, modify them manually, and then use them to fine-tune the original model, seen Figure [2].
+
+
+In this paper, we design precise prompts that allow ChatGPT to transform instructions into robot-performable sub-goals in a few-shot setting. In prompts, the agent should meet the common requirements of many real-world applications, e.g., output steps should be reasonable for a robot to act on.We manually select 360 samples from ALFRED&apos;s data and add them to the task pool. Here&apos;s how the data is generated: Step 1: Randomly select 20 samples from the task pool. The few-shot prompt includes these samples and the custom prompt. Step 2: ChatGPT accepts the few-shot prompt and generates divergent samples. Step 3: Regular keyword matching and duplicate checking remove redundant data.
+In the end, ChatGPT produces 10K samples by self-instruction. More than 50% of these samples, however, exhibit logical planning issues.
+We carefully review and fix the data as well, resulting in 7,274 samples that cover a variety of previously unseen daily tasks, e.g., &apos;I have a raw meat in hand, how to make a steak, put it on the table?&apos;.The length of task instructions and the length of sub-goals are shown in Appendix [A.1]: Figure [5].
+
+
+RoboGPT Planning: We add a portion of the network&apos;s generalization data to the robot&apos;s training set and train just two episodes to help RoboGPT learn the robot&apos;s planning and keep the strong generalization ability. After training, RoboGPT can plan basic and logically difficult tasks like moving invisible objects which is in containers.
+For example, given the task &apos;Put the apple from fridge to table&apos;, RoboGPT lets the agent find the fridge first, while current methods directly find apples, failing to find them always. Moreover, RoboGPT can also plan tasks in other domains, e.g., &apos;how to write a paper&apos;, &apos;how to learn English&apos;, more samples shown in Appendix [A.1]: Table [4].
+
+
+FIGURE 3
+
+
+RoboGPT agent
+
+
+1. RE-PLAN
+
+
+One of the main challenges of embodied AI is the nomenclature diversity, where the sub-goal in instructions and the item in the environment may have different names for the same object. For example, the table mentioned in the instruction is referred to as a &apos;coffee table&apos; in the environment. However, existing approaches [Inoue &amp; Ohashi 2022] often neglect the particular issue, and they primarily focus on task planning prior to execution without fully comprehending the current environment. When there is a mismatch between the objects specified in the sub-goal and the objects present in the environment, the agent will endlessly explore until it exceeds the maximum number of steps.
+
+
+LLMs-based planners [Song et al. 2023; Singh et al. 2023] usually input a list of all detected objects into the LLMs and provide a new plan, which relies on consuming LLMs and image detection, resulting in wasted resources and incorrect re-planning results once detection fails.
+
+
+Different from LLMs-based planners, RoboGPT relies on semantic maps for re-planning. During the task, the semantic map is continuously updated, which can eliminate the influence of object detection errors to a certain extent. The discrete semantic voxel map Vˆ S generated by depth map ID and semantic segmentation IS is combined with the binary observational map Vˆ O to update the current global semantic voxel map V S. Finally, the inventory vector Vt = ObjectDetector (V s) is obtained from V S. Updating V S can eliminate the effects of object detection errors, but this correction is not timely. The global semantic map V S will only update the neighborhood point Vneighbor around the target object vtarget when the agent does not detect vtarget in the target area. This means that if re-planning occurs before the semantic map V S is updated, RoboGPT agent could make the same mistake as other methods.
+Therefore, to address this particular scenario, RoboGPT employs the number of pixels nvi as a criterion to determine whether it can be reliably confirmed that the object exists in the current scene, and gets the confirmed inventory vector Vt′. At last, the Re-Planning module will employ a Bert model BERT to calculate the similarity between the target vi and the object seen set *MATH*.
+The most similar target (vj, j = argmax(Sim)) that satisfies the value sj \&gt; 0.7, is considered to be the same object as v′. Replace v′ with vj to form a new sub-goal task, and the robot performs the new one. The algorithm of Re-Plan is shown in Appendix [A.2]: Algorithm [1].
+
+
+2. RoboSkill
+
+
+RoboSkill module completes the corresponding navigation or operation skills according to the received instructions. Referenced to Prompter [Inoue &amp; Ohashi 2022] RoboSkill consists of three modules: a perception module, navigation module and interaction module). At each time step, the perception module receives an egocentric RGB image, detects the position and depth maps of objects, and updates the semantic map of the corresponding positions. The semantic map guides the navigation module to look for the target. Once it finds the target, the interaction module produces actions to interact with environment until all sub-goals are completed.
+
+
+Semantic segmentation plays a crucial role in various applications due to its ability to provide object masks for interaction and facilitate the creation of semantic map. The semantic map are subsequently utilized for tasks such as Re-Plan and object navigation. It has been observed that earlier models may have omissions or misidentifications, which significantly impact the correctness of the semantic map.
+Consequently, this leads to a decrease in the performance of Re-Plan and the overall success rate. We gather a dataset from ALFRED [Shridhar et al. 2020] seen scenes to train a semantic segmentation model utilizing the Fast SAM [Zhao et al. 2023] backbone. This significantly enhances the accuracy of both object detection and the resulting semantic map.
+
+
+The shape of the semantic map is (2 + C) × M × M, where C indicates the number of objects and M × M denotes the number of grids and each grid represents a 5 cm × 5 cm ground space. We make a dynamic selection of C and include all large objects in the semantic map. However,for small objects, we only consider those that are relevant to the goal and the ones that can be utilized for Re-Plan purposes. For instance, if the goal is to &apos;Place a bottle on the desk&apos; and the sub-goal is to &apos;Find a glass bottle&apos;, we would include objects such as &apos;glass bottle&apos;, &apos;wine bottle&apos;, &apos;soap bottle&apos;, and other types of bottles in the semantic map.
+
+
+Experiments
+
+
+Metrics: Success rate (SR), goal-condition success (GC), and high-level planning accuracy (HLP ACC) are reported. SR is the agent&apos;s over all tasks completion rate. GC is the ratio of completed goal-conditions, e.g., in &apos;Heating a cleaned apple&apos;, &apos;washing&apos; and &apos;heating&apos; are goal-conditions. Using SR and GC, the path length weighted SR (PLWSR) and path length weighted GC (PLWGC) are defined as (path length of the expert trajectory)/ (path length taken by the agent). HLP ACC is the accuracy of sub-goals planning.
+
+
+Baselines: We choose the most effective methods for the ALFRED daily tasks: end-to-end models with step-by-step instructions, and high-level instruction-only approaches. Prompter, which plans using templates, and LLM-Planer, which plans using ChatGPT, are the methods that are most similar to ours; for details on their particular experimental settings, see the Appendix [A.4 A.3].
+
+
+Evaluation Dataset: The test set has four parts: &apos;Tests Seen&apos;, &apos;Tests Unseen&apos; and &apos;Valid Unseen&apos; in ALFRED, as well as our own generated &apos;Generalization Task&apos;. Although ALFRED has ground truth for each valid tasks, we find some of them have issues (see Appendix [B.1]: Figure [8] Therefore, we select tasks from &apos;Valid Unseen&apos; where the instructions and ground truth are perfectly matched. The &apos;Generalization Task&apos; consists of complex high-level instructions that we annotate ourselves, and these tasks fall completely outside the seven categories defined by ALFRED.
+
+
+Training Details: RoboGPT planner is fine-tuned from Llama-7b on NVIDIA DGX A100. Training data includes 67K proprietary and 20K online generic data. To maintain generalization, network is trained in 2 episodes with a 10−5 learning rate. RoboSkill trains a semantic segmentation model leveraging the Fast SAM backbone [Zhao et al. 2023] on collected 80k images for 100 epochs with a learning rate of 10−3, batch size is 16.
+
+
+1. Experimental Results
+
+
+TABLE 1
+
+
+Table [1] summarizes the performance of our RoboGPT and the SOTA methods: Prompter [Inoue &amp; Ohashi 2022] with template-based planner and LLM-Planner [Song et al. 2023] with ChatGPT planner. The RoboGPT achieves 10.00% absolute (20.00% relative) gain in SR (success rate) than the SOTA method Prompter on Valid Unseen data. Our RoboGPT also achieves a definite advantage in HLP ACC (the accuracy of task planning): 14.0% absolute (17.0% relative) gain on 7 types of tasks, significantly exceeding other methods.
+
+
+Notably, facing the Generalization tasks beyond the 7 type tasks, RoboGPT outperforms LLM-Planner [Song et al. 2023] by 40%, and outperforms the Prompter [Inoue &amp; Ohashi 2022] by 78%! This implies that RoboGPT is extremely generalizable and capable of daily instruction tasks of long-term decisions.
+
+
+RoboGPT agent without RoboGPT planner has the highest PLWSR and PLWGC than others, even for the one using RoboGPT. The reason is Prompter combined some objects with similar meanings (such as desk lamp and floor lamp, butter knife and knife) based on rules. Although this can significantly improve the execution efficiency of the agent, it is difficult to transfer to complex real scenes. Contrary to Prompter, RoboGPT uses the Re-Plan module to fix the target objects but only after gathering a significant amount of environmental data. Although this strategy is more useful in the actual world, it can also decrease the robot&apos;s execution efficiency, resulting in lower scores for PLWSR and PLWGC.
+
+
+2. Ablation experiments
+
+
+Effectiveness of RoboGPT planning: In the third-to-last column of Table [1] RoboGPT agent&apos;s planning module is replaced with the Prompter&apos;s planner [Inoue &amp; Ohashi 2022] resulting in a 8% decrease in SR and a large decrease in HLP ACC, suggesting that RoboGPT has a crucial role to play
+
+
+in understanding the tasks with long-term decisions than Prompter. In designed Generalization task RoboGPT performs well in complicated long-term tasks, as shown by its HLP ACC in Table [1] being far ahead of others. Prompter performs effectively on ALFRED tasks because it has a template intended for ALFRED and does not generalize to other tasks. LLM-Planner employs ChatGPT for logical reasoning, however its performance depends on pre-labeled data for prompt. While exhibiting a certain level of generalization, the LLM-Planner&apos;s performance remains unstable.
+
+
+Analysis of planning results: The Prompter and FILM [Inoue &amp; Ohashi 2022; Min et al. 2022] view task&apos;s planning as a classification task and then use a template to plan. They may misjudge the task type, the parent target and the target object when planning a task, e.g., the task is &apos;put two potatoes in microwave&apos;, while Prompter plans &apos;pick up an egg&apos;. It could be due to overfitting the training data (some examples shown in Appendix [B.1]: Figure [6] The LLM-Planner [Song et al. 2023] uses ChatGPT to plan and may make logical errors when planing; e.g., for the task &apos;Place a glass with a knife in a sink.&apos;, it will plan &apos;pick up glass then pick up the knife, and put knife in the sink&apos;, which doesn&apos;t put the knife in the glass, failing to understand the relationship between object and container (some examples shown in Appendix [B.1]: Figure [7].
+
+
+Beyond the above methods, the advantages of RoboGPT can be summarized as follows: 1) prefix understood: using environment information as a prefix prompt, it can produce practical planning; e.g., for the task &apos;There is a stove and no microwave, how to heat an apple&apos;, RoboGPT plans to &apos;find a stove&apos; to heat the apple, while others usually plan to &apos;find a microwave&apos;. 2) quantity understood, RoboGPT understands that robots must pick up numerous objects one by one, not all at once, and can plan tasks with 3 or more objects, while other approaches can only plan tasks with 2 objects. e.g., &apos;put four books on the desk&apos; 3) object dependencies understood, RoboGOPT can use task instructions to infer the location of invisible objects. e.g., if the task is &apos;put the apple in the fridge and then on the table&apos;, RoboGPT will plan to &apos;find the fridge&apos;, first, whereas others will simply find an apple (shown in Figure [4] 4) tasks with ultra-long-term decision understood RoboGOPT can understand and plan complex tasks with more than 30 sub-goals. e.g., &apos;cut a slice of bread, warm it with the microwave, put it on the counter along with putting the knife in the cabinet&apos;. More examples are shown in Appendix [A.1] Table [4].
+
+
+FIGURE 4
+
+
+Effectiveness of Re-Plan: We employ Re-Plan module with low-computing to achieve quick replanning. Compared with RoboGPT agent without Re-Plan in the last row of Table [1] RoboGPT agent achieves higher PLWSR and SR, and is able to finish the task in the AI2THOR environment with fewer steps resulting in higher PLWSR. When the agent cannot find the target, Re-Plan would replace the target with the similar object in semantic map, e.g., replace &apos;dinning table&apos; with &apos;side table&apos;. It proves that Re-Plan helps with understanding the environment and the alignments of environment objects and targets in instructions.
+
+
+Effectiveness of RoboSkill: When comparing RoboGPT agent without RoboSkill in the last second row of Table [1] RoboGPT agent produces significantly higher SR (+4% improvement) and GC (+5.83% improvement), which indicates a major improvement in perception. As a result, RoboSkill can build an accurate semantic map and couple it with Re-Plan, leading to further development. The segmentation and detection of RoboSkill greatly outperform those of others (see the Appendix [B.4] for details).
+Additionally, although the success rate of RoboGPT planning (HLP ACC) and the (goal-condition succes) GC are high, the success rate of execution is not that high, indicating that many tasks fail during the interaction. As a result, the interaction algorithm can be enhanced going forward to increase the robot&apos;s success rate in carrying out tasks.
+
+
+3. Experimental Results on ALFRED test sets
+
+
+TABLE 2
+
+
+We perform our method on ALFRED test sets and achieve SOTA results on seen and unseen (shown in Table [2]) Compared to methods requiring low-level step-by-step instructions [Bhambri et al. 2023; Murray &amp; Cakmak 2022] and the method requiring ChatGPT planning [Song et al. 2023] RoboGPT agent achieves the best performance with at least 9.16% improvement of SR in Test Unseen, showing the plan ability of RoboGPT agent even beyond the step-by-step guidance of an expert or ChatGPT.
+Additionally, RoboGPT agent only marginally improves when compared to the template-based method [Inoue &amp; Ohashi 2022] The main reason for this is that ALFRED is a crowdsourced form of labeled data, with many irregularities in the labeling. By our count more than 20% of the high-level instructions (instruction tasks) are ambiguous or even incorrect (the detail analysis and examples shown in Appendix [B.3] and Figure [9]). Wrong instruction tasks lead to errors in our planning. This explains why there is a difference in SR of different methods between Table [1] and Table [2] Prompter categorizes tasks first and plans depending on the categories using the template.
+Due to overfitting, it may correctly categorize some error instructions for correct types, that produce proper planning results.
+Although some complex tasks are accurately planned using our method, carrying out complex tasks is challenging, which leads to a slightly greater success rate.
+
+
+Verification System: We develop a verification system based on the Ai2Thor simulation system. You can input arbitrary natural language commands and use the RoboGPT agent to interact with the environment to accomplish the task. The demo shows in Appendix [B.5]: Figure [10] and supplementary Material.
+
+
+Conclusions
+
+
+In this paper, we design a RoboGPT agent for solving daily instruction tasks with long-term decisions. The planning module RoboGPT enhances and fine-tunes Llama using the collected 67K robotic dataset to integrate the world knowledge of LLMs with the expert knowledge of robots, which can understand the prefix context, object quantities, object dependencies and the tasks with long-term decisions, handling most of daily tasks. The designed Re-Plan module adapts the planning to the environment, mitigating the nomenclature diversity problem.
+Additionally, a Roboskill with an accurate perception model Fast SAM is developed, resulting in improved navigation and manipulation abilities. The paper provides a well-generalized method for daily instruction tasks with long-term decisions in robotics. Future improvements may focus on multi-modal robot planning and manipulation.

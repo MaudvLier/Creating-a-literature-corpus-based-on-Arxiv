@@ -1,0 +1,223 @@
+Augmenting Unsupervised Reinforcement Learning with Self-Reference
+
+
+Introduction
+
+
+Unsupervised Reinforcement Learning (URL), a paradigm in reinforcement learning (RL), is designed to mimic the effectiveness of the pretrain-finetune framework prevalent in computer vision (CV) and natural language processing (NLP). It involves a two-stage process. The first stage, known as pretraining (PT), focuses on allowing the agent to thoroughly explore and understand its environment and various behaviors.
+The second stage, finetuning (FT), incorporates extrinsic rewards to guide the agent in addressing a specific downstream task. This is done under the assumption that the environment&apos;s transition dynamics are stable. The overarching goal of unsupervised RL is to gather extensive domain knowledge during the pretraining stage, independent of any task-specific reward signals. This knowledge is then efficiently applied in the finetuning stage to tackle downstream tasks. This approach has been explored and supported in various studies [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+FIGURE
+
+
+Existing unsupervised reinforcement learning algorithms generally use a measure of surprise as a reward function to explore the environment during the pretraining stage [*REF*]. As pretraining progresses, this reward function needs to decrease the reward of frequently visited states and give high rewards to less visited states [*REF*]. This formulation results in a reward function that implicitly depends on the history of states visited by the agent.
+However, most current popular URL algorithms do not model this change in reward function [*REF*], leading to a nonstationary Markov Decision Process (MDP), which could potentially make learning unstable and inefficient [*REF*; *REF*]. Furthermore, works have shown that the naive pretrain-then-finetune paradigm, like the one in unsupervised RL scenarios, can result in unlearning of the pretrained policy&apos;s exploratory behaviors in the early finetuning phase [*REF*; *REF*]. Losing the characteristics of strong exploratory behavior is counterproductive in efficient downstream adaptation scenarios like in the unsupervised reinforcement learning settings. We conjecture that training an agent with awareness of the history of its own transitions could alleviate the problems mentioned.
+
+
+We propose an add-on method called Self-Reference (SR) for unsupervised reinforcement learning to more effectively utilize historical information during training. This add-on module can improve performance and efficiency during the pretrain and finetune phases of unsupervised reinforcement learning settings. Concretely, we present historical experiences to the agent at every decision epoch. The agent can use these experiences to create summary statistics of visited states during pretraining, explicitly modeling the change in reward. Additionally, by presenting old experiences to the agent, we can also mitigate unlearning of the pretrained exploratory behaviors. Figure shows a schematic depiction of Self-Reference. We evaluate SR on the standard Unsupervised Reinforcement Learning Benchmark [*REF*] and achieve state-of-the-art results for model-free methods by applying Self-Reference to RND [*REF*]. Moreover, experimental results show that our add-on module increases the IQM of APS [*REF*] and ProtoRL [*REF*] by as much as 17% IQM while decreasing Optimality Gap (OG) by 11% on average and reducing OG by as much as 31% for ProtoRL. In addition to performance gains, we show that by adding Self-Reference, the agent approaches its asymptotic performance with fewer pretraining steps, indicating that our method also improves sample efficiency. Lastly, we introduce an optional distillation phase after the finetuning phase to distill SR policy to maintain better performance while having no computation overhead over the baseline methods.
+
+
+Related Works
+
+
+Retrieval-augmented Techniques in Machine Learning
+
+
+Information retrieval is a common task in machine learning. Its solutions recently started to permeate to other subfields to alleviate memorization in parametric weights like in Large Language Model [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*], Multi-Modal Modeling [*REF*], Decision-making [*REF*], and Time Series Forecasting [*REF*]. Moreover, retrieval-augmented systems have been shown to improve neural network performance and generalization capabilities while obtaining more efficient training. In addition to the possible reduction in memorization burden to the network, we apply retrieval to combat nonstationarity and forgetting exploratory behaviors in the pretraining and finetuning phases.
+
+
+Retrieval in Imitation and Reinforcement Learning
+
+
+Since traditional imitation learning has exhibited limited scalability due to high data supervision requirements and weak generalization, researchers attempted to take advantage of prior data from previous tasks to adapt models to new tasks more robustly and efficiently [*REF*]. As a result, it is found that retrieving prior data and internalizing knowledge from experience achieves considerable progress in novel tasks.
+
+
+In recent years, retrieval techniques have been brought into the reinforcement learning field. The data buffer and the aggregation mechanism between retrieval data and the model&apos;s input are key components in these retrieval systems. The data buffer can be a growing set of the agent&apos;s own experiences like the replay buffer [*REF*], or an external dataset from previous experiments [*REF*], or comes from data collected from other agents and experts as in Offline RL or Imitation Learning [*REF*]. The aggregation mechanism for retrieval-augmented RL is to select top-k nearest neighbor sequences in the data buffer and use multi-head attention [*REF*], or a specific fusion encoding network [*REF*] to aggregate the neighbor sequences and the query states. All the mentioned works focus on querying neighbors based on the encoded observation. We differ from previous work by introducing a more dynamic way of querying the database by training a separate query module. Experiments have shown its strengths of dynamically adapting to different situations over only querying using the current state.
+
+
+Catastrophic Forgetting in Transferring Policy
+
+
+Finetuning a pretrained policy is a beneficial approach to transferring knowledge compared to training from scratch. However, recent work discovers that this approach may suffer the problem of catastrophic forgetting [*REF*; *REF*], that is, the agent may forget the exploratory skills learned in pretraining since learning signals from the downstream tasks quickly supersede the weights.
+Behavior Transfer (BT) [*REF*] is proposed as a solution, which utilizes a pretrained policy for exploration, and complements the downstream policy. The result shows that pretrained policies can be leveraged by BT to discover better solutions than without pretraining, and combining BT with standard finetuning results in additional benefits. Our work also focused on addressing this observation and combats this issue by explicitly replaying snapshots of old behaviors to the agent at every decision epoch.
+
+
+Distillation in Reinforcement Learning
+
+
+The technique of transferring knowledge from one policy to another, commonly referred to as distillation, holds significant importance in deep reinforcement learning literature. This class of approaches have demonstrated impressive outcomes in enhancing agent optimization, leading to quicker and more robust performance in complex domains [*REF*; *REF*; *REF*]. One method is expected entropy regularised distillation [*REF* -v89-czarnecki19a], allowing quicker learning in various situations. Our work uses the distillation technique to eliminate extra computation during the subsequent deployment stage after training the agent.
+
+
+Preliminaries and Notations
+
+
+Markov Decision Process and Reinforcement Learning
+
+
+We follow the standard reinforcement learning assumption that the system can be described by a Markov Decision Process (MDP) [*REF*]. An MDP is represented by a tuple *MATH*, which has states space *MATH*, action space *MATH*, transition dynamics *MATH*, reward function *MATH* and discount factor *MATH*. At each time step, an agent observes the current state *MATH*, performs an action *MATH*, and then observes a reward and next state *MATH* from the environment. Generally, *MATH* refers to an extrinsic reward *MATH*, given by the environment.
+However, in our setting, *MATH* could also be an intrinsic reward *MATH* generated by the agent using URL algorithms.
+
+
+An RL algorithm aims to train an agent to interact with the environment and maximize the expected discounted return *MATH*, where *MATH* denotes the policy of the agent. Most popular RL algorithms use the action-value function *MATH* as the optimization objective. It describes the expected return after taking the action *MATH* in state *MATH* and following parameterized policy *MATH* thereafter: *MATH* *MATH* *MATH*.
+
+
+Unsupervised Reinforcement Learning
+
+
+Popular deep RL algorithms perform well in many decision-making tasks [*REF*; *REF*]. However, an agent trained by these algorithms is only capable of the task at hand, with poor generalization ability to transfer to other tasks [*REF*]. URL approaches are designed to train agents with self-supervised rewards with more generalizable policies that can efficiently adapt to downstream tasks [*REF*]. The Unsupervised Reinforcement Learning Benchmark (URLB) is designed to evaluate the performance of URL algorithms. The benchmark splits the training procedure into two phases: pretraining and finetuning. Agents are trained with intrinsic rewards for *MATH* steps in the pretraining phase and then evaluated using the performances achieved by finetuning with extrinsic rewards for *MATH* steps.
+
+
+Self-Reference
+
+
+The unsupervised reinforcement learning (URL) paradigm encompasses two distinct phases: pretraining and finetuning. During the pretraining phase, the reward function&apos;s implicit dependence on a history of transitions results in a nonstationary Markov Decision Process, provided the agent does not explicitly account for the evolving reward structure.
+In Appendix [8], we present an illustrative example through an experiment within a multi-armed bandit framework. Here, the intrinsic &quot;moving&quot; reward is represented by counts. We demonstrate that an agent which incorporates historical context into its environmental model incurs lower regret. This translates to more effective learning and exploration during the URL pretraining phase.
+Inspired by this observation, we suggest the strategic retrieval of relevant historical data to address the challenges posed by nonstationarity.
+
+
+Furthermore, works like [*REF*] have shown that referencing expert demonstrations benefits learning their behavior. In the unsupervised reinforcement learning setting during finetuning, we can view some exploratory behaviors as beneficial for quickly learning the new task and as good reference trajectories for the agent to maintain some of its favorable characteristics. Therefore, retrieving relevant good exploratory behaviors should also be beneficial for URL during finetuning.
+
+
+Equipped with the intuition that explicitly using past experiences as references for the agent could benefit the agent in the URL setting both during pretrain and finetune, we devise a new module for unsupervised reinforcement learning algorithms called Self-Reference (SR). We designed this module as an add-on method that can boost any unsupervised reinforcement learning method&apos;s performance. The Self-Reference module consists of a query module and a network aggregating the queried experiences as additional knowledge. Readers can find a schematic figure of Self-Reference in Figure.
+
+
+The Query Module 
+
+
+In order to query informative trajectories from historical experiences, we need to develop a module that can retrieve appropriate values that could be useful for the unsupervised reinforcement learning agent. We argue that the query module should have the flexibility to query the following trajectories:
+
+
+- Neighbors. Intuitively, neighbors can show where the agent has been in close proximity and infer where to explore more.
+- Partial neighbors. In some cases, we only need to select reference neighbors with particular features and explore different parts of the feature space.
+- Information on possible future visitations. Since the agent needs to maximize the state-value function, it needs to be forward-seeking and have the option to look at other states that the agent might wish to visit.
+
+
+To enhance the system&apos;s adaptability, we developed a module capable of determining the optimal queries. This module, denoted as *MATH*, takes the current state as input and queries historical data to support the URL agent&apos;s decision-making process during training. For optimization, we employed the well-known on-policy algorithm PPO [*REF*], aiming to maximize the task return. This encompasses the intrinsic reward during the pretraining phase and the task reward throughout the finetuning stage. Our approach keeps the hyperparameters consistent with those specified in the CleanRL framework [*REF*]. To further refine our system, based on the notion that querying for nearest neighbors can serve as a beneficial inductive bias [*REF*; *REF*], we introduced an identity loss *MATH* to the query actor, where *MATH* represents the generated query. The total loss for the query actor is *MATH* *MATH* *MATH* To further facilitate this inductive bias, we do not use the query module for half of the episodes during the PT phase and use the current state *MATH* as the query. We do not update the query module&apos;s parameters on the trajectories that simply use *MATH* as the query. The value function of the query module, *MATH* is trained using the standard PPO value loss.
+
+
+After obtaining the query, we use &apos;Faiss&apos; [*REF*] to find the top *MATH* nearest neighbors (keys) of that query and retrieve all subsequent states within *MATH* timesteps. We hypothesize that expanding the retrieved states to trajectories provides more information like rolling out in planning algorithms (See Section for confirmation). From this retrieval process, we obtain a set *MATH* defined as *MATH* *MATH* *MATH* which contains *MATH* ordered lists, each containing *MATH* subsequent states of respective *MATH* key states. The subscript under *MATH* indicates the *MATH* th neighbor for the query. With this query module trained, we obtained a viable way to query the experiences for additional knowledge under appropriate situations. We will leave retrieving the action and reward from historical trajectories as future work.
+
+
+The Retrieval Mechanism 
+
+
+Since Self-Reference agents need to retrieve historical states, we must have a component that maintains historical information. Fortunately, off-policy reinforcement learning algorithms often already possess a large experience replay buffer *MATH* [*REF*] in order to train the RL agent; therefore, we can query from this buffer without additional memory constraints. As the agent needs to query historical information exhaustively at every step, we propose using a subset of the experience replay buffer [*REF*] as retrievable historical experiences for SR agents: *MATH*. In all of our experiments, the number of retrievable states is set to the *MATH* latest transitions unless stated otherwise (*MATH* for comparison). We keep the context window *MATH* capped at the agent&apos;s last episode&apos;s experiences, avoiding the possibility of the agent querying a state from the current episode.
+
+
+We utilized &apos;Faiss&apos; [*REF*] as a scalable method to efficiently employ GPUs when performing similarity searches. We maintained the key-query space identical to the state space because it already contains all the information needed for decision-making.
+Moreover, cosine similarity was used as the metric when performing a k-NN search, as we found it slightly outperformed *MATH* -2 norm in our experiments. Please refer to Appendix [11.4] for a detailed description of &apos;Faiss&apos; and nearest neighbor search.
+
+
+Aggregating Retrieved Experiences 
+
+
+After retrieving experiences from the replay buffer, we must meaningfully combine them into a feature vector for the critic and actor networks. The attention mechanism has been a popular choice for dynamically combining information [*REF*]. We employ the multiheaded cross-attention mechanism, setting the current state hidden feature as the query (note that this query is used in the multiheaded attention mechanism but not the one used to query the replay buffer), and features extracted from experiences *MATH* (Equation) from the replay buffer as keys and values.
+We refer readers to the original paper [*REF*] for more details. Additionally, we incorporate learnable time step embeddings into the keys and values features to indicate to the agent that each transition of *MATH* steps has temporal meaning, which will receive gradient updates from the DDPG objective. We refer to the final output of the multiheaded cross-attention module as a reference vector, containing additional historical information to aid the agent during training. The procedure for computing the reference vector is as follows (*MATH* is the embedding dimension of MHA and the dimension of the reference vector): *MATH* *MATH* *MATH*.
+
+
+Finally, the reference vector is concatenated with the actor network&apos;s state feature and the critic network&apos;s state and action feature. With the added computation of the SR module, we noticed a mean training Frames-Per-Second (FPS) decrease from 17 to 15, which is relatively marginal due to efficient implementations. We present the pseudo-code for Self-Reference in Algorithm.
+
+
+Distillation (Optional) 
+
+
+Since Self-Reference introduces additional computation (retrieval and aggregation of retrieved experiences) when the policy performs actions, it might not be a favorable trait for deployment. We observe that since SR is designed to aid the agent&apos;s training stage, we can effectively eliminate the computation overhead Self-Reference introduces during deployment by performing policy distillation. Specifically, we use the policy after the finetuning phase as a teacher network and a network without the query module, MHA, and retrieval parts as a student network (same network as the baseline methods). After finetuning, we relabel every transition&apos;s action in the replay buffer as the teacher network&apos;s output and train the student network using maximum log-likelihood, *MATH*.
+We trained the student policy with the same network as the baselines and employed a cosine learning rate schedule with a learning rate of 1e-3 for 200 epochs.
+
+
+FIGURE
+
+
+Experiments
+
+
+Benchmark and Evaluation
+
+
+We apply our method to existing unsupervised reinforcement learning algorithms and evaluate these new methods on tasks from the URL Benchmark (URLB) [*REF*], a standard in URL research. Please refer to Appendix [10] for more details on this benchmark and the baselines used.
+
+
+Evaluation: For our main results, we follow the URLB&apos;s training procedure by pre-training the agent for two million steps in each domain with intrinsic rewards and finetuning the pre-trained agent for one hundred thousand steps with downstream task rewards. All baseline experiments were conducted for eight seeds (0-7) per downstream task for each algorithm using the code from the URL Benchmark. Furthermore, SR applied to vanilla URL algorithms are also evaluated for eight seeds per task. A total of *MATH* (use SR or not) *MATH* algorithms *MATH* tasks *MATH* seeds experiments were conducted for the main results. All methods use the DDPG agent as their backbone.
+
+
+We use the scores of a DDPG agent trained from scratch for two million steps as the expert scores and normalize the original task scores. To make the main results more convincing, we use statistical-based metrics interquartile mean (IQM) and Optimality Gap (OG) of normalized scores as our main evaluation criteria, with mean values and median values as references. IQM is more unbiased than the median, while Optimality Gap is the distance between a method&apos;s score and expert scores [*REF*]. We present all results with error bars using standard error.
+
+
+TABLE
+
+
+Main Results
+
+
+The main results in URLB are presented in Figure; we separate the URL algorithms into three categories and present their before and after performance using SR. All URL algorithms have obtained a 5% improvement in IQM and an 11% reduction in OG on average. To our surprise, APS+SR achieves a 17% higher IQM than vanilla APS, and ProtoRL+SR obtains a 31% lower OG than vanilla ProtoRL. We found that after using SR, data-based methods achieved an 8.5% higher IQM and a 19% lower OG than before on average, representing the best progress among the three categories. We did notice that DIAYN and SMM dropped in performance after adding Self-Reference. We hypothesize that since DIAYN suffers from a lack of exploration [*REF*], and SR tends to accelerate convergence due to alleviating the nonstationarity problem, in the case of DIAYN, SR could impede exploration even more, resulting in worse performance.
+
+
+Figure [1] shows the performance profile on the URL Benchmark, where the point on the curve reports the probability of achieving the score through the method. RND+SR (Ours) stochastically dominates all other approaches and obtains state-of-the-art (SOTA) performance on URLB.
+
+
+We also show the numerical results of every baseline method with and without Self-Reference in Table.
+
+
+Pretrain Phase Results 
+
+
+To better understand how our method behaves differently in the pretraining phase alone, we conducted experiments in the point mass maze environment to demonstrate that obtaining information from the history of transitions helps agents learn more efficiently. The point mass maze environment lets the agent control a ball in a 2D plane with a cross-shaped wall in the center where the ball cannot go through. We choose the APT method in this experiment since the intrinsic reward is the entropy of the state visitation, which is greatest when the state visitation is uniformly distributed and can be more intuitively visualized. We train APT and APT+SR for *MATH* k steps and plot the visitation joint-plot in Figure. The plot shows that the APT agent struggles to get out of the left top quadrant pre-25k steps while APT+SR already covers the Y-axis evenly. Then, at 50k steps, the APT+SR agent covers the X-Y plane while the APT agent struggles to visit the lower half of the plane. Finally, at 100k steps, APT+SR achieves a relatively uniform coverage while vanilla APT only started exploring the lower half of the plane. Overall, this result demonstrates that the APT+SR agent covers the X-Y plane much faster than vanilla APT, demonstrating the Self-Reference module&apos;s efficacy in learning from the nonstationary task reward of changing state-space coverage, similar to our observation from the MAB experiment in Appendix [8].
+
+
+Distillation Phase Results
+
+
+We perform the distillation procedure described in Section [4.4] on the new SOTA approach, RND+SR, with three seeds on all twelve tasks on URLB. We used the percentage of performance measured against the teacher policy as a metric and obtained *MATH* for Walker, *MATH* for Quadruped, and *MATH* for Jaco. Across three domains *MATH* three seeds *MATH* four tasks, the student agent achieved little to no performance degradation, demonstrating that this simple distillation method effectively addresses the inference overhead of SR. We leave more sophisticated distillation methods (e.g., [*REF*]) as future work.
+
+
+Ablation and Empirical Analysis 
+
+
+PT-FT Sample Efficiency. First, we demonstrate how our method can boost sample efficiency under the PT/FT framework. Since RND+SR achieved SOTA performance on URLB, we will use RND as the intrinsic reward and Quadruped as the test domain for the remainder of this Section [6] with three seeds to account for variability. For this experiment, we constrain the pretraining steps RND and RND+SR to fewer steps and show the FT performance in Figure. The plot at 0k steps shows DDPG vs.
+DDPG with Self-Reference, essentially relegating to a supervised RL scenario. It is evident that training from scratch (pretrain steps = 0k) with the Self-Reference module yields no significant gains. This suggests that the incorporation of a retrieval mechanism alone does not substantially aid in the supervised reinforcement learning scenario.
+However, the development of a robust exploratory policy from PT, coupled with the prevention of forgetting, is essential for achieving performance improvements. Furthermore, in the 50k and 100k pretrain steps scenarios, vanilla RND increased its performance slowly (even decreased in performance with 50k PT steps). At the same time, RND with Self-Reference quickly achieved a high score across Quadruped tasks with a normalized IQM of 0.83 in just 100k pretraining steps. We believe the increase in sample efficiency with the Self-Reference module stems from mitigating the nonstationary reward problem, which makes the agent explore the state space of the environment more efficiently, as shown in Section [5.3] and in our MAB experiment in Figure [3].
+
+
+FIGURE
+
+
+Efficacy and Analysis of Query Module. We additionally demonstrate how different types of reference vectors affect agent performance and the effectiveness of our query module. Besides our method of using a query actor to select references, we devised three hand-crafted approaches for selecting references: 1) combining features from the nearest neighbors of the current state *MATH* and their subsequent *MATH* states, 2) combining features from uniformly sampled states and their subsequent *MATH* states, and 3) setting the reference vector *MATH*. We present the aggregated results for the Quadruped domain in Figure. Utilizing the nearest neighbor of the current state or retrieving random trajectories proves somewhat helpful, illustrating how explicitly providing the agent with the history of transitions is beneficial. Moreover, concatenating random noise to the agent features, essentially denoising does not significantly impact performance. Overall, SR achieves the best result, emphasizing the query module&apos;s flexibility, which can either mimic the nearest neighbor queries by learning an identity function, attempt to match random sampling by outputting high entropy queries or query the replay buffer in any other manner beneficial for enhancing the agent&apos;s performance.
+
+
+To further investigate the query module&apos;s functionality, we visualize the query module outputs during PT and FT phases in point mass maze environment. Current observations (i.e., current state), query observations (i.e., outputs of query module), and neighbor trajectories (sampled from the buffer) are plotted in blue, red, and green, respectively. To better visualize the agent&apos;s behaviors, we increased the color gradient of the state/query as a linear function of time.
+
+
+In the PT phase, since the agent needs to explore the space, we plot the density of all retrievable states as the intensity of the blue background color. We find that during pretraining, the query module tends to learn to guide the agent&apos;s future occupancy and lets it avoid local highly dense areas created by nearest neighbors in the buffer. In Figure, the agent wishes to go to less dense areas to collect more rewards, e.g., the right bottom. The query module creates a &quot;boundary&quot; and guides the main agent to avoid densely populated areas, e.g., the right corner near the cross-shaped wall. For the FT case, we observe that the query module tends to create a &quot;target&quot; where the agent tends to somewhat go towards the queried states. Figure shows the reach bottom left task where the query module learns to create a &quot;destination of point(s).&quot;
+
+
+Scaling Hyperparameters Ablation. In our methodology, we have identified three critical hyperparameters for SR: the number of nearest neighbors (*MATH*), the length of neighbor sequences (*MATH*), and the context window size for retrievable states. These are set at *MATH*, *MATH*, and *MATH* k, respectively. To understand how these hyperparameters affect the agent&apos;s performance, we conducted experiments using RND+SR with varying values.
+The experimental results, as illustrated in Figure, reveal that an increase in these hyperparameters leads to higher scores for the agent, alongside a greater acquisition of reference information. This suggests that scaling up is beneficial for our method. However, it&apos;s important to note that increasing the context window size, the number of nearest neighbors, and the length of neighbor sequences all require additional computational resources. Thus, an optimal balance between computational demands and performance efficiency was established for all three pivotal hyperparameters of SR.
+
+
+FIGURE
+
+
+TABLE
+
+
+FIGURE
+
+
+Alleviation of Unlearning of PT Policy. Works such as [*REF*; *REF*] argue that naively finetuning an agent can exhibit varying degrees of catastrophic forgetting. Since the PT agent behaviors are often purely exploratory, quickly forgetting these exploratory properties might decrease the efficiency during FT in finding the optimal policy. As we explicitly show the agent its old behavior, we hypothesize that this explicit behavior could alleviate the unlearning of helpful exploratory behaviors. To determine if this is the case, we measure the extent of change from the PT behavior to the FT behavior by computing the distance of policy output distributions at every step. Specifically, inspired by KL-control [*REF*], we use the KL divergence from the policy during FT compared to its frozen PT policy as a proxy for the similarity between policies. Furthermore, we also use the drop in intrinsice reward of the FT policy as a proxy for how much the FT policy forgot. Since all FT policies experience the most significant drop in performance of the intrinsic reward at the 10k step, we report the normalized intrinsic return at this step with the average PT intrinsic return as the normalizer. Table [1] showcases the average KL divergence over finetuning and the normalized intrinsic return at 10k steps. We observe that RND + SR found &quot;closer solutions&quot; to the strong exploratory PT policy, confirming our intuition that explicitly showing old behaviors to the agent resulted in less unlearning of the PT policy.
+
+
+Investigating the effects of model capacity. Lastly, the advantages of our method might initially appear to be due to the increased flexibility provided by the additional parameters. However, to determine whether the improvements are actually attributable to the effectiveness of our approach rather than just the extra parameters, we expanded the baseline model&apos;s latent dimension from 256 to 1024. This step was taken to ensure that the gains observed are indeed a result of the strategic refinements of our method. Figure showcases a comparative analysis between baseline methods, utilizing both the original and the augmented latent dimensions. Contrary to what one might expect, the model with the smaller latent dimension of 256 not only registered a 25% increase in the Inter-Quartile Mean (IQM) but also experienced a significant decrease in the Optimality Gap by 55%. These findings challenge the prevailing assumption that larger model capacity necessarily translates to enhanced performance. Furthermore, they highlight the effectiveness of our method, which seems to more efficiently harness the additional parameters to improve the learning capabilities of URL methods. It&apos;s noteworthy that the primary results of Self-Reference (Figure) were reported using the more effective hyperparameters (latent dim. = 256), underscoring the genuine impact of our approach.
+
+
+FIGURE
+
+
+Conclusion and Future Work
+
+
+In this work, we presented Self-Reference, an add-on module that can enhance the effectiveness and sample efficiency of existing unsupervised reinforcement learning algorithms. We demonstrated its efficacy during pretraining and pretrain-then-finetune in more efficiently exploring the environment by mitigating the issue of nonstationarity. Moreover, we showed that our method could mitigate unlearning of useful PT behaviors by explicitly presenting the agent with its past behaviors. Finally, we evaluated our approach on the Unsupervised Reinforcement Learning Benchmark and obtained SOTA results for model-free methods. SR improved existing methods by 5% IQM and decreased the Optimality Gap by 11% on average.
+
+
+Limitations and Future Work. In our work, we only explored retrieving references using a single query, therefore a natural way to enhance our method is to provide more than one query, which allows the agent to access multi-modal distributed information. Additionally, we used the state space as the key and query space for querying. This query space works well when we have the actual state of the world, but it could be inefficient if the environment is observational, e.g., images.
+Querying in a compact and meaningful space should significantly extend our method under these circumstances. Furthermore, we only evaluated SR with model-free URL methods, and applying SR to model-based methods could be valuable for future work. Additionally, since SR requires a retrieval and aggregation step during PT-FT stages, there is an additional computation cost during training. Works can explore retrieving not at every step to reduce training computation. Lastly, another way to extend our approach is to augment the buffer of references with expert demonstrations or any other information that could be useful in helping the agent learn about the environment and task better. Despite some progress in the field, inherent problems in the URL paradigm still need to be addressed. We believe that coherent solutions are more effective in continuing to advance this area of research.

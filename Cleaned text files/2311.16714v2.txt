@@ -1,0 +1,156 @@
+Embodied Multi-Modal Agent trained by an LLM from a Parallel TextWorld
+
+
+Introduction 
+
+
+Embodied multi-modal agents have been acknowledged as a pivotal stride towards achieving Artificial General Intelligence (AGI), as they encompass the potential for a broad scope of intelligent activities [*REF*; *REF*]. The rising of foundation models brings a glimmer of hope for constructing such agents [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*], and notable efforts from the community have tried to harness them in many decision-making scenarios, e.g., autonomous driving [*REF*; *REF*], daily household robots [*REF*; *REF*; *REF*], and complex manipulation tasks [*REF*; *REF*; *REF*; *REF*].
+
+
+LLMs can perform as reflex agents interacting with a text world via verbalized descriptions of the world states and textual actions. In addition, they exhibit great potential in planning, reflection, and reward shaping. This is mainly due to their prior knowledge and semantic abstraction of the world. However, LLM-based agents cannot be directly applied in a visual world. Although current vision-language models (VLMs) try to align LLMs with the visual modality, their pretraining only focuses on static alignment between image-text pairs so the resulting agents have not been aligned well with the dynamics of the visual world. As shown in Fig.  (a), even the privileged VLM, e.g., GPT-4V [*REF*], fails to accomplish tasks in an embodied ALFWorld environment [*REF*]. In such a zero-shot setting, GPT-4V tends to mainly rely on its language prior of these objects detected in the current step, rather than the alignment between the visual input and the environment dynamics conditioned on the task instruction.
+
+
+In this paper, we study how to train a VLM towards an embodied agent in a visual world by aligning it with the visual world dynamics and distilling the skills of an LLM agent in a parallel text world. Our overarching goal is to build such an Embodied Multi-Modal Agent (EMMA) that can take a textual task instruction (e.g., from human users) and pixel observations of the state per step to produce a sequence of actions leading to the efficient completion of the task. This is a challenging problem due to (1) the sparsity of task reward [*REF*; *REF*; *REF*; *REF*], (2) noisy visual representations, (3) the hallucination of VLMs [*REF*], and (4) the misalignment of VLM&apos;s static representations to the visual world dynamics. While offline distillation and imitation from a powerful LLM agent in a parallel text world can potentially overcome the former two challenges [*REF*], effectively mitigating the remaining challenges necessitates online finetuning of the VLM agent within an interactive and visual world [*REF*; *REF*; *REF*].
+
+
+To this end, we finetune a VLM agent by imitation learning from an LLM expert (e.g., built on ChatGPT) launched in a parallel text world on the same tasks. Specifically, in each step of EMMA interacting with the visual world, we convert its visual observation into an equivalent textual description sent to the LLM agent, which produces an action for EMMA to imitate. Such cross-modality interactive imitation learning is based on DAgger [*REF*], which overcomes the cumulative errors and distribution shifts caused by behavior cloning (BC). As depicted in Fig. (b), an InstructBLIP [*REF*] agent finetuned by BC on 170K expert demonstrations produced by a rule-based expert in the visual world still fails to take correct actions based on visual observations. We further improve the DAgger&apos;s objective to be the direct preference optimization (DPO) [*REF*], which maximizes the preference of LLM-expert&apos;s action (positive) over VLM-student&apos;s action (negative) in each interaction step. To collect better teaching signals retrospective to the VLM student&apos;s actions, the LLM expert is composed of an LLM actor prompted to output expert actions, and an LLM critic prompted for reflection feedback on the VLM agent&apos;s historical trajectories. We maintain a long-term memory storing the feedback, which is then used to induce the LLM actor to improve actions for imitation in future episodes.
+
+
+FIGURE
+
+
+We evaluate EMMA and compare it with vision-only agents, LLM agents, and VLM agents deployed to the ALFWorld benchmark [*REF*], which includes numerous tasks in both visual and textual environments.
+Extensive evaluations highlight that EMMA substantially outperforms state-of-the-art (SOTA) VLM agents in visual-only environments by 20%-70% in terms of success rate. In addition, EMMA is the only VLM agent that can generalize to open-vocabulary and free-form test tasks, shedding novel insights on using LLM feedback to train more versatile and generalizable embodied agents in multi-modality environments.
+
+
+FIGURE
+
+
+Embodied Multi-Modal Agent
+
+
+Fig. illustrates the main idea of our &quot;Embodied Multi-Modal Agent (EMMA)&quot;, whose detailed training procedures are given in Alg. . The agent is built upon a modularized VLM, which can follow instructions and interact with the environment through pixel observations and textual actions. To overcome these challenges associated with training EMMA, such as sparse reward or distribution shift, we explore the construction of an LLM expert from a parallel text world (Sec. [2.2]) for providing EMMA with step-by-step guidance. Lastly, Sec. [2.3] further discusses how to harness the LLM expert to train EMMA via cross-modality imitation learning.
+
+
+EMMA in the Visual World 
+
+
+In visual environments, EMMA *MATH* is designed to process a task instruction *MATH* (e.g., provided by human users) and the pixel observation *MATH* at each interaction step *MATH*. It is expected to generate a sequence of high-level textual actions *MATH* towards efficient completion of the task. To achieve this, we draw inspiration from recent advances of large pretrained VLMs [*REF*; *REF*; *REF*; *REF*; *REF*], and modularize EMMA&apos;s architecture into four components: (1) a ViT to encode *MATH* into visual embeddings, (2) a querying transformer (Q-Former) tailored to extract the most relevant visual features via the cross-attention between the visual embeddings and query tokens, (3) a linear projection layer to align visual features to text embeddings, (4) an LLM decoder taking the concatenation of the instruction tokens and the output of the linear projection layer to autoregressively generate the action *MATH*. In order to reduce computational overhead and prevent catastrophic forgetting [*REF*], we adopt the pretrained ViT, Q-Former, and LLM from InstructBLIP [*REF*] and keep them frozen at the finetuning stage. We only update the linear projection layer, as illustrated in Fig. Such a modularized architecture enables EMMA to integrate any existing pretrained vision models and LLMs in a flexible and computationally-efficient way.
+
+
+However, deploying EMMA into a complex visual world remains challenging.
+One of the main obstacles is that the direct use of any pretrained VLM is suboptimal because existing pretraining only focuses on static alignment between image-text pairs [*REF*; *REF*; *REF*], so that the resulting agent may struggle to reason about the dynamics of the world. As discussed in Sec. [1], even the SOTA VLM, i.e., GPT-4V, fails to accomplish tasks in an embodied ALFWorld environment [*REF*].
+In such a zero-shot setting, GPT-4V tends to rely on the linguistic prior of the currently detected objects, rather than the given task instruction and the underlying dynamics of the environment, to guide the interactions. Moreover, finetuning a pretrained VLM on a pre-collected demonstration dataset is also suboptimal due to the diversity of environments and tasks [*REF*], the lack of large-scale expert annotations [*REF*] as well as the challenges posed by the distribution shift issue [*REF*]. A seemingly natural solution to the above challenges is reinforcement learning from environmental feedback (RLEF) [*REF*], in which reward signals rely on decomposing a task into a sequence of reasonable sub-goals and checking their completion. However, in real-world scenarios, most sub-goals cannot be defined or described precisely, so the reward is sparse; hence, we do not expect RLEF to be effective.
+
+
+To this end, we propose to leverage interactive imitation learning (IL) to align EMMA with the dynamics of any environment, which however results in two critical algorithmic challenges: (1) How to obtain a high-quality, accessible, and scalable expert that EMMA can query during IL (Sec. [2.2])? (2) Designing an effective strategy to train EMMA using this expert in complex, diverse, and potentially open-ended environments (Sec. [2.3]).
+
+
+LLM Expert from a Parallel TextWorld 
+
+
+Thanks to a series of prompting techniques in the realm of in-context learning, such as chain-of-thought [*REF*], tree-of-thought [*REF*], ReAct [*REF*], and Reflexion [*REF*], pretrained LLMs have demonstrated impressive zero-shot performance across many decision-making scenarios [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Despite the great potential in serving as high-quality and scalable experts, they are only able to interact with the environment via textual descriptions of the states, rather than using raw pixel observations like EMMA. To bridge this gap, we convert each pixel observation *MATH* into a textual equivalent by extracting its metadata from the simulator [*REF*], which is composed of attributes such as &apos;Observed Objects&apos;, &apos;Observed Relations&apos;, &apos;Inventory&apos;, and &apos;Locations&apos;.
+We then employ the Planning Domain Definition Language (PDDL) [*REF*] to describe this metadata and create an equivalent textual description/state *MATH* using the TextWorld engine [*REF*]. Additional details are available in Appendix [7] and an example of this process is illustrated in Fig. [1]. This methodology enables the utilization of any pretrained LLM agent that generates a sequence of actions facilitating the training of EMMA through cross-modality IL between the two agents.
+
+
+Training EMMA via Cross-Modality Imitation 
+
+
+ALGORITHM
+
+
+Given an LLM expert from the parallel TextWorld, we aim to train a VLM agent *MATH* in the visual world to imitate its behaviors closely. This is equal to minimizing the following objective under the distribution of states induced by *MATH*.
+*MATH* *MATH* *MATH* in which the choice of loss function *MATH* is dependent on specific scenarios. For instance, it may be the expected cross-entropy loss for the discrete action space, or the expected MSE loss for the continuous action space.
+In our case, we select DPO [*REF*] loss due to its proven superior performance to the cross-entropy on aligning models with expert preferences within the discrete language space. Hence, Eq. can be extended to the formulation below.
+*MATH* *MATH* *MATH* where *MATH* is the action given by an expert while *MATH* is the action given by *MATH*, *MATH* is the logistic function, and *MATH* is a hyperparameter controlling the deviation from *MATH*, i.e. the reference agent obtained by behavior cloning on a demonstration dataset produced by a rule-based expert in the visual world for complete details. This regularization is essential, as it prevents the agent from deviating too far from the distribution on which the expert is accurate, as well as maintaining the generation diversity and avoiding premature convergence to some easy tasks [*REF*]. In practice, the VLM agent *MATH* is also initialized to *MATH* for stabilizing the training process. Since environmental dynamics is both unknown and complex, we cannot compute the distribution of states visited by *MATH* and can only sample it by rolling out the agent. Hence, Eq. is a non-i.i.d. supervised learning problem due to the dependence of the state distribution on *MATH* itself, in which naïve behavior cloning faces issues like cumulative error and distribution shift [*REF*]. To address this, we employ an interactive IL algorithm, DAgger [*REF*], which provably converges to the optimal agent *MATH*.
+
+
+As discussed in Sec. [2.2] and Sec. [2.3], we can harness an LLM expert to generate a sequence of actions, serving as *MATH* in Eq.
+However, these actions may be suboptimal due to sparse environmental feedback [*REF*; *REF*] or defective in-context instructions [*REF*]. To collect better teaching signals, we introduce a &quot;retrospective LLM expert&quot; that is composed of two specialized models: an actor (*MATH*), built upon an API LLM and prompted to generate actions based on the task instruction and state observations; and a critic (*MATH*), also based on the same LLM, but designed to analyze EMMA&apos;s historical interactions and provide reflective feedback. A long-term memory *MATH* is maintained to store the feedback generated by *MATH*, which is then used to prompt *MATH* for improved actions. The complete procedure is detailed in Line 7-10 of Alg., and all prompts are provided in Sec. [6] of the Appendix.
+
+
+Experiments
+
+
+FIGURE
+
+
+Experimental Setup 
+
+
+Environments. We base our experiments on the ALFWorld benchmark [*REF*], a cross-modality simulation platform that encompasses a wide range of embodied household tasks. For each task, ALFWorld integrates a visual environment, rendered by the Ai2Thor simulator [*REF*], with a corresponding textual environment.
+Textual environments employ the Planning Domain Definition Language (PDDL) [*REF*] to translate each pixel observation from the simulator into an equivalent text-based observation, and then construct an interactive world using the TextWorld engine [*REF*].
+Fig. [1] provides an illustrative example of the tasks featured in ALFWorld. The tasks within the benchmark are categorized into 6 types: Pick &amp; Place, Clean &amp; Place, Heat &amp; Place, Cool &amp; Place, Look in Light, and Pick Two Objects &amp; Place. Each task requires an agent to execute a series of text-based actions, such as &quot;go to safe 1&quot;, &quot;open safe 1&quot;, or &quot;heat egg 1 with microwave 1&quot;, following a predefined instruction. These actions involve navigating and interacting with the environment. To provide a comprehensive understanding, we have visualized an example of each task type in Fig. of the Appendix. A task in this benchmark may involve interactions with over 10 objects and require more than 30 steps for a human expert to solve, thus challenging an agent&apos;s capabilities in long-horizon planning, instruction following, and the utilization of commonsense knowledge. For a fair comparison, we follow the same setting as prior work [*REF*; *REF*; *REF*; *REF*; *REF*] and evaluate all baselines using 134 out-of-distribution (OOD) tasks.
+
+
+Baselines. To verify the effectiveness of cross-modality imitation learning, we compare our EMMA with several baselines and SOTA agents using the ALFWorld benchmark with both visual and textual environments.
+The compared agents can be divided into three categories: vision models, language models, and vision-language models. Concretely, vision models, including ResNet-18 [*REF*] and MCNN-FPN [*REF*], utilize pretrained vision encoders to extract salient features from each pixel observation. The extracted features then serve as input for a Multi-Layer Perceptron (MLP) policy, which is trained by behavior cloning on a pre-collected demonstration dataset. Unlike vision models performing in the visual environment, language models complete the same tasks but in a parallel, text-based environment. BUTLER [*REF*] employs a transformer seq2seq model enhanced with a pointer softmax mechanism [*REF*]. This architecture aggregates previous observations as input to generate text-based actions token-by-token.
+GPT-BUTLER [*REF*], a variant of the GPT-2 model [*REF*], is initially pretrained on a static demonstration dataset and further finetuned using data collected online.
+ReAct [*REF*] takes a novel approach by utilizing LLMs to generate reasoning traces and task-specific actions in an interleaved manner.
+This method aids the agent in developing, tracking, and updating its action plans interactively. Reflexion [*REF*] similarly employs an LLM, but it focuses on reflecting upon environmental feedback. It maintains this reflective text in an episodic memory buffer, enhancing the agent&apos;s ability to improve actions in subsequent trials. Similar to Reflexion, a concurrent work, DEPS [*REF*], also corrects errors in previous LLM-generated actions by integrating descriptions of the action execution process and providing self-explanations for the feedback. Moreover, beyond the single-agent framework, AutoGen [*REF*] exhibits the potential to accomplish a broad spectrum of tasks through the cooperation of multiple LLM agents. Finally, we consider a range of vision-language models, such as MiniGPT-4 [*REF*], BLIP-2 [*REF*], LLaMA-Adaptor [*REF*], and InstructBLIP [*REF*], as agents to interact with the visual environment. Unlike pure vision or language models, VLMs are designed to process and integrate both visual and textual data, offering a more holistic understanding of the environment. To align these agents with the specific requirements of the ALFWorld benchmark, we finetune them on a pre-collected demonstration dataset. This finetuning process is crucial as it enables the agent to comprehend and adhere to ALFWorld&apos;s unique grammar and to develop a basic &quot;gamesense&quot;.
+
+
+Training Details 
+
+
+The architectural design of EMMA is depicted in Fig. . At its core, EMMA employs a Query Transformer (Q-Former) to process visual data. This Q-Former extracts features using a frozen ViT encoder. Its output consists of 32 visual tokens, which are then passed through a linear projection layer before being fed to a frozen LLM decoder. Similar to other VLM agents, EMMA is also finetuned on a pre-collected demonstration dataset, aligning its basic ability with the ALFWorld benchmark. In order to align EMMA with the dynamics of ALFWorld, we train it by imitating an LLM expert (see Alg. ). We choose text-davinci-003 developed by OpenAI as our LLM expert because of its established capabilities in reasoning and planning [*REF*; *REF*; *REF*; *REF*].
+In this setup, text-davinci-003 serves dual roles: it serves as an actor, providing EMMA with expert actions, and as a critic, analyzing EMMA&apos;s historical trajectories. This analysis generates retrospective feedback, which is then incorporated into the actor&apos;s long-term memory, leading to improved actions in future trials. Further details about the hyperparameters and prompts used in our training procedure are available in Table [1] of the Appendix.
+
+
+Comparison with State of the Art 
+
+
+EMMA sets new SOTA performance in visual ALFWorld. In this section, we compare EMMA with 12 other representative agents on the ALFWorld benchmark, spanning both visual and textual environments (refer to Table ). We assess two key metrics: the success rate, which is the percentage of trials completed successfully, and the average number of interaction steps required for task completion, with a lower number indicating higher efficiency. EMMA demonstrates superior performance in both metrics, significantly outperforming all VLM agents in visual environments. This achievement underscores the effectiveness of our cross-modality imitation learning approach, as depicted in the learning curve shown in Fig. . Furthermore, EMMA&apos;s performance markedly exceeds that of VM agents, highlighting the crucial role of the prior knowledge embedded in VLMs. Intriguingly, EMMA&apos;s performance is comparable with LLM agents that operate using perfectly semantic descriptions of visual observations. This is largely attributed to EMMA&apos;s training strategy of imitating an expert LLM agent, proving to be more efficient than learning from scratch in a purely visual setting. As a result, EMMA stands out as the only VLM agent that substantially surpasses SOTA LLM agents, such as AutoGen [*REF*] and DEPS [*REF*], in these environments. And its success also directs a potential way to achieve human-level performance in the visual environments of ALFWorld.
+
+
+EMMA is more robust to noisy observations than LLM agents. While LLM agents exhibit a higher success rate with fewer interaction steps in textual environments, as indicated in Table , we hypothesize that this superior performance largely relies on their precise semantic abstraction of the environment. However, such an abstraction might not be feasible in real-world applications. To verify this assumption, we set up a more practical scenario where observations are deliberately perturbed at a specific noise rate. We then compare the robustness of EMMA and a SOTA LLM agent, Reflexion, under these noisy observations. To generate noisy observations, a random portion of the visual observation is cropped, resized, and then used to replace the original observation. Similarly, in the textual observation, random tokens are substituted with arbitrary ones. As illustrated in Fig. [2], with the noise rate increasing, EMMA&apos;s performance remains significantly more robust than Reflexion.
+This could be attributed to the vision encoder in the VLM, which is adept at filtering out visual noises. On the other hand, textual noises are directly processed by the LLM, which can substantially impair the performance of LLM-based agents. This finding highlights the potential advantages of VLM agents like EMMA in visual scenarios, in which data is often imperfect and noisy.
+
+
+FIGURE
+
+
+Ablation Study 
+
+
+FIGURE
+
+
+Retrospection improves EMMA over time. To assess the importance of the retrospective LLM expert, we present the average success rate of EMMA after each trial and compare it with a key variation: &quot;EMMA w/o Retrospection&quot;, as shown in Fig.  (left). This variant of EMMA is trained using the same procedure as the original EMMA but removes the retrospective process. Instead, it relies solely on a plain LLM actor to provide relabeled actions. The results show that EMMA with the retrospective mechanism significantly outperforms its counterpart. This finding is crucial as it indicates that the retrospective process is not just a supplementary feature but a fundamental component of EMMA&apos;s architecture that contributes substantially to its enhanced performance.
+
+
+EMMA benefits from BC initialization. Through an ablation study, we evaluate the impact of behavior cloning (BC) initialization, a process described in line 3 of Alg.
+Fig. (middle) demonstrates that EMMA, when deprived of BC initialization, experiences a slight reduction in the average success rate across 134 unseen tasks compared to its original setup.
+Despite this decrease, EMMA without BC initialization still outperforms other VLM agents, as clearly shown when compared with the results in Table . Furthermore, Fig.  in the Appendix breaks down the result by task type. It reveals a consistent but slight drop in performance across 5 out of the 6 task types. These results reflect that while BC initialization contributes positively to EMMA&apos;s overall performance, it is not critical for achieving the notable results we have reported.
+
+
+DPO enables more effective imitation learning. To evaluate the effectiveness of using DPO loss in Eq., we conducted an ablation study with an alternative version of EMMA, referred to &quot;EMMA w/ Cross Entropy (CE) Loss&quot;. In this variant, EMMA is optimized using the token-level CE loss, a common objective for finetuning VLMs. The results, as depicted in Fig. (right), reveal that EMMA w/ CE Loss does not achieve the same high success rate as the original EMMA with DPO loss, suggesting that DPO loss contributes to enhancing the upper performance bound of EMMA. In addition, we noted that EMMA w/ CE Loss exhibits faster convergence in the initial training stages than the original EMMA. This premature convergence leads to the agent paying attention to the expert actions from easier tasks, usually addressed in the first few training epochs. This can suppress EMMA&apos;s exploration and learning on more complex tasks, resulting in worse performance.
+
+
+Generalization to Free-form Task Instructions
+
+
+FIGURE 
+
+
+The ability of AI agents to preciously follow task instructions given in open-vocabulary and free-form text is crucial for real-world problems.
+To assess this, we conducted an additional experiment focusing on the generalization capabilities of EMMA, an agent trained with template task instructions. In this experiment, we re-evaluated the performance of EMMA and other baseline agents on 134 unseen tasks, using human-annotated instructions instead of template ones. These human-annotated instructions include a large amount of OOD verbs and objects, presenting a more realistic and challenging scenario for the agents to address. To underscore this challenge, we compared the vocabulary distribution between the template and human-annotated instructions, as shown in Fig.  (right). Moreover, we provide a comprehensive analysis of the vocabulary used across both instruction types in Fig.  of the Appendix. In Fig.  (left), EMMA demonstrates a slight performance decline, while a significant degradation is observed in other baselines. We also note that Reflexion, a SOTA LLM agent, exhibits exceptional generalization to those OOD instructions. According to these empirical results in Fig. , we have the following conclusions: (1) EMMA obtains and benefits from the generalization capabilities inherent in the SOTA LLM agent through cross-modality imitation learning; (2) Our work sheds novel insights on using LLM feedback to train more versatile and generalizable embodied agents.
+
+
+Related Work
+
+
+Agents based on Foundation Models. Recent research has increasingly focused on harnessing the capabilities of large pre-trained foundation models to build AI agents [*REF*; *REF*]. These models (e.g., LLMs), benefiting from their commonsense knowledge inherited from Internet-scale pretraining, are able to reason actions according to descriptions of the external environments. For example, given a set of task instructions, LLMs can be elaborately prompted to perform as agents generating high-level step-by-step plans [*REF*; *REF*; *REF*; *REF*; *REF*], and each step can be parsed into a sequence of robotic actions that are executed via pretrained policies or available APIs [*REF*; *REF*; *REF*]. Furthermore, by using VLMs [*REF*], plans can also be conditioned on visual inputs that are transformed into language descriptions [*REF*; *REF*; *REF*; *REF*] or token embeddings aligned with LLMs [*REF*; *REF*; *REF*; *REF*].
+However, existing foundation models are usually pretrained on static text or text-image datasets and thus may struggle to align with the dynamics of the world. To bridge this gap, we study how to finetune a VLM to be an embodied agent dynamically aligned with the world by distilling the cross-modality knowledge from an LLM expert. The work most closely related to ours is EUREKA [*REF*], which also explores using source information provided by the simulator as the context of an LLM to aid agent training. Instead of directly mimicking the output of the LLM as we did, EUREKA harnesses the coding LLM to generate a desired reward function for a given task and optimizes a policy against the reward function using RL, leading to a more complex and expensive training procedure [*REF*; *REF*; *REF*].
+
+
+Imitation Learning. Imitation learning is the study of algorithms that improve performance by mimicking an expert&apos;s decisions and behaviors. We summarize three main categories of existing methods in the following: (1) behavior cloning (BC), (2) inverse reinforcement learning (IRL), and (3) the combination of imitation and reinforcement learning.
+The naïve BC [*REF*] ignores the change in distribution and simply trains a policy that only performs well under the distribution of states visited by the expert. Following works, such as dataset aggregation [*REF*] or policy aggregation [*REF*; *REF*], have been proposed to address the limitations of BC. Another line of work, IRL, is a more complicated algorithm framework that learns the reward function from expert demonstrations and then improves the policy using RL with the learned reward. A representative method in this category is generative adversarial imitation learning (GAIL) [*REF*], in which a policy and a discriminator compete with each other in order to maximize the likelihood of the policy&apos;s behavior matching the expert. The third category of methods usually leverages an IL policy to initialize RL and continues to boost its performance via online collected data from RL [*REF*; *REF*; *REF*]. This simple combination significantly improves RL&apos;s sample efficiency and IL&apos;s upper performance bound constrained by the expert. Nevertheless, all of the above methods assume that the expert and the imitator understand the world in the same modality, and thus overlook the fact that the complementary knowledge from other modalities often boosts the model&apos;s accuracy and generalization dramatically [*REF*; *REF*].
+
+
+Conclusion
+
+
+We create EMMA, an Embodied Multi-Modal Agent, by finetuning a VLM in an embodied visual world with interactive imitation learning from an LLM expert in a parallel text world, who produces better actions and retrospective feedback to VLM&apos;s trajectories. Such imitation learning exhibits substantial advantages over vision or VLM policies directly finetuned in the visual world or finetuned by behavior cloning of a rule-based expert, and SOTA API VLMs such as GPT-4V(ision).
+As a result, EMMA achieves a comparable success rate and much better robustness in the noisy visual world than its LLM teacher in the easier text world. Furthermore, EMMA shows powerful generalization to open-vocabulary and free-form task instructions, highlighting its potential in real-world scenarios.

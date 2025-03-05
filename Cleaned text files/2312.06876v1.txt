@@ -1,0 +1,243 @@
+Interactive Planning Using Large Language Models for Partially Observable Robotics Tasks
+
+
+Introduction
+
+
+Designing robots that have the physical intelligence to perform open vocabulary tasks is extremely challenging. This requires that robots be able to interpret tasks from an open set of instructions and execute them robustly while performing the required reasoning. One can argue that this could be the most challenging problem facing artificial intelligence (AI). However, designing such agents can truly revolutionize the way robots would be integrated into our future society. Recently, large language models (LLMs) [*REF*, *REF*, *REF*] have been shown to be very impressive at solving tasks of different complexities [*REF*, *REF*, *REF*, *REF*, *REF*]. Large language models can help understand the tasks and decompose them into a sequence of actions, reward functions, or goals for policy given appropriate prompts and training data. Motivated by these developments, we present a problem of interactive planning in uncertain environments where a robot may not have complete information to perform the task. In these tasks, the robot needs to interact with its environment and collect additional information to complete the task.
+
+
+FIGURE 1
+
+
+Partial observability and uncertainty are the norm, rather than the exception, in the real world. For example, consider task T2 shown in Figure [1], where a robot needs to understand how it can gather information to identify the empty cup and then throw it in the bin. Unlike the tasks with complete information, it would be challenging to design a sequence of skills or a suitable reward function that can solve this task. This problem can be formulated as a Partially Observable Markov Decision Process (POMDP) [*REF*]. However, solving POMDPs could be computationally intractable. It requires reasoning in the belief state of the problem and does not scale well with the dimensionality of the problem. Prior work on using LLMs for robotic tasks has demonstrated good reasoning capability of LLMs as well as mapping of the reasoning to robot actions [*REF*, *REF*, *REF*]. Inspired by these advancements, we believe that we can leverage the reasoning and &quot;chain-of-thoughts&quot;(CoT) capability of LLMs to solve partially observable tasks while interacting with the environment. What makes this challenging for current LLMs is the requirement to understand real robot observations from different modalities and use them for task planning.
+
+
+Most of the prior works using LLMs in robotics focused on step-wise scene and task understanding making full use of the current available modalities to infer the optimal action and/or reward [*REF*, *REF*, *REF*, *REF*]. In this work, we focus on performing interactive planning under cases of partial observability. This requires planning to aggregate information from the environment, reasoning about the correct state of the system, and updating the state estimates based on the sensor observations collected by the robot. Furthermore, we also try to understand how well a fine-tuned smaller model like Llama2-7B [*REF*] performs in comparison with a pre-trained LLM like GPT-4. The smaller models are generally desirable for practical reasons but it could be challenging to distill the reasoning capability of models like GPT-4 for complex robotic tasks discussed in this paper. To understand this, we propose an instruction data generation pipeline following the self-instruction [*REF*] scheme to understand the limitations of smaller models and potential ways to overcome them.
+
+
+In summary, our work makes the following contributions:
+
+
+- We introduce the Large Language Model for Partially Observable Task Planning(LLM-POP) framework to interactively plan with uncertainties. We demonstrate the framework in simulation and real-world environments.
+- We compare the performance of pre-trained LLM as well as fine-tuned smaller models in the proposed framework for partially observable tasks.
+
+
+Related Work
+
+
+LLMs for embodied AI tasks: The recent strides in the field of LLMs have renovated the robotics community in various task domains, especially on task planning [*REF*, *REF*, *REF*, *REF*, *REF*], where the robot is asked to reason about language instructions to generate robot actions, reward functions for online controllers [*REF*], and code [*REF*]. Previous works also combine LLMs with Task and Motion Planning (TAMP) to make use of the traditional motion planning algorithms [*REF*, *REF*, *REF*]. To solve robotics tasks in larger and more complex settings, researchers have utilized LLMs to process multi-modal information, [*REF*, *REF*, *REF*, *REF*], enable multi-robot [*REF*] and human-robot collaboration [*REF*]. A series of works use feedback in the planning process [*REF*, *REF*, *REF*, *REF*, *REF*] to improve the LLM-generated plans, and use the natural language provided by the user to correct robot behaviors. Other works model the uncertainties in tasks [*REF*, *REF*] and gather reasoning by involving human knowledge in the decision loop. In our problem setting, we focus on the partial observation environment setting where initial information is insufficient for task solving, and the robot actively seeks task-relevant information via sensory feedback.
+
+
+LLMs for Data Synthesis and instruction tuning: Recent open-sourced models like LLaMa [*REF*] [*REF*], Alpaca [*REF*], and Gorrila [*REF*], explore how pre-trained models can be improved for general and specific tasks [*REF*, *REF*, *REF*, *REF*]. Researchers have proposed strategies to prompt LLMs to perform high-quality synthetic data by in-context learning [*REF*], task decomposition [*REF*, *REF*], as well as methods to improve fine-tuning performance [*REF*, *REF*], and pre-train model for specific tasks like coding [*REF*]. Our research incorporates these methods to get synthetic data for instruction-tuning but focuses on tasks that require reasoning, but with limited labeled data.
+
+
+Interactive LLM Planning with Uncertainties
+
+
+The objective of the proposed framework is to perform long-horizon robotic tasks in the presence of various kinds of uncertainties using LLMs. These tasks require a closed-loop, interactive planning where the robot should be able to collect useful observations from the environment and then make optimal decisions. An example of such a task is illustrated in Figure *REF* where the robot&apos;s task is to throw the empty cup into the bin. However there exists uncertainty in the contents of the cups, and therefore this information needs to be obtained by sensorimotor operations and provided as the feedback to the LLM. For clarity of presentation, this section delves into the formulation of the underlying problem using the notion of POMDPs. We then elaborate on the pivotal role of LLMs in the interactive planning framework.
+
+
+Problem Formulation
+
+
+1. Partial Observation setting
+
+
+A POMDP is an extension of a traditional MDP that tackles decision-making scenarios where the agent lacks complete state information. A POMDP is defined by a tuple *MATH*, with Ω as the observation set and O as the observation function. At each time step, the environment is in state s ∈ S. The agent takes action a ∈ A and causes the environment to transit to *MATH* accordingly to the transition function *MATH*, a). At the same time step, the agent gets an observation o ∈ Ω which depends on the current state of the environment *MATH*. Unlike the policy function in MDP *MATH*, which maps the underlying states to the actions, POMDP&apos;s policy *MATH* is a mapping from the belief states b to the actions. The belief state b is a probabilistic estimation of the full state s. The updated belief state *MATH* after observing o is described by: *MATH* a) where C is a normalizing constant.
+
+
+We also want the proposed framework to be generalizable to a variety of tasks. For different tasks τ, the information required to make decisions can differ. This adds additional complexity since now the LLM has to reason about a generalizable state space S. In the open-vocabulary robotics task scenarios, the robot observations are determined by on-board sensors. Not all information about the environment is relevant to the task; some of them can be directly extracted from observations, while some are unknown and require exploration. Thus, we end up getting task-dependent belief state *MATH*, and the task-related states *MATH* for task τ. Both finding the necessary state abstraction for different tasks and finding the optimal policy π under the task-specific MDP is important in this task-dependent POMDP setting.
+
+
+Action space of robots
+
+
+For long-horizon tasks, using a pre-trained set of parameterized skills as action space is a common choice. In this paper, we use a set of parameterized skills like {pick, place, reach, reset}. All these skills can be performed using robot observations and thus we do not consider partial observability during robot skills execution. It is noted that we do not consider continuous sensory feedback during skill execution-- however, that could be incorporated by training skills using RL.
+
+
+Uncertainties in Tasks
+
+
+The uncertainty in decision-making in the tasks we test mainly arises from two aspects:
+
+
+Environmental Uncertainty: These uncertainties arise in the POMDP settings due to the agent&apos;s lack of complete environmental knowledge.
+For example, physical properties of the objects that cannot be directly observed. The uncertainties in the belief *MATH* can be reduced with certain observations. This is a major challenge we target to solve in this paper.
+
+
+Skill Execution Uncertainty: Even with a well-defined plan, the actual execution of actions on robots might not always lead to the expected outcome. This can be mainly attributed to the difference between the transition functions P, Preal of the designed and real system as well as unexpected disturbances during execution.
+
+
+With the challenges explained above, we propose a framework where LLMs are used as policy as well as for state abstraction for the underlying POMDP.
+
+
+Language-based Planners
+
+
+Based on the problems described in the previous section, we propose to use a LLM to play a multifaceted role in the interactive planning process:
+
+
+LLM for State Abstraction: Given the environment description and sensor observations, LLM needs to analyze the available information and abstract sufficient statistics (or the appropriate state) to solve the task. Furthermore, it needs to reason about what is uncertain based on the current observations. It needs to update its belief based on the observations when prompted with historical information.
+
+
+LLM as Policy: Given the observation and action space, LLM needs to plan actions that gather environmental information to mitigate the uncertainty and update the agent&apos;s belief state. The LLM-based policy is also expected to generate the optimal plan to maximize the reward based on the task description with minimal steps. Also, since we use open-loop parameterized skills for the robot, the LLM is also used to provide feedback to the robot in cases of failure in the execution of these skills. This feedback needs to be provided in a way that is still executable by the robot.
+
+
+We use LLM to reason about these problems during task execution. It is noted that actions in the POMDP setting is conditioned on new observations and updated beliefs. There are a few additional challenges when using LLM as closed-loop policy for tasks with uncertainties that we consider in the paper. To update the belief state of the task, the LLM must understand the robot observations from different modalities (pose detections, force sensors, etc.). These data formats might be new to the LLM model and thus, must be properly included in the prompt template to the LLM. Furthermore, the skills available to the robot are parameterized by continuous position and orientation coordinates which might be challenging to reason about while performing robotic tasks. Similarly, the output of the language model needs to be executable by the robot; the response should be written in a template that the downstream controller can understand.
+In the next section, we will discuss how we use the LLMs to solve the interactive planning task.
+
+
+LLM-POP: Interactive Planning
+
+
+The proposed framework (LLM-POP) for interactive planning is illustrated in Figure [2]. As introduced in the problem formulation, the language-based policy in our framework has multiple tasks to do in the planning loop. At each step, the input to the language model contains the task description from a user, the current observation from the robot, and the historical action and observation sequence from previous steps. The model output includes an executable sequence of actions and the corresponding text explanation. The robot will execute the actions provided by the policy output and return the observations for a next-round query of the LLM. The language model must finish the reasoning task and output the policies in the designed format. The task description is the only user-provided input during the planning process. In the following sections, we show how we use a pre-trained LLM (GPT-4) as well as a fine-tuned smaller model to serve as the planner and evaluator.
+
+
+FIGURE 2
+
+
+Prompt structure for GPT-4
+
+
+Using powerful LLMs like GPT-4 as interactive planners relies on its strong chain-of-thought reasoning and in-context learning capability.
+Therefore, the prompt (input of a single round LLM query) to the LLM requires careful design to ensure it can generalize to robotics tasks and avoid hallucination (generating actions in wrong formats or not executable for the robot) in responses.
+
+
+As shown in Figure [3a], the prompt template for the planner consists of the following parts:
+
+
+- Environment description, action options, output rules: Background information that help understand the task settings. This information is preset by the user and is constant throughout planning for different tasks.
+- Task description: texts describing tasks from users. We assume the first two parts should provide enough information for the LLM to understand what&apos;s the missing information and what are actions that can collect the information.
+- Example outputs: in-context examples for planning.
+- Current observation and historical information: text-format descriptions of current observation and historic information. If the observation is poses and force, use vectors with explanations.
+
+
+The explanation in output, together with the action sequence, will be included in historical information. This helps the LLM to understand the past actions it has performed and avoid reasoning about it again.
+Note that the LLM planner needs to specify the parameters in the actions based on its own understanding of the environment, task, and the action space description. For manipulation tasks, this includes location and orientation for the target pose.
+
+
+As shown in Figure [2], along with the LLM planner, we also designed an LLM evaluator using a similar prompt structure. The evaluator also takes in the background information, task description, and history observations after executing past actions. It evaluates the task-execution status and appends it to next-round prompting. As described in Section [3.2], the evaluator here will explicitly ask the LLM to finish the &quot;state abstraction&quot; (analyze what&apos;s the missing information), &quot;belief update&quot; in policy (analyze information from historical observations), and &quot;correct execution errors&quot;(identify failures from the history). Although it is possible to put all the requirements into the LLM planner, asking it to do all the analysis and make planning decisions in the response, we find decomposing this into two steps improves the reasoning results. Example prompts of planner and evaluator are shown in Section [A.2], [A.1].
+
+
+FIGURE 4
+
+
+Fine-tuning a smaller model as planner
+
+
+Fine-tuning a language model, rather than directly querying a GPT-4, not only enables offline deployment but also holds distinct advantages in the context of interactive planning. One prominent reason is the incorporation of multi-modality in the data. Our system doesn&apos;t solely rely on text descriptions but also utilizes the robot&apos;s observations.
+While these observations can theoretically be converted into text form, they constitute a novel data type that GPT-4 has not been trained on, thereby resulting in limited zero-shot generalizability.
+For example, in experiments using GPT-4, if poses in robot observations and action parameters are in different frames of reference, the LLM will have trouble transforming them. A second reason is the requirement of large contexts in the input. A direct query to GPT would necessitate the inclusion of environment settings and generation constraints at each instance, which is inefficient and cost-intensive. The difficulty of fine-tuning a smaller pre-trained LLM model mainly comes from two sides: 1) Lack of data for complex tasks. Most robotics data in the wild [*REF*, *REF*, *REF*] has no partial observable tasks involved, and force-torque sensor data is usually not included since they are noisy and vary across robots. 2) Smaller models are worse at reasoning tasks, CoT is tied with larger models.
+
+
+In order to get the required data to fine-tune a model as a planner in interactive planning under partial observation, we follow the procedure shown in Figure [3b], using self-instruct [*REF*] to generate an instruction dataset and fine-tune a [LLaMA2-7B] model. The full pipeline includes:
+
+
+Task Generation: The description of the environment, robot, potential uncertainties, action options, and example tasks are provided to GPT-4 to generate a number of tasks that are feasible to solve. We encourage GPT-4 to make the task set diverse in difficulty.
+An example prompt template and examples of generated tasks are shown in Section [A.3], [A.5].
+
+
+Instruction Generation: The generated tasks are used to generate pairs of instructions and responses, following the self-instruct paradigm. The instruction includes task descriptions and questions, the input encompasses the robot&apos;s observations. The output generated by the model includes the same verbal explanations and actions as GPT-4 planners. We add format instructions to guarantee the &quot;response&quot; format. An example prompt template and examples of generated instructions are shown in Section [A.4], [A.6]. CoT question designs: Finishing the state abstraction, belief update, and action planning in one query is hard for smaller models.
+Therefore, we create CoT questions [*REF*] to ask if missing information exists, how to collect information, and how to solve the task with fill information. The planner will choose questions to ask based on binary options in response.
+
+
+Integrating collected robot observations: For the pre-trained actions, we collect success trajectories of the robot finish the actions and use them as in-context reference examples in the Instruction Generation process.
+
+
+Fine-tuning: For the fine-tuning process, we adopted the LLaMA-adapter [*REF*]. This approach allows us to enhance the model&apos;s performance by leveraging a specifically curated dataset and fine-tuning it to our unique task generation and interactive planning scenario.
+
+
+Experiments
+
+
+FIGURE 4
+
+
+Experimental setup
+
+
+Environment: LLM-POP is evaluated on a set of manipulation tasks in a tabletop block rearrangement environment. A robot arm with a parallel gripper is equipped with a pre-trained skill set of
+
+
+{Pick, Place, Reach, Reset}. Each scenario is initialized with identical-size blocks with randomized positions and orientations on the table.
+
+
+Uncertainties: We introduce two uncertainties in this environment 1) mass: Density(mass) of the blocks is randomized. 2) fix: blocks are randomized to be fixed/movable on the table. We design a task set containing tasks at different difficulty levels (horizon length to solve the task) under uncertainty assumptions to evaluate the planner&apos;s performance.
+
+
+Observations: The robot observations include the pose of the robot end effector, the pose of the blocks on the table, gripper opening positions, and force-torque (F/T) readings.
+
+
+Pre-trained skills and parameters: pick(object): Pick up the specified object on the table. place(pose): Move the end effector to desired pose and open the gripper. reach(pose): Move the end effector to desired pose. reset(): Reset the arm and gripper to the initial pose. where object is a text name string, pose is the position and orientation.
+
+
+Evaluation metrics: How to evaluate the task success rate is non-trivial, since the desired outcome of the tasks in Table *REF* (e.g., the lighter block is on top of the heavier block) could be achieved also through an incomplete decision-making process (e.g., stack a block on top of the other one that by chance respects the right weight relationship.) For this reason, even the LLM evaluator proposed in Section [4.1] cannot confidently determine the success rate in the tasks and we eventually relied on a manual check of each experiment
+
+
+For each task in the evaluation task set, we evaluate the success rate of finishing the task under 10 random initializations on the positions and the uncertainties of blocks (5 for real robot settings since it&apos;s harder to randomize the uncertainties). Table *REF* includes the evaluation tasks we use. Default LLM-POP uses GPT-4 for the planner and evaluator.
+
+
+TABLE 1
+
+
+Simulation: Block manipulation with Pre-trained LLM
+
+
+We first evaluate our approach for solving the tasks in Table *REF* in a simulated robotic system in IsaacGym [*REF*]. We use the FrankaCubeStack task as a template environment, but change the blocks to the same size with random densities for mass uncertainty and randomly fix the block on the table for fix uncertainty. The action parameters for place include 3D target position and quaternion of the end effector. This is different from the block orientation quaternions in the observation, and explicitly including this (compared to using observation-action examples) in the prompt is essential for the LLM planner to get the correct action parameters and understand the observations.
+
+
+We use two ablations: 1. GPT-3.5 as planner. 2. Remove the evaluator which explicitly asks for state abstraction and belief updates. Evaluation results are shown in Table [2]. 
+
+
+TABLE 2
+
+
+Compared to the GPT-4-based planner, GPT-3.5 is also able to reason correct action sequences for stacking tasks, but can not always reason about the geometric (position and orientation) parameters. It can understand what&apos;s the missing information for tasks with uncertainty, but fails to generate multi-step plans to collect and update the information.
+
+
+For the GPT-4 based planner, we observe an improvement in performance especially on longer-horizon tasks with uncertainty when the evaluator is added to the pipeline. An example is shown in Figure [4]. The LLM is asked to explicitly what is missing and how such information can be analyzed from historical observations.
+This enforces the LLM to perform &quot;state abstraction&quot; and &quot;belief update&quot; before planning. In experiments, the GPT-4 planner without the evaluator sometimes makes the wrong plan by repeating the same collecting actions even if it already collected sufficient information. As the history of observations grows longer, the chance that LLM makes wrong reasoning also increases. This is partially due to the long-text handling challenge for the current GPT-4 version, and decomposing the reasoning tasks into an evaluator helps improve the stability.
+
+
+Hardware: Real robot Block Manipulation with GPT
+
+
+We implement the same version of our method on a MELFA Assista robot arm with a WSG 32 two-finger gripper. We put AprilTags [*REF*] on the sides of the blocks to get the pose estimate of blocks. We use blocks with different materials and added weight for uncertainty in mass. We use the force-torque (F/T) sensor mounted at the robot&apos;s wrist to get force readings. The action parameters for position controls on the real robot are in Euler angles and the angle for the gripper and blocks are in different frames. For safety, we set the task to fail if action parameters get out of safety bounds or a collision happens. Results are in Table [2].
+
+
+The LLM-POP framework (GPT-4) achieves better performance in the real robot compared to the simulation domain. This is mostly because of the very accurate position controller implemented on the real robot leading to fewer execution errors. The stiffness controller and F/T sensor used on the real robot allows us to recover accurate force readings with no noise compared to the &quot;sensor&quot; in the simulator which is affected by robot movement and gravity. These experiments show that the proposed framework can solve tasks with varying levels of difficulties and uncertainties reliably in simulated as well as real systems.
+
+
+Simulation: Block manipulation with fine-tuned model
+
+
+Using the self-instruction method introduced in [4.2], we generate an Alpaca [*REF*]-like dataset and use it to finetune a Llama2-7B [*REF*] model for reasoning. We test it on the same IsaacGym environment. Results are also shown in Table [2]. FT-Vanilla uses directly generated instruction pairs, while FT-CoT uses CoT decomposition instruction pairs. The biggest challenge during data generation for both is the correspondence between imagined observation generated by GPT-4 and the ground truth. For example, after picking up the block, the gripper position in the generated data is sometimes not close to the block position (and thus incorrect). This increases the difficulty for fine-tuned models to do correct reasoning based on observations. In the experiments, the fine-tuned model is able to reason about the missing information based on the task description and generate plans to collect the information. The results show that the fine-tuned model benefits from the CoT decomposition of instructions, and failures mostly come from wrong reasoning (wrong &quot;heavy&quot; block based on history). The current gap between the fine-tuned model and GPT-4 lies in the ability to analyze the historical information for updating the information and the ability to avoid and adjust wrong action parameters since it&apos;s not included in the current CoT design. A potential improvement is to add an auxiliary task of &quot;observation understanding&quot; in training and use diverse environment settings to improve the reasoning capability. We leave this to our future research.
+
+
+Common Failures in Sim and Real Experiments
+
+
+1. Execution failures
+
+
+This appears more in the simulation environment when the place action sets a target pose with less tolerance between objects and the robot moves at high speed (The control gains in the simulator are not fine-tuned for various block weights). LLM planners can also generate actions that cause collisions since there&apos;s no online collision avoidance in skills.
+
+
+To explicitly test if the evaluator can help in correcting execution errors, we did an ablation on stacking(T1) by adding offsets (1cm) on the grasping position of the block. The initial target placing position will fail because of this offset. With the evaluator included, which asks the LLM to analyze failure action based on history and propose correcting suggestions, the planner outputs a better target position (higher) in the next round. This shows that having an evaluator can actually help to correct execution errors.
+However, the execution success rate in this test also depends on the lower-level grasping skill; better grasp proposal [*REF*] and planning [*REF*] modules can improve the performance. Detailed analysis is deferred to a longer draft of the paper.
+
+
+Belief update failures
+
+
+Incorrect plan for collecting information (e.g., trying to reach above the block to measure its weight); wrong analysis results from the observations (e.g., not comparing weight using the force sensor z-axis value but using noise in other axes). In the LLM-POP with GPT-4 case, most failures come from the wrong analysis.
+
+
+Discussion
+
+
+In this work, we proposed an interactive planning framework LLM-POP using LLM to solve tasks under partial observation. The framework is verified in simulated as well as real robot systems on various partially observable tasks. Task distribution that the current framework can solve strongly depends on the diversity and robustness of the pre-trained skills. Current skills are open-loop actions based on initial observation. If the pre-trained skills are closed-loop policies with collision avoidance and online adjustment, the framework would be able to solve more challenging tasks.
+
+
+Overall, the gap between fine-tuned model and GPT-4 is clear, especially in reasoning for complex tasks. Our goal is not to replace the GPT-4 but to propose a method for generating self-instruct data for robotic tasks with limited demonstration data. We verify its usage as an interactive planner in manipulation and leave the task of learning more generalizable [*REF*] and transferrable subtask policies [*REF*, *REF*], involving more modalities in the observation like image representations in robotics [*REF*, *REF*, *REF*] to our future research. Similar settings can generalize to navigation settings and solving complex environments like HomerRobot [*REF*] and social interactive scenarios [*REF*].
