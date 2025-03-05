@@ -1,0 +1,706 @@
+Meta-learning curiosity algorithms
+
+
+Introduction
+
+
+FIGURE
+
+
+When a reinforcement-learning agent is learning to behave, it is
+critical that it both explores its domain and exploits its rewards
+effectively. One way to think of this problem is in terms of curiosity
+or intrisic motivation: constructing reward signals that augment or
+even replace the extrinsic reward from the domain, which induce the RL
+agent to explore their domain in a way that results in effective
+longer-term learning and behavior [*REF*; *REF*; *REF*].
+The primary difficulty with this approach is that researchers are
+hand-designing these strategies: it is difficult for humans to
+systematically consider the space of strategies or to tailor strategies
+for the distribution of environments an agent might be expected to face.
+
+
+We take inspiration from the curious behavior observed in young humans
+and other animals and hypothesize that curiosity is a mechanism found by
+evolution that encourages meaningful exploration early in an agent&apos;s
+life. This exploration exposes it to experiences that enable it to learn
+to obtain high rewards over the course of its lifetime. We propose to
+formulate the problem of generating curious behavior as one of
+meta-learning: an outer loop, operating at &quot;evolutionary&quot; scale will
+search over a space of algorithms for generating curious behavior by
+dynamically adapting the agent&apos;s reward signal, and an inner loop will
+perform standard reinforcement learning using the adapted reward signal.
+This process is illustrated in figure; note that the aggregate agent,
+outlined in gray, has the standard interface of an RL agent. The inner
+RL algorithm is continually adapting to its input stream of states and
+rewards, attempting to learn a policy that optimizes the discounted sum
+of proxy rewards *MATH*. The outer
+&quot;evolutionary&quot; search is attempting to find a program for the curiosity
+module, so as to optimize the agent&apos;s lifetime return
+*MATH*, or another global objective like the mean
+performance on the last few trials.
+
+
+In this meta-learning setting, our objective is to find a curiosity
+module that works well given a distribution of environments from which
+we can sample at meta-learning time. Meta-RL has been widely explored
+recently, in some cases with a focus on reducing the amount of
+experience needed by initializing the RL algorithm
+well [*REF*; *REF*] and, in others, for
+efficient exploration [*REF*; *REF*]. The environment
+distributions in these cases have still been relatively low-diversity,
+mostly limited to variations of the same task, such as exploring
+different mazes or navigating terrains of different slopes. We would
+like to discover curiosity mechanisms that can generalize across a much
+broader distribution of environments, even those with different state
+and action spaces: from image-based games, to joint-based robotic
+control tasks. To do that, we perform meta-learning in a rich,
+combinatorial, open-ended space of programs.
+
+
+This paper makes three novel contributions.
+We focus on a regime of meta-reinforcement-learning in which the possible 
+environments the agent might face are dramatically disparate and in which the agent&apos;s lifetime is very long.
+This is a substantially different setting than has been addressed in
+previous work on meta-RL and it requires substantially different
+techniques for representation and search.
+
+
+We propose to do meta-learning in a rich, combinatorial space of 
+programs rather than transferring neural network weights.
+
+
+The programs are represented in a domain-specific language (DSL) which
+includes sophisticated building blocks including neural networks
+complete with gradient-descent mechanisms, learned objective functions,
+ensembles, buffers, and other regressors. This language is rich enough
+to represent many previously reported hand-designed exploration
+algorithms. We believe that by performing meta-RL in such a rich space
+of mechanisms, we will be able to discover highly general, fundamental
+curiosity-based exploration methods. This generality means that a
+relatively computationally expensive meta-learning process can be
+amortized over the lifetimes of many agents in a wide variety of
+environments.
+
+
+We make the search over programs feasible with relatively modest amounts of computation.
+
+
+It is a daunting search problem to find a good solution in a
+combinatorial space of programs, where evaluating a single potential
+solution requires running an RL algorithm for up to millions of time
+steps. We address this problem in multiple ways. By including
+environments of substantially different difficulty and character, we can
+evaluate candidate programs first on relatively simple and short-horizon
+domains: if they don&apos;t perform well in those domains, they are pruned
+early, which saves a significant amount of computation time. In
+addition, we predict the performance of an algorithm from its structure
+and operations, thus trying the most promising algorithms early in our
+search. Finally, we also monitor the learning curve of agents and stop
+unpromising programs before they reach all *MATH* environment steps.
+
+
+We demonstrate the effectiveness of the approach empirically, finding
+curiosity strategies that perform on par or better than those in
+published literature. Interestingly, the top 2 algorithms, to the best
+of our knowledge, had not been proposed before, despite making sense in
+hindsight. We conjecture the first one (shown in
+figure) is deceptively simple and that the complexity of the other one
+(figure [8] in the appendix) makes it
+relatively implausible for humans to discover.
+
+
+Problem formulation
+
+
+Meta-learning problem
+
+
+Let us assume we have an agent equipped with an RL algorithm (such as
+DQN or PPO, with all hyperparameters specified), *MATH*, which
+receives states and rewards from and outputs actions to an environment
+*MATH*, generating a stream of experienced transitions *MATH*. The agent
+continually learns a policy *MATH*, which will
+change in time as described by algorithm *MATH*; so
+*MATH* and thus *MATH*. Although this need not be the
+case, we can think of *MATH* as an algorithm that tries to
+maximize the discounted reward *MATH* and
+that, at any time-step *MATH*, always takes the greedy action that
+maximizes its estimated expected discounted reward.
+
+
+To add exploration to this policy, we include a curiosity module
+*MATH* that has access to the stream of state transitions *MATH* 
+experienced by the agent and that, at every time-step *MATH*, outputs a
+proxy reward *MATH*. We connect this module so that the
+original RL agent receives these modified rewards, thus observing
+*MATH*, without having access to the original *MATH*. Now, even though the inner
+RL algorithm acts in a purely exploitative manner with respect to
+*MATH*, it may efficiently explore in the outer environment.
+
+
+Our overall goal is to design a curiosity module *MATH* that
+induces the agent to maximize *MATH*, for some number of
+total time-steps *MATH* or some other global goal, like final episode
+performance. In an episodic problem, *MATH* will span many episodes. More
+formally, given a single environment *MATH*, RL algorithm
+*MATH*, and curiosity module *MATH*, we can see the
+triplet (environment, curiosity module, agent) as a dynamical system
+that induces state transitions for the environment, and learning updates
+for the curiosity module and the agent. Our objective is to find
+*MATH* that maximizes the expected original reward obtained by
+the composite system in the environment. Note that the expectation is
+over two different distributions at different time scales: there is an
+&quot;outer&quot; expectation over environments *MATH*, and in &quot;inner&quot;
+expectation over the rewards received by the composite system in that
+environment, so our final objective is: *MATH*.
+
+
+Programs for curiosity 
+
+
+In science and computing, mathematical language has been very successful
+in describing varied phenomena and powerful algorithms with short
+descriptions. As Valiant points out: &quot;the power \[of mathematics and
+algorithms\] comes from the implied generality, that knowledge of one
+equation alone will allow one to make accurate predictions about a host
+of situations not even conceived when the equation was first written
+down&quot; [*REF*]. Therefore, in order to obtain curiosity
+modules that can generalize over a very broad range of tasks and that
+are sophisticated enough to provide exploration guidance over very long
+horizons, we describe them in terms of general programs in a
+domain-specific language. Algorithms in this language will map a history
+of *MATH* tuples into a proxy reward *MATH*.
+
+
+Inspired by human-designed systems that compute and use intrinsic
+rewards, and to simplify the search, we decompose the curiosity module
+into two components: the first, *MATH*, outputs an intrinsic reward value
+*MATH* based on the current experienced transition *MATH* 
+(and past transitions *MATH* indirectly through its
+memory); the second, *MATH*, takes the current time-step *MATH*, the actual
+reward *MATH*, and the intrinsic reward *MATH* (and, if it chooses to
+store them, their histories) and combines them to yield the proxy reward
+*MATH*. To ease generalization across different timescales, in
+practice, before feeding *MATH* into *MATH* we normalize it by the total
+length of the agent&apos;s lifetime, *MATH*.
+
+
+Both programs consist of a directed acyclic graph (DAG) of modules with
+polymorphically typed inputs and outputs. As shown in
+figure [1], there are four classes of modules:
+- Input modules (shown in blue), drawn from the set
+*MATH* for the *MATH* component and from the set
+*MATH* for the *MATH* component. They have no inputs, and
+their outputs have the type corresponding to the types of states and
+actions in whatever domain they are applied to, or the reals numbers
+for rewards.
+- Buffer and parameter modules (shown in gray) of two kinds: FIFO
+queues that provide as output a finite list of the *MATH* most recent
+inputs, and neural network weights initialized at random at the
+start of the program and which may (pink border) or may not (black
+border) get updated via back-propagation depending on the
+computation graph.
+- Functional modules (shown in white), which compute output values
+given the inputs from their parent modules.
+- Update modules (shown in pink), which are functional modules
+(such as k-Nearest-Neighbor) that either add variables to buffers or
+modules which add real-valued outputs to a global loss that will
+provide error signals for gradient descent.
+
+
+A single node in the DAG is designated as the output node (shown in
+green): the output of this node is considered to be the output of the
+entire program, but it need not be a leaf node of the DAG.
+
+
+On each call to a program (corresponding to one time-step of the system)
+the current input values and parameter values are propagated through the
+functional modules, and the output node&apos;s output is given to the RL
+algorithm. Before the call terminates, the FIFO buffers are updated and
+the adjustable parameters are updated via gradient descent using the
+Adam optimizer [*REF*]. Most operations are differentiable
+and thus able to propagate gradients backwards. Some operations are not
+differentiable, including buffers (to avoid backpropagating through
+time) and \&quot;Detach\&quot; whose purpose is stopping the gradient from flowing
+back. In practice, we have multiple copies of the same agent running at
+the same time, with both a shared policy and shared curiosity module.
+Thus, we execute multiple reward predictions on a batch and then update
+on a batch.
+
+
+FIGURE
+
+
+Programs representing several published designs for curiosity modules
+that perform internal gradient descent, including inverse
+features [*REF*], random network distillation (RND)
+[*REF*], and ensemble predictive
+variance [*REF*], are shown in figure [1] (bigger versions can be found in
+appendix [7.3]). We can also represent algorithms
+similar to novelty search [*REF*] and
+*MATH*  [*REF*], which include buffers and nearest neighbor
+regression modules. Details on the data types and module library are
+given in appendix [7].
+
+
+A crucial, and possibly somewhat counter-intuitive, aspect of these
+programs is their use of neural network weight updates via gradient
+descent as a form of memory. In the parameter update step, all
+adjustable parameters are decremented by the gradient of the sum of the
+outputs of the loss modules, with respect to the parameters. This type
+of update allows the program to, for example, learn to make some types
+of predictions, online, and use the quality of those predictions in a
+state to modulate the proxy reward for visiting that state (as is done,
+for example, in RND).
+
+
+Key to our program search are polymorphic data types: the inputs and
+outputs to each module are typed, but the instantiation of some types,
+and thus of some operations, depends on the environment. We have four
+types: reals *MATH*, state space of the given environment
+*MATH*, action space of the given environment *MATH* and
+feature space *MATH*, used for intermediate computations and
+always set to *MATH* in our current implementation. For
+example, a neural network module going from *MATH* to
+*MATH* will be instantiated as a convolutional neural network if
+*MATH* is an image and as a fully connected neural network of
+the appropriate dimension if *MATH* is a vector. Similarly, if
+we are measuring an error in action space *MATH* we use
+mean-squared error for continuous action spaces and negative
+log-likelihood for discrete action spaces. This facility means that the
+same curiosity program can be applied, independent of whether states are
+represented as images or vectors, or whether the actions are discrete or
+continuous, or the dimensionality of either.
+
+
+This type of abstraction enables our meta-learning approach to discover
+curiosity modules that generalize radically, applying not just to new
+tasks, but to tasks with substantially different input and output spaces
+than the tasks they were trained on.
+
+
+To clarify the semantics of these programs, we walk through the
+operation of the RND program in
+figure [1]. Its only input is *MATH*, which might be
+an image or an input vector, which is processed by two NNs with
+parameters *MATH* and *MATH*, respectively. The structure of the
+NNs (and, hence, the dimensions of the *MATH*) depends on the type
+of *MATH*: if *MATH* is an image, then they are CNNs, otherwise a
+fully connected networks. Each NN outputs a 32-dimensional vector; the
+*MATH* distance between these vectors is the output of the program on
+this iteration, and is also the input to a loss module. So, given an
+input *MATH*, the output intrinsic reward is large if the two NNs
+generate different outputs and small otherwise. After each forward pass,
+the weights in *MATH* are updated to minimize the loss while
+*MATH* remains constant, which causes the trainable NN to mimic the
+output of the randomly initialized NN. As the program&apos;s ability to
+predict the output of the randomized NN on an input improves, the
+intrinsic reward for visiting that state decreases, driving the agent to
+visit new states.
+
+
+To limit the search space and prioritize short, meaningful programs we
+limit the total number of modules of the computation graph to 7. Our
+language is expressive enough to describe many (but far from all)
+curiosity mechanisms in the existing literature, as well as many other
+potential alternatives, but the expressiveness leads to a very large
+search space. Additionally, removing or adding a single operation can
+drastically change the behavior of a program, making the objective
+function non-smooth and, therefore, the space hard to search. In the
+next section we explore strategies for speeding up the search over tens
+of thousands of programs.
+
+
+Improving the efficiency of our search 
+
+
+We wish to find curiosity programs that work effectively in a wide range
+of environments, from simple to complex. However, evaluating tens of
+thousands of programs in the most expensive environments would consume
+decades of GPU computation. Therefore, we designed multiple strategies
+for quickly discarding less promising programs and focusing computation
+on a few promising programs. In doing so, we take inspiration from
+efforts in the AutoML community [*REF*].
+
+
+We divide these pruning efforts into three categories: simple tests that
+are independent of running the program in any environment, &quot;filtering&quot;
+by ruling out some programs based on poor performance in simple
+environments, and &quot;meta-meta-RL&quot;: learning to predict which curiosity
+programs will produce good RL agents based on syntactic features.
+
+
+Pruning invalid algorithms without running them
+
+
+Many programs are obviously bad
+curiosity programs. We have developed two heuristics to immediately
+prune these programs without an expensive evaluation.
+
+
+- Checking that programs are not duplicates. Since our language is
+highly expressive, there are many non-obvious ways of getting
+equivalent programs. To find duplicates, we designed a randomized
+test where we identically seed two programs, feed them both
+identical fake environment data for tens of steps and check whether
+their outputs are identical.
+
+
+- Checking that the loss functions cannot be minimized independently
+of the input data. Many programs optimize some loss depending on
+neural network regressors. If we treat inputs as uncontrollable
+variables and networks as having the ability to become any possible
+function, then for every variable, we can determine whether neural
+networks can be optimized to minimize it, independently of the input
+data. For example, if our loss function is *MATH* the
+neural network can learn to make it *MATH* by disregarding *MATH* and
+optimizing the weights *MATH* to 0. We discard any program that
+has this property.
+
+
+Pruning algorithms in cheap environments 
+
+
+Our ultimate goal is to find algorithms that perform well on many
+different environments, both simple and complex. We make two key
+observations. First, there may be only tens of reasonable programs that
+perform well on all environments but hundreds of thousands of programs
+that perform poorly. Second, there are some environments that are
+solvable in a few hundred steps while others require tens of millions.
+Therefore, a key idea in our search is to try many programs in cheap
+environments and only a few promising candidates in the most expensive
+environments. This was inspired by the effective use of sequential
+halving [*REF*] in hyper-parameter
+optimization [*REF*].
+
+
+By pruning programs aggressively, we may be losing multiple programs
+that perform well on complex environments. However, by definition, these
+programs will tend to be less general and robust than those that succeed
+in all environments. Moreover, we seek generalization not only for its
+own sake, but also to ease the search since, even if we only cared about
+the most expensive environment, performing the complete search only in
+this environment would be impractical.
+
+
+Predicting algorithm performance
+
+
+Perhaps surprisingly, we find that we can predict program performance
+directly from program structure. Our search process bootstraps an
+initial training set of (program structure, program performance) pairs,
+then uses this training set to select the most promising next programs
+to evaluate. We encode each program&apos;s structure with features
+representing how many times each operation is used, thus having as many
+features as number of operations in our vocabulary. We use a
+*MATH* -nearest-neighbor regressor, with *MATH*. We then try the most
+promising programs and update the regressor with their results. Finally,
+we add an *MATH* -greedy exploration policy to make sure we explore
+all the search space. Even though the correlation between predictions
+and actual values is only moderately high (*MATH* on a holdout test),
+this is enough to discover most of the top programs searching only half
+of the program space, which is our ultimate goal. Results are shown in
+appendix.
+
+
+We can also prune algorithms during the training process of the RL
+agent. In particular, at any point during the meta-search, we use the
+top *MATH* current best programs as benchmarks for all *MATH* time-steps.
+Then, during the training of a new candidate program we compare its
+current performance at time *MATH* with the performance at time *MATH* of the
+top *MATH* programs and stop the run if its performance is significantly
+lower. If the program is not pruned and reaches the final time-step *MATH* 
+with one of the top *MATH* performances, it becomes part of the benchmark
+for the future programs.
+
+
+Experiments
+
+
+Our RL agent uses PPO [*REF*] based on the
+implementation by  *REF* in PyTorch [*REF*]. Our
+code (WEBSITE) can take in any OpenAI gym environment [*REF*] with a
+specification of the desired exploration horizon *MATH*.
+
+
+We evaluate each curiosity algorithm for multiple trials, using a seed
+dependent on the trial but independent of the algorithm, which leads to
+the PPO weights and curiosity data-structures being initialized
+identically on the same trials for all algorithms. As is common in PPO,
+we run multiple rollouts (5, except for MuJoCo which only has 1), with
+independent experiences but shared policy and curiosity modules.
+Curiosity predictions and updates are batched across these rollouts, but
+not across time. PPO policy updates are batched both across rollouts and
+multiple timesteps.
+
+
+First search phase in simple environment
+
+
+We start by searching for a good intrinsic curiosity program *MATH* in a
+purely exploratory environment, designed by *REF*, which is an
+image-based grid world where agents navigate in an image of a 2D room
+either by moving forward in the grid or rotating left or right. We
+optimize the total number of distinct cells visited across the agent&apos;s
+lifetime. This allows us to evaluate intrinsic reward programs in a fast
+and simple environment, without worrying about combining it with
+external reward.
+
+
+To bias towards simple, interpretable algorithms and keep the search
+space manageable, we search for programs with at most 7 operations. We
+first discard duplicate and invalid programs, as described in
+section, resulting in about 52,000 programs. We then
+randomly split the programs across 4 machines, each with 8 Nvidia Tesla
+K80 GPUs for 10 hours; thus a total of 13 GPU days.
+
+
+Each machine finds the highest-scoring 625 programs in its section of
+the search space and prunes programs whose partial learning curve is
+statistically significantly lower than the current top 625 programs. To
+do so, after every episode of every trial, we check whether *MATH*.
+Thus, we account for both inter-program variability among the top 625
+programs and intra-program variability among multiple trials of the same
+program.
+
+
+FIGURE
+
+
+We use a 10-nearest-neighbor regressor to predict program performance
+and choose the next program to evaluate with an *MATH* -greedy
+strategy, choosing the best predicted program *MATH* of the time and a
+random program *MATH* of the time. By doing this, we try the most
+promising programs early in our search. This is important for two
+reasons: first, we only try 26,000 programs, half of the whole search
+space, which we estimated from earlier results (shown in
+figure [6] in the appendix) would be enough to
+get *MATH* of the top *MATH* of programs. Second, the earlier we run our
+best programs, the higher the bar for later programs, thus allowing us
+to prune them earlier, further saving computation time. Searching
+through this space took a total of 13 GPU days. As shown in
+figure [7] in the appendix, we find that most
+programs perform relatively poorly, with a long tail of programs that
+are statistically significantly better, comprising roughly *MATH* of
+the whole program space.
+
+
+The highest scoring program (a few other programs have lower average
+performance but are statistically equivalent) is surprisingly simple and
+meaningful, comprised of only 5 operations, even though the limit was 7.
+This program, which we call FAST (Fast Action-Space Transition), is
+shown in figure; it trains a single neural network (a CNN or MLP
+depending on the type of state) to predict the action from *MATH* and
+then compares its predictions based on *MATH* with its predictions
+based on *MATH*, generating high intrinsic reward when the difference
+is large. The action prediction loss module either computes a softmax
+followed by NLL loss or appends zeros to the action to match dimensions
+and applies MSE loss, depending on the type of the action space. Note
+that this is not the same as rewarding taking a different action in the
+previous time-step. The network predicting the action is learning to
+imitate the policy learned by the internal RL agent, because the
+curiosity module does not have direct access to the RL agent&apos;s internal
+state.
+
+
+Of the top 16 programs, 13 are variants of FAST, including versions that
+predict the action from *MATH* instead of *MATH*. The other 3 are
+variants of a more complex program that is hard to understand at first
+glance, but we finally determined to be using ideas similar to
+cycle-consistency in the GAN literature [*REF*] (we thus name
+it Cycle-consistency intrinsic motivation); the diagram and explanation
+are in figure [8] in the appendix.
+Interestingly, to the best of our knowledge neither algorithm had been
+proposed before: we conjecture the former was too simple for humans to
+believe it would be effective and the latter too hard for humans to
+design, as it was already very hard to understand in hindsight.
+
+
+Transferring to new environments
+
+
+Our reward combiner was developed in lunar lander (the simplest
+environment with meaningful extrinsic reward) based on the best program
+among a preliminary set of 16,000 programs (which resembled Random
+Network Distillation; its computation graph is shown in
+appendix). Among a set of 2,500 candidates (with 5 or fewer operations) the best reward combiner
+discovered by our search was *MATH*.
+Notice that for *MATH* (usually the case) this is approximately
+*MATH*, which is a down-scaled version of intrinsic reward plus a linear interpolation that
+ranges from all intrinsic reward at *MATH* to all extrinsic reward at
+*MATH*. In future work, we hope to co-adapt the search for intrinsic
+reward programs and combiners as well as find multiple reward combiners.
+
+
+Given the fixed reward combiner and the list of 2,000 selected programs
+found in the image-based grid world, we evaluate the programs on both
+lunar lander and acrobot, in their discrete action space versions.
+Notice that both environments have much longer horizons than the
+image-based grid world (37,500 and 50,000 vs 2,500) and they have
+vector-based, rather than image-based, inputs. The results in
+figure [2] show good correlation between performance on grid world and on each of
+the new environments. Especially interesting is that, for both
+environments, when intrinsic reward in grid world is above 400 (the
+lowest score that is statistically significantly good), performance on
+the other two environments is also good in more than *MATH* of cases.
+
+
+FIGURE
+
+
+Finally, we evaluate on two MuJoCo environments [*REF*]:
+hopper and ant. These environments have more than an order of
+magnitude longer exploration horizon than acrobot and lunar lander,
+exploring for 500K time-steps, as well as continuous action-spaces
+instead of discrete. We then compare the best 16 programs on grid world
+(most of which also did well on lunar lander and acrobot) to four weak
+baselines (constant 0,-1,1 intrinsic reward and Gaussian noise reward)
+and three published algorithms expressible in our language (shown in
+figure [1]). We run two trials for each algorithm and
+pool all results in each category to get a confidence interval for the
+mean of that category. All trials used the reward combiner found on
+lunar lander. For both environments we find that the performance of our
+top programs is statistically equivalent to published work and
+significantly better than the weak baselines, confirming that we
+meta-learned good curiosity programs.
+
+
+Note that we meta-trained our intrinsic curiosity programs only on one
+environment (GridWorld) and showed they generalized well to other very
+different environments: they perform better than published works in this
+meta-train task and one meta-test task (Acrobot) and on par in the other
+3 tasks meta-test tasks. Adding more meta-training tasks would be as
+simple as standardising the performance within each task (to make
+results comparable) and then selecting the programs with best mean
+performance. We chose to only meta-train on a single, simple, task
+because it (surprisingly!) already gave great results, highlighting the
+broad generalization of meta-learning program representations.
+
+
+TABLE 
+
+
+Related work
+
+
+In some regards our work is similar to neural architecture search
+(NAS) [*REF*; *REF*; *REF*; *REF*]
+or hyperparameter optimization for deep networks [*REF*],
+which aim at finding the best neural network architecture and
+hyper-parameters for a particular task. However, in contrast to most
+(but not all, see  *REF*) NAS work, we want to generalize to
+many environments instead of just one. Moreover, we search over
+programs, which include non-neural operations and data structures,
+rather than just neural-network architectures, and decide what loss
+functions to use for training. Our work also resembles work in the
+AutoML community [*REF*] that searches in a space of programs,
+for example in the case of SAT solving [*REF*] or
+auto-sklearn [*REF*] and concurrent work on learning loss
+functions to replace cross-entropy for training a fixed architecture on
+MNIST and CIFAR [*REF*; *REF*]. Although
+we took inspiration from ideas in that
+community [*REF*; *REF*], our algorithms specify
+both how to compute their outputs and their own optimization objectives
+in order to work well in synchrony with an expensive deep RL algorithm.
+
+
+There has been work on meta-learning with genetic
+programming [*REF*], searching over mathematical
+operations within neural networks [*REF*; *REF*], searching over
+programs to solve games [*REF*; *REF*; *REF*] and to
+optimize neural networks [*REF*; *REF*], and
+neural networks that learn programs [*REF*; *REF*]. Our work uses neural
+networks as basic operations within larger algorithms. Finally, modular
+meta-learning [*REF*; *REF*] trains the weights of
+small neural modules and transfers to new tasks by searching for a good
+composition of modules; as such, it can be seen as a (restricted) dual
+of our approach.
+
+
+There has been much interesting work in designing intrinsic curiosity
+algorithms. We take inspiration from many of them to design our
+domain-specific language. In particular, we rely on the idea of using
+neural network training as an implicit memory, which scales well to
+millions of time-steps, as well as buffers and nearest-neighbour
+regressors. As we showed in figure [1] we can represent several prominent curiosity
+algorithms. We can also generate meaningful algorithms similar to
+novelty search [*REF*] and *MATH*  [*REF*]; which
+include buffers and nearest neighbours. However, there are many
+exploration algorithm classes that we do not cover, such as those
+focusing on generating goals [*REF*; *REF*; *REF*],
+learning progress [*REF*; *REF*; *REF*],
+generating diverse skills [*REF*], stochastic neural
+networks [*REF*; *REF*], count-based
+exploration [*REF*] or object-based curiosity
+measures [*REF*]. Finally, part of our motivation stems
+from *REF* showing that some bonus-based curiosity
+algorithms have trouble generalising to new environments.
+
+
+There have been research efforts on meta-learning exploration policies:
+[*REF*; *REF*] learn an LSTM that explores an
+environment for one episode, retains its hidden state and is spawned in
+a second episode in the same environment; by training the network to
+maximize the reward in the second episode alone it learns to explore
+efficiently in the first episode. *REF* improves their
+exploration and that of [*REF*] by considering the importance
+of sampling in RL policies. *REF* combine gradient-based
+meta-learning with a learned latent exploration space in which they add
+structured noise for meaningful exploration. Closer to our formulation,
+*REF* parametrize an intrinsic reward function which
+influences policy-gradient updates in a differentiable manner, allowing
+them to backpropagate through a single step of the policy-gradient
+update to optimize the intrinsic reward function for a single task. In
+contrast to all three of these methods, we search over algorithms, which
+will allows us to generalize more broadly and to consider the effect of
+exploration on up to *MATH* time-steps instead of the *MATH* 
+of previous work. Finally, [*REF*; *REF*]
+have a setting similar to ours where they modify reward functions over
+the entire agent&apos;s lifetime, but instead of searching over intrinsic
+curiosity algorithms they tune the parameters of a hand-designed reward
+function.
+
+
+Related work on meta-learning [*REF*; *REF*; *REF*]
+and efforts to increase its generalization can be found in
+appendix. Closest to our work, evolved policy gradients
+(EPG,  [*REF*]) use evolutionary strategies to
+meta-learn a neural network that acts as a loss function and is used to
+train a policy network. EPG generalizes by meta-training with target
+locations east of the start location and meta-testing with target
+locations to the west. In contrast, we showed that by meta-learning
+programs, we can generalize between radically different environments,
+not just goal variations of a single environment. Concurrent to our
+work, [*REF*] also show generalization capabilities
+between environments similar to ours (lunar lander, hopper and
+half-cheetah). Their approach transfers a parametric representation, for
+which it is unclear how to adapt the learned neural losses to an unseen
+environment with a different observation space. Their approach thus does
+not encode states into the loss function, which is critical for
+efficient exploration. In contrast, our algorithms can leverage
+polymorphic data types that adapt the neural networks to the environment
+they are running in, adapting both the size and the type of network (CNN
+vs MLP) running in each environment.
+
+
+Conclusions
+
+
+In this work, we proposed to meta-learn algorithms and show that by
+transferring programs we can generalize between tasks much more varied
+than previously possible in meta-RL, even between those with different
+input or output spaces. In many settings, however, the input and output
+space remain the same as we change tasks. This opens the possibility of
+getting the best of both worlds by meta-learning weights along with
+structure, thus simultaneously transferring domain-specific knowledge in
+the weights and higher-level algorithmic knowledge in the architecture.
+In addition, we note that the approach of meta-learning programs instead
+of network weights may have further applications beyond finding
+curiosity algorithms, such as meta-learning optimization algorithms or
+even meta-learning meta-learning algorithms. Our relatively modest
+compute (2 GPU-weeks) and a simple search method restricted us to a
+medium-sized search space, but we expect that future work could search
+over significantly bigger spaces. It thus may be possible to
+automatically search for new machine learning algorithms from more
+fundamental building blocks for a wide variety of problems.

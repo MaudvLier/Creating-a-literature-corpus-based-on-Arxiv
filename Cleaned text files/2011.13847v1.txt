@@ -1,0 +1,902 @@
+Autonomous learning of multiple, context-dependent tasks
+
+
+Introduction 
+
+
+recent years, the development of autonomous agents has gained increasing
+interest in the fields of artificial intelligence, robotics, and machine
+learning. Although autonomy and versatility are pursued via different
+kinds of approaches such as information theory
+[*REF*; *REF*], evolutionary computation [*REF*],
+deep learning [*REF*], or epigenetic models [*REF*], the
+field of developmental robotics [*REF*], and in particular
+the research on intrinsically motivated open-ended learning
+[*REF*; *REF*], is producing a growing
+number of promising and cumulative results.
+
+
+The concept of Intrinsic Motivations (IMs) is borrowed from biological
+[*REF*] and psychological literature [*REF*] describing how
+novel or unexpected &quot;neutral&quot; stimuli, as well as the perception of
+control over the environment, can generate learning processes even in
+the absence of assigned rewards or tasks. In the computational
+literature, IMs have been implemented in artificial agents to foster
+their autonomy in gathering knowledge [*REF*; *REF*],
+learning repertoire of skills [*REF*; *REF*; *REF*; *REF*], exploiting
+affordances from the environment [*REF*; *REF*; *REF*], selecting their own
+tasks [*REF*; *REF*; *REF*], and even
+boosting imitation learning techniques [*REF*].
+
+
+When facing the problem of autonomously learning multiple tasks,
+researchers typically focus on solutions where just one parametrised
+policy per task is sufficient to solve them
+[*REF*; *REF*; *REF*]. Redundancy in motor
+control faced with autonomous agents is usually addressed as a problem
+and tackled through strategies such as goal-babbling
+[*REF*; *REF*], which has been successfully implemented
+together with intrinsic motivation [*REF*]. However, in complex
+environments presenting different contexts in time, the same task might
+need a set of different skills to be solved. The machine learning
+literature has proposed reinforcement learning models [*REF*] to
+face problems where the transition and/or reward functions change in
+time and the agent is not informed on the context it is facing. These
+type of problems have in particular been faced under the heading of
+&quot;non-stationary environments&quot; [*REF*] where the challenge is
+both to recognise the contexts to associate them with different
+models/policies and to manage all (possibly infinite) contexts
+[*REF*; *REF*; *REF*].
+
+
+Both in &quot;one-task/one-skill&quot; multi-task learning and in non-stationary
+setups, the issue of reducing the learning time has been addressed
+through transfer learning techniques [*REF*]: when learning a
+new policy, transferring previously acquired knowledge from a similar
+task can significantly speed up the process. Transfer learning has been
+profitably applied within the reinforcement learning framework
+[*REF*], however this technique does not cope with the
+problem of managing and reducing the generation of multiple contexts.
+
+
+Differently from the research on non-stationary setups, in this work we
+consider the case where a robotic agent can use its sensors to perceive
+the contexts it is facing from time to time, and is allowed to tackle
+the same task using different strategies/policies in different contexts.
+A relevant challenge posed by these types of conditions is the possible
+&quot;explosion of contexts&quot;: indeed, a real-world scenario presents possibly
+infinite set of features that might vary in time and generate a large
+number of contexts, thus overloading the agent&apos;s learning processes and
+memory resources. Moreover, since we are interested in the autonomous
+learning of multiple context-dependent tasks, the agent has also to
+manage the selection of the tasks not only with respect to its learning
+progress [*REF*] but also to the currently faced context. To
+the best of our knowledge, this problem has not been previously faced
+with intrinsically-motivated autonomous learning agents. In the current
+work we thus compare various versions of the proposed architecture
+endowed or not with different mechanisms to face it the problem.
+
+
+To face such types of problems, in this work we present Contextual-GRAIL
+(C-GRAIL), an extension of the GRAIL architecture (Goal-Discovering
+Robotic Architecture for Intrinsically-Motivated Learning
+[*REF*]). Similarly to its precursor, C-GRAIL is able to
+autonomously discover, select, and learn interesting tasks on the basis
+of intrinsic motivations, but new mechanisms allow C-GRAIL to assign
+tasks different values according to contextual features. Moreover,
+C-GRAIL is equipped with transfer learning capabilities and with a smart
+context-detector mechanism to cope with the problem of large numbers of
+possibly equivalent contexts.
+
+
+Problem description 
+
+
+Autonomous learning of multiple tasks 
+
+
+From a reinforcement learning (RL) perspective, solving multiple tasks
+each one associated with a specific goal *MATH*, defined in terms of
+a set of goal states *MATH* can be seen as the objective of
+maximising different goal-dependent reward functions *MATH* through an
+optimal policy described, as in [*REF*], as
+*MATH* where *MATH* is a probability distribution over the goals *MATH*, and *MATH* is the expected
+return for the different tasks collected in the *MATH* time steps of a
+trial. The solution to the problem can be based on a set of policies
+*MATH*, each associated to a goal *MATH* and represented by a
+distinct module (or &quot;expert&quot;) trained through any RL technique, or a
+single &quot;parametrised skill&quot; [*REF*] defined as *MATH*.
+
+
+In an autonomous open-ended learning perspective, we consider the case
+where the agent has to become competent to accomplish a possibly
+infinite set of tasks or goals. In particular, we assume that the
+agent&apos;s life is divided in two phases: a first phase (lasting a finite
+but unknown learning time *MATH*) of autonomous learning where the agent
+has to acquire the policies to achieve the different tasks, and a second
+phase where the agent is tested on a subset of the tasks drawn from an
+unknown distribution *MATH* of tasks involving the same environment.
+
+
+In the first phase, which is the focus of intrinsically motivated
+open-ended learning research and of this work, the agent has to maximise
+its expected competence over the distribution of all possible goals
+*MATH*, where competence *MATH* is a goal-dependent function quantifying the
+capability to obtain returns if tackling a particular task/goal, thus an
+approximation to the returns expected if *MATH* is reinforced in the second
+phase. Equation 2 is a repetition of 1 and must be removed. In fact:
+*MATH*: it makes no sense to call the same quantity with two
+different symbols. Furthermore this implies that equation 2 is a
+repetition of equation 1. In this perspective, the objective function
+described in eq. turns into
+*MATH* where *MATH* is the probability distribution of the goals, and where the
+set of policies *MATH* in eq. have been described as a
+parametrised policy *MATH*.
+
+
+Since the agent ignores the distribution *MATH* of goals on which it will
+be tested in the second phase, during the autonomous learning phase the
+problem becomes the one of properly allocating the training time over
+all the possible goals (see also [*REF*]). This can be
+tackled building a goal-selection policy *MATH* that learns to select the
+appropriate goal to practice at each trial of the first phase. Assuming
+that *MATH* is the current expected competence of the system over the set
+of goals when using *MATH*, once a goal *MATH* is selected the policy is
+trained for a certain amount of time *MATH*, resulting in a modification of
+the overall competence *MATH*. The aim of the agent is to select a
+sequence of goals for each trial so that after the entire learning
+period *MATH* its competence over all the goals is maximised. The objective
+of the agent can thus be described as the construction of the
+goal-selection policy that identifies the goals to practice at each
+trial for a total of *MATH* steps so that the resulting *MATH* is maximal:
+*MATH*.
+
+
+If we assume that tasks are independent (learning one task has no effect
+on the learning of other ones), the problem of task selection can then
+be modelled as an N-armed bandit [*REF*] as in many architectures
+for autonomous open-ended learning [*REF*; *REF*; *REF*; *REF*; *REF*].
+Since it is not possible to analytically determine how the overall
+competence *MATH* is changing after the selection and training of each
+goal, a common solution [*REF*] is to approximate eq. via a greedy approach that
+maximises the expected competence improvement *MATH* defined as
+*MATH* where *MATH* is the expected competence improvement after
+practicing on one particular goal *MATH* for *MATH* steps. Note that given the
+transient nature of *MATH*, which changes with time and decreases
+while competence improves towards its maximum, the N-armed bandit
+associated with goal selection should then be considered as a rotting
+bandit [*REF*].
+
+
+Under these assumptions, the general problem of autonomous learning
+multiple skills can thus be seen as a two-level problem: (a) the
+high-level problem of selecting a goal *MATH* to train on to rapidly
+maximise competence; and (b) the low-level problem of improving the
+policies *MATH* associated with the goals.
+
+
+Introducing context dependency 
+
+
+As described in the introduction, usually multi-tasks learning is
+addressed assuming that for each goal *MATH* a single policy *MATH* might
+be sufficient to achieve the task. Differently, here we are considering
+the case where the same task might need different policies to be solved
+given different environmental conditions. This is a common situation in
+real-world scenarios where achieving the same goal may require a robot
+to use different strategies according to the current context. This may
+be due to the physical structure of the contexts: for example, the
+presence of certain objects in the environment could represent different
+obstacles to reach a certain target for an arm robot. The robot should
+hence possibly need to use different behaviours to reach for the same
+location in the different contexts.
+
+
+If we assume that the robot has the ability to identify the contexts on
+the basis of its sensors, we can divide the set of features *MATH* 
+perceived by the agent into two subsets: (1) &quot;low-level&quot; features *MATH* 
+changing at the fine time-scale of an attempt to achieve a goal and
+describing the state for *MATH*, for example the displacement of the
+joints of the actuator of the robot; (2) high-level features *MATH* 
+changing over a wider time-scale and describing the current context
+*MATH* for *MATH*, for example the position of the obstacles in the
+example mentioned above or more in general other features that are
+constant within the same context. Under these assumptions, the objective
+function related to goal-selection in eq. will then become *MATH* 
+so that goal-selection is now a contextual-bandit problem [*REF*]
+in which the selection of the goal to train (and the attribution of
+values to the different goals) is dependent on the current context
+*MATH*. Similarly, the lower-level problem of training a skill for each
+goal is also dependent on the context: the system have to learn a set of
+policies *MATH* to achieve the same goal in different contexts.
+This therefore involves that, in order to maximise the overall
+competence *MATH*, the system has to consider the specific competences for
+the goals with respect to the different contexts, *MATH*, since
+competence improvement might be very different in different contexts.
+
+
+This description of the problem under the assumption of
+context-dependent tasks assumes that each context *MATH*, described
+through its features *MATH*, is actually affecting goal
+achievability. However in real-world scenarios it is easy to imagine
+that many of the features generating a context do not affect the
+policies that the system is trying to learn. The detected temperature,
+as well as if it is night or day, might have no effect on a reaching
+task performed indoor, while the on/off state of the light in the room
+could; similarly, the presence of objects distant from a target to reach
+should not be taken into consideration by the system, while objects
+positioned close to the target might become obstacles. If the artificial
+agent is supervised by a human designer, the latter could signal which
+elements of the context should be considered, but in an open-learning
+learning perspective the robot should autonomously manage the
+information from the sensors.
+
+
+Since everything could be relevant, a simple solution would be to
+identify any distribution of the &quot;high-level&quot; features as a different
+context *MATH*, thus multiplying the number of contexts by the goals.
+However, this strategy might substantially slow down the learning
+process and burden the system computational resources. Indeed, as
+illustrated in sec. [2.1], the autonomous learning of multiple
+tasks is defined as a problem where the agent should maximise its
+overall competence in an unknown but finite time horizon. Transfer
+learning has proven to speed up the learning process (also with IMs
+[*REF*]), but in a real-world open-ended scenario this
+might not be sufficient to cope with the combinatorial explosion of the
+contexts. Finding a smart and autonomous way to avoid context
+proliferation without impairing the learning of multiple,
+context-dependent tasks is thus a crucial issue for autonomous learning.
+
+
+Proposed solution 
+
+
+As illustrated in the previous section, developing artificial agents for
+the autonomous learning of multiple, context-dependent tasks presents
+two main challenges: (1) the allocation of training time over the tasks
+taking into account the different contexts; (2) the avoidance of context
+proliferation so as to not slow down the learning process under a finite
+and unknown time horizon.
+
+
+To tackle the first issue, our approach follows the analysis in sec.
+[2.2]: task selection is treated as an
+N-armed contextual-bandit where the system evaluates each goal/arm on
+the basis of the competence improvement *MATH* expected from each
+goal in the current context *MATH*. More formally, the goal-selecting
+policy *MATH* in eq. at each moment selects
+a goal *MATH* that maximises the immediate competence improvement given
+*MATH*, i.e. *MATH*. At the lower level
+of policy learning, for each goal and for each context the system
+associates a specific policy *MATH* is trained through any
+learning algorithm maximising the reward *MATH* related to goal *MATH*.
+
+
+To tackle the second problem we propose to build on top of transfer
+learning techniques, such as those proposed in
+[*REF*], to allow the transfer of knowledge
+between the policies *MATH* achieving the same goal in different
+contexts. In particular, we introduce a heuristic based on the Ockham&apos;s
+razor: the agent should tackle multiply contexts with different policies
+unless strictly necessary. Thus, instead of considering every new set of
+features *MATH* as a different context, the agent starts to face it
+by actively ignoring the new contextual features, so that *MATH* can be
+seen as a contextual-bandit problem with just one &quot;baseline/blank&quot;
+context *MATH*. Only when &quot;something goes wrong&quot; the system considers
+the features to detect the context. To asses the need to consider a new
+context as new with respect to the previously experienced ones, and
+within the model-free framework we use, the agent relies on the
+behaviour of its low-level motor policies *MATH*. In particular,
+novelty or surprise, as suggested by the intrinsic motivation framework
+[*REF*], can be used to signal that there is an anomaly. Similarly
+to [*REF*] (although this work was developed within a model-based
+framework), we suggest that an &quot;unexpected failure&quot; in achieving a goal
+can be used as a signal to identify new contexts (see sec.
+[4.2] for details). In addition, having
+a fixed set of contexts for all the goals would be a violation of the
+Ockham&apos;s principle as a specific context could be relevant for certain
+goal but not for other goals. For this reason, the system has to
+identify a different subset of contexts *MATH* for each
+goal, among all the possible contests *MATH*, to further reduce context
+proliferation.
+
+
+However, if this strategy is applied from very beginning of the learning
+process, when the agent is still performing (almost) random behaviours,
+this would still possibly result in an explosion of detected contexts.
+or this reason, our proposal is to trigger the context-detection
+mechanisms only when the competence *MATH* for goal *MATH* in the
+context *MATH* most similar to the current context *MATH* is higher
+than a given threshold (the optimal setting of the threshold is beyond
+the scope of this work; see Appendix for the values used in this work),
+and the system detects a (negative) change in the reward function
+*MATH*. Furthermore, considering all the contextual features of the
+environment would not follow the Ockham&apos;s principle. The system thus
+considers only those features in *MATH* that are &quot;relevant&quot; for the
+task at hand: heuristics and previous knowledge might be used to this
+purpose, for example in a manipulation task they could be those related
+to a contacted object in proximity of the target. If these heuristics
+are not sufficient, the agent should also consider the other features.
+
+
+Once identified, the relevant features will be recognised and considered
+by the system that will add a new context *MATH* to the *MATH* 
+contexts already discovered for goal *MATH*, and such context will be
+considered by the contextual-bandit problem for goal-selection and a new
+policy *MATH* to achieve the same goal in the new
+context. Moreover, as previously stated, *MATH* will
+possibly use transfer learning drawing knowledge from policies developed
+for the same goal in previously contexts (see sec. [4.2] for an example).
+
+
+C-GRAIL 
+
+
+In this section, we describe Contextual-GRAIL (C-GRAIL), a system that
+extends the GRAIL architecture [*REF*] and instantiate the
+proposals described in Sec. [3]. GRAIL is able to autonomously: discover
+goals; select goals according to competence-based intrinsic motivations
+(CB-IMs); recognise goal achievement; select computational resources to
+learn the goal-related skills. Despite its advancements, GRAIL
+(similarly to other autonomous open-ended learning systems
+[*REF*; *REF*; *REF*]) is not able to manage
+context-dependent task selection, nor to identify contexts and avoid
+their proliferation. Instead, C-GRAIL architecture can cope with
+multiple-context learning based on a &quot;smart context-detector&quot; mechanism
+that identifies and stores new contexts when needed, allowing the
+enrichment of the system behaviour. Although autonomous goal discovery
+is not the focus of this work, C-GRAIL is able to perform it inheriting
+this capability from GRAIL.
+
+
+Sec. [4.1] presents a formal description of C-GRAIL
+capturing the main issues tackled in this paper. Other non-relevant
+functions, such as goal-discovery and expert selection, together with
+the specific implementation of the system are reported in Sec.
+[4.2] and in the Appendix.
+
+
+General functioning 
+
+
+Algorithm shows the general functioning of the
+architecture. We assume that the system operates within an episode-based
+reinforcement learning framework involving *MATH* each lasting *MATH* 
+time steps. We assume the state of the environment *MATH* to be represented
+by two sets of different features: low-level features *MATH* (such as
+proprioception) that might change within the trial, and high-level
+contextual features *MATH* (henceforth also denoted as *MATH* for
+simplicity; these involve for example the presence of an obstacle in a
+certain location) that might change between the trials and can be used
+to identify the context. At the beginning of each *MATH*, the system
+observes *MATH* and passes *MATH* to *MATH*, a function returning the context
+*MATH* actually perceived by each goal *MATH*: *MATH* is obtained by
+filtering *MATH* with a useful contextual feature filter *MATH* that
+allows the goal to &quot;see&quot; only the specific high-level features, among
+the features *MATH*, that in the past showed to be relevant for
+achieving the goal *MATH*. The filter *MATH* is in particular formed by a
+list of the relevant high-level features.
+
+
+If a new context *MATH* is identified for a goal,
+that context is added to the list of known contexts *MATH* of the goal
+and a new policy *MATH* is created and associated to the
+goal. Transfer learning techniques are used to speed up the training of
+the policy (see sec. [4.2] for details). To this purpose: a
+policy *MATH* is randomly selected from the policies (if
+any) used to achieve the same goal in a different context *MATH* 
+and having a competence higher than a certain *MATH*; the
+selected policy is used to act; if the policy successfully achieves the
+goal, then it is used to initialise the new policy. For each trial this
+attempt to transfer is however done only with a certain probability so
+that the new policy with parameters created from scratch can
+progressively acquire the needed skill in case transfer is not possible.
+
+
+The set of the identified current contexts *MATH*, one for each goal,
+are passed to the goal-selector policy *MATH* that determines, on the
+basis of competence improvement intrinsic motivations
+*MATH*, the goal to pursue in the current *MATH*. We
+make no assumptions on how to implement *MATH*, but it can be seen as a
+stochastic policy selecting one goal according to a *MATH* 
+distribution based on intrinsic motivations. The competence measure
+*MATH* is defined as the probability estimate of achieving *MATH* 
+given context *MATH* and the system can autonomously asses it through
+a &quot;predictive function&quot; *MATH*. *MATH* is thus
+computed as the difference between prior (*MATH*) and posterior
+(*MATH*) estimated probabilities of achieving a goal given
+the same context *MATH*.
+
+
+The selected goal *MATH* and the identified context *MATH* are then used
+to select the expert/policy to achieve *MATH* (there can be just one expert
+for each couple *MATH* or more than one, see sec.
+[4.2]). At each time step *MATH* of the
+trial, on the basis of the low-level features *MATH* of the current state
+*MATH*, an action *MATH* is selected through the policy
+*MATH* bringing the agent in *MATH*. The new state is
+observed and a reward is autonomously calculated using the *MATH* 
+function: this function returns *MATH* (success) if the system has
+achieved the goal-state associated with *MATH*, and *MATH* (failure)
+otherwise. The policy *MATH* is hence updated accordingly
+using such reward. If the *MATH* ends before its time-up *MATH* with a
+*MATH* (see sec. [4.2]), and the computed *MATH* 
+is over a certain *MATH*, the high-level features
+*MATH* of *MATH* related to the condition at hand (for the
+specific heuristics used here see sec. [4.2]) are added to the list of
+*MATH*. Finally, the competence predictor *MATH* is updated accordingly
+to goal achievement *MATH* and the difference between *MATH* and
+*MATH* is calculated to provide the CB-IM
+*MATH* that biases goal selection.
+
+
+ALGORITHM
+
+
+Implementation 
+
+
+FIGURE
+
+
+This section presents the implementation of C-GRAIL in the current work
+as sketched in Fig. [1]. Further technical details can be found in
+the Appendix.
+
+
+The robot and the sensory input 
+
+
+C-GRAIL is implemented in a simulated iCub robot through the 3-D
+physical engine GAZEBO and dedicated YARP plugins. We use two arms of
+the robot with 4 degrees-of-freedom, since wrists joints are kept fixed
+and hands are substituted by 2 scoops (see Fig. [2]). Collisions are not taken into
+consideration: a sensor at the centre of each scoop detects whether the
+robot has &quot;touched&quot; one of the objects in the environment. The input to
+the robot are provided by two sources: the camera of its right eye, kept
+fixed so that all objects remain in the visual field; the arms joints
+whose angles determine the robot proprioception.
+
+
+Goal discovery 
+
+
+As in other versions of the GRAIL architecture
+[*REF*; *REF*], the system is endowed with a
+mechanism to autonomously discover &quot;interesting&quot; states and store them
+as possible goals: here we use a simple, biologically inspired
+[*REF*; *REF*] built-in strategy detecting
+those states resulting from a change in the visual input. The visual
+input images corresponding to two succeeding time steps are compared and
+whenever there is a change (the movements of the arms are excluded, see
+Appendix) the image resulting from the difference between the two images
+is taken and compared with previously stored ones: if new, it is stored
+in the goal-representation map (GR-M) and associated with the first
+available unit of the goal-selector (see sec.
+[4.2.4]). Since the system retains the
+representations of the discovered goals, it is able to autonomously
+assess, through a goal-matching function (GM, sec. [4.2.8]), if a goal has been achieved, thus
+providing a signal to train the policies (the experts), the
+expert-selector, and the predictor determining the intrinsic motivations (sec. [4.2.9]).
+
+
+Smart context-detector 
+
+
+This is the component introduced in C-GRAIL to avoid context
+proliferation. It is composed of two mechanisms: the detection of
+current relevant contexts and the gathering of useful contextual
+features (*MATH*). At the beginning of each trial, the smart
+context-detector (SCD) receives as input the set of contextual feature
+*MATH* in the environment. These are the values of those features that
+are not changing during the trial, which in the experimental case
+presented here (see sec. [5]) are the occupied/non-occupied
+possible positions of the obstacles. For each goal *MATH* the system has a
+list of &apos;identified&apos; *MATH* that have this far revealed relevant to
+accomplish the goal. A Context Matching function *MATH* filters the
+current features *MATH* with the *MATH* of each goal, returning a list
+of goal-specific contexts *MATH* for all the currently
+known goals. This list is then used by the goal-selector to choose the
+goal to pursue on the basis of context-specific intrinsic motivations.
+If a new context *MATH* is detected for goal *MATH*, it is added to
+the set of *MATH* *MATH* for that goal, and a new policy
+*MATH* associated to the goal *MATH* is added to the
+repertoire of the system as a new expert (see sec. [4.2.6] and [4.2.7]).
+
+
+While training on *MATH*, if there is a *MATH* that terminates the trial
+before its maximum duration *MATH* (see sec.
+[5]), and if the predicted performance
+level (see sec. [4.2.9]) within the current context
+*MATH* is higher then a *MATH* (whose value has been
+set through experimental heuristics, see Appendix for details), the SCD
+component receives in input the values of the contextual features *MATH* 
+related to the environmental state *MATH* (here represented by the centre
+of the scoop on the actuated arm) where the agent is situated when the
+trial terminates. In other words, if the agent bumps into an obstacle,
+only the features related to that specific obstacle are passed to the
+SCD, while all the others are not taken into consideration since the
+system, following the law of parsimony, assumes that only the features
+of its current position are involved in the signalled failure. These
+*MATH* are then compared with the previously identified list *MATH* for
+the pursued *MATH* and if not present they are added to it.
+
+
+Goal-selector 
+
+
+At each trial, the goal-selector determines the goal to pursue on the
+basis of CB-IMs and the current context. In particular, the
+goal-selector takes as input the current goal-specific contexts *MATH* 
+identified by the SCD component and selects the goal to pursue according
+to a softmax selection rule based on the current values of the goals,
+updated through a standard exponential moving average (EMA) based on
+goal-and-context specific CB-IMs (sec. [4.2.9]). As in other GRAIL versions, at
+the beginning of the experiment the goal-selector is a &quot;blank vector&quot;
+whose units are not associated with any specific goal but during
+exploration the system is able to autonomously discover new goals and
+associate them to the units in the goal-selector as described in sec.
+[4.2.2].
+
+
+Expert selector 
+
+
+In its simplest version, C-GRAIL can be implemented associating to each
+*MATH* couple a specific expert encoding the policy that controls
+the robot when learning *MATH* in *MATH*: when a task is selected through
+the goal-selector, the expert associated with that goal-context couple
+gets in charge of guiding the robot behaviour. However, as in previous
+versions of GRAIL, we endow the robot with the capability of
+autonomously selecting different computational resources, one for each
+arm, to achieve the same goal even in the same context. All the goals
+(within each context) can be achieved using both arms, but in this way
+the system has a further degree of autonomy whose advantages,
+investigated in [*REF*], are beyond the scope of this
+work. Given the selected goal and the current context for that goal, the
+selection of the expert is based on an EMA of the rewards provided by
+the goal-matching (GM) function for achieving that goal. Based on this
+mechanism, the higher the probability of success with an arm, the higher
+the probability of selecting it for the same goal in the same context.
+
+
+Experts 
+
+
+Each expert is implemented as a neural-network actor-critic model
+modified to work with continuous states and action spaces [*REF*].
+When selected, each expert receives as input the low-level features
+*MATH* corresponding to the four actuated joints of the related arm
+(three for the shoulder, one for the elbow). Four output units of the
+expert&apos;s actor encode the displacement of the joints through position
+control. At each step, the selected expert is trained through a TD
+reinforcement learning algorithm [*REF*] maximising the rewards
+generated by the GM function for achieving the currently selected goal.
+
+
+Transfer learning 
+
+
+After a goal has been selected, the system checks through its competence
+predictor *MATH* (see sec. [4.2.9]) the expected performance for that
+goal in the current context *MATH* for the associated policy
+*MATH*. If the prediction is under a certain learning
+threshold (see Appendix for all the details), the system checks if a
+policy *MATH* exists for the same goal in a different
+context *MATH* whose expected performance is higher than a
+transfer threshold and, with a certain transfer probability, uses it
+for transfer learning (if multiple candidate experts are available, one
+is randomly picked with uniform probability); the robot action is
+controlled by the policy of the selected source expert and if the
+trial ends achieving the current goal the parameters of the policy
+(actor) and evaluation function (critic) of the source expert are
+copied into the target expert associated with the goal at hand.
+Instead, in the case of failure the transfer does not happen and is
+possibly attempted again in the next trial with a different (or the
+same) expert.
+
+
+Goal-Matching 
+
+
+The GM function allows the agent to autonomously check if a pursued task
+has been achieved. When a task is selected by the goal-selector its
+representation in the GR-M is activated. While operating, if a change is
+detected in the visual input, GM compares it with the representation of
+the currently selected goal: the component generates a signal of *MATH* or
+*MATH* if there is or there is not, respectively, an overlap of the two
+images (see Appendix for details). In the specific experimental domain
+presented here the GM generates a binary signal, but this signal could
+be continuous in different domains [*REF*]. The signal is
+used as a reward signal to train the experts and the expert-selector;
+moreover, it is used as a teaching input for the predictor whose
+activity determines the CB-IM signals that bias goal selection.
+
+
+Intrinsic Motivations 
+
+
+The CB-IMs signal, modelled as a competence improvement signal
+[*REF*], is the result of the activity of the competence
+predictor *MATH*. At the beginning of each trial, this component
+receives as input the selected goal *MATH* and the goal-specific context
+*MATH*, and outputs the predicted performance of the agent, which is
+used also in the transfer learning process (sec. [4.2.7]). At the end of the trial the
+prediction is updated according to the GM output, and the competence
+prediction improvement (CPI), calculated over a fixed time-window (see
+Appendix), determines goal/context-dependent CB-IM signals biasing goal
+selection.
+
+
+Experimental setup 
+
+
+Environment and task 
+
+
+In addition to the simulated robot, the environment is composed of 3
+spherical objects representing potential reaching targets (Fig.
+[2]). Moreover, a varying number of rectangular
+parallelepiped obstacles (maximum 9) are placed close to the targets. In
+particular, for each target there might be simultaneously 3 obstacles
+facing it on its right, left, and middle. All the objects are anchored
+to the world and they are always in the visual field of the robot and at
+reaching distance. When touched, a target &apos;switches on&apos; by changing its
+colour to green. The task consists in learning to activate the targets
+in the shortest amount of time and in the different environmental
+contexts. At the beginning of each trial, the number of the obstacles
+change thus configuring a new context (with 9 present/absent obstacles
+there are *MATH* possible contexts). The experiment lasts for 50,000
+trials each ending after 700 steps or when one any object (targets or
+spheres) is touched.
+
+
+FIGURE
+
+
+Compared systems 
+
+
+To test the efficacy of our approach, we compared C-GRAIL to other
+three systems, each one lacking some of the mechanisms implemented in
+our architecture and reflecting other systems in the literature:
+- Bandit: multi-armed bandit. This system is built similarly to
+other architectures for autonomous multi-task learning
+[*REF*; *REF*; *REF*], where goal selection
+is treated as a multi-armed bandit without context and each
+task/goal is associated with a single learning policy. No transfer
+learning (TL) is used.
+- C-Transfer: contextual bandit with transfer learning. This
+system implements autonomous goal-selection as a contextual bandit
+similarly to what done in [*REF*; *REF*], but it is not
+endowed with the smart context-detector (SCD) mechanism as C-GRAIL,
+thus all the possible contexts are actually taken into consideration
+by the system. The system is equipped with TL to share knowledge
+between policies achieving the same goal in different contexts.
+- Smart C-Bandit: contextual bandit with smart context-detection but
+no TL. This system implements the SCD mechanisms as C-GRAIL but it
+lacks TL. The system is thus able to limit context proliferation but
+it has to learn each context-dependent expert from scratch.
+
+
+Results 
+
+
+In this section we present the results of the caparison of the four
+systems: Bandit, C-Transfer, Smart C-Bandit, C-GRAIL.
+
+
+FIGURE
+
+
+Fig. shows the average performances (over
+10 repetitions) of the four systems engaged in learning to reach the
+three different spheres. As expected, the Bandit cannot achieve a
+sufficient performance on the tasks. The system is not able to
+distinguish the different contexts and has only one trainable expert for
+each goal: not only the agent cannot select the most profitable goals
+according to the current obstacles, but having to learn a single policy
+to reach the same goal in different contexts it will continue to modify
+the same experts thus incurring catastrophic forgetting.
+
+
+C-Transfer achieves a good performance over all the tasks
+(*MATH* 80%) only at the very end of the experiment.
+Smart C-Bandit reaches a lower average performance (between
+*MATH* 75% on goal 2 and *MATH* 45% on
+goal 3). C-GRAIL is capable to achieve a 100% performance after only
+*MATH* 8,000 trials. To better investigate the
+differences between these last three systems and to understand how the
+components of C-GRAIL contribute to its performance, we focus the
+analysis on the learning of a single goal (goal 1, i.e. the sphere
+positioned on the left of the robot) considering data of a single
+representative seed for each system.
+
+
+Fig. [7] shows the performance of C-Transfer on
+goal 1 as an average over all the contexts, while Fig.
+[8] shows the learning and performance for
+that goal with respect to the different contexts depending on the
+configuration of the obstacles. To make the visualisation easier, we
+have shown here only the contexts determined by the three obstacles
+close to the sphere associated with goal 1, i.e. *MATH* contexts: the one
+without obstacles (identified as 1,0,0,0 in Fig.
+[8]) and the various combinations of the
+three. However notice that the total number of possible contexts is
+given by the combination of the nine obstacles that may be present in
+the world (*MATH* possible configurations). Since C-Transfer does not
+have the smart context-detector embedded both in Smart C-Bandit and
+C-GRAIL, the system considers, for each goal, all the 512 possible
+contexts, thus 512 policies to potentially train. However, the transfer
+mechanism guarantees the system to share the motor competence acquired
+in the contexts, both with partial transfer (dotted green lines in Fig.
+[8]) or copying the entire policy of a
+different context when it can achieve the goal (dotted purple lines in
+Fig. [8]). Although C-Transfer manages to achieve
+a high performance, the learning process is slowed down by the fact that
+the system considers all the 512 contexts, including those combined with
+obstacles not relevant to the task at hand (i.e. those close to the
+other spheres). This not only wastes time in transferring skills between
+contexts, but also slows down the goal selection process: as shown in
+the fig. [8], the intrinsic motivations signal
+(orange lines) is always present on each goal-related context even when
+competence has been properly acquired. This is because the plotted
+signals incorporate the combination of the single goal-related contexts
+with all the configuration of the obstacles related to the other
+spheres. Since intrinsic motivations are context-related, the system
+might still have motivation to improve its competence in a context even
+if it is actually able to achieve the goal (if we just consider the
+configuration of the three goal-related obstacles): this is clear if we
+look at the final trials of the simulation, where even if the
+performance is near the 80% the magnitude of the IM signal is high, and
+where the system is still performing transfer learning between contexts
+(which are those not explicitly reported in the graph).
+
+
+FIGURE
+
+
+Fig. [9] shows the performance of Smart C-Bandit
+system on goal 1, averaged on all the possible contexts. Thanks to the
+smart context-detector described in Sec.
+[4.2.3] the system adds new context-related
+policies only when hitting on obstacles (and only if the current policy
+has reached a minimum level of performance). In particular, when
+performing task 1 Smart C-Bandit &quot;discovers&quot; two obstacles close to the
+associated sphere (dotted red lines in Fig.
+[9]) and only two other obstacles standing
+close to the other targets (dotted black lines in Fig.
+[9]), resulting in four goal-related contexts
+plus all the combinations with the other two discovered obstacles for a
+total of &quot;only&quot; 16 contexts, way less than the 512 that a system such as
+C-Transfer has to consider. However, this advantage is not enough to
+make Smart C-Bandit perform better than C-Transfer. Indeed, not being
+able to exploit the power of transfer learning, every time a new context
+is identified the system has to start learning the related skill from
+scratch, thus loosing time in re-acquiring previously learnt behaviours.
+This is clear from Fig. [12]: in many cases, when the system
+discovers a new obstacle/context there is a significant drop in the
+performance even when the agent was properly accomplishing the task.
+
+
+If transfer learning alone is not able to reduce learning time due to
+the large number of contexts generated by only nine obstacles, and if
+the smart reduction of context alone cannot cope with the problem of
+having to re-learn skills from scratch, integrating the two mechanisms
+into one architecture results in a profitable solution to the autonomous
+learning of multiple context-dependent tasks. Fig.
+[11] shows the performance of C-GRAIL on goal
+1 averaged over the different contexts (for a video of the behaviour of
+the robot, see: WEBSITE; the video
+shows an initial phase where the robot explores randomly, an
+intermediate phase where the robot has started to learn, and a final
+phase where+ the robot shows a highly efficient behaviour). The system
+reaches a 100% performance at trial *MATH* 4,000 and
+discovers two task-related obstacles as Smart C-Bandit but no other
+obstacles, thus employing only four different contexts for this task.
+Thanks to transfer learning, the system has no drop in performance when
+new contexts are identified and a rapid learning of the four experts
+associated with the four identified contexts, and can thus easily cope
+with all the 512 contexts present in the environment. This guarantees
+fast learning, reflected on a rapid decrease in the IM signals related
+to goal 1, which allow the system to focus and fast learn also the other
+tasks (as reported in Fig. [6]). Moreover, the fast learning also helps the
+system to reduce the amount of discovered obstacles: the quicker the
+system learns the task, the less exploration and therefore the lower the
+risk of hitting and discovering other obstacles.
+
+
+FIGURE
+
+
+Discussion and conclusions 
+
+
+In this work we tackled the problem of the autonomous learning of
+multiple context-dependent tasks. What we proposed is to combine the
+well known practice of transfer learning with a mechanism that
+guarantees the reduction of the number of contexts to handle, focusing
+only on those that are relevant for the tasks to accomplish. To this
+purpose, we presented C-GRAIL, an integrated robotic architecture for
+intrinsically motivated open-ended learning that enhances the previous
+GRAIL system [*REF*] with mechanisms for autonomous
+multiple task learning, smart context-detection, and transfer learning.
+We compared C-GRAIL with other systems in a simulated robotic scenario
+and we shew how its components contribute to the rapid and successful
+learning of multiple, context-dependent tasks.
+
+
+In particular, the results show that transfer learning alone ensures the
+rapid sharing of acquired skills, but it cannot be sufficient in
+environments with multiple, possibly not relevant contexts. On the
+contrary, a system able to take into account only the conditions that
+actually influence the success of the tasks, can significantly reduce
+the number of contexts and therefore the number of skills to learn. In
+the experiment shown in this work, this mechanism is able to identify 8
+relevant contexts out of 512, thus also increasing the advantages of
+transfer learning.
+
+
+The experiments also shew how the framework of intrinsic motivations and
+the idea of &quot;artificial curiosity&quot; can be useful not only for task
+management, but also for identifying relevant contexts. Indeed, the
+surprise caused by an unexpected failure is a suitable trigger to bring
+the attention of the system to those environmental features that need to
+be taken into account to build new task-related policies.
+
+
+Although the model allowed these achievements, we are aware that its
+current operationalisation has limitations that might be addressed in
+future work. This could be facilitated by the fact that C-GRAIL can be
+considered as a blueprint architecture whose specific implementation and
+components can be modified and improved with computationally more
+effective components and additional mechanisms.
+
+
+A relevant limitation of the system are the perceptual components of the
+architecture. In particular, we now arrange the system perception in
+terms of low-level features used for motor control and high-level
+features relevant for the acquisition of goals and the detection of
+contexts. Future work might enhance the system by endowing it with the
+capacity of extracting relevant high-level features autonomously. To
+this purpose, for example, one might still divide the different use of
+proprioception for guiding control and images to guide the decisions on
+goals and contexts. However, for example, one might use auto-encoder
+neural networks to autonomously identify high-level meaningful features
+of objects as &quot;latent causes&quot; generating the images, encoded in the
+network &quot;bottleneck&quot; layers [*REF*]. This would allow the
+autonomous identification of high-level features.
+
+
+A problem related to the previous point is the fact that now when the
+agent fails to obtain the expected success for a goal due to the changed
+context the selection of the new relevant features (obstacles) is
+facilitated by the fact that the obstacles are discrete, their encoding
+is given to the agent as a vector of high-level features, and that the
+robot selects as relevant the features those that are close to the hand
+when a hit happens. Future work might thus aim to allow the agent to
+autonomously guess which are the features that are actually relevant,
+for example by comparing the high-level features (e.g., extracted with
+an auto-encoder as discussed above) corresponding to the different
+contexts in order to focus on the different ones, and then by making
+different guesses and checks on which ones do actually matter.
+
+
+Last, testing the enhanced features of C-GRAIL discussed above would
+require the use of scenarios and tasks going beyond those considered
+here. For example, we required the learning of a simple reach-and-touch
+action to be performed on spherical objects; moreover, the environment
+contained only distinct and regular obstacles with same size and similar
+locations with respect to the target. A more complex challenge might for
+example require the pursuit of more complex goals, such as picking up
+and placing objects in desired locations in a scenario containing
+several obstacles having variable size, shape, and spatial arrangement.
+
+
+Notwithstanding these possible improvements, C-GRAIL represents an
+advancement with respect to previous systems for open-ended learning as
+it integrates for the first time two critical features needed for fully
+autonomous learning, namely the capacity to actively take into
+consideration contextual features only when they are relevant for the
+specific goal pursued and the capacity to adapt to the new relevant
+contexts through transfer learning.

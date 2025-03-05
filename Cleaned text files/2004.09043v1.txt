@@ -1,0 +1,586 @@
+Introduction *REF* 
+
+
+Previous works introduce the concept of spiking neural networks and
+illustrate reinforcement learning as a potential use case
+[*REF*; *REF*;  *REF*]. We build upon these works by abstracting away the necessity for spike trains and
+introducing new ideas from neuroscience, including memory formation,
+intrinsic motivation, and computationally-efficient algorithms for
+spike-timing dependent plasticity.
+
+
+FIGURE
+
+
+Background
+
+
+Spike-Timing Dependent Plasticity
+
+
+Spike-timing dependent plasticity (STDP) is a biological phenomenon that
+constantly updates the strength of connections between neurons in the
+brain based on firing patterns. Connections strengths are adjusted based
+on the timings between a neuron firing and its input neurons firing,
+such that neurons that fire consecutively have their connections
+strengthened in the &quot;direction&quot; of firing. This formulation has been
+shown to explain characteristics of long-term depression and other
+neuroscientific phenomena, as shown in [*REF*].
+
+
+One natural but generally not-revealing approach is the use of STDP to
+train a neural network to identify patterns, then using a separate
+neural network trained on the STDP network&apos;s firings to make
+predictions. This approach was used to accurately predict road traffic
+dynamics by *REF*.
+
+
+Another important adaptation of STDP to the formulation of reinforcement
+learning is called reward-modulated STDP, as explained in
+[*REF*]. The idea is that including a global reward
+signal into the standard STDP formulation can be analytically shown to
+lead to a reinforcement learning algorithm, thus &quot;modulating&quot; the STDP
+with the reward. In essence, this is simply STDP where the learning
+update step is multiplied by the reward. We see that in a later section,
+we continue to draw upon neuroscience research by coming up with
+intrinsic rewards based on motivation rather than explicit rewards
+specified by the environment or programmer.
+
+
+Long-Term and Short-Term Memory
+
+
+Research indicates that there are distinct chemical and physiological
+properties of neural connections which correspond to long-term and
+short-term memory [*REF*]. Moreover, there seem to be explicit
+chemical causes for this transition [*REF*]. In the
+context of spike-timing dependent plasticity, a transition from
+short-term to long-term memory of a connection that has been
+consistently, actively predictive allows for more sophisticated new
+representations to be built ones.
+
+
+Intrinsic Reward
+
+
+Intrinsic reward refers to the idea that humans often learn and discover
+useful behaviors within their environments through experimentation,
+exploration, and often just spontaneity. In work modeling intrinsic
+reward signals in artificial agents, researchers frequently draw an
+analogy with young infants, who are often observed to learn about the
+world by engaging with it through \&quot;playful behavior\&quot;
+[*REF*]. The goal in similar research is discovering a
+reward signal which allows an agent to learn effectively about its
+environment in a generalizable manner, regardless of the structure of
+the environment.
+
+
+Neural Noise
+
+
+Some amount of neural noise has consistently been shown to be useful in
+training spiking neural models and appears to be important in actual
+neuronal processing, though aside from possibly preventing overfitting,
+the function this noise plays in the actual brain is a topic of debate
+[*REF*:2013; *REF*]. Regardless, some baseline level of firing
+encourages a model that does something rather than nothing.
+
+
+Approach 
+
+
+Architecture
+
+
+As our model, we constructed a Neuron-in-a-Box architecture. This
+architecture was composed of an input layer which took in pixel input
+(either from a continuous video and/or audio stream) which then produced
+feedforward outputs into a number of feedforward neurons. These neurons
+were randomly spatially distributed, and connections were formed such
+that neurons closer spatially would be more likely to form a connection.
+Then, a random subset of neurons in a slice of the architecture are
+selected as output neurons, which were moved to a constant distance from
+the input.
+
+
+The long-term memory was implemented by keeping an accumulator which
+tracks the frequency with which a neuron fires and, if synaptic strength
+is high enough, changes the plasticity of the connection to false.
+
+
+The intrinsic reward which we attempted to use was simply the amount of
+learning that occurs at each timestep. In other words, we expected that
+training based on amount of novelty would eventually lead to good
+performance in a similar manner to a curious agent exploring phenomena
+it finds surprising. Unfortunately, in the dinosaur game, the game-over
+screen results in more novelty than simply continuing to explore the
+world, so eventually the agent converges on immediately ending the game.
+While in theory the game-over screen should eventually become
+uninteresting to the agent, this did not seem to happen in practice.
+
+
+Reinforcement
+
+
+One guiding principle used was the idea that, at least at this level, a
+small number of neurons do not explicitly learn state values and choose
+firings that maximize over these states. Instead, the presence or lack
+of reward should be used to directly strengthen or weaken neural
+connections.
+
+
+Direct Reward
+
+
+Suppose we take a very blunt approach: if the neural network did
+something good, we want it to do that more often. If it did something
+bad, we want it to do less of that. This \&quot;global\&quot; update seems pretty
+consistent with what we see in the brain: many reward pathways, when
+triggered, affect many neurons at the same time and propagate to large
+parts of the brain [*REF*].
+
+
+There are several questions that need to be answered with this approach:
+first, what should be strengthened with a global reinforcement? For
+consistency, I will refer to the underlying sensory inputs as sensory
+neurons, the neurons that are not directly measured when determining an
+action as intermediate neurons, and the neurons that are directly
+measured as action neurons.
+
+
+1. All neural connections (including inhibitory connections): This
+is far too coarse, and actually weakens the strongest connections
+relative to everything else due to the maximal connection strength.
+It introduces noise and encourages unstable solutions. However,
+combined with STDP, this can encourages the learning of meaningful
+relationships because neurons that may have nearly fired before,
+that capture information relevant to the reward, will now be more
+likely to fire and be related to one another by an action neuron.
+
+
+2. Outputs from neurons that fired: This is more stable, but has
+another significant problem: sometimes you want to reward passivity.
+For example, in the pendulum game, the action neurons are rewarded
+for not firing when the pendulum is at the top. Furthermore, as we
+know from backpropagation, which we avoided using, not the entire
+network is equally responsible for the result.
+
+
+3. Connections which were used: That is, where the input neuron
+fired and the output neuron&apos;s firing corresponds to whether the
+connection is excitatory (positive) or inhibitory (negative). This
+is one of the better options, but it is almost always more
+consequential to fire than to not fire so this ends up killing the
+network.
+
+
+4. Input connections to action neurons: This is stable and can
+actually indirectly facilitate the development of \&quot;reward
+neurons,\&quot; but can actually result in a disproportionate
+reinforcement of inputs which are counterproductive (for example, if
+an action neuron fired with to one strong excitatory input and
+several weak inhibitory inputs, it would actually become less likely
+to fire). If instead you consider only the connections that were
+used, as in the previous item, one could end up silencing all
+connections there&apos;s a delay between reward and firing.
+
+
+5. Input connections to action neurons where both fired: This is
+stable and results in behavior learning, but unfortunately still
+suffers from the same problem as Approach 2. However, STDP can
+accomplish much of the work which backpropogation is usually used
+for, allowing neurons that are strengthened to strengthen their
+inputs which are responsible.
+
+
+STDP Reinforcement
+
+
+There are two ways that we considered using STDP to directly shape
+behavior. First, we can simply multiply the STDP reward update by the
+reward. For negative rewards, this will actually lead to unlearning or
+\&quot;forgetting\&quot; whatever was just experienced, which isn&apos;t necessarily
+ideal. Alternatively, we can measure the size of the learning update and
+using a direct reward to reinforce actions that lead to more learning.
+This is necessary to approach questions with sparse rewards that require
+exploration. In essence, it encourages the network to take a more scenic
+route when it can.
+
+
+Memory
+
+
+The idea of memory in our model is to keep fixed those connections that
+lead to the agent&apos;s favorable behavior so that intelligent strategies
+are propagated forward in time. Our approach consists of a plasticity
+mask which modulates (in the short term) the degree with which any
+connection can be altered by future weight updates in the long term. To
+implement this in practice, we considered two approaches.
+
+
+1. All neural connections decay uniformly (\&quot;aging\&quot;): This method
+involves decaying the plasticity of all connections uniformly over
+time. This approach seems far too coarse as it fails to adequately
+account for differences in favorability of connections.
+
+
+2. Plasticity decay accumulation: This approach involves
+accumulating modifications to individual connections. In other
+words, the more a particular connection is changed, the more
+&apos;change&apos; is accumulated. Once this value reaches a certain threshold
+for a connection and its strength is significantly above mean
+connection strength, the connection is fixed and cannot be altered.
+This relies on the assumption that those connections which have been
+altered many times are closer to converging on an optimal fixed
+strength, whereas those which have not changed much still have room
+to change.
+
+
+Theory
+
+
+There are a number of important theoretical questions which needed to be
+tackled in order to implement this agent.
+
+
+Discrete STDP Update Rule
+
+
+STDP is often implemented based on a weighted sum over some rolling
+windows combined with some neuronal spiking frequency
+[*REF*]. This approach is absolutely biologically
+realistic, and researchers have even argued that norepinephrine plays
+the role of determining the size of this window [*REF*]. However,
+it&apos;s computationally inefficient to implement across many neurons, and
+is only parallelizable with a high STDP update frequency, which comes
+with its own computational cost.
+
+
+We derive a discrete, matrix-operation parallel to the standard STDP
+rule. Given with *MATH* neurons, a prior time-window of firings
+*MATH* and a current time-window firings *MATH*, an an input connection matrix C
+*MATH* we want to output an updated connection matrix C&apos; *MATH*.
+
+
+We want a function with two features.
+-  It should strengthen connections which are predictive: if neuron *MATH* 
+fires and then neuron *MATH* fires, the connection *MATH* should
+strengthen and *MATH* should weaken.
+-  It should only strengthen connections where both of the neurons
+fired at least once
+
+
+Predictivity
+
+
+We can represent the first feature by the following rule: For first
+firings *MATH* and second firing *MATH* as defined above,
+*MATH*. 
+
+
+For *MATH*, *MATH*.
+
+
+For *MATH*, *MATH*. 
+
+
+For *MATH*, *MATH*. 
+
+
+Since the last example is clearly not the desired result (One doesn&apos;t
+want to weaken all connections that fire unprompted), we need to
+incorporate the second requirement.
+
+
+Co-occurrence
+
+
+To do this, we calculate the pairwise matrix directly: *MATH*.
+
+
+For example, for *MATH*, *MATH*.
+
+
+That is, the connection from the last neuron to the first neuron is the
+only one that&apos;s strengthened.
+
+
+Update
+
+
+Supposing we have a connection matrix, C, of *MATH* 
+an update weight of *MATH*, and a plasticity matrix *MATH* of all 1&apos;s.
+The new connection matrix is *MATH* C&apos; = f(\alpha, \beta, C) = *MATH* 
+*MATH*.
+
+
+Overrall
+
+
+Where for the firings at to timesteps, *MATH*, a learning rate
+*MATH*, a connections matrix C, and a plasticity matrix P, the
+discrete STDP update rule is: *MATH*.
+
+
+Reward Neurons
+
+
+Reward neurons are a surprisingly elegant way to learn rewards and
+modulate actions. Essentially, if one sets the reward neuron to fire
+with strength corresponding the reward, then an STDP update will
+reinforce other input connections that predict the firing of that
+reward, and then inputs that predict the firings of those inputs will be
+further strengthened.
+
+
+FIGURE
+
+
+Ideally, we want B to also be able to trigger the reward neuron, so that
+reward can be predicted when not yet present, so the reward neuron
+should sum its inputs, rather than simply be set directly to R. Since
+*MATH* is initially weak, then this is initially *MATH*.
+
+
+If r and B have a firing covariance *MATH*, eventually *MATH* 
+will converge on *MATH*, if there are no other outputs, since
+*MATH* will be strengthened if the frequency of firing of B is less
+than the firing of *MATH*, and weakened otherwise. If B is an output
+neuron, then this implies a statistical equivalent to Rescorla-Wagner
+learning [*REF*]: *MATH*. The
+more similar the frequencies of firing, the larger the update from an
+error in the opposite direction (i.e. the closer it gets to the actual
+covariance) and the smaller an error in the correct direction.
+
+
+Note that this same relationship between also applies between A and B,
+so *MATH* tends to *MATH*. As a result, as the
+connection between *MATH* and *MATH* is strengthened in line with
+Rescorla-Wagner, the same thing happens to the connection from *MATH* to
+*MATH*. Propagating R-W value backwards in time by considering the
+covariance of states in this way is known as Temporal Difference
+learning: *MATH*.
+
+
+Novelty
+
+
+Novelty as a reward has been shown for decades in primates to be a valid
+reward stimulus[*REF* -Rubio1942]. Hence, we aimed to model novelty
+as reward in environments in which a clear, continuous reward signal is
+not present.
+
+
+As defined earlier, *MATH* is the STDP update matrix of
+firings *MATH* and *MATH*. (In practice, these correspond to the last
+firings and the second-to-last firings.) *MATH* is our last connection
+matrix, *MATH* is our plasticity matrix, *MATH* is our novelty, and *MATH* is the
+size (i.e. number of elements) of *MATH*. Thus, we have
+*MATH* where *MATH*. In other words, we are taking the mean over the magnitude of change
+between firing updates.
+
+
+An alternative measure of novelty would be performing this same
+operation using video frames rather than firing patterns (i.e.
+*MATH*, where *MATH* and *MATH* are the last and
+second-to-last video frames). This measure of novelty was used in
+testing on the Dino game environment, described below.
+
+
+Experimental Results
+
+
+Pattern Recognition and Differentiation
+
+
+As an initial experiment, STDP was applied to neurons at each timestep
+which had, as input, a video stream. The neural network had no
+modulation of learning, and were essentially driven to build
+correlations between the data presented, both spatially and temporally.
+In this way, the network learned to differentiate between patterns
+observed in the video stream. To evaluate the model&apos;s effectiveness, a
+hand was shown to the neurons in different stages (e.g. in a fist or
+open palm, as shown in Figure [1]) in different locations on the screen.
+
+
+FIGURE
+
+
+The stages alternated at varying times and the neurons were recorded to
+keep track the maximal difference between any neuron&apos;s tendency to fire
+in the first and second stages. For a control, this process was run
+again where nothing was changed between stages. The neuron with the most
+variance between stages is chosen as the output neuron. Then, the ratio
+of the differences in activation of this neuron in the control and
+trained cases is shown in Figure [2].
+
+
+This network was also shown YouTube for several hours, and then we
+visualized visual stimuli for the neurons that were most sensitive.
+Specifically, the neurons were activated by a large number[^2] of
+samples of random noise, and the sample that activated them most was
+selected, and then averaged again with many samples of random noise,
+with this process repeated several times. This whole process was
+repeated several times and the images which were stimulating or
+inhibitory were averaged together. We present these results in
+Figure [3].
+
+
+FIGURE
+
+
+XOR
+
+
+The XOR gate problem has historically been known to be notoriously
+difficult to learn due to its nonlinear structure. The problem
+involves returning true only when one of two bits have fired, and false
+otherwise.
+
+
+We demonstrated that the architecture is able to achieve an accuracy on
+the task of approximately *MATH*, indicating that it was reliably
+solving the task with only a reward signal of *MATH* for a correct answer
+and *MATH* otherwise. The connection strength matrix is shown in
+Figure [4].
+
+
+FIGURE
+
+
+Chrome Dino Game
+
+
+For the behavioral learning portion, we extended our visual input stream
+to a screen-captured screen of the dinosaur game that Chrome displays
+when it is offline, and modulated the amount of learning that
+occurred as a function of whether or not the screen was changing. While
+the ultimate goal is to find an intrinsic reward function that allows
+the modulation to learn to play arbitrary games well while seeking
+novelty, this lets us test whether this approach to behavior
+optimization is capable of solving reinforcement learning tasks. We show
+what the neuron architecture sees in
+Figure [5].
+
+
+FIGURE
+
+
+Because the discretized STDP update rule for this neural net is simpler
+(both computationally and mathematically) than the traditional
+window-based approach [*REF*], it wasn&apos;t immediately
+clear that this would have any success at all. On the dinosaur task, the
+best achieved performance was a score of 168. In comparison, the average
+score of an agent performing at chance (i.e. continuously holding down
+the jump key) was 57, with a maximum score of 100. Here is a
+recording of a typical run: WEBSITE.
+
+
+FIGURE
+
+
+The confusion matrix that results from ten thousand learning steps is
+shown in Figure [6]. The neural configuration corresponds to a
+10x10 pixel grayscale input, 50 randomly firing neurons, 600 \&quot;hidden\&quot;
+neurons, and 50 output neurons. Notably, the number of connections made
+by each input neuron suggest that the localization of the initial
+connections is failing.
+
+
+Mountain Car
+
+
+Here, we test our model on a classic reinforcement learning problem
+available in OpenAI Gym. This particular environment has a discrete
+action space: go left, stay still, go right. We use the observations
+returned by the environment as input into our neuron architecture, and
+we use a measure of novelty to be the reward signal that updates our
+model. The proportion of neurons that are firing determines the action
+and are discretized to fit the discrete action space.
+
+
+The results of the experiment indicate that the agent is able to learn
+to quickly reach the goal state using a measure of novelty as an
+instantaneous reward. We present the results of the experiment in Figure [7].
+
+
+FIGURE
+
+
+We can see that the agent is unable to complete the objective at the
+beginning and is able to quickly learn the correct back-and-forth
+movement to reach the goal. The performance is stochastic, but the
+overall trend of improvement is clear. After around 75 episodes, the
+agent is able to reach the goal in 200 steps relatively consistently.
+This is not considered a successful solve of the environment, but our
+agent is not using the reward of the environment to learn, so this may
+be the agent&apos;s best performance with the novelty metric.
+
+
+Mountain Car Continuous
+
+
+Here, we adapt our model to a similar reinforcement learning problem
+available in OpenAI Gym, the continuous action space version of Mountain
+Car. This particular environment accepts any float value as the action
+with negative corresponding to left and positive corresponding to right
+(and magnitude corresponding to the impulse level). Again, we use the
+observations returned by the environment as input into our neuron
+architecture, and we use a measure of novelty to be the reward signal
+that updates our model. The proportion of neurons that are firing
+determines the action and are linearly scaled to fit the continuous
+action space. We present the results of the experiment in Figure [8].
+
+
+We can see that the agent is unable to complete the objective at the
+beginning and is able to gradually learn the correct back-and-forth
+movement to reach the goal. At around 300 episodes, the agent is able to
+reach the goal in 100 steps or less, which is considered a successful
+solve of this environment.
+
+
+FIGURE
+
+
+Pendulum
+
+
+The OpenAI Gym Inverted Pendulum environment is a classic reinforcement
+learning problem, though a notoriously difficult one to solve. The input
+was the observation of angle and angular velocity of the pendulum, and
+the reward here was the continuous reward returned by the environment.
+
+
+The performance is stochastic, but the general trend of improvement is
+clear. Over time, the agent learns to improve its average reward per
+step. The best reward at a step is 0, and the worst reward is around
+-16. Each episode runs for 1000 time steps. We present the results in
+Figure [9].
+
+
+FIGURE
+
+
+Conclusion
+
+
+We experimented with neuroscientific algorithms to approach a variety of
+problems including pattern differentiation, Chrome Dino, XOR, and
+several classic reinforcement learning problems, including Mountain Car
+(continuous and discrete) and Pendulum. Our approach implemented
+spike-timing dependent plasticity, the formation of long and short-term
+memory, and an intrinsic curiosity-driven reward signal. Our project
+successfully created a generalizable agent that is capable of learning
+to solve problems with or without being given an explicit reward signal.
+Overall, we demonstrate a unique, neuro-inspired approach to
+reinforcement learning.
+
+
+Future work would include developing a mode of learning with lower
+variance and less stochasticity so that performance is more consistent.
+Ideally, performance improvement would be relatively monotonic with
+slight fluctuations due to exploration. We also aim to extend our model
+to a wider range of reinforcement learning problems, especially an
+environment like MuJoCo where our novelty metric could be more useful to
+the agent. We also aim to implement more biologically-inspired
+mechanisms in our algorithm to more closely approximate the brain.

@@ -1,0 +1,1382 @@
+A Survey of Reinforcement Learning Algorithms for Dynamically Varying Environments
+
+
+Introduction 
+
+
+Resurgence of artificial intelligence (AI) and advancements in it has
+led to automation of physical and cyber-physical systems [*REF*],
+cloud computing [*REF*], communication networks [*REF*],
+robotics [*REF*] etc. Intelligent automation through AI requires
+that these systems be controlled by smart autonomous agents with least
+manual intervention. Many of the tasks in the above listed applications
+are of sequential decision-making nature, in the sense that the
+autonomous agent monitors the state of the system and decides on an
+action for that state. This action when exercised on the system,
+changes the state of the system. Further, in the new state, the agent
+again needs to choose an action (or control). This repeated interaction
+between the autonomous agent and the system is sequential and the change
+in state of the system is dependent on the action chosen. However, this
+change is uncertain and the future state of the system cannot be
+predicted. For e.g., a recommender system [*REF*] controlled by
+an autonomous agent seeks to predict &quot;rating\&quot; or &quot;preference\&quot; of users
+for commercial items/movies. Based on the prediction, it recommends
+items-to-buy/videos-to-watch to the user. Recommender systems are
+popular on online stores, video-on-demand service providers etc.. In a
+recommender application, the state is current genre of videos watched
+or books purchased etc., and the agent decides on the set of items to be
+recommended for the user. Based on this, the user chooses the
+recommended content or just ignores it. After ignoring the
+recommendation, the user may go ahead and browse some more content. In
+this manner, the state evolves and every action chosen by the agent
+captures additional information about the user.
+
+
+It is important to understand that there must be a feedback mechanism
+which recognizes when the autonomous agent has chosen the right
+action. Only then can the autonomous agent learn to select the right
+actions. This is achieved through a reward (or cost) function which
+ranks an action selected in a particular state of the system. Since the
+agent&apos;s interaction with the system (or environment) produces a
+sequence of actions, this sequence is also ranked by a pre-fixed
+performance criterion. Such a criterion is usually a function of the
+rewards (or cost) obtained throughout the interaction. The goal of the
+autonomous agent is to find a sequence of actions for every initial
+state of the system such that this performance criterion is optimized in
+an average sense. Reinforcement learning (RL) [*REF*] algorithms
+provide a mathematical framework for sequential decision making by
+autonomous agents.
+
+
+In this paper, we consider an important challenge for developing
+autonomous agents for real-life applications [*REF*]. This
+challenge is concerned with the scenario when the environment undergoes
+changes. Such changes necessitate that the autonomous agent continually
+track the environment characteristics and adapt/change the learnt
+actions in order to ensure efficient system operation. For e.g.,
+consider a vehicular traffic signal junction managed by an autonomous
+agent. This is an example of intelligent transportation system, wherein
+the agent selects the green signal duration for every lane. The traffic
+inflow rate on lanes varies according to time of day, special events in
+a city etc. If we consider the lane occupation levels as the state,
+then the lane occupation levels are influenced by traffic inflow rate as
+well as the number of vehicles allowed to clear the junction based on
+the green signal duration. Thus, based on traffic inflow rate, some
+particular lane occupation levels will be more probable. If this inflow
+rate varies, some other set of lane occupation levels will become more
+probable. Thus, as this rate varies, so does the state evolution
+distribution. It is important that under such conditions, the agent
+select appropriate green signal duration based on the traffic pattern
+and it must be adaptive enough to change the selection based on varying
+traffic conditions.
+
+
+FIGURE
+
+
+Formally, the system or environment is characterized by a model or
+context. The model or context comprises of the state evolution
+probability distribution and the reward function - the first component
+models the uncertainty in state evolution, while the second component
+helps the agent learn the right sequence of actions. The problem of
+varying environments implies that the environment context changes with
+time. This is illustrated in Fig. [1],
+where the environment model chooses the reward and next state based on
+the current &quot;active&quot; context *MATH*, *MATH*. More formal
+notation is described in Section [2].
+
+
+Contribution and Related Work 
+
+
+This paper provides a detailed discussion of the reinforcement learning
+techniques for tackling dynamically changing environment contexts in a
+system. The focus is on a single autonomous RL agent learning a sequence
+of actions for controlling such a system. Additionally, we provide an
+overview of challenges and benefits of developing new algorithms for
+dynamically changing environments. The benefits of such an endeavour is
+highlighted in the application domains where the effect of varying
+environments is clearly observed. We identify directions for future
+research as well.
+
+
+Many streams of work in current RL literature attempt to solve the same
+underlying problem - that of learning policies which ensure proper and
+efficient system operation in case of dynamically varying environments.
+This problem will be formally defined in Section [3].
+However, here we give an overview of the following streams of work:
+continual learning and meta-learning. In Section [5],
+a detailed analysis of prior works in these streams is provided.
+- Continual learning: Continual learning [*REF*] is the ability
+of a model to learn continually from a stream of data, building on
+what was learnt previously, as well as being able to remember
+previously seen tasks. The desired properties of a continual
+learning algorithm is that it must be able to learn every moment,
+transfer learning from previously seen data/tasks to new tasks and
+must be resistant to catastrophic forgetting. Catastrophic
+forgetting refers to the situation where the learning algorithm
+forgets the policies learnt on previous models while encountering
+new environment models. Recent continual learning algorithms in
+machine learning and neural networks is covered in [*REF*].
+- Meta-learning: Meta-learning [*REF*] or &quot;learning to learn&quot;
+involves observing how a learning algorithm performs on a wide range
+of tasks and then using this experience to learn new tasks quickly
+in a much more efficient and skilled manner. Thus, meta-learning
+emphasizes on putting experience to use and reusing approaches that
+worked well before. With advancements in neural network
+architectures, there is a renewed interest in improving
+meta-learning algorithms and [*REF*] reviews prior works.
+
+
+Overview
+
+
+The remainder of the paper is organized as follows. Section [2] presents
+the basic mathematical foundation for modelling a sequential
+decision-making problem in the Markov decision process (MDP) framework.
+It also briefly states the assumptions which are building blocks of RL
+algorithms. In Section [3], we formally introduce the problem, provide a
+rigorous problem statement and the associated notation. Section
+[4] describes the benefits of developing algorithms for dynamically varying
+environments. It also identifies challenges that lie in this pursuit.
+Section [5] describes the solution approaches proposed
+till now for the problem described in Section [3]. This
+section discusses two prominent categories of prior works. Section
+[6] discusses relevant works in continual and
+meta learning. In both Sections [5] and [6], we identify the strengths of the
+different works as well as the aspects that they do not address. Section
+[7] gives a brief overview of application domains which have been specifically
+targeted by some authors. Section [8] concludes the work and elaborates on the possible
+future enhancements with respect to the prior work. Additionally, it
+also describes challenges that research in this area should address.
+
+
+Preliminaries 
+
+
+Reinforcement learning (RL) algorithms are based on a stochastic
+modelling framework known as Markov decision process
+(MDP) [*REF*; *REF*]. In this section, we describe in detail the
+MDP framework.
+
+
+Markov Decision Process: A Stochastic Model 
+
+
+A MDP is formally defined as a tuple *MATH*,
+where *MATH* is the set of states of the system, *MATH* is the set of actions
+(or decisions). *MATH* is the conditional transition probability function. Here, *MATH* is
+the set of probability distributions over the state space *MATH*. The
+transition function *MATH* models the uncertainty in the evolution of
+states of the system based on the action exercised by the agent. Given
+the current state *MATH* and the action *MATH*, the system evolves to the next
+state according to the probability distribution *MATH* over the
+set *MATH*. At every state, the agent selects a feasible action for every
+decision epoch. The decision horizon is determined by the number of
+decision epochs. If the number of decision epochs is finite (or
+infinite), the stochastic process is referred to as a finite (or
+infinite)-horizon MDP respectively. *MATH* is the reward (or cost) function
+which helps the agent learn. The environment context comprises of the
+transition probability and reward functions. If environments vary, they
+share the state and action spaces but differ only in these functions.
+
+
+Decision Rules and Policies 
+
+
+The evolution of states, based on actions selected by agent until time
+*MATH*, is captured by the &quot;history\&quot; variable *MATH*. This is an element in
+the set *MATH*, which is the set of all plausible histories upto time
+*MATH*. Thus, *MATH*. The sequence of decisions taken by agent is referred to as policy,
+wherein a policy is comprised of decision rules. A randomized,
+history-dependent decision rule at time *MATH* is defined as
+*MATH*, where *MATH* is the set
+of all probability distributions on *MATH*. Given *MATH*, the next action at
+current state *MATH* is picked by sampling an action from the probability
+distribution *MATH*. If this probability distribution is a
+degenerate distribution, then the decision rule is called deterministic
+decision rule. Additionally, if the decision rule does not vary with
+time *MATH*, we refer to the rule as a stationary decision rule. A
+decision rule at time *MATH* dependent only on the current state *MATH* is
+known as a state-dependent decision rule and denoted as
+*MATH*. A deterministic, state-dependent and
+stationary decision rule is denoted as *MATH*. Such a rule
+maps a state to its feasible actions. When the agent learns to make
+decisions, basically it learns the appropriate decision rule for every
+decision epoch. A policy is formally defined as a sequence of decision
+rules. Type of policy depends on the common type of its constituent
+decision rules.
+
+
+Value Function: Performance Measure of a Policy 
+
+
+Each policy is assigned a &quot;score\&quot; based on a pre-fixed performance
+criterion (as explained in Section [1]). For ease of exposition, we consider
+state-dependent deterministic decision rules only. For a finite-horizon
+MDP with horizon *MATH*, the often used performance measure is the expected
+total reward criterion. Let *MATH* be a deterministic
+policy such that for a state *MATH*, *MATH*. The value
+function of a state *MATH* with respect to this policy is defined as
+follows: *MATH* where the expectation is w.r.t all sample paths under policy *MATH*. A
+policy *MATH* is optimal w.r.t the expected total reward criterion if
+it maximizes equation for all states and over all policies.
+
+
+For infinite horizon MDP, the often used performance measures are the
+expected sum of discounted rewards of a policy and the average reward
+per step for a given policy. Under the expected sum of discounted
+rewards criterion, the value function of a state *MATH* under a given
+policy *MATH* is defined as follows: *MATH*.
+Here, *MATH* is the discount factor and it measures the
+current value of a unit reward that is received one epoch in the future.
+A policy *MATH* is optimal w.r.t this criterion if it maximizes
+equation. Under the average reward per step criterion, the value function of a
+state *MATH* under a given policy *MATH* is defined as
+follows (if it exists): *MATH*. The goal of the autonomous agent (as explained in Section
+[1]) is to find a policy *MATH* such that either equation
+or equation is maximized in case of infinite horizon or equation
+in case of finite horizon, for all *MATH*.
+
+
+Algorithms and their Assumptions
+
+
+RL algorithms are developed with basic underlying assumptions on the
+transition probability and reward functions. Such assumptions are
+necessary, since, RL algorithms are examples of stochastic
+approximation [*REF*] algorithms. Convergence of the RL algorithms
+to the optimal value functions hold when the following assumptions are
+satisfied.
+
+
+ASSUMPTION 1
+
+
+ASSUMPTION 2
+
+
+Assumption [1] states that the reward values are bounded. Assumption
+[2] implies that the transition probability and reward functions do not vary with time.
+
+
+We focus on model-based and model-free RL algorithmsin this survey.
+Model-based RL algorithms are developed to learn optimal policies and
+optimal value functions by estimating *MATH* and *MATH* from state and reward
+samples. Model-free algorithms do not estimate *MATH* and *MATH* functions.
+Instead these directly either find value function of a policy and
+improve or directly find the optimal value function. RL algorithms
+utilize function approximation to approximate either the value
+function of a policy or the optimal value function. Function
+approximation is also utilized in the policy space. Deep neural network
+architectures are also a form of function approximation for RL
+algorithms *REF*.
+
+
+In this paper, we use the terms &quot;dynamically varying environments&quot; and
+&quot;non-stationary environments&quot; interchangeably. In the non-stationary
+environment scenario, Assumption [2] does not hold true. Since previously proposed RL
+algorithms [*REF*; *REF*] are mainly suited for stationary
+environments, we need to develop new methods which autonomous agents can
+utilize to handle non-stationary environments. In the next section, we
+formally describe the problem of non-stationary environments using the
+notation defined in this section. Additionally, we also highlight the
+performance criterion commonly used in prior works for addressing
+learning capabilities in dynamically varying environments.
+
+
+Problem Formulation 
+
+
+In this section, we formulate the problem of learning optimal policies
+in non-stationary RL environments and introduce the notation that will
+be used in the rest of the paper. Since the basic stochastic modeling
+framework of RL is MDP, we will describe the problem using notation
+introduced in Section [2].
+
+
+We define a family of MDPs as *MATH*, where
+*MATH*, where *MATH* and *MATH* are the state
+and action spaces, while *MATH* is the conditional transition probability
+kernel and *MATH* is the reward function of MDP *MATH*. The autonomous RL
+agent observes a sequence of states *MATH*, where
+*MATH*. For each state, an action *MATH* is chosen based on a
+policy. For each pair *MATH*, the next state *MATH* is observed
+according to the distribution *MATH* and reward
+*MATH* is obtained. Here *MATH*. Note that, when
+Assumption [2] is true, *MATH* (as in Section [2]). The RL agent must learn optimal behaviour when
+the system is modeled as a family of MDPs *MATH*.
+
+
+The decision epoch at which the environment model/context changes is
+known as changepoint and we denote the set of changepoints using the
+notation *MATH*, which is an increasing sequence of random
+integers. Thus, for example, at time *MATH*, the environment model will
+change from say *MATH* to *MATH*, at *MATH* it will change from
+*MATH* to say *MATH* and so on. With respect to these model
+changes, the non-stationary dynamics for *MATH* will be
+*MATH* and the reward for *MATH* will be
+*MATH*. The extreme cases of the above formulation occur when
+either *MATH* or *MATH*. The
+former represents a scenario where model dynamics change in every epoch.
+The latter is the stationary case. Thus, the above formulation is a
+generalization of MDPs as defined in Section [2]. Depending
+on the decision making horizon, the number of such changes will be
+either finite or infinite. With changes in context, the performance
+criterion differs, but equations give away some hints as to what they can be.
+Additionally, since Assumption [2] does not hold true, it is natural to expect that
+a stationary policy may not be optimal. Hence, it is important to expand
+the policy search space to the set of all history-dependent, randomized
+time-varying policies.
+
+
+Given the family of MDPs *MATH*, one objective
+is to learn a policy *MATH* such that the long-run
+expected sum of discounted rewards, i.e.,
+*MATH* is maximized for all initial histories *MATH*. For finite horizon
+MDPs, the objective equivalent to equation
+can be stated in a similar fashion. The same follows for equation,
+where the policy search space will be randomized, history-dependent and
+time-varying. Another performance criterion which is widely used is
+called as regret. This performance criterion is directly concerned
+with the rewards gained during system evolution, i.e., its more emphasis
+is on the rewards collected rather than on finding the policy which
+optimally controls a system. The regret is usually defined for a
+finite-horizon system as follows: *MATH* is the time horizon, *MATH* is the optimal expected
+*MATH* -step reward that can be achieved by any policy when system starts in
+state *MATH*.
+
+
+It should be noted that the space of history-dependent, randomized
+policies is a large intractable space. Searching this space for a
+suitable policy is hard. Additionally, in the model-free RL case, how do
+we learn value functions with only state and reward samples? In the next
+section, we explore these issues and discuss prior approaches in
+connection with the problem of non-stationary environments in RL. Some
+are methods designed for the case when model-information is known, while
+others are based on model-free RL. All regret-based approaches usually
+are model-based RL approaches, which work with finite-horizon systems.
+Approaches based on infinite-horizon systems usually are control
+methods, i.e., the main aim in such works is to find an approximately
+optimal policy for a system exposed to changing environment parameters.
+
+
+Benefits and Challenges of RL in Non-Stationary Environments 
+
+
+In this section we will indicate what are the benefits of tackling
+non-stationary environments in RL algorithms. These benefits straddle
+across single-agent and multi-agent scenarios.
+
+
+Benefits
+
+
+RL is a machine learning paradigm which is more similar to human
+intelligence, compared to supervised and unsupervised learning. This is
+because, unlike supervised learning, the RL autonomous agent is not
+given samples indicating what classifies as good behaviour and what is
+not. Instead the environment only gives a feedback recognizing when
+the action by the agent is good and when it is not. Making RL algorithms
+efficient is the first step towards realizing general artificial
+intelligence [*REF*]. Dealing with ever-changing environment dynamics is
+the next step in this progression, eliminating the drawback that RL
+algorithms are applicable only in domains with low risk, for e.g., video
+games [*REF*] and pricing [*REF*].
+
+
+Multi-agent RL [*REF*] is concerned with learning in prescence of
+multiple agents. It can be considered as an extension of single-agent
+RL, but encompasses unique problem formulation that draws from game
+theoretical concepts as well. When multiple agents learn, they can be
+either competitive to achieve conflicting goals or cooperative to
+achieve a common goal. In either case, the agent actions are no longer
+seen in isolation, when compared to single-agent RL. Instead the actions
+are ranked based on what effect an individual agent&apos;s action has on the
+collective decision making. This implies that the dynamics observed by
+an individual agent changes based on other agents&apos; learning. So, as
+agents continually learn, they face dynamically varying environments,
+where the environments are in this case dependent on joint actions of
+all agents. Unlike the change in transition probability and reward
+functions (Section [3]), when multiple agents learn, the varying
+conditions is a result of different regions of state-action space being
+explored. Thus, non-stationary RL methods developed for single-agent RL
+can be extended to multi-agent RL as well.
+
+
+Challenges
+
+
+- Sample efficiency: Algorithms for handling varying environment
+conditions will definitely have issues w.r.t sample efficiency. When
+environment changes, then learning needs to be quick, but the speed
+will depend on the state-reward samples obtained. Hence, if these
+samples are not informative of the change, then algorithms might
+take longer to learn new policies from these samples.
+
+
+- Computation power: Single-agent RL algorithms face
+curse-of-dimensionality with increased size of state-action
+spaces. Deep RL [*REF* use graphical processing units (GPU)
+hardware for handling large problem size. Detecting changing
+operating conditions puts additional burden on computation. Hence,
+this will present a formidable challenge.
+
+
+- Theoretical results: As stated in Section
+[2], without Assumption [2], it is difficult to obtain convergence
+results for model-free RL algorithms in non-stationary environments.
+Thus, providing any type of guarantees on their performance becomes
+hard.
+
+
+Current Solution Approaches 
+
+
+Solution approaches proposed till now have looked at both finite horizon
+(see Section [5.1]) as well as infinite horizon (Section [5.2])
+cases. Prior approaches falling into these categories are described in
+the following subsections.
+
+
+Finite Horizon Approaches 
+
+
+Finite horizon approaches to dealing with non-stationary environment are
+[*REF*]-[*REF*]. These study MDPs with varying transition
+probability and reward functions. The performance criterion is the
+regret equation and the goal of these algorithms is to
+minimize the regret over a finite horizon *MATH*. Since decision horizon is
+finite, the number of changes in the environment is utmost *MATH*.
+Additionally, a stationary policy need not be optimal in this scenario.
+So, regret needs to be measured with respect to the best time-dependent
+policy starting from a state *MATH*. Basically, regret measures the sum
+of missed rewards when compared to the best policy (time-dependent) in
+hindsight.
+
+
+Comparison of the works
+
+
+How do the works [*REF*]-[*REF*] compare with each other?
+
+
+- All have similar objective - i.e., to minimize the regret during
+learning. Unlike infinite-horizon results which maximize the
+long-run objective and also provide methods to find optimal policy
+corresponding to this optimal objective value, regret-based learning
+approaches minimize regret during learning phase only. There are no
+known theoretical results to obtain a policy from this optimized
+regret value. Moreover, the regret value is based on the horizon
+length *MATH*.
+
+
+- The works [*REF*]-[*REF*] slightly differ with regard to the
+assumptions on the pattern of environment changes. [*REF*] assumes
+that the number of changes is known, while [*REF*; *REF*] do
+not impose restrictions on it. The work on Contextual MDP [*REF*]
+assumes a finite, known number of environment contexts. [*REF*]
+assumes that only the cost functions change and that they vary
+arbitrarily.
+
+
+- Other than the mathematical tools used, the above works also differ
+with respect to the optimal time-dependent policy used in the
+computation of the regret. The optimal policy is average-reward
+optimal in [*REF*], while it is total-reward optimal in
+[*REF*]-[*REF*]. [*REF*] differs by letting the optimal policy to
+be a piecewise stationary policy, where each stationary policy is
+total-reward optimal for a particular environmental context.
+
+
+Details
+
+
+We now describe each of the above works in detail. Contextual MDP (CMDP)
+is introduced by [*REF*]. A CMDP is a tuple *MATH*, where *MATH* 
+is the set of contexts and *MATH* is the context variable.
+*MATH* maps a context *MATH* to a MDP *MATH*. Here, *MATH* and *MATH* 
+are same as *MATH*, *MATH* respectively as defined in Section [3].
+*MATH* is the distribution of the initial state *MATH*. The time
+horizon *MATH* is divided into *MATH* episodes, with an MDP context
+*MATH* picked at the start of each episode. This context
+chosen is latent information for the RL controller. After the context is
+picked (probably by an adversary), a start state *MATH* is picked
+according to the distribution *MATH* and episode sample path and
+rewards are obtained according to *MATH*, *MATH*. Suppose the episode
+variable is *MATH* and *MATH* is the reward obtained in step *MATH* of
+episode *MATH*. Let *MATH*, which is a stopping time, be the episode
+horizon. The regret is defined as follows: *MATH* 
+and *MATH* is the optimal policy for context *MATH*. Note that *MATH* is
+hidden and hence the above regret notion cannot be computed, but can
+only be estimated empirically. The CECE algorithm proposed by [*REF*]
+clusters each episode into one of the contexts in *MATH*, based
+on the partial trajectory information. Depending on the cluster chosen,
+the context is explored and rewards are obtained.
+
+
+The UCRL2 [*REF*] and its improvement, variation-aware UCRL2 [*REF*]
+are model-based regret minimization algorithms, which estimate the
+transition probability function as well as the reward function for an
+environment. These algorithms are based on the diameter information of
+MDPs, which is defined as follows: *MATH* where *MATH* is the environment context and *MATH* is the first time step in
+which *MATH* is reached from the initial state *MATH*. Both algorithms keep
+track of the number of visits as well as the emprical average of rewards
+for all state-action pairs. Using a confidence parameter, confidence
+intervals for these estimates are maintained and improved. The regret is
+defined as follows: *MATH* is the reward obtained at every step *MATH* and *MATH* is the
+optimal average reward defined as follows:
+*MATH* is he reward obtained at every step when optimal policy *MATH* 
+is followed.
+
+
+When environment model changes utmost *MATH* times, then learning is
+restarted with a confidence parameter that is dependent on *MATH*.
+Variation-aware UCRL2 [*REF*] modifies this restart schedule, where
+the confidence parameter is dependent on the MDP context variation also.
+Context variation parameter depends on the maximum difference between
+the single step rewards as well as the maximum difference between
+transition probability functions, over the time horizon *MATH*. When the
+environment changes, the estimation restarts, leading to a loss in the
+information collected. Both algorithms give sublinear regret upper bound
+dependent on the diameter of the MDP contexts. The regret upper bound in
+[*REF*] is additionally dependent on the MDP context variation.
+
+
+Online learning [*REF*] based approaches for non-stationary environments
+are proposed by [*REF*; *REF*]. *MATH*  [*REF*] assumes
+that the transition probabilities are stationary and known to the agent,
+while the cost functions vary (denoted *MATH*) and are picked by an
+adversary. The goal of the RL agent is to select a sequence of vectors
+*MATH*, where *MATH* is a
+convex and compact subset of *MATH*. The chosen vectors must
+reduce the regret, which is defined as follows:
+*MATH* where *MATH* is the usual Euclidean inner
+product. Thus, without information of *MATH*, *MATH* can be chosen only by
+observing the history of cost samples obtained. For this, the authors
+propose solution methods based on Mirror Descent and exponential
+weights algorithms. [*REF*] considers time-varying reward functions
+and develops a distance measure for reward functions, based on total
+variation. Using this, regret upper bound is derived which depends on
+this distance measure. Further, [*REF*] adapts Follow the Leader
+algorithm for online learning in MDPs.
+
+
+Remarks
+
+
+- Contextual MDP [*REF*] necessitates the need to measure &quot;closeness&quot;
+between MDPs, which enables the proposed CECE algorithm to cluster
+MDP models and classify any new model observed. The clustering and
+classification of MDPs requires a distance metric for measuring how
+close are two trajectories to each other. [*REF*] defines this
+distance using the transition probabilities of the MDPs. Using this
+distance metric and other theoretical assumptions, this work derives
+an upper bound on the regret, which is linear in *MATH*. The
+mathematical machinery used to show this is complex. Moreover, the
+distance measure used considers only the distance between
+probability distributions. However, the reward functions are
+important components of MDP and varies with the policy. It is
+imperative that a distance measure is dependent on reward functions
+too.
+
+
+- UCRL2 and variation-aware UCRL2 restart learning with changes in
+confidence parameter. This implies that in simple cases where the
+environment model alternates between two contexts, these methods
+restart with large confidence sets, leading to increased regret.
+Even if this information is provided, these algorithms will
+necessarily require a number of iterations to improve the confidence
+sets for estimating transition probability and reward functions.
+
+
+- UCRL2, variation-aware UCRL2 and online learning approaches proposed
+in [*REF*; *REF*] are model-based approaches, which do not scale
+well to large state-action space MDPs. The diameter *MATH* (see equation) varies with the model and in many cases can
+be quite high, especially if the MDP problem size is huge. In this
+case, the regret upper bound might be very high.
+
+
+Infinite Horizon Approaches 
+
+
+Works based on infinite-horizon are [*REF*]-[*REF*]. These are
+oriented towards developing algorithms which learn a good control policy
+in non-stationary environment models.
+
+
+Details
+
+
+[*REF*] proposes a stochastic model for MDPs with non-stationary
+environments. These are known as hidden-mode MDPs (HM-MDPs). Each mode
+corresponds to a MDP with stationary environment model. When a system is
+modeled as HM-MDP, then the transitions between modes are hidden from
+the learning agent. State and action spaces are common to all modes -
+but each mode differs from the other modes w.r.t the transition
+probability and reward functions. Algorithm for solving [*REF*] HM-MDP
+assumes that model information is known. It is based on a Bellman
+equation developed for HM-MDP which is further used to design a value
+iteration algorithm based on dynamic programming principles for this
+model.
+
+
+A model-free algorithm for non-stationary environments is proposed by
+[*REF*]. It is a context detection based method known as RLCD. Akin to
+UCRL2, RLCD estimates transition probability and reward functions from
+simulation samples. However, unlike UCRL2, it attempts to infer whether
+underlying MDP environment parameters have changed or not. The active
+model/context is tracked using a predictor function. This function
+utilizes an error score to rank the contexts that are already observed.
+The error score dictates which context is designated as &quot;active&quot;, based
+on the observed trajectory. At every decision epoch, the error score of
+all contexts is computed and the one with the least error score is
+labeled as the current &quot;active&quot; model. A threshold value is used for the
+error score to instantiate data structures for new context, i.e., a
+context which is not yet observed by the learning agent. If all the
+contexts have an error score greater than this threshold value, then,
+data structures for a new context are initialized. This new context is
+then selected as the active context model. Thus, new model estimates and
+the associated data structures are created on-the-fly.
+
+
+Suppose environment model changes are negligible, we expect that the
+value functions also do not change much amongst the models. This is
+formally shown by [*REF*]. If the accumulated changes in transition
+probability or reward function remain bounded over time and such
+changes are insignificant, then value functions of policies of all
+contexts are &quot;close&quot; enough. Hence, [*REF*] gives a theoretical
+framework highlighting conditions on context evolution. It also
+indicates when the pursuit for non-stationary RL algorithms is
+worthwhile.
+
+
+Change detection-based approaches for learning/planning in
+non-stationary RL is proposed by [*REF*]-[*REF*]. The identification of
+active context based on the error score is the crux of RLCD method.
+[*REF*] improves RLCD by incorporating change detection techniques for
+identification of active context. Similar to RLCD, this method estimates
+the transition and reward functions for all contexts. Suppose the number
+of active context estimates maintained by [*REF*] is *MATH*. At time *MATH*,
+a number *MATH*, *MATH* is computed. Let
+*MATH* and *MATH* be the transition probability and reward
+function estimates of context *MATH*, where *MATH*. *MATH* is
+updated as follows: *MATH* where *MATH* is the fixed transition function for a uniform model - one
+which gives equal probability of transition between all states for all
+actions and *MATH* is set to *MATH* for all state-action pairs. A change is
+detected if *MATH*, where *MATH* is a
+threshold value. *MATH* is updated as the moving average of
+simulated reward samples. *MATH* is updated based on maximum
+likelihood estimation. The updation of *MATH* and *MATH* 
+are same as in [*REF*]. [*REF*] shows that in full information case,
+i.e., when complete model information is known, the change detection
+approach of [*REF*] leads to loss in performance with delayed
+detection. Based on this observation, with the full information
+assumption, [*REF*] designs a two-threshold policy switching method
+(denoted as TTS). Given the information that the environment switches
+from context *MATH* to context *MATH*, TTS computes the Kullback-Leibler (KL)
+divergence of two contexts *MATH* and *MATH* w.r.t policy
+*MATH*, even though the policy *MATH* is optimal for context *MATH*.
+When a sample tuple *MATH* comprising of current
+state, current action and next state is obtained at time *MATH*, the MDP
+controller computes the CUSUM [*REF*] value *MATH* as follows:
+*MATH*. If *MATH* is higher than a threshold value *MATH*, then it implies that
+the tuple *MATH* is highly likely to be originated
+in the context *MATH*, but it necessitates adequate exploration. Hence in
+every state, the action which maximizes the KL divergence between
+*MATH* and *MATH* is fixed as the exploring action. This
+policy is denoted as *MATH* and sample tuples starting from time
+*MATH* are obtained using *MATH*. Simultaneously *MATH* is also
+updated. When *MATH* crosses threshold *MATH*, where *MATH*, TTS
+switches to *MATH*, which is the optimal policy for MDP with *MATH* as
+the transition probability function. The CUSUM statistic *MATH* helps in
+detecting changes in environment context.
+
+
+[*REF*] proposes a model-free RL method for handling non-stationary
+environments based on a novel change detection method for multivariate
+data [*REF*]. Similar to [*REF*], this work assumes that context change
+pattern is known. However, unlike [*REF*], [*REF*] carries out change
+detection on state-reward samples obtained during simulation and not on
+the transition probability functions. The Q-learning (QL) algorithm
+(see [*REF*; *REF*]) is used for learning policies, but maintains a
+separate Q value table for each of the environment contexts. During
+learning, the state-reward samples, known as experience tuples, are
+analyzed using the multivariate change detection method known as ODCP.
+When a change is detected, based on the known pattern of changes, the RL
+controller starts updating the Q values of the appropriate context. This
+method is known as Context QL and is more efficient in learning in
+dynamically varying environments, when compared to QL.
+
+
+A variant of QL, called as Repeated Update QL (RUQL) is proposed in
+[*REF*]. This adaptation of QL repeats the updates to the Q values of a
+state-action pair by altering the learning rate sequence of QL. Though
+this variant is simple to implement, it has the same disadvantage as QL,
+i.e., poor learning efficiency in non-stationary environments.
+
+
+Online-learning based variant of QL for arbitrarily varying reward and
+transition probability functions in MDPs is proposed by [*REF*].
+This algorithm, known as Q-FPL, is model-free and requires the
+state-reward sample trajectories only. With this information, the
+objective of the algorithm is to control the MDP in a manner such that
+regret is minimized. The regret is defined as the difference between the
+average reward per step obtained by Q-FPL algorithm and the average
+reward obtained by the best stationary, deterministic policy. Formally,
+we have *MATH* where *MATH* are the arbitrary time-varying
+reward functions and *MATH* is the action picked by Q-FPL. *MATH* is a
+stationary deterministic policy. Q-FPL partitions the learning
+iterations into intervals and in each interval, the Q values are learnt
+from the reward samples of that interval. These Q values are stored and
+are used to pick actions for the next interval by using the Follow the
+Perturbed Leader strategy [*REF*]. At the end of every interval, Q
+values are reset to zero and not updated during the future intervals.
+The regret bounds for Q-FPL are derived by [*REF*].
+
+
+Similar to Q-FPL, the risk-averse-tree-search (RATS) algorithm
+[*REF*] assumes minimal information regarding the evolution of
+environment conetxts. It requires slow evolution of environments,
+wherein information regarding current context is available to the RL
+agent. RATS algorithm models dynamically varying context RL environments
+as a non-stationary MDP (NSMDP), which is a generalization of MDP. Thus,
+at every instant, a RL agent has access to the current &quot;snapshot&quot; of the
+environment in the NSMDP model. Given this snapshot and the current
+state, the RATS algorithm utilizes a tree-search algorithm to decide the
+optimal action to be exercised for the current state.
+
+
+Remarks
+
+
+- The algorithms for solving HM-MDPs [*REF*] are computationally
+intensive and are not practically applicable. With advances in deep
+RL *REF*, there are better tools to make these computationally
+more feasible.
+
+
+- RLCD [*REF*] does not require apriori knowledge about the number of
+environment contexts and the context change pattern, but is highly
+memory intensive, since it stores and updates estimates of
+transition probabilities and rewards corresponding to all detected
+contexts.
+
+
+- [*REF*] is a model-based algorithm and hence itis impossible to use
+it when model information cannot be obtained. However, this
+algorithm can be utilized in model-based RL. But certain practical
+issues limit its use even in model-based RL. One is that pattern of
+model changes needs to be known apriori. Additionally, its
+two-threshold switching strategy is dependent on CUSUM statistic for
+change detection and more importantly on the threshold values
+chosen. Since [*REF*] does not provide a method to pre-fix suitable
+threshold values, it needs to be always selected by trial and error.
+This is impossible to do since it will depend on the reward values,
+sample paths etc.
+
+
+- Extensive experiments while assessing the two threshold switching
+strategy put forth the following issue. This issue is with reference
+to equation, where the fraction *MATH* 
+is computed. Suppose for the policy *MATH* it so happens that
+*MATH* and optimal policy of *MATH* is *MATH*, we will have
+*MATH* and *MATH* will grow uncontrollably and cross every pre-fixed
+threshold value. Thus, in this normal case itself, the detection
+fails, unless threshold value if pre-fixed with knowledge of the
+changepoint! Thus, [*REF*] is not practically applicable in many
+scenarios.
+
+
+- Numerical experiments in [*REF*] show that QL and asynchronous
+value iteration are adaptive in nature. So, even if environment
+contexts change, these learn the policies for the new context with
+the help of samples from the new context. However, once new samples
+are obtained and new context is sufficiently explored, the policies
+corresponding to older models are lost. Thus, QL does not have
+memory retaining capability.
+
+
+- RUQL [*REF*] faces same issues as QL - it can learn optimal policies
+for only one environment model at a time and cannot retain the
+policies learnt earlier. This is mainly because both QL and RUQL
+update the same set of Q values, even if environment model changes.
+Further, QL and RUQL cannot monitor changes in context - this will
+require some additional tools as proposed by [*REF*]. The Context QL
+method retains the policies learnt earlier in the form of Q values
+for all contexts observed. This eliminates the need to re-learn a
+policy leading to better sample efficiency. This sample efficiency
+is however attained at the cost of memory requirement - Q values
+need to be stored for every context and hence the method is not
+scalable.
+
+
+- RATS algorithm approximates a worst-case NSMDP. However, due to the
+planning algorithms required for the tree-search, this algorithm is
+not scalable to larger problems.
+
+
+The prior approaches discussed in this section are summarized in Table. The columns assess decision horizon, model
+information requirements, mathematical tools used and policy retaining
+capability. A &apos;-&apos; indicates that the column heading is not applicable to
+the algorithm. In the next section, we describe works in related areas
+which are focussed on learning across different tasks or using
+experience gained in simple tasks to learn optimal control of more
+complex tasks. We also discuss how these are related to the problem we
+focus on.
+
+
+TABLE
+
+
+Related Areas 
+
+
+Continual Learning 
+
+
+Continual learning algorithms [*REF*] have been explored in the
+context of deep neural networks. However, it is still in its nascent
+stage in RL. The goal in continual learning is to learn across multiple
+tasks. The tasks can probably vary in difficulty, but mostly they are
+the same problem domain. For e.g., consider a grid world task, wherein
+the RL agent must reach a goal position from a starting position by
+learning the movements possible, any forbidden regions etc. Note that
+the goal position matters in this task, since the agent learns to reach
+a given goal position. If the goal position changes, then it is a
+completely new task for the RL agent, which, now has to find the path to
+the new goal position. Thus, both tasks though being in the same problem
+domain are different. When the RL agent has to learn the optimal policy
+for the new grid world, it should make sure to not forget the policy for
+the old task. Hence, continual learning places emphasis on resisting
+forgetting [*REF*].
+
+
+An agent capable of continual, hierarchical, incremental learning and
+development (CHILD) is proposed in [*REF*]. This work introduces
+continual learning by stating the properties expected out of such a RL
+agent and combines temporal transition hierarchies (TTH) algorithm with
+QL. The TTH method is a constructive neural network based approach that
+predicts probabilities of events and creates new neuronal units to
+predict these events and their contexts. This method updates the
+weights, activations of the exising neuronal units and also creates new
+ones. It takes as input the reward signal obtained in the sample path.
+The output gives the Q values which are further utilized to pick
+actions. This work provides extensive experimental results on grid world
+problems where learning from previous experience is seen to outperform
+learning from scratch. The numerical experiments also analyze TTH&apos;s
+capability of acquiring new skills, as well as retaining learnt
+policies.
+
+
+[*REF*] derives motivation from synaptic plasticity of human
+brain, which is the ability of the neurons in the brain to strengthen
+their connections with other neurons. These connections (or synapses)
+and strengths form the basis of learning in brain. Further, each of the
+neurons can simultaneously store multiple memories, which implies that
+synapses are capable of storing connection strengths for multiple tasks!
+[*REF*] intends to replicate synaptic plasticity in neural
+network architectures used as function approximators in RL. For this,
+the authors use a biologically plausible synaptic model [*REF*].
+According to this model, the synaptic weight is dependent on a weighted
+average of its previous changes, which can further be approximated using
+a particular chain model. This chain model, which gives the synaptic
+weight at current time by accounting for all previous changes, is
+incorporated to tune the parameters of the neural networks. Experiments
+on simple grid world problems shows that QL with the above model has
+better performance in changing tasks when compared to classical QL.
+
+
+Policy consolidation-based approach [*REF*] is developed
+to tackle forgetting of policies. It operates on the same synaptic model
+as [*REF*], but consolidates memory at the policy level. Policy
+consolidation means that the current behavioural policy is distilled
+into a cascade of hidden networks that record policies at multiple
+timescales. The recorded policies also affect the behavioural policy by
+feeding into the policy network. The policies are encoded by the
+parameters of the neural network and the distance between the parameters
+of two such networks can be used as a substitute for the distance
+between policies (represented by the networks). This substitute measure
+is also incorporated in the loss function used for training the policy
+network. This method is tested on some benchmark RL problems.
+
+
+Remarks
+
+
+- Developing biologically inspired
+algorithms [*REF*; *REF*] is a novel idea.
+This has been also explored in many areas in supervised learning as
+well. However, to develop robust performance which is reliable,
+adequate experimentation and theoretical justifications is needed.
+The above works lack this and at best can be considered as just
+initial advancements in this stream of work.
+
+
+- We would like to compare continual learning algorithms with
+approaches in Section [5]. Algorithms like [*REF*; *REF*] do
+not resist catastrophic forgetting, because training on new data
+quickly erases knowledge acquired from older data. These algorithms
+restart with a fixed confidence parameter schedule. In comparison to
+this, [*REF*] adapts Q-learning for non-stationary environments. It
+resists catastrophic forgetting by maintaining separate Q values for
+each model. This work provides empirical evidence that policies for
+all models are retained. However, there are issues with
+computational efficiency and the method needs to be adapted for
+function-approximation based RL algorithms.
+
+
+- The CHILD [*REF*] method is akin to RLCD [*REF*] and Context
+QL [*REF*], both of which also have separate data structures for each
+model. Thus, in combination with change detection, the CHILD
+algorithm can be used for dynamically varying environments as well.
+
+
+Learning to Learn: Meta-learning Approaches 
+
+
+Meta-learning as defined in Section [1] involves reusing experience and skills from
+earlier tasks to learn new skills. If RL agents must meta-learn, then we
+need to define what constitutes experience and what is the previous data
+that is useful in skill development. Thus, we need to understand what
+constitutes meta-data and how to learn using meta-data. Most of the
+prior works are targeted towards deep reinforcement learning (DRL),
+where only deep neural network architectures are used for function
+approximation of value functions and policies.
+
+
+A general model-agnostic meta-learning algorithm is proposed in [*REF*].
+The algorithm can be applied to any learning problem and model that is
+trained using a gradient-descent procedure, but is mostly tested on deep
+neural architectures, since their parameters are trained by back
+propagating the gradients. The main idea is to get hold of an internal
+representation in these architectures that is suitable for a wide
+variety of tasks. Further, using samples from new tasks, this internal
+representation (in terms of network parameters) is fine-tuned for each
+task. Thus, there is no &quot;learning from scratch&quot;, but learning from a
+basic internal representation is the main idea. The assumptions are that
+such representations are functions of some parameters and the loss
+function is differentiable w.r.t those parameters. The method is
+evaluated on classification, regression and RL benchmark problems.
+However, it is observed by [*REF*] that the gradient estimates of MAML
+have high variance. This is mitigated by introducing surrogate objective
+functions which are unbiased.
+
+
+A probabilistic view of MAML is given by [*REF*]. A fixed number of
+trajectories from a task *MATH* and according to a policy parameterized by
+*MATH* is obtained. The loss function defined on these trajectories is
+then used to update the task-specific parameters *MATH*. This is carried
+out using the gradient of the loss function, which is obtained from
+either policy gradient [*REF*] or TRPO [*REF*]. The same formulation is
+extended to non-stationary settings where [*REF*] assumes that tasks
+themselves evolve as a Markov chain.
+
+
+Learning good directed exploration strategies via meta-learning is the
+focus in [*REF*]. The algorithm developed by the authors, known as
+MAESN, uses prior experience in related tasks to initialize policies for
+new tasks and also to learn appropriate exploration strategies as well.
+This is in comparison to [*REF*], where only policy is fine tuned. The
+method assumes that neural network parameters are denoted *MATH* and
+per-task variational parameters are denoted as *MATH*,
+*MATH*, where *MATH* is the number of tasks. On every iteration
+through the task training set, *MATH* tasks are sampled from this training
+set according to a distribution *MATH*. For a task, the RL agent gets
+state and reward samples. These are used to update the variational
+parameters. Further, after the iteration, *MATH* is updated using
+TRPO [*REF*] algorithm. Numerical experiments for MAESN are carried out
+on robotic manipulation and locomotion tasks.
+
+
+Remarks
+
+
+- Explainability of generalization power of deep neural network
+architectures is still an open problem. The meta-RL approaches are
+all based on using these architectures. Thus, the performance of
+these algorithms can only be validated empirically. Also, most of
+the works described in this section lack theoretical justification.
+Only the problem formulation involves some mathematical ideas, but
+none of the results are theoretical in nature. However, applied
+works like [*REF*] can be encouraged, but only if such
+works provide some performance analysis of meta-RL algorithms.
+
+
+- The experimental results in most of the above works are still
+preliminary. These can be improved by facilitating more analysis.
+
+
+Application Domains 
+
+
+Reinforcement learning finds its use in a number of domains - for e.g.,
+in operations research [*REF*], games [*REF*],
+robotics [*REF*], intelligent transportation and traffic
+systems [*REF*]. However, in most of the prior works in these
+applications, the assumption is that the environment characteristics and
+dynamics remain stationary. The number of prior works developing
+application-specific non-stationary RL algorithms is limited. This is
+due to the fact that adapting RL to problems with stationary
+environments is the first simple step towards more general RL
+controllers, for which scalability is still an issue. Only recent
+advances in deep RL *REF* has improved their scalability to large
+state-action space MDPs. Improved computation power and hardware, due to
+advances in high-performance computing, has led to better off-the-shelf
+software packages for RL. Advancements in computing has led to better
+implementations of RL - these use deep neural architectures *REF* *REF*,
+parallelization [*REF*; *REF*] for making algorithms scalable to large
+problem sizes. Single-agent RL algorithms are now being deployed in a
+variety of applications owing to the improved computing infrastructure.
+One would also expect that easing of the stationary assumptions on RL
+environment models would also further increase the need for high
+computation power. But, due to these advances in computing
+infrastructure, there is hope to extend RL to applications where
+non-stationary settings can make the system inefficient (unless there is
+adaptation).
+
+
+In this section, we survey the following representative application
+domains: transportation and traffic systems, cyber-physical systems,
+digital marketing and inventory pricing, recommender systems and
+robotics. In these representative domains, we cover works which propose
+algorithms to specifically deal with dynamically varying environments.
+Most of these prior works are customized to their respective
+applications.
+
+
+Transportation and Traffic Systems
+
+
+Traffic systems are either semi-automated or fully automated physical
+infrastructure systems that manage the vehicular traffic in urban areas.
+These are installed to improve flow of vehicular traffic and relieve
+congestion on urban roads. With the resurgence of AI, these systems are
+being fully automated using AI techniques. AI-based autonomous traffic
+systems use computer vision, data analytics and machine learning
+techniques for their operation. Improvement in computing power for RL
+has catapulted its use in traffic systems, and, RL based traffic signal
+controllers are being designed [*REF*; *REF*; *REF*].
+Non-stationary RL traffic controllers are proposed by [*REF*; *REF*].
+
+
+Soilse [*REF*] is a RL-based intelligent urban traffic signal
+controller (UTC) tailored to fluctuating vehicular traffic patterns. It
+is phase-based, wherein a phase is a set of traffic lanes on which
+vehicles are allowed to proceed at any given time. Along with the reward
+feedback signal, the UTC obtains a degree of pattern change signal from
+a pattern change detection (PCD) module. This module tracks the incoming
+traffic count of lanes at a traffic junction. It detects a change in the
+flow pattern using moving average filters and CUSUM [*REF*] tool. When
+a significant change in traffic density is detected, learning rates and
+exploration parameters are changed to facilitate learning. Context
+QL [*REF*], as described in Section [5],
+tackles non-stationary environments. This method is evaluated in an
+autonomous UTC application. The difference in the performance of
+QL [*REF*] and Context QL is highlighted by numerical experiments [*REF*].
+This difference indicates that designing new methods for varying
+operating conditions is indeed beneficial.
+
+
+Intelligent transportation systems (ITS) employ information and
+communication technologies for road transport infrastructure, mobility
+management and for interfaces with other modes of transport as well.
+This field of research also includes new business models for smart
+transportation. Urban aerial transport devices like unmanned aerial
+systems (UAS) are also part of ITS. For urban services like package
+delivery, law enforcement and outdoor survey, an UAS is equipped with
+cameras and other sensors. To carry out these tasks efficiently, UAS
+takes photos and videos of densely human populated areas. Though
+information gathering is vital, there are high chances that the UAS
+intrudes privacy. [*REF*] considers this conflicting privacy-information
+criteria. The problem is that UAS may fly over areas which are densely
+populated and take pictures of humans in various locations. Though the
+UAS can use human density datasets to avoid densely populated locations,
+human concentration is still unpredictable and may change depending on
+weather, time of day, events etc. Thus, the model of human population
+density tends to be non-stationary. [*REF*] proposes a model-based RL
+path planning problem that maintains and learns a separate model for
+each distribution of human density.
+
+
+Cyber-Physical Systems and Wireless Networks
+
+
+Cyber-physical systems (CPS) are integration of physical processes and
+their associated networking and computation systems. A physical process
+for e.g., a manufacturing plant or energy plant, is controlled by
+embedded computers and networks, using a closed feedback loop, where
+physical processes affect computation and vice-versa. Thus, autonomous
+control forms an innate part of CPS. Many prior works address anomaly
+detection in CPS [*REF*], since abnormal operation of CPS forces
+the controllers to deal with non-stationary environments.
+
+
+CPS security [*REF*] also arises from anomaly detection. The computation
+and networking systems of CPS are liable to denial of service (DoS) and
+malware attacks. These attacks can be unearthed only if sensors and/or
+CPS controller can detect anomalies in CPS operation. In this
+respect, [*REF*] proposes a statistical method for operational CPS
+security. A modification of the Shiryaev-Roberts-Pollak procedure is
+used to detect changes in operation variables of CPS which can detect
+DDoS and malware attacks.
+
+
+The data from urban infrastructure CCTV networks can be leveraged to
+monitor and detect events like fire hazards in buildings, organized
+marathons on urban roads, crime hot-spots etc. [*REF*] uses CCTV data
+along with social media posts data to detect events in an urban
+environment. This multimodal dataset exhibits change in properties
+before, after and during the event. Specifically, [*REF*] tracks the
+counts of social media posts from locations in the vicinity of a
+geographical area, counts of persons and cars on the road. These counts
+are modeled as Poisson random variables and it is assumed that before,
+after and during a running marathon event, the mean rates of the
+observed counts changes. A hidden Markov model (HMM) is proposed with
+the mean count rates as the hidden states. This HMM is extended to
+stopping time POMDP and structure of optimal policies for this event
+detection model is obtained.
+
+
+[*REF*] considers improving user experience in cellular
+wireless networks by minimizing Age of Information metric (AoI). This
+metric measures the freshness of information that is transmitted to end
+users (&quot;user equipments&quot;) in a wireless cellular network. A multi-user
+scheduling problem is formulated which does not restrict the
+characteristics of the wireless channel model. Thus, a non-stationary
+channel model is assumed for the multi-user scheduling problem and the
+objective is to minimize transmission of stale information from the base
+stations to the user equipments. For this, an infinite-state,
+average-reward MDP is formulated. Optimizing this MDP is infeasible and
+hence this work finds a simple heuristic scheduling policy which is
+capable of achieving the lowest AoI.
+
+
+Digital Marketing and Inventory Pricing
+
+
+Digital marketing and inventory pricing are connected strategies for
+improving sale of goods and services. In current times, many online
+sites complement inventory pricing with digital marketing to attract
+more buyers and hence improve sales. Digital marketing moves away from
+conventional marketing strategies in the sense that it uses digital
+technologies like social media, websites, display advertising, etc to
+promote products and attract customers. Thus, it has more avenues for an
+improved reach when compared to conventional marketing. Inventory
+pricing is concerned with pricing the goods/services that are
+produced/developed to be sold. It is important that to gain profits, the
+manufacturer prices products/services according to the uncertain demand
+for the product, the production rate etc.
+
+
+A pricing policy for maximizing revenue for a given inventory of items
+is the focus of [*REF*]. The objective of the automated pricing agent
+is to sell a given inventory before a fixed time and maximize the total
+revenue from that inventory. This work assumes that the demand
+distribution is unknown and varies with time. Hence, this gives rise to
+non-stationary environment dynamics. This work employs QL with
+eligibility traces [*REF*] to learn a pricing policy.
+
+
+[*REF*] studies off-policy policy evaluation method for digital
+marketing. The users of an online product site are shown customized
+promotions. Every such marketing promotion strategy uses the customer
+information to decide which promotions to display on the website.
+[*REF*] proposes a MDP model with user information as the state
+and the promotions to be displayed as the action. The reward gained from
+promotions is measured by tracking the number of orders per visit of the
+customer. The proposed method is shown to reduce errors in policy
+evaluation of the promotion strategy.
+
+
+Recommender Systems
+
+
+Recommender systems/platforms are information filtering systems that
+predicts the preferences that a user would assign to a product/service.
+These systems have revolutionized online marketing, online shopping and
+online question-answer forums etc. Their predictions are further aimed
+at suggesting relevant products, movies, books etc to online users.
+These systems now form the backbone of digital marketing and promotion.
+Many content providers like Netflix, YouTube, Spotify, Quora etc use
+them as content recommenders/playlists.
+
+
+A concept drift based model management for recommender systems is
+proposed by [*REF*]. This work utilizes RL for handling concept
+drift in supervised learning tasks. Supervised learning tasks see shifts
+in input-label correspondence, feature distribution due to ever changing
+dynamics of data in real world. Each feature distribution and
+input-label correspondence is represented as a model and whenver there
+is a shift in the underlying data, this model needs to be retrained. A
+MDP is formulated for taking decisions about model retraining, which
+decides when to update a model. This decision is necessary, because, the
+model of a given system influences the ability to act upon the current
+data and any change in it will affect its influence on current as well
+as future data. If new models are learned quickly, then the learning
+agent may be simply underfitting data and wasting computational
+resources on training frequently. However, if the agent delays model
+retraining, then the prediction performance of model might decrease
+drastically. Thus, given the current model, current data, the MDP-based
+RL agent decides when and how to update the model. A similar work using
+variants of deep Q-networks (DQN) [*REF*] is proposed in [*REF*].
+
+
+Robotics
+
+
+Robotics is the design, development, testing, operation and the use of
+robots. Its objective is to build machines that are intelligent, can
+assist humans in various tasks and also perform tasks which are beyond
+human reach. Robots can also be designed to provide safety to human
+operations. Robots are now being utilized in outer space missions,
+medical surgery, meal delivery in hospitals [*REF*] etc. However,
+often robots need to adapt to non-stationary operating conditions - for
+e.g., a ground robot/rover must adapt its walking gait to changing
+terrain conditions [*REF*] or friction coefficients of
+surface [*REF*].
+
+
+Robotic environments characterized by changing conditions and sparse
+rewards are particularly hard to learn because, often, the reinforcement
+to the RL agent is a small value and is also obtained at the end of the
+task. [*REF*] focuses on learning in robotic arms where object
+manipulation is characterized by sparse-reward environments. The robotic
+arm is tasked with moving or manipulating objects which are placed at
+fixed positions on a table. In these tasks, often, dynamic adaptation to
+the surface friction and changed placement of objects on the table is
+tough. [*REF*] adapts the TRPO algorithm for dealing with these
+changing operating conditions. The robotic arm RL agent is modeled as a
+continuous state-action space MDP. In a continuous state-action space
+setting, the policy is parameterized by Gaussian distribution. [*REF*]
+proposes a strategy to adjust the variance of this Gaussian policy in
+order to adapt to environment changes.
+
+
+Hexapod locomotion in complex terrain is the focus of [*REF*]. This
+approach assumes that the terrain is modeled using *MATH* discrete
+distributions and each such distribution captures the difficulties of
+that terrain. For each such terrain, an expert policy is obtained using
+deep RL. Conditioned on the state history, a policy from this set of
+expert policies is picked leading to an adaptive gait of hexapod.
+
+
+Remarks
+
+
+All prior works discussed in this section are specifically designed for
+their respective applications. For e.g., Soilse [*REF*] predicts the
+change in lane inflow rates and uses this to infer whether environment
+context has changes or not. This technique is limited to the traffic
+model and more so if lane occupation levels are the states of the model.
+Similar is the case with a majority of the other works as well. It is
+tough to extend the above works to more general settings. Some works
+which are generalizable are [*REF*; *REF*; *REF*; *REF*; *REF*]. The methods suggested in
+these works can be adapted to other applications as well provided some
+changes are incorporated. For e.g., [*REF*] should be extended to
+continuous state-action space settings by incorporating function
+approximation techniques. This will improve its application to tougher
+problems. [*REF*] utilizes Gaussian process tool to build a model-based
+RL path planner for UAS. This can be extended to model-free settings
+using [*REF*] or other works on similar lines. Extending [*REF*]
+to policy improvement techniques like actor-critic [*REF*] and policy
+gradient [*REF*] is also a good direction of future work.
+
+
+Future Directions 
+
+
+The previous sections of this survey introduced the problem, presented
+the benefits and challenges of non-stationary RL algorithms as well as
+introduced prior works. This survey paper also categorized earlier
+works. In this section, we describe the possible directions in which the
+prior works can be enhanced. Following this, we also enumerate
+challenges which are not addressed by the prior works, and which warrant
+our attention.
+
+
+Prior approaches can be improved in the following manner:
+
+
+- The regret based approaches described in Section
+[5.1] are useful in multi-armed bandit-type
+settings where efficient learning with minimal loss is the focus.
+Since these are not geared towards finding good policies, these
+works do not prove to be directly useful in RL settings, where
+control is the main focus. However, the ideas they propose can be
+incorporated to guide initial exploration of actions in approaches
+like [*REF*; *REF*].
+
+
+- Relaxing certain theoretical assumptions like non-communicating
+MDPs [*REF*], multi-chain MDPs [*REF*] etc can further
+improve the applicability of regret-based approaches in
+control-based approaches.
+
+
+- Most of the model-based and model-free approaches in Section
+[5] are not scalable to large problem
+sizes. This is because each of these methods either consume lot of
+memory for storing estimates of model
+information [*REF*]-[*REF*], or consume compute power for
+detecting changes [*REF*; *REF*]. [*REF*] uses compute power for
+building large decision trees as well. These phenomenal compute
+power and memory requirements render these approaches to be
+non-applicable in practical applications which typically function
+with restricted resources. An option is to offload the compute and
+memory power requirements onto a central server. Another option is
+to incorporate function approximation in the representation of value
+functions and policies.
+
+
+- Tools from statistics - like for e.g., quickest change
+detection [*REF*], anomaly detection can prove to be
+indispensable in the problem of non-stationary RL. Also introducing
+memory retaining capacity in deep neural network architectures will
+can be a remedy for resisting catastrophic forgetting.
+
+
+- Works [*REF*; *REF*; *REF*] assume that the pattern of environment
+changes is known and can be tracked. However, practically it is
+often difficult to track such changes. For this tracking [*REF*]
+methods can be used.
+
+
+Next, we discuss additional challenges in this area.
+
+
+- Need to develop algorithms that are sensitive to changes in
+environment dynamics and adapt to changing operating conditions
+seamlessly. Such algorithms can be extended to continual RL
+settings.
+
+
+- In the literature, there is a lack of Deep RL approaches to handle
+non-stationary environments, which can scale with the problem size.
+Meta learning approaches [*REF*; *REF*; *REF*; *REF*]
+exist, but these are still in the initial research stages. These
+works are not sufficiently analyzed and utilized. More importantly,
+these are not explainable algorithms.
+
+
+- Some applications like robotics [*REF*] create additional
+desired capabilities like for e.g sample efficiency. When dealing
+with non-stationary environment characteristics, the number of
+samples the RL agent obtains for every environment model can be
+quite limited. In the extreme case, the agent may obtain only one
+sample trajectory, which is observed in robotics arm manipulation
+exercises. In such a case, we expect the learning algorithm to be
+data efficient and utilize the available data for multiple
+purposes - like learn good policies as well as detect changes in
+environment statistics.
+
+
+- While encountering abnormal conditions, a RL autonomous agent might
+violate safety constraints, because the delay in efficiently
+controlling the system in abnormal conditions can lead to some
+physical harm. For e.g., in self-driving cars, a suddenor abrupt
+change in weather conditions can lead to impaired visual information
+from car sensors. Such scenarios mandate that the RL agent, though
+still learning new policies, must keep up with some nominal safe
+bahaviour. Thus, this can lead to works which intersect safe
+RL [*REF*] and non-stationary RL algorithms.

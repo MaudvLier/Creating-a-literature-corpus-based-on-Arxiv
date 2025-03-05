@@ -1,0 +1,821 @@
+Adaptable Automation with Modular Deep Reinforcement Learning
+and Policy Transfer
+
+
+Introduction
+
+
+Advances in machine learning, robotics, and computing technologies are
+giving rise to a new generation of &quot;intelligent&quot; automation technologies
+that can transform various industries such as manufacturing, healthcare,
+defense, transportation, and agriculture, among others. Automation and
+robotics are a central building-block of the above industries---from
+processing and part transfer robots in factories to assistive and
+patient monitoring robots in hospitals, unmanned aerial drones/vehicles
+in agricultural/defense fields, and mobile robots in warehouses and
+fulfillment centers [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+The need for &quot;intelligence&quot; in such automation systems stems from the
+fact that most robotic operations in industry are currently limited to
+rote and repetitive tasks performed within structured environments. This
+leaves an entire swath of more complex tasks with high degrees of
+uncertainty and dynamic environments [*REF*] difficult or
+even impossible to automate. Examples include maintenance and material
+handling for producing the desired product in manufacturing systems
+[*REF*], robot surgeries and pharmacy automation in
+healthcare systems [*REF*], safe working environments
+in disaster management for deep-sea operation, and nuclear energy
+[*REF*], fruit picking, crop sensing, and selective weeding
+in agriculture systems [*REF*].
+
+
+A fundamental question concerning the notion of intelligent automation
+in this context then becomes: How can we enable adaptable industrial
+automation systems that can analyze and act upon their perceived
+environment rather than merely executing a set of predefined programs?
+Adaptability is among the key characteristics of industrial automation
+systems in response to unpredictable changes or disruptions in the
+process [*REF*]. Recent developments in deep learning
+techniques along with the emergence of collaborative robots (cobots) as
+flexible and adaptive automation &quot;tools&quot; [*REF*] have enabled
+the preliminaries for incorporating intelligence and learning
+capabilities into the current fixed, repetitive, task-oriented
+industrial manipulators [*REF*]. The challenge,
+however, is to design efficient control algorithms and architectures
+that enable the robots to modify their behavior to cope with uncertain
+situations and automatically improve their performance over time, with
+minimal need for reprogramming or manual tuning of the robot&apos;s behavior.
+
+
+Reinforcement Learning (RL) has achieved tremendous success in recent
+years in enabling intelligent control of robotic manipulators in
+simulated environments or physical lab settings
+[*REF*; *REF*]. RL allows agents to
+learn behaviors through interaction with their environment and
+generalize the learned policies to new unseen variations of the same
+task without changing the model itself [*REF*]. Yet,
+current studies are predominantly focused on simplified tasks that
+cannot be scaled up to challenging, real-life problems
+[*REF*; *REF*]. This is caused by a number
+of major limitations of current RL algorithms for continuous control
+which we refers some of them below:
+
+
+- Task specialization. Deep RL algorithms often require
+reprogramming and relearning on new tasks from scratch. This
+limitation is due to the lack of efficient mechanisms for transfer
+of learned policies between tasks. For instance, a cobot can only
+move objects of similar shape and size in a defined environment or
+assemble a particular set of chips on a board. Task specialization
+is one of the critical gaps in RL for continuous control, which has
+been extensively investigated by many researchers in recent years
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+
+
+- Sample inefficiency. Deep RL algorithms often require massive
+training datasets [*REF*; *REF*],
+even for learning tasks that are relatively simpler than complex,
+real-life tasks; e.g., playing Atari games [*REF*], Go
+[*REF*], and poker [*REF*]. However,
+there is still the problem of handling multi-tasks systems. The
+other critical challenge for the RL algorithms is the problem of
+stability - especially in high-dimensional continuous action spaces
+[*REF*] - and being sensitive to hyperparameter
+settings [*REF*].
+
+
+- Stability. Hyperparameters must be set carefully for different
+problem settings to obtain good results. However, most deep RL
+algorithms, such as Deep Deterministic Policy Gradient (DDPG)
+[*REF*] and Twin Delayed Deep Deterministic
+Policy Gradient (TD3PG) [*REF*] are too sensitive to
+hyperparameter tuning [*REF*]. In those algorithms, a minor
+variation in hyperparameters can lead to completely different
+performance and results. Haarnoja et al. [*REF*] propose
+an off-policy maximum entropy actor-critic-based method, Soft
+Actor-Critic (SAC), that addresses both sample efficiency and
+stability issues. Nevertheless, the problem of balancing between
+exploitation and exploration still remains to be addressed.
+
+
+- Inductive bias. Training an appropriate model requires training
+with a large number of samples. Meta RL tackles this limitation by
+training the agent on a series of interrelated tasks drawn from a
+given distribution or a prior [*REF*; *REF*; *REF*; *REF*; *REF*]
+to leverage the agent&apos;s inductive bias for learning new tasks
+rapidly or adapting to new environments.
+
+
+Motivated by the aforementioned limitations, this article aims at
+building and testing a new deep RL framework, based on the
+actor-critic[*REF*], to enable a robot to efficiently adapt
+to new variations of its previously learned tasks by sharing parameters
+across tasks with both parametric and non-parametric variations. The
+proposed framework is built upon the notions of task modularization
+[*REF*] and Transfer Learning (TL) [*REF*],
+and the idea of training a general neural network at both module and
+task levels. The underlying idea is that transferring the learned
+knowledge across different interrelated tasks can potentially alleviate
+the problems of task specialization through multi-task learning
+[*REF*; *REF*; *REF*] and sample
+efficiency through parameter sharing between tasks and/or task modules
+[*REF*]. The proposed framework contributes the following
+features to realize the aforementioned goal of the study:
+
+
+- Task modularization. In complex industrial applications of robots,
+adaptability can be achieved by modularizing the learning tasks,
+learning optimal policies for each individual module, and then
+transferring learned policies across modules of different
+interrelated tasks with both parametric and non-parametric
+variations. Therefore, we build on the notion of task modularity for
+faster learning of a series of manipulation tasks. Using the reward
+function of each task, smaller modules of the task can be obtained.
+These modules are also used in order to enhance the training of the
+task by training their modules and feeding them to the task actor in
+proposed actor-critic architecture.
+
+
+- Parameter sharing. In order to increase learning speed and
+decrease memory usage, we propose the idea of hyper-networks
+(Hyper-Actor) to automatically transfer the knowledge between the
+modules of the task and between a sequence of interrelated tasks
+during training with modifying SAC algorithms.
+
+
+- Multi-task learning. We generalize the idea of our modularized
+training to the multi-task level. Hence, two types of hyper-networks
+trained on all tasks and modules simultaneously. This forms the
+meta-learning structure of our actor-critic design architecture by
+obtaining a multi-task modularized trained actor-network, that can
+be used for testing a completely new task.
+
+
+- Exploration-exploitation trade-off. We define and employ a new
+replay buffer in addition to the existing one to enable the SAC
+algorithm to achieve a stable trade-off between training the neural
+networks and memory requirement, and faster training.
+
+
+This article is to propose a deep neural network architecture for
+transferring knowledge to test a new task from different trained tasks
+with employing based methods on one of the recent robotics benchmark
+named Meta-World [*REF*]. This benchmark contains different
+robotic manipulation tasks for a single task and multi-task learning.
+However, the critical issue is how to adapt the state space and reward
+function of tasks defined in the Meat-World with the proposed algorithms
+because Meta-World, by default, has a sparse reward function for each
+task manipulation based on the distance.
+
+
+Section [2] provides an overview of background and related work in the areas of
+transfer leaning, actor-critic-based RL, and meta learning. Section
+[3] presents the theoretical and modeling preliminaries. Section
+[4] discusses the proposed framework in detail. Section
+[5] presents the experimental results and analyses. Section
+[6] provides conclusions and a summary of limitations and directions for future
+research.
+
+
+Background and Related Work 
+
+
+RL algorithms attempt to optimize the behavior of an agent to solve a
+given task. The agent interacts with the environment by taking an
+action. Any phenomenon that is beyond the control of the agent to
+manipulate is considered as a part of the environment
+[*REF*]. The limited scalability of RL algorithms to
+problems with large state and action spaces, due to the so-called &quot;curse
+of dimensionality&quot;, has hindered the implementation of RL algorithms to
+complex, industrial problems [*REF*]. In recent years, deep RL
+achieved incredible success by reaching super-human performance in
+learning how to play Atari games [*REF*]. The results lead to
+the development of more challenging tasks by DeepMind such as AlphaGo
+[*REF*] in 2016 and AlphaStar [*REF*] in
+2019. In 2020, Garcı́a and Shafie [*REF*] proposed a safe
+RL algorithm to teach humanoid robots how to walk faster.
+
+
+Transfer Learning
+
+
+In the context of RL, transfer learning can enable the transfer of prior
+knowledge from learning an old task to a new task to help the agent
+master the new tasks faster [*REF*]. It helps decrease the
+overall time for learning a complex task. The fundamental idea of
+transfer learning is to create lifelong machine learning methods that
+reuse previously learned knowledge in new learning environments for
+higher task efficiently [*REF*]. This is not a new idea and has
+been studied for decades [*REF*]. To successfully realize
+the vision of transfer learning, an RL agent needs to take following
+steps [*REF*]:
+- Select a set of source tasks from which to transfer to a target task.
+- Learn the relationship between the source task(s) and the target task.
+- Transfer knowledge from the source tasks to the target task.
+
+
+Transfer learning helps augment the efficiency of deep RL methods for
+low-dimensional data representations. It also improves the learning rate
+when there is a combination of different methods
+[*REF*]. Moreover, it helps with transferring
+information between different modules, tasks, or robots
+[*REF*].
+
+
+Parisotto et al. [*REF*] define a novel multi-task and
+transfer learning algorithm, actor-mimic, for learning multiple tasks
+simultaneously. This method trains a single policy network by
+implementing deep RL and model compression techniques for learning a set
+of distinct tasks. Devin et al. [*REF*] propose a neural
+network architecture for decomposing policy into task-specific and
+robot-specific modules for sharing tasks and robot information. They
+present the effectiveness of their transfer method for zero-shot
+generalization with different robots and tasks.
+
+
+To measure the improvement when transfer, the following evaluation
+metrics can be use: jumpstart, asymptotic performance, total
+reward, time to threshold, and transfer ratio [*REF*].
+The first four metrics are appropriate for fully autonomous scenarios,
+because the time spent for learning the source tasks is not taken into
+account.
+
+
+Actor-Critic Based Algorithms
+
+
+In RL algorithms, it is essential to learn value function in addition to
+the policy, because the policy will be updated by the information
+received from the value function. This procedure is the core idea behind
+the actor-critic method [*REF*; *REF*; *REF*; *REF*].
+Actor-critic consists of two models, an actor and a critic. The critic
+approximates the action-value function or state-value function, which is
+then used to update the actor&apos;s policy parameters [*REF*]. The
+number of parameters that the actor needs to update is small compared to
+the number of states. Therefore, a projection of the value function is
+computed onto a low-dimensional subspace spanned by a set of basis
+functions. It is demonstrated by parameterization of the actor.
+
+
+Some actor-critic algorithms update the actor through on-policy gradient
+formulation. Same as off-policy methods, the goal of on-policy training
+is to improve stability. However, it is proven that off-policy
+algorithms achieve relatively higher stability and sample efficiency.
+Similar to the actor-critic model, other off-policy algorithms reuse the
+experience for updating the policy [*REF*]. One of the
+extensions of the original actor-critic method is defined based on the
+difference between the value function and a baseline value, which is
+known as Advantage Actor-Critic (A2C) method [*REF*].
+Deep Deterministic Policy Gradient (DDPG) [*REF*],
+the deep learning alternative of the deterministic policy gradient with
+function approximation [*REF*], is one of the most
+popular off-policy actor-critic algorithms. It applies a *MATH* -function
+estimator to allow off-policy learning and a deterministic actor to
+maximize the *MATH* -function [*REF*]. The interaction
+between the *MATH* -function and the deterministic actor causes difficulties
+in stabilizing DDPG for hyperparameter settings [*REF*].
+The main limitation of the DDPG algorithm is the oscillations in
+performance in unstable environments, which hinders their use for
+learning complex, high-dimensional tasks. Moreover, the results
+presented by Popov et al. [*REF*] confirm the fact that DDPG is
+successful for the cases with binary reward functions.
+
+
+Mnih et al. [*REF*] present Asynchronous Advantage
+Actor-Critic (A3C) algorithm for stabilizing the variation caused by
+training asynchronous parallel agents with accumulated updates. Haarnoja
+et al. [*REF*] present an off-policy algorithm based on the
+maximum entropy framework. This algorithm increases the standard maximum
+reward of RL objective function with an entropy maximization term, named
+Soft Actor-Critic (SAC). SAC seeks stability, exploration, and
+robustness simultaneously [*REF*]. Empirical results show
+that SAC outperforms prior off-policy and on-policy algorithms in terms
+of both performance and sample efficiency.
+
+
+Task Modularization
+
+
+A key enabler for adaptability and quick response to the variations in
+the tasks assigned to a machine is task modularization
+[*REF*]. In manufacturing systems, for example, such
+adaptability is the main requirement for efficient transition from
+traditional mass-production systems to mass-customization and eventually
+to &quot;lot-size of one&quot;, where each task (e.g., product type) is different
+from its predecessor and successor tasks. Modularity is a fundamental
+concept in architecting engineering products, processes, and
+organizations [*REF*], and has been identified as an
+adaptability mechanism in different research domains
+[*REF*]. The notion of task modularity can therefore be
+incorporated in RL algorithms to enable the agent to adapt to different
+tasks with both parametric and non-parametric variations more
+efficiently. The history of using task modularity for increasing the
+adaptability of RL agents dates back to the early 90&apos;s
+[*REF*; *REF*].
+
+
+Two general approaches to modularity in the context of AI have been
+proposed in literature. The first approach is based on hierarchical
+learning, in which most proposed approaches consist of separate
+mechanisms for task decomposition [*REF*]. To compute a
+joint policy, the agent combines the modules&apos; action preference, where
+each module is considered as a distinct policy agent
+[*REF*; *REF*]. In the second approach, the
+notion of modularity is directly applied to the deep neural network
+architecture. Our proposed framework follows the second approach, which
+is applied by some recent studies to create more reliable RL systems
+[*REF*; *REF*; *REF*]. The
+overall idea is built on the assumption that modules are reusable neural
+network functions. Therefore, they can be pre-trained and recombined in
+different ways to tackle new tasks. Thus, instead of training a single
+network on a complex task that would take a long time, one can train on
+many different task module networks. The idea of using a set of reusable
+neural network modules has been applied to applications such as
+reasoning problems, which define a general-purpose approach for learning
+collections of neural modules [*REF*]. Robot task and
+motion planning is another application of modular meta-learning
+[*REF*]. Our framework builds on the work of Andreas et
+al. [*REF*], which uses a set of neural network modules on
+two challenging datasets of supervised robot learning problems. In their
+approach, the network modules can be re-tuned and recombined for solving
+new tasks. We further extend this idea into deep RL applications, as
+described in Section [4].
+
+
+Meta Reinforcement Learning
+
+
+Meta learning is an emerging concept in deep learning with roots in
+psychology, also known as &quot;learning to learn&quot; [*REF*].
+Meta learning aims to leverage past experience to reduce learning time
+and increase efficiency in adapting to new tasks
+[*REF*; *REF*]. Formally, the task is
+defined as: *MATH* where *MATH* is loss function, *MATH* is the
+distribution over initial state, and *MATH* is the transition
+distribution over episode length *MATH*. Therefore, the distribution over
+tasks is define as *MATH*.
+
+
+Meta learning algorithms are based on two main assumptions. First, the
+meta-training and meta-test tasks are induced from the same
+distribution. Second, the task distribution exhibits a shared structure
+that can be utilized for efficient adaptation to new tasks. Meta
+learning has three requirements [*REF*] including
+learning the subsystems, dynamically choosing the learning bias, and
+achieving experience by exploiting meta knowledge extracted in a
+previous learning episode on a unique dataset. It trains the agent on a
+series of interrelated tasks drawn from a given distribution or a prior
+([*REF*; *REF*; *REF*; *REF*]).
+
+
+One of the powerful meta learning algorithms is Model-Agnostic
+Meta-Learning (MAML) algorithm [*REF*]. MAML aims to find an
+efficient parameters initialization to achieve the best performance
+after one update on a series of tasks. Grant et al.
+[*REF*] propose a more accurate estimate of the original
+MAML by applying a Laplace approximation to the posterior distribution
+over task-specific parameters. Finn et al. [*REF*]
+present a probabilistic extension of MAML, which adapts to new tasks via
+gradient descent. In meta-test time, the algorithm is adapted through
+noise injection into gradient descent. Yu et al. [*REF*] provide
+experimental results for 50 robotics environments in &quot;Meta-World&quot;. The
+experiments were performed on various multi-task and meta-learning
+algorithms such as MAML, *MATH*, and PEARL
+[*REF*; *REF*].
+
+
+Meta learning addresses two fundamental limitations of deep learning
+algorithms: sample inefficiency and single-task specialization
+[*REF*; *REF*]. These limitations
+result in weak inductive bias and incremental parameter adjustment
+[*REF*]. Meta RL improves the exploration process
+by augmenting the policy input [*REF*]. Rakelly et al.
+[*REF*] propose a meta RL algorithm, PEARL, which is an
+off-policy RL algorithm that enables posterior sampling for exploration
+at test time. Humplik et al. [*REF*] propose a meta RL method
+for separately learning the policy and the task by using the privileged
+information of the unobserved task. They claim that the method enhances
+the performance of both on-policy and off-policy meta RL algorithms.
+Meta RL has recently been applied for robotic manipulation in
+manufacturing systems. Schoettler et al. [*REF*] propose a
+meta RL approach to solve the complex industrial robotic insertion tasks
+under 20 trails. In their experiment, they perform connector assembly on
+a 3D-printed gear insertion task. They use MuJoCo engine
+[*REF*] to simulate the tasks.
+
+
+Preliminaries
+
+
+An RL problem can be modeled as a Markov Decision Process (MDP), which
+is a stochastic process that satisfies the Markov property
+[*REF*] defined by a tuple *MATH*, where
+*MATH* is state space, *MATH* is action space, *MATH* 
+is state transition distribution, *MATH* is reward function, and *MATH* 
+is a discount factor. RL algorithms can be value-based (i.e., learning
+from off-policy experiences), policy-based (i.e., directly optimizing
+actions), or both. Value-based RL is guided by a *MATH* -value function that
+indicates the goodness of taking an action given a specific state,
+guiding the agent in taking actions that maximize the *MATH* -value
+[*REF*]. In policy-based RL, however, the policy is updated
+directly, based on the gradient calculated from the reward parameters
+[*REF*], which is useful for problems with continuous action space.
+
+
+Actor-critic architecture
+
+
+The actor-critic architecture builds on both value-based RL and
+policy-based RL, where a value function is used to update the policy
+parameters (Figure [1]). A major drawback of off-policy learning is
+instability, which is addressed by the idea of target networks to
+obtain more robust performance [*REF*]. In off-policy
+learning, the best performance is achieved when *MATH*, where
+*MATH* is the behavior policy and *MATH* is the target policy
+[*REF*]. In the actor-critic framework
+[*REF*], a *MATH* -function acting as a critic for both the
+controller (i.e., &quot;actor&quot;) and the value function (known as &quot;critic&quot;)
+are learned simultaneously, as depicted in Figure [1].
+
+
+FIGURE
+
+
+In the actor-critic architecture, the policy is formulated as an
+approximate maximizer, i.e., *MATH*.
+Therefore, the *MATH* -function target (i.e., critic) is defined as
+*MATH*. The critic and the policy (i.e., actor) are alternately updated with a
+learning rate *MATH*, as follows: *MATH* where *MATH* is soft *MATH* -function 
+network parameter, and *MATH* is policy network parameter.
+
+
+Soft Actor-Critic (SAC) architecture
+
+
+It is a policy gradient algorithm based on combination of neural
+networks function approximation, double Q-learning [*REF*], and
+entropy-regularized rewards to produce an off-policy actor-critic
+algorithm. The policy gradient objective of SAC (known as the maximum
+entropy RL objective) includes an entropy term
+*MATH* as a regularizer [*REF*]: *MATH* 
+where the temperature parameter *MATH* is the ratio of the
+expected original task reward to the expected policy entropy, which
+balances exploitation and exploration.
+
+
+SAC requires three functions to learn, which are associated with the
+actor and the critic. For critic, the action value function,
+*MATH*, learns with minimizing a
+mean squared bootstrapped estimate (MSBE), and value function,
+*MATH*, learns with minimizing the squared residual error. In
+actor, target policy, *MATH*, is a reparametrized Gaussian with the
+following squashing function: *MATH* where *MATH* is an input noise vector.
+Then, those parameters learn with maximizing the bootstrapped entropy
+regularized reward.
+
+
+For training *MATH* and *MATH*, a batch of transition tuples randomly
+samples from replay buffer *MATH*, then stochastic gradient
+decent utilizes to minimize the following loss objectives:
+*MATH* where *MATH* where the parameters of *MATH* -function are copied from *MATH* with
+target *MATH*.
+
+
+Several algorithms have been developed to deal with the problem of
+high-dimensional continuous action spaces, as explained in Section
+[2]. Further, several studies have been conducted on exploitation and exploration
+trade-offs; e.g., by employing entropy terms
+[*REF*; *REF*]. Among all existing
+continuous action RL algorithms, SAC is shown to achieve
+state-of-the-art performance on various robotics tasks ([*REF*]).
+
+
+Framework
+
+
+The proposed Hyper-Actor Soft-Actor Critic (HASAC) framework is
+presented in this section. HASAC aims at improving the adaptability of
+the RL agent (e.g., a robot) to a wide range of tasks through task
+modularization, parameter-sharing, multi-task learning, and enhanced
+exploration-exploitation trade-off. The proposed framework builds on SAC
+as the state-of-the-art continuous control RL algorithm, and also
+utilizes SAC as a baseline for evaluating HASAC. SAC operates by
+updating three sets of parameters as follows: (1) the state value
+function network, *MATH*, (2) the soft *MATH* -function network parameter,
+*MATH*, and (3) the policy network parameter, *MATH*. As a result, the
+tractable policy *MATH* will also
+be updated. In the actor, the policy parameter, *MATH*, is learned
+directly by minimizing the expected Kullback-Leibler (KL) divergence: *MATH* 
+where *MATH* is the distribution of previously sampled states and
+actions, called replay buffer.
+
+
+To efficiently balance the exploration and exploitation in the proposed
+HASAC, another replay buffer named elite reply buffer
+(*MATH*), is defined to collect states and actions that pass
+the reward function threshold (*MATH*). The proposed mechanism leads to
+faster learning by improving the exploration and exploitation trade-off
+(for more detail, see the mechanism of replay buffers in Algorithm).
+
+
+To tackle complex tasks with continuous and high-dimensional action
+spaces, such as industrial collaborative robotics operations, HASAC aims
+at enabling the RL agent to automatically learn new tasks and transfer
+optimal policies across different tasks. These characteristics can be
+achieved by employing the aggregation concept defined based on the
+notions of modularity [*REF*] and transfer learning
+[*REF*]. This can be achieved either by sharing
+parameters across modules of a task or through multi-task learning. As
+the task becomes complex, current deep RL methods require to
+proportionally increase the training sample size to ensure desirable
+performance. However, question remains on how to train a single network
+that allows the sharing of some features across different robotic
+manipulation tasks, especially in real-world environments.
+
+
+Yu et al. [*REF*] present a new robotic benchmark, Meta-World, to
+investigate the ideas of multi-task RL and meta RL on 50 different
+robotic manipulation tasks. They findings reveal that training agents on
+diverse robotic tasks affects the final performance compared to training
+them separately. We therefore speculate that defining a new general
+network for parameter sharing across tasks is expected to be a
+beneficial mechanism, allowing to update policy parameters while not
+affecting the optimization process of the task modules. This idea builds
+on the notion of transfer learning [*REF*], which aims at
+transferring the knowledge from learning an old task to a new task, to
+help the agent master new task faster. It is also applicable to learning
+at the task level when a task can be decomposed into several reusable
+modules [*REF*].
+
+
+FIGURE
+
+
+The underlying idea of HASAC is based on the relationship between the
+actor and the critic networks (Figure [2]). For
+each task, the critic updates the action-value function by computing the
+value function in an iterative fashion. Therefore, each task has a
+specific critic network. Since the output of the critic depends on the
+task, a separate critic is required for each task [*REF*]. In
+addition, each task module has its own critic, which helps increase the
+performance of the agent in learning the task faster.
+
+
+The actor also follows the standard actor-critic procedure, which
+involves learning the *MATH* -value function for each state-action and
+updating the policy accordingly. Doing so, training a new single
+actor-network on all tasks, along with the current networks in the SAC,
+allows sharing the mutual features across different tasks. This is the
+idea which builds on the notion of transfer learning. Same as the critic
+network, the idea also can be applied on the module level. We refer to
+this new general actor as the &quot;hyper-actor&quot;. In Algorithm,
+*MATH* denotes the hyper-actor network that is trained on all
+interrelated tasks in multi-task learning and *MATH* 
+denotes the hyper-actor network for all modules of the task *MATH*. As
+mentioned before, each module or task also has its specific
+actor-network from the baseline structure. Because, the trained actor on
+the baseline algorithm may receive different updates for the parameters.
+Therefore, two sets of parameters are introduced:
+*MATH* (Hyper-Actor-Module parameters) and *MATH* (Hyper-Actor-Task parameters).
+For more detail regarding the algorithm, see Algorithm. See also the
+Nomenclature for notations.
+
+
+ALGORITHM
+
+
+Consider, a an example, the &quot;open window&quot; task of Meta-World
+[*REF*] which contains &quot;reach&quot; and &quot;pull lever&quot; modules. At the
+module level, when the training phase for module &quot;reach&quot; finishes, the
+actor and critic parameters of the &quot;reach&quot; module will be reset.
+However, when the training process of the Hyper-Actor-Module network
+finishes, the memory will not be reset, and Hyper-Actor-Module
+parameters, *MATH*, will be
+transferred to the second module, &quot;pull lever&quot;. Thus, the
+Hyper-Actor-Module is trained with the pull module&apos;s loss function, and
+then it will be trained on other modules. Since each module of a task
+has a specific loss function for the critic, it is an efficient way for
+only training a hyper-actor network in the test phase. Now suppose the
+&quot;open window&quot; task to be the first task in the task sequence of a
+multi-task learning problem. The actor of the &quot;open window&quot; is updated
+using the &quot;open window&quot; critic loss function, and then the value
+function of the &quot;open window&quot; critic will be used to update the
+Hyper-Actor-Module parameters (*MATH*). Then, the updated
+*MATH* will be used for updating
+the loss function of the &quot;close window&quot; critic. Next, at the task level,
+the updated &quot;close window&quot; critic will be used to update the actor
+parameters of the Hyper-Actor-Task (*MATH*) (see Figure [2]).
+
+
+The main difference between the Hyper-Actor-Module and Hyper-Actor-Task
+networks and the other networks is in the backpropagation process. The
+Hyper-Actor-Module and Hyper-Actor-Task networks are backpropagated
+cumulatively. In multi-task learning, this implies that those networks
+are not freed within their training loop. Therefore, backpropagation
+will be continued for the multi-task network until the end of training
+tasks in the sequence of multi-task learning, which is the final
+Meta-Action design for our testing experiment. Likewise, at the task
+level, the hyper-network is not freed within a task loop, and it will
+only be freed and saved once all modules of a task are trained. Hence,
+the hyper-network with parameter set
+*MATH* is the final action design for a
+particular task *MATH*.
+
+
+The backpropagation process of HASAC is similar to the process used for
+training the actor and critic networks in the SAC algorithm. Hence, two
+sets of networks, *MATH* and *MATH*, are trained to
+enable a comprehensive learning framework which can be used for
+generalizing to new tasks at test time (see Algorithm). Further,
+for the tasks that can be divided into different modules, the actor and
+critic networks parameters will be initialized with the policy
+parameters of the most related module from the past
+(*MATH*).By applying the proposed idea
+based on the relationship between the actor and critic networks as well
+as the notions of task modularization and transfer learning, HASAC can
+achieve significant improvements in both sample efficiency and final
+performance over previous state-of-the-art approaches, as demonstrated
+next.
+
+
+Experiments
+
+
+This section evaluates the performance of the proposed HASAC framework
+on a set of robotic manipulation tasks from the Meta-World benchmark
+[*REF*]. The Meta-World benchmark contains 50 different robot arm
+control tasks enabled by the MuJoCo physics simulator
+[*REF*]. All of the Meta-World tasks involve moving a
+simulated Sawyer robot arm to interact with objects by moving them from
+an initial state to a goal state. The action space consists of four
+degrees of freedom (three translational, one rotational) for the
+end-effector of the robot arm with observation space of 3D Cartesian
+positions of the object, the robot end-effector, and the goal position
+[*REF*]. One of the essential steps in designing
+architecture is to properly modularize the tasks. Without loss of
+generality, our experiments are focused on four tasks &quot;open window&quot;,
+&quot;close window&quot;, &quot;open drawer&quot;, and &quot;close drawer&quot;. Although these tasks
+are symbolic and relatively simple, we believe analysis using the HASAC
+framework can be informative for solving realistic and more complex
+industrial problems. To modularize the aforementioned tasks, &quot;reach&quot; and
+&quot;pull lever&quot; are selected as the respective task modules (see Figure [3]).
+
+
+FIGURE
+
+
+Design of Experiments
+
+
+The open-source robotics environments of Meta-World enable us to study
+and analyze a set of virtual goal-oriented tasks via Mujoco Physics
+simulator [*REF*]. We compare the performance of HASAC with
+the standard SAC as a baseline. All algorithms were implemented using
+PyTorch. The experiments were performed on a computer with CPU AMD Ryzen
+Threadripper 2970WX 24-Core Processor 3.00GHZ. Table [1]
+demonstrates the hyperparameters used for running the experiments.
+
+
+TABLE
+
+
+To successfully evaluate the performance of the proposed HASAC
+framework, proper metrics are required to test how successful each
+policy is. One of the metrics used in our experiments is the average
+reward for the tasks. Success rate in executing the tasks is another
+metric used in the experiments, defined based on the distance between
+the task-relevant object and its final goal position. Further,
+jumpstart and asymptotic performance are used as metrics to
+illustrate the benefits of transfer, as suggested by
+[*REF*]. For training using the modularized HASAC
+algorithm, the first step is to pre-train the networks on a set of
+modules and tasks, and then use the pre-trained networks to initialize
+similar modules of a new task. Consequently, the agent is allowed to
+interact with the new environment and the network parameters are updated
+accordingly.
+
+
+Results and Analyses
+
+
+To evaluate the performance of the HASAC framework on the four selected
+Meta-World tasks (i.e., &quot;open window&quot;, &quot;close window&quot;, &quot;open drawer&quot;,
+and &quot;close drawer&quot;), the tasks were first decomposed into modules, in
+the sequence of multi-task learning, and treated as sub-tasks associated
+with before and after reaching the object. First, the &quot;reach&quot; and &quot;pull
+lever&quot; modules were trained for each task on the HASAC, and the trained
+networks were then used for training each manipulation task. The tasks
+were also trained through multi-task learning. Figure
+[4] compares the average success rate for training four modularized tasks
+and multi-task learning. Using the modularized network and through
+transferring parameters across tasks in multi-task learning, the success
+rate is shown to improve compared to the standard SAC. Therefore, the
+results show that the proposed architecture leads to significant
+improvement in training modularized tasks and multi-task learning.
+
+
+FIGURE
+
+
+The reward function values depicted in Figures show that HASAC leads to significantly higher
+average reward than the baseline SAC. This is more evident for the
+&quot;close drawer&quot; task, which is the last task in the sequence of tasks
+trained through multi-task learning. In the &quot;close window&quot; and &quot;open
+window&quot; tasks, although both HASAC and SAC reach about the same reward
+function value, HASAC reaches its highest reward value relatively
+faster. Similar to the reward function value, the success rate of &quot;close
+drawer&quot; is significantly higher with the HASAC than with SAC (see Figure
+[4]).
+
+
+Moreover, it was observed that the success rate has a relatively lower
+variance under HASAC. This behavior results from introducing an
+inductive bias associated with transferring from previously learned task
+modules [*REF*].
+
+
+FIGURES
+
+
+The analysis of the reward function, presented in Figures and Table
+[2], illustrates that the HASAC enables a
+better trade-off between exploration and exploitation than the standard
+SAC. It is calculated in terms of the mean and standard deviation of the
+average reward function value for the selected tasks. Numerically, the
+results of HASAC show that the balance between two terms of the loss
+function leads to a better performance of the training algorithm.
+
+
+FIGURES
+
+
+TABLE
+
+
+FIGURES
+
+
+As discussed earlier, our proposed idea is based on the notions of task
+modularity and transfer learning. The experimental results presented and
+discussed in this section show that that the effectiveness of task
+modularity and transfer learning increases with increasing task
+complexity; which was the central hypothesis behind the HASAC framework.
+The results for metrics show that the simpler module affected by the
+hyper-actor parameters (in this case, &quot;pull lever&quot;) receives more
+benefit associated with the initial jumpstart. In the long run, all
+trained modules and final trained tasks benefit from modularization (see
+Figure [9], the comparison result of success rate for
+final task in our experiments). Due to limited compute resources,
+however, we trained the network for 500 epochs, which is at least 50
+times less than similar studies in the literature. The completion time
+indicates that the average length of the training time decreases as the
+robot&apos;s success rate improves. Both proposed metrics converge to an
+optimal solution. As a result, the proposed framework is expected to
+significantly improve multi-task and meta-learning algorithms on various
+robotic manipulation problems.
+
+
+Conclusions and Future Research Directions 
+
+
+This article addresses one of the key research questions associated with
+the adaptability of industrial automation systems to the increasing
+variability of tasks assigned to automated equipment such as
+collaborative robots. A novel modularized actor-critic based deep RL
+framework is developed and tested on multiple simulated robotic
+manipulation tasks. The main goal is to improve performance and sample
+efficiency for training robotic manipulation tasks and multi-task
+learning through task modularization and transfer of policy parameters
+using &quot;hyper-actor&quot; networks at both module level and task level.
+Experiments indicated that incorporating task modularization in
+actor-critic based RL methods is an effective mechanism to learn complex
+tasks faster and more efficiently. Besides, the experimental results
+concurred that the effectiveness of this framework increases with
+increasing task complexity, and also it enables the agent to learn
+simple tasks faster.
+
+
+The experimental results also show that the proposed HASAC framework
+achieves better success rate and converges faster with more stability
+than the baseline SAC algorithm by a relatively large margin. Moreover,
+results show that the trained Hyper-Actor-Module and
+Hyper-Actor-Task networks improve the success rate of the final task
+across the sequence of multi-task learning. Indeed, the hyper-network
+architecture allows efficient sharing and reuse of network elements
+across tasks, which creates future opportunities for developing more
+robust and efficient meta RL algorithms.
+
+
+A major limitation of this work is the lack of experimentation on more
+complex and realistic tasks, both in simulated environments and on a
+real robot in a laboratory setting. This should be one of the foremost
+future research directions in this area. Future research should also
+investigate more meaningful industrial use-cases where the use of RL and
+AI in general is preferred to traditional approaches for programming
+automation equipment. One important example from industrial,
+collaborative robotic applications is human-robot collaboration where
+the presence of the human in the loop both justifies the incorporation
+of AI in robotic control and facilitates the task modularization and
+policy transfer processes. Future research should also investigate the
+implications of the proposed framework for a variety of industrial
+sectors including manufacturing, healthcare, defense, and agriculture,
+among others.

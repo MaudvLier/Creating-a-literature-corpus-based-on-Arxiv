@@ -1,0 +1,541 @@
+[Adaptive Procedural Task Generation for Hard-Exploration Problems]
+
+
+[Introduction]
+
+
+The effectiveness of reinforcement learning (RL) relies on the agent&apos;s
+ability to explore the task environment and collect informative
+experiences. Given tasks handcrafted with human expertise, RL
+algorithms have achieved significant progress on solving sequential
+decision making problems in various domains such as game playing
+*REF* *REF* *REF* and robotics *REF*. However, in many
+hard-exploration problems *REF* *REF* *REF* *REF* 
+*REF* such trial-and-error paradigms often suffer
+from sparse and deceptive rewards, stringent environment constraints,
+and large state and action spaces.
+
+
+A plurality of exploration strategies has been developed to encourage
+the state coverage by an RL agent *REF*. Although successes are achieved in
+goal-reaching tasks and games of small state spaces, harder tasks
+often require the agent to complete a series of sub-tasks without any
+positive feedback until the final mission is accomplished. Naively
+covering intermediate states can be insufficient for the agent to
+connect the dots and discover the final solution. In complicated
+tasks, it could also be difficult to visit diverse states by directly
+exploring in the given environment *REF*.
+
+
+In contrast, recent advances in curriculum learning *REF* aim to utilize similar but
+easier datasets or tasks to facilitate training. Being applied to RL,
+these techniques select tasks from a predefined set *REF* *REF* *REF* or a parameterized space of
+goals and scenes *REF* to accelerate the performance improvement on the target task or the entire task space.
+However, the flexibility of their curricula is often limited to task
+spaces using low-dimensional parameters, where the search for a
+suitable task is relatively easy and the similarity between two tasks
+can be well defined.
+
+
+FIGURE 1
+
+
+In this work, we combat this challenge by generating tasks of rich
+variations as curricula using procedural content generation (PCG).
+Developed for automated creation of environments in physics
+simulations and video games *REF*. PCG tools have paved the way for generating
+diverse tasks of configurable scene layouts, object types,
+constraints, and objectives. To take advantage of PCG for automated
+curricula, the key challenge is to measure the learning progress in
+order to adaptively generate suitable tasks for efficiently learning
+to solve the target task. In hard-exploration problems, this challenge
+is intensified since the performance improvement cannot always be
+directly observed on the target task until it is close to being
+solved. In addition, the progress in a complex task space is hard to
+estimate when there does not exist a well-defined measure of task
+difficulty or similarity. We cannot always expect the agent to
+thoroughly investigate the task space and learn to solve all tasks
+therein, especially when the target task has unknown parameterization
+and the task space has rich variations.
+
+
+To this end, we introduce Adaptive Procedural Task Generation
+(APT-Gen), an approach to progressively generate a sequence of tasks
+to expedite reinforcement learning in hard-exploration problems. As
+shown in Figure *REF* APT-Gen uses a task generator to
+create tasks via a black-box procedural generation module. Through the
+interplay between the task generator and the policy, tasks are 
+continuously generated to provide similar but easier scenarios for
+training the agent. In order to enable curriculum learning in the
+absence of a direct indicator of learning progress, we propose to
+train the task generator by balancing the agent&apos;s performance in the
+generated tasks and the task progress score which measures the
+similarity between the generated tasks and the target task. To
+encourage the generated tasks to require similar agent&apos;s behaviors
+with the target task, a task discriminator is adversarially trained to
+estimate the task progress by comparing the agent&apos;s experiences
+collected from both task sources. APT-Gen can thus be trained for
+target tasks of unknown parameterization or even outside of the task
+space defined by the procedural generation module, which expands the
+scope of its application. By jointly training the task generator, the
+task discriminator, and the policy, APT-Gen is able to adaptively
+generate suitable tasks from highly configurable task spaces to
+facilitate the learning process for challenging target tasks.
+
+
+Our experiments are conducted on various tasks in the grid world and
+robotic manipulation domains. Tasks generated in these domains are
+parameterized by 6× to 10× independent variables compared to those
+in prior work *REF*. Each task can have different
+
+
+environment layouts, object types, object positions, constraints, and
+reward functions. In challenging target tasks of sparse rewards and
+stringent constraints, APT-Gen substantially outperforms existing
+exploration and curriculum learning baselines by effectively
+generating new tasks during training.
+
+
+[Related Work]
+
+
+Hard-Exploration Problems. Many RL algorithms aim to incentivize
+the agent to visit more diverse and higher-reward states. Methods on
+intrinsic motivation augment the sparse and deceptive environment
+rewards with an additional intrinsic reward that encourages curiosity
+*REF*. Another family of exploration techniques is
+derived from an informationtheoretical perspective as maximizing
+information gain of actions *REF*. When human demonstrations are available, they
+can be used to facilitate an RL agent to visit similar states and
+transitions as illustrated in the demonstrations *REF*. A combination of these techniques has been
+applied to solve hardexploration problems in video game domains
+*REF*. However, these methods have
+focused on learning in relatively simple and fixed environments, and
+usually can be ineffective in tasks where explorations are thwarted by
+stringent environment constraints or naively covering states does not
+lead to the task success.
+
+
+Curriculum Learning. Curriculum learning utilizes alternative
+datasets and tasks to accelerate the learning process of challenging
+target tasks *REF* *REF* *REF* *REF* *REF* *REF* To apply
+curriculum learning to RL, several recent works learn to adaptively
+select a finite set of easy tasks *REF* hand-designed by human to
+maximize a progress signal defined on the target task. Parameterized
+tasks have been used to form a curriculum through the configuration of
+goals. *REF* propose to actively adjust
+the hyperparameters in physical simulators to alleviate the domain
+shift. Most of these works are designed for task spaces parameterized
+by several discrete or continuous variables, where the task space can
+often be thoroughly explored and the similarity between two tasks
+could be well defined in the parameter space. In contrast, our
+approach is able to effectively generate tasks parameterized by a
+combination of high-dimensional discrete variables and several
+continuous variables. While most of these works focus on
+parameterizing a single aspect of the task environment, our approach
+learns to generate new tasks of rich variations with configurable
+initial state probability, transition probability, and reward
+function. *REF* propose to use an adversarial agent to set
+goals of growing difficulties by reversely traversing the state space
+from the goal. While this is related to the adversarial training
+framework in this paper in principle, we apply our framework beyond
+goal-reaching and reversible task domains.
+
+
+Procedural Task Generation. Procedural generation has been widely
+used in computer graphics and robotics *REF* the design and implementation of each task
+often require nontrivial human expertise and heavy engineering. A few
+recent works utilize the random procedural generation of tasks *REF*. However, their
+generation algorithms are handcrafted with limited configurable
+features. Evolution strategies *REF* have been proposed to
+automatically discover diverse games and task environments for
+training RL agents. Instead of covering the entire task space or
+discovering a diverse set of policies in an open-ended manner, our
+approach aims to train the policy to solve the target tasks of
+interest by utilizing the generated tasks.
+
+
+[Adaptive Procedural Task Generation]
+
+
+We consider a reinforcement learning problem involving a target task
+that the policy learns to solve and a parameterized task space that we
+utilize to generate new tasks. In practice, the parameterized task
+space can be created by a simulation program or a configurable
+procedure to set up the environment by a human or a robot in the
+real world. The target task can be an instance of an unknown parameter
+or a task outside of the task space, as long as there exist shared
+properties and transferable knowledge between the generated tasks and
+the target task. This follows the general paradigm of teacher-student
+curriculum learning *REF* while we allow the task space to be
+parameterized by either continuous or discrete high-dimensional
+variables and we do not assume the target task has a known
+parameterization by these variables.
+
+
+We propose Adaptive Procedural Task Generation (APT-Gen), an approach
+for progressively generating tasks in highly configurable task
+spaces as curricula. To enable curriculum learning for
+hard-exploration problems, our key insight is that the learning
+progress can be jointly estimated by how well the policy can solve the
+current generated tasks and how similar the generated tasks are to the
+target task. Starting with a set of tasks that the policy can easily
+learn to solve, our approach progressively adapts the generated tasks
+towards the target task while maintaining their feasibility to the
+policy. As shown in Figure *REF* our approach creates
+tasks via a black-box procedural generation module by jointly learning
+the task generator, the task discriminator, and the policy.
+
+
+1. [Problem Formulation]
+
+
+We consider each task as a Markov Decision Process (MDP) denoted by a
+tuple M = (S, A, ρ, P, R, γ) with state space S, action space
+A, initial state probability ρ, transition probability P,
+reward function R, and discount factor γ. The task space T
+defines a finite or infinite number of MDPs of similar designs and
+properties. We use a multi-dimensional parameter space W to
+represent the inter-task variation of T. Given a task parameter w
+∈ W, a task M (w) can be instantiated in the task space by a
+predefined mapping M (·). While a generic task space can be
+composed of fully configurable MDPs, in this work we assume that all
+tasks share the same S, A and γ such that all policies share the
+same input and output dimensions. In this case, each M (w) is
+defined by a distinct set of ρ, P, R parameterized by w. The
+target task M is either an instance of unknown parameter w ∈ W or
+a task outside of T but shares the same S and A.
+
+
+Our goal is to learn a policy π to solve the target task M.
+During training, the curriculum is formed
+as a sequence of task parameters ^N^ with index i for
+constructing the corresponding sequence i=1
+of generated tasks M (wi). The agent collects rollouts by
+unrolling in both M and M (wi). Each rollout is denoted as τ
+, which is composed of a sequence of state st, action at and
+reward rt at each time step t. In the generated tasks, the
+wi of the source task is recorded alongside with the τ. Given a
+fixed budget of total collected steps in both [tas]k
+domains the objective is to maximize the policy&apos;s expected return FORMULA in the target task M.
+
+
+2. Adaptive Generation for Hard-Exploration Problems
+
+
+The interplay between the policy FORMULA and the task
+generator G(z; θg) is formulated in a teacher-student paradigm
+*REF* *REF* *REF* where θp, θg are learnable model parameters and z is a noise input used in
+deep generative models *REF* *REF* *REF* *REF* In contrast to prior
+work *REF*. which rely on evaluating
+performance improvements directly on the target task or the entire
+task space, we propose to define the indicator of learning progress
+using the expected return FORMULA and
+a task progress η to enable curriculum learning in hard-exploration
+problems. The expected return
+measures the policy&apos;s performance in the generated tasks sampled by
+G. While the task progress η is a continuous score which
+represents the generated tasks&apos; similarity to the target task. The
+definition and learning process of η will be detailed in Sec.
+[3.3.]. When both the expected return and the task progress reach the maxima, the generated
+tasks are supposed to be indistinguishable from the target task and
+π is trained to be the optimal policy for the target task.
+
+
+The training requires a careful balance between the task progress and
+the expected return. A highly configurable task space potentially
+contains a large amount of tasks that are infeasible or of similar
+difficulties with the target task. If the task distribution of G
+moves too fast towards the target task, the policy can quickly be
+overwhelmed by difficult tasks and lose track of what tasks can be
+effectively learned. On the contrary, sticking to the tasks that can
+be solved by the current policy will retard the learning progress and
+overfit the policy to the easy scenarios. Our approach maximizes the
+task progress subject to a target minimum expected return δ as a
+chosen hyperparameter. Then the training of the task generator amounts
+to the optimization problem: FORMULA
+where FORMULA represents the generation process jointly determined by
+p(z) and G and FORMULA is a shorthand notation for FORMULA to
+represent the expectation over distribution of FORMULA
+where β is the Lagrangian multiplier that balances the task
+feasibility and the task progress. β can have a delayed effect on
+the optimization problem since π and η are learned at the same
+time. We adopt an automated procedure *REF* *REF* *REF* to adjust β adaptively
+when FORMULA exceeds a threshold.
+
+
+ALGORITHM
+
+
+Since the gradients cannot be directly backpropagated to the task
+generator, we follow the practice of *REF* and use two value functions
+to estimate the two expectation terms respectively. By taking the
+input task parameter w, the progress value function V1(w;
+θ1) estimates the taLsk progress η and the return value function
+V2(w; θ2) estimates the expected return FORMULA, where θ1 and θ2 are learnable model parameters.
+The two value functions are trained to fit the two expectation terms over the
+distribution of τ with respect to θ1 and θ2, using rollouts
+collected in the generated tasks with the policy π. The training of
+the task generator becomes learning θg to maximize the task
+generator loss: FORMULA.
+
+
+3. [Adversarial Training of Task Progress]
+
+
+The goal of the task progress η is to guide the task generator G
+to generate tasks similar to the target task. Since the difficulty
+level and the task similarity cannot be defined by an objective metric
+in many complex task domains, we argue that η needs to jointly adapt
+with G and π when the task distribution and the policy constantly
+evolve over the course of training. Ideally, η should satisfy two
+requirements: First, when the maximum η is achieved at convergence,
+a generated task M (w) and the target task M should be
+indistinguishable from the perspective of the policy π. Second,
+since a small change in an ill-posed task parameter space can
+completely alter the required agent&apos;s behaviors to solve the task, η
+needs to provide a smooth signal to adapt G in the task space.
+
+
+To this end, we estimate η using a task discriminator D(τ;
+θd) defined on the agent&apos;s experiences in the task environment,
+where θd is the learnable model para[m]eter. It takes
+τ as input and learns to estimate the probability of the task M
+being the target task M conditioned on the rollout τ induced
+by the policy π. The task progress η of the task parameter w can
+be defined as FORMULA.
+
+
+In this way, D forms an adversarial training framework *REF* *REF* *REF* against G and π,
+which jointly determine the likelihood of τ.
+
+
+The task discriminator is required to comprehensively compare the
+given task with the target task in APT-Gen. Unlike prior work which
+aims to discriminate policies *REF* and physics parameters *REF* *REF* *REF* D computes the prediction
+score by taking the overall MDP definition into account. Therefore,
+D is designed to separately encode the initial state s1 and each
+transition (st, at, rt, st+1) of step t to discriminate the initial state probability ρ, the transition
+probability P and the reward function R respectively. The prediction is
+computed using a pooling function across all encoded features. The
+implementation details of D are described in Appendix
+[B.].
+
+
+To train the task generator, we collect rollouts from generated tasks
+as τg and the target task as τtarget, stored in two replay
+buffers Dg and Dtarget respectively. The training of FORMULA is conducted
+by minimizing a discriminator loss *REF* *REF* *REF* to classify the task
+sources of the collected rollouts: FORMULA.
+
+
+In principle, to learn a G that produces the exact MDP definition of
+M, we would require M to be an instance of the task space T and
+the training data to be collected by arbitrary π to fully
+investigate differences in the two task environments. However, this
+could be neither computationally practical nor
+necessary. Given that our goal is to find an optimal
+policy FORMULA to solve the target task, we only need M and M (w)
+to be indistinguishable from the perspective of the policy. In
+practice, the rollouts are collected using the updated FORMULA 
+with epsilon-greedy exploration *REF*. One could also encourage
+explorations *REF* *REF* in the policy learning to
+efficiently distinguish the two tasks, which we leave out of the scope
+of this work.
+
+
+The pseudocode of the algorithm is outlined in Algorithm
+*REF* The training alternates among updates of the policy,
+the task discriminator, and the task generator in the same loop. New
+rollouts are continuously collected from both the target task and the
+generated tasks using the updated π. In this work, we equally
+collect experiences from the two sources to train the policy, while a
+smarter strategy of choosing between task sources can be further
+investigated in future work.
+
+
+[Experiments]
+
+
+The goal of our experimental evaluation is to answer the following
+questions: 1) Can APT-Gen facilitate reinforcement learning in
+hard-exploration problems? 2) What tasks can be generated by APT-Gen
+for a target task during training? 3) Can APT-Gen be applied to target
+tasks outside of the task space predefined by the procedural
+generation module?
+
+
+1. TASKS
+
+
+The experiments are conducted in two configurable task spaces:
+Grid-World and Manipulation. The two task spaces are configured by
+74 and 31 parameters consist of a combination of discrete and
+continuous variables. Each task space contains various tasks that
+share the same state and action spaces but different environment
+layouts, object types, object positions, constraints, and reward
+functions. The tasks from these task spaces can have stringent
+penalties and constraints such as lava regions and pitfalls which make
+it hard for the agent to succeed or survive. In contrast to many
+handcrafted hard-exploration tasks in prior work *REF* which provide sub-task
+rewards (e.g. finding a key and opening a door), our tasks only
+provide a sparse positive reward when the final task is accomplished, which
+introduces extra challenges for the agent. As shown in Figure
+*REF* we design three target tasks of different
+complexities in each task space for evaluation. Details of the task
+design and the task parameterization can be found in Appendix [A.].
+
+
+FIGURE
+
+
+2. [Quantitative Results]
+
+
+We evaluate the performance of the agent in target tasks using
+different methods. All methods are trained with a fixed budget of
+total steps collected by the agent. In Appendix
+[B,] we provide implementation details,
+hyperparameters, training and evaluation protocols.
+
+
+FIGURE
+
+
+Baselines. We compare APT-Gen with various baselines, including 3
+exploration strategies, 3 curriculum methods, and a model-free RL
+baseline. ICM *REF* adversarially learn intrinsic motivations to encourage exploration
+in the state space. Random uniformly samples from the task parameter
+space to create tasks. ALP-GMM *REF* *REF* *REF* and GoalGAN *REF* *REF* 
+*REF* use Gaussian Mixture Models and GAN to sample
+tasks as curricula without mechanisms to estimate the task distance
+and handle complex task spaces. DQN *REF* *REF* 
+*REF* *REF* *REF* directly applies Q-learning in the target task.
+To have a fair comparison, we use the same architecture for the
+corresponding components and search for the optimal hyperparameters
+for each method.
+
+
+Comparative Analysis. In Figure *REF* we present the
+agent&apos;s performance in the target tasks by using different methods.
+The average return across 5 independent runs is reported and the
+shaded area indicates the standard deviation. To have fair
+comparisons, the x-axes of APT-Gen and curriculum learning baselines
+(Random, GoalGAN, ALP-GMM) indicate the total steps collected from the
+target and generated tasks, while x-axes of other baselines (DQN, ICM,
+RND, RIDE) indicate the steps collected from only the target task. In
+all scenarios, our approach achieves superior performance comparing
+with baseline methods. In Grid-World tasks, APT-Gen successfully
+trains the agent to find keys in separate locations and access
+different rooms in the right sequential order. In the Manipulation
+tasks, APT-Gen enables the agent to solve the puzzle by moving around
+the obstacles in the correct order without causing collisions.
+Especially, in Manipulation-C, our agent develops an effective
+strategy that first moves away from the target object away to yield
+the path for the obstacle to leave and then pushing it back towards
+the goal to complete the task.
+
+
+Most baseline methods fail in hard tasks that require sequential
+problem solving over a longer horizon, although some can achieve
+comparable results in easier scenarios (i.e. when there is only one
+room and the environment is mostly empty). ICM, RND, and RIDE
+demonstrate effective explorations when the environment is
+relatively simple, but the agent is often thwarted by the penalties
+caused by constraints in the environment. Without any reward shaping
+for sub-tasks, naively reaching to the intermediate states (e.g.
+finding the keys) does not yield any immediate reward unless the goal
+is reached at the end of the same episode. Without mechanisms to
+estimate the task similarity and to handle complex task spaces,
+curriculum learning baselines like ALP-GMM and GoalGAN fail to produce
+useful tasks that share similar challenges with the target tasks.
+
+
+Out-of-Space Task. To demonstrate APT-Gen&apos;s performance in target
+tasks that are outside of the predefined task space, we train the
+model to solve a different robotic manipulation task while still
+generating tasks from the task space defined in Sec.
+[4.1.] The target task shares the same state and action
+spaces with the predefined task space, but the table has a different
+shape and a variety of static objects are placed on the table as
+environment constraints. As shown in Figure *REF* APT-Gen
+efficiently learns to solve the out-of-space task while baseline
+methods take much more steps or completely fail to learn. Qualitative
+results of out-of-space tasks will be discussed in Sec. [4.4.].
+
+
+FIGURE
+
+
+3. [Ablation Study]
+
+
+We conduct ablation studies on the target task of Manipulation-C and
+analyze the effect of the indicator of learning progress. As shown in
+Figure *REF* the performance degrades when using only
+either the expected return or the task progress as the learning
+progress. The generation often adapts too fast towards the target task
+when only counting on the task progress, although easier tasks can
+still emerge during the adaptation. When generating tasks only in
+response to the expected return, the policy is overwhelmed by easy
+tasks, which retards the learning progress of the target task. In
+these ablations, although the knowledge gained from such tasks
+sometimes could still benefit the training, they do not form the ideal
+curricula for solving the target task. As a result, the performances
+achieved by these ablations are inferior to the performance of the
+full model of APT-Gen.
+
+
+4. [Progression of Generated Tasks]
+
+
+We present qualitative results of the generated tasks in Figure
+*REF* Each row shows three generated tasks and the
+target task (marked by green borderlines) with the number of collected
+environment steps and the task name shown on the upper right of the
+images. When learning for Grid-World-A, the task generator first
+creates easy tasks in which the goal (green tile) is close to the
+starting position of the agent (red triangle) with few obstacles in
+between. Between 15k and 30k steps, the task generator gradually
+shifts the goal to the bottom right corner as in the target task. At
+the same time, walls (grey tiles) are created to form rooms enclosing
+the goal. At around 45k steps, the door is placed on the wall to lock
+the room and the key is placed in a further location in the labyrinth.
+The agent learns to grab the key and open the door in the target task
+after learning to solve the generated task since the solutions now
+share a similar routine. In Manipulation-C, generated tasks start
+with a clear table surface and a small distance between the target
+object (blue can) and the goal (cyan circle). As the agent learns to
+tackle such easy scenarios, a green can is placed in between as an
+obstacle while the goal grows larger to make sure the agent can still
+complete the task. At 60K steps, the environment further morphs
+towards the target task as more obstacles being added to the scene and
+the goal shrinking to the correct size.
+
+
+In the out-of-space task, although the more complicated table and
+objects cannot be generated by the procedural generation module of
+limited capabilities, APT-Gen gradually learns to outline the scene of
+the target task by utilizing the available elements such as cuboids
+and empty holes. By interacting with the environment and comparing
+experiences in both task sources, APT-Gen trains the policy to solve
+the out-of-space task by approximating the challenges in the target
+task.
+
+
+[Conclusion]
+
+
+To expedite reinforcement learning in hard-exploration problems, we
+present Adaptive Procedural Task Generation (APT-Gen) to generate
+suitable tasks via black-box procedural generation modules as
+curricula. By jointly training the task generator, the task
+discriminator, and the policy, APT-Gen achieves superior performances
+to existing exploration and curriculum learning baselines in various
+target tasks in the grid world and robotic manipulation domains. By
+adversarially training the task discriminator to estimate the
+similarity between the target task and generated tasks, APT-Gen
+demonstrates to be effective for target tasks of unknown
+parameterization and out of the predefined task spaces, which expands
+its potential use case. We hope this work could encourage more endeavors 
+in utilizing procedural content generation for reinforcement learning.

@@ -1,0 +1,558 @@
+EgoMap: Projective mapping and structured egocentric memory for Deep RL
+
+
+Introduction
+
+
+A critical part of intelligence is navigation, memory and planning. An
+animal that is able to store and recall pertinent information about
+their environment is likely to exceed the performance of an animal whose
+behavior is purely reactive. Many control problems in partially observed
+3D environments involve long term dependencies and planning. Solving
+these problems requires agents to learn several key capacities: spatial
+reasoning --- to explore the environment in an efficient manner and to
+learn spatio-temporal regularities and affordances. The agent needs to
+autonomously navigate, discover relevant objects, store their positions
+for later use, their possible interactions and the eventual
+relationships between the objects and the task at hand. Semantic mapping
+is a key feature in these tasks. A second feature is discovering
+semantics from interactions --- while solutions exist for semantic
+mapping and semantic SLAM [*REF*; *REF*], a more
+interesting problem arises when the semantics of objects and their
+affordances are not supervised, but defined through the task and thus
+learned from reward.
+
+
+FIGURE
+
+
+A typical approach for these types of problems are agents based on deep
+neural networks including recurrent hidden states, which encode the
+relevant information of the history of observations
+[*REF*; *REF*]. If the task requires navigation, the hidden state will naturally be
+required to store spatially structured information. It has been recently
+reported that spatial structure as inductive bias can improve the
+performance on these tasks. In [*REF*], for instance, different
+cells in a neural map correspond to different positions of the agent.
+
+
+In our work, we go beyond structuring the agent&apos;s memory with respect to
+the agent&apos;s position. We use projective geometry as an inductive bias to
+neural networks, allowing the agent to structure its memory with respect
+to the locations of objects it perceives, as illustrated in Figure 1b. 
+The model performs an inverse
+projection of CNN feature vectors in order to map and store observations
+in an egocentric (bird&apos;s eye view) spatially structured memory. The
+EgoMap is complementary to the hidden state vector of the agent and is
+read with a combination of a global convolutional read operation and an
+attention model allowing the agent to query the presence of specific
+content. We show that incorporating projective spatial memory enables
+the agent to learn policies that exceed the performance of a standard
+recurrent agent. Two different objects visible in the same input image
+could be at very different places in the environment. In contrast to
+[*REF*], our model will map these observations to their
+respective locations, and not to cells corresponding to the agent&apos;s
+position, as shown in Figure 1a.
+
+
+The model bears a certain structural resemblance with Bayesian occupancy
+grids (BOG), which have been used in mobile robotics for many years
+[*REF*; *REF*]. As in BOGs, we perform
+inverse projections of observations and dynamically resample the map to
+take into account ego-motion. However, in contrast to BOGs, our model
+does not require a handcrafted observation model and it learns semantics
+directly from interactions with the environment through reward. It is
+fully differentiable and trained end-to-end with backpropagation of
+derivatives calculated with policy gradient methods. Our contributions
+are as follows:
+- To our knowledge, we present the first method using a differentiable
+SLAM-like mapping of visual features into a top-down egocentric
+feature map using projective geometry while at the same time
+training this representation using RL from reward.
+- Our spatial map can be translated and rotated through a
+differentiable affine transform and read globally and through
+self-attention.
+- We show that the mapping, spatial memory and self-attention can be
+learned end-to-end with RL, avoiding the cost of labelling
+trajectories from domain experts, auxiliary supervision or
+pre-training specific parts of the architecture.
+- We demonstrate the improvement in performance over recurrent and
+spatial structured baselines without projective geometry.
+- We illustrate the reasoning abilities of the agent by visualizing
+the content of the spatial memory and the self-attention process,
+tying it to the different objects and affordances related to the
+task.
+- Experiments with noisy actions demonstrate the agent is robust to
+actions tolerances of up to 10%.
+
+
+The code will be made publicly available on acceptance.
+
+
+Related Work
+
+
+Reinforcement learning --- In recent years the field of Deep
+Reinforcement Learning (RL) has gained attention with successes on board
+games [*REF*] and Atari games [*REF*]. One key
+component was the application of deep neural networks
+[*REF* -BasedMethod] to frames from the environment or game
+board states. Recent works that have applied Deep RL for the control of
+an agent in 3D environments such as maze navigation are
+[*REF*] and [*REF*] which explored the use of auxiliary
+tasks such as depth prediction, loop detection and reward prediction to
+accelerate learning. Meta RL approaches for 3D navigation have been
+applied by [*REF*] and [*REF*] also accelerated the
+learning process in 3D environments by prediction of tailored game
+features. There has also been recent work in the use of street-view
+scenes to train an agent to navigate in city environments
+[*REF*]. In order to infer long term dependencies and
+store pertinent information about the partially observable environment;
+network architectures typically incorporate recurrent memory such as
+Gated Recurrent Units [*REF*] or Long Short-Term Memory [*REF*].
+
+
+Differentiable memory --- Differentiable memory such as Neural
+Turing Machines [*REF*] and Differential Neural Computers
+[*REF*] have shown promise where long term dependencies and
+storage are required. Neural Networks augmented with these memory
+structures have been shown to learn tasks such as copying, repeating and
+sorting. Some recent works for control in 2D and 3D environments have
+included structured memory-based architectures and mapping of
+observations. Neural SLAM [*REF*] aims to
+incorporate a SLAM-like mapping module as part of the network
+architecture, but uses simulated sensor data rather than RGB
+observations from the environment, so the agent is unable to extract
+semantic meaning from its observations. The experimental results focus
+on 2D environments and the 3D results are limited. Playing Doom with
+SLAM augmented memory [*REF*] implements a
+non-differentiable inverse projective mapping with a fixed feature
+extractor based on Faster-RCNN [*REF*], pre-trained in a
+supervised manner. A downside of this approach is that the network does
+not learn to extract features pertinent to the task at hand as it is not
+trained end-to-end with RL. [*REF*] replace recurrent memory with
+a transformer ([*REF*]) attention distribution over previous
+observation embeddings, to highlight that recurrent architectures can
+struggle to capture long term dependencies. The downside is the storage
+of previous observations grows linearly with each step in the
+environment and the agent cannot chose to discard redundant information.
+
+
+Grid cells --- there is evidence that biological agents learn to
+encode spatial structure. Rats develop grid cells/neurons, which fire at
+different locations with different frequencies and phases, a discovery
+that led to the 2014 Nobel prize in medicine
+[*REF*; *REF*]. A similar structure seems to emerge
+in artificial neural networks trained to localize themselves in a maze,
+discovered independently in 2018 by two different research groups [*REF*; *REF*].
+
+
+Projective geometry and spatial memory --- Our work encodes spatial
+structure directly into the agent as additional inductive bias. We argue
+that projective geometry is a strong law imposed on any vision system
+working from egocentric observations, justifying a fully differentiable
+model of perception. To our knowledge, we present the first method which
+uses projective geometry as inductive bias while at the same time
+learning spatial semantic features with RL from reward.
+
+
+The past decade has seen an influx of affordable depth sensors. This has
+led to a many works in the domain reconstruction of 3D environments,
+which can be incorporated into robotic systems. Seminal works in this
+field include [*REF*] who performed 3D reconstruction
+scenes using a moving Kinect sensor and [*REF*] who created
+dense 3D maps using RGB-D cameras.
+
+
+Neural Map [*REF*] implements a structured 2D differentiable
+memory which was tested in both egocentric and world reference frames,
+but does not map observations in a SLAM-like manner and instead stores a
+single feature vector at the agent&apos;s current location. The agent&apos;s
+position is also discretized to fixed cells and orientation quantized to
+four angles (North, South, East, West). A further downside is that the
+movement of the memory is fixed to discrete translations and the map is
+not rotated to the agent&apos;s current viewpoint.
+
+
+MapNet [*REF*] includes an inverse mapping of CNN features, is trained
+in a supervised manner to predict x,y position and rotation from human
+trajectories, but does not use the map for control in an environment.
+Visual Question Answering in Interactive Environments [*REF*]
+creates semantic maps from 3D observations for planning and question
+answering and is applied in a discrete state space.
+
+
+Unsupervised Predictive Memory in a Goal-Directed Agent
+[*REF*] incorporates a Differential Neural Computer
+in an RL agent&apos;s architecture and was applied to simulated memory-based
+tasks. The architecture achieves improved performance over a typical
+LSTM [*REF*] based RL agent, but does not include
+spatial structure or projective mapping. In addition, visual features
+and neural memory are learned through the reconstruction of observations
+and actions, rather than for a specific task.
+
+
+Cognitive Mapping and Planning for Visual Navigation [*REF*]
+applies a differentiable mapping process on 3D viewpoints in a discrete
+grid-world, trained with imitation learning which provides supervision
+on expert trajectories. The downside of discretization is that affine
+sampling is trivial for rotations of 90-degree increments, and this
+motion is not representative of the real world. Their tasks are simple
+point-goal problems of up to 32 time-steps, whereas our work focused on
+complex multi-step objectives in a continuous state space. Their
+reliance on imitation learning highlights the challenge of training
+complex neural architectures with reward alone, particular on tasks with
+sparse reward such as the ones presented in this paper.
+
+
+Learning Exploration Policies for Navigation [*REF*], do not learn
+a perception module but instead map the depth buffer to a 2D map to
+provide a map-based exploration reward. Our work learns the features
+that can be mapped so the agent can query not only occupancy, but
+task-related semantic content.
+
+
+Our work greatly exceeds the performance of Neural Map [*REF*],
+by embedding a differentiable inverse projective transform and a
+continuous egocentric map into the agent&apos;s network architecture. The
+mapping of the environment is in the agent&apos;s reference frame, including
+translation and rotation with a differentiable affine transform. We
+demonstrate stable training with reinforcement learning alone, over
+several challenging tasks and random initializations, and do not require
+the expense of acquiring expert trajectories. We detail the key
+similarities and differences with related work in table.
+
+
+TABLE
+
+
+EgoMap
+
+
+We consider partially observable Markov decision processes (POMDPs)
+[*REF*] in 3D environments and extend recent Deep-RL
+models, which include a recurrent hidden layer to store pertinent long
+term information [*REF*; *REF*].
+In particular, RGBD observations *MATH* at time step *MATH* are passed
+through a perception module extracting features *MATH*, which are used to
+update the recurrent state: *MATH* where *MATH* is a convolutional neural
+network and *MATH* is a recurrent neural network in the Gated Recurrent
+Unit variant [*REF*]. Gates and their equations have been
+omitted for simplicity. Above and in the rest of this paper, *MATH* 
+are trainable parameters, exact architectures are provided in the
+appendix. The controller outputs an estimate of the policy (the action
+distribution) and the value function given its hidden state: *MATH*. 
+The proposed model is motivated by the regularities which govern 3D
+physical environments. When an agent perceives an observation of the 3D
+world, it observes a 2D planar perspective projection of the world based
+on its current viewpoint. This projection is a well understood physical
+process, we aim to imbue the agent&apos;s architecture with an inductive bias
+based on inverting the 3D to 2D planar projective process. This inverse
+mapping operation appears to be second nature to many organisms, with
+the initial step of depth estimation being well studied in the field of
+Physiology [*REF*]. We believe that providing this mechanism
+implicitly in the agent&apos;s architecture will improve its reasoning
+capabilities in new environments bypass a large part of the learning process.
+
+
+The overall concept is that as the agent explores the environment, the
+perception module *MATH* produces a 2D feature map *MATH*, in which each
+feature vector represents a learned semantic representation of a small
+receptive field from the agent&apos;s egocentric observation. While they are
+integrated into the flat (not spatially structured) recurrent hidden
+state *MATH* through function *MATH* (Equation), we propose its integration into a
+second tensor *MATH*, a top-down egocentric memory, which we call
+EgoMap. The feature vectors are mapped to their egocentric positions
+using the inverse projection matrix and depth estimates. This requires
+an agent with a calibrated camera (known intrinsic parameters), which is
+a soft constraint easily satisfied. The map can then be read by the
+agent in two ways: a global convolutional read operation and a self-attention operation.
+
+
+Formally, let the agent&apos;s position and angle at time *MATH* be *MATH* 
+and *MATH* respectively, *MATH* is the current EgoMap. *MATH* are the
+feature vectors extracted by the perception module, *MATH* are the depth
+buffer values. The change in agent position and orientation in the
+agent&apos;s frame of reference between time-step *MATH* and *MATH* are
+*MATH*.
+
+
+There are three key steps to the operation of the EgoMap:
+1. Transform the map to the agent&apos;s egocentric frame of reference: *MATH*. 
+2. Update the map to include new observations: *MATH*.
+3. Perform a global read and attention based read, the outputs of which
+are fed into the policy and value heads: *MATH*.
+
+
+These three operations will be further detailed below in individual
+subsections. Projective mapping and spatially structured memory should
+augment the agent&apos;s performance where spatial reasoning and long term
+recollection are required. On simpler tasks the network can still
+perform as well as the baseline, assuming the extra parameters do not
+cause further instability in the RL training process.
+
+
+Affine transform --- At each time-step we wish to translate and
+rotate the map into the agent&apos;s frame of reference, this is achieved
+with a differentiable affine transform, popularized by the well known
+Spatial Transformer Networks [*REF*]. Relying on the simulator
+to be an oracle and provide the change in position *MATH* and
+orientation *MATH*, we convert the deltas to the agent&apos;s egocentric
+frame of reference and transform the map with a differentiable affine
+transform. The effect of noise on the change in position on the agent&apos;s
+performance is analysed in the experimental section.
+
+
+Inverse projective mapping --- We take the agent&apos;s current
+observation, extract relevant semantic embeddings and map them from a 2D
+planar projection to their 3D positions in an egocentric frame of
+reference. At each time-step, the agent&apos;s egocentric observation is
+encoded by the perception module (a convolutional neural network) to
+produce feature vectors, this step is a mapping from
+*MATH*. Given the inverse camera projection matrix and the depth buffer provided by the simulator,
+we can compute the approximate location of the features in the agent&apos;s
+egocentric frame of reference. As the mapping is a many to one
+operation, several features can be mapped to the same location. Features
+that share the same spatial location are averaged element-wise.
+
+
+The newly mapped features must then be combined with the translated map
+from the previous time-step. We found that the use of a momentum
+hyper-parameter, *MATH*, enabled a smooth blending of new and
+previously observed features. We use an *MATH* value of 0.9 for the
+tests presented in the paper. We ensured that the blending only occurs
+where the locations of new projected features and the map from the
+previous time-step are co-located, this criterion is detailed in
+Equation. *MATH*. Sampling from a global map --- A naive approach to the storage and
+transformation of the egocentric feature map would be to apply an affine
+transformation to the map at each time-step. A fundamental downside of
+applying repeated affine transforms is that at each step a bilinear
+interpolation operation is applied, which causes smearing and
+degradation of the features in the map. We mitigated this issue by
+storing the map in a global reference frame and mapping the agent&apos;s
+observations to the global reference frame. For the read operation an
+offline affine transform is applied. For further details see the
+appendix [8].
+
+
+Read operations --- We wanted the agent to be able to summarize the
+whole spatial map and also selectively query for pertinent information.
+This was achieved by incorporating two types of read operation into the
+agent&apos;s architecture, a Global Read operation and a Self-attention
+Read.
+
+
+The global read operation is a CNN that takes as input the egocentric
+map and outputs a 32-dimensional feature vector that summarizes the
+map&apos;s contents. The output of the global read is concatenated with the
+visual CNN output.
+
+
+To query for relevant features in the map, the agent&apos;s controller
+network can output a query vector *MATH*, the network then compares this
+vector to each location in the map with a cosine similarity function in
+order to produce scores, which are the same width and height as the map.
+The scores are normalized with a softmax operation to produce a
+soft-attention in the lines of [*REF*] and used to compute
+a weighted average of the map, allowing the agent to selectively query
+and focus on parts of the map. This querying mechanism was used in both
+the Neural Map [*REF*] and MERLIN [*REF*] RL
+agents. We made the following improvements: Attention Temperature and
+Query Position. *MATH*. Query Position: A limitation of
+self-attention is that the agent can query what it has observed but
+not where it had observed it. To improve the spatial reasoning
+performance of the agent we augmented the neural memory with two fixed
+additional coordinate planes representing the x,y egocentric coordinate
+system normalized to *MATH*, as introduced for segmentation in
+[*REF*]. The agent still queries based on the features
+in the map, but the returned context vector includes two extra scalar
+quantities which are the weighted averages of the x,y planes. The
+impacts of these additions are discussed and quantified in the ablation
+study, in Section.
+
+
+Attention Temperature: To provide the agent with the ability to learn
+to modify the attention distribution, the query includes an additional
+learnable temperature parameter, *MATH*, which can adjust the softmax
+distribution detailed in Equation. This parameter can vary query by query and
+is constrained to be one or greater by a Oneplus function. The use of
+temperature in neural memory architectures was first introduced in
+Neural Turing Machines [*REF*].
+
+
+TABLE
+
+
+Experiments
+
+
+The EgoMap and baseline architectures were evaluated on four challenging
+3D scenarios, which require navigation and different levels of spatial
+memory. The scenarios are taken from
+[*REF*] who extended the 3D ViZDoom
+environment [*REF*] with various scenarios that
+are partially observable, require memory, spatial understanding, have
+long horizons and sparse rewards. Whilst more visually realistic
+simulators are available such as Gibson [*REF*],
+Matterport [*REF*], Home [*REF*:Environment] and Habitat
+[*REF*], the tasks available are simple point-goal tasks which
+do not require long term memory and recollection. We target the
+following three tasks:
+
+
+Labyrinth: The agent must find the exit in the fastest time
+possible, the reward is a sparse positive reward for finding the exit.
+This tests an agent&apos;s ability to explore in an efficient manner.
+
+
+Ordered k-item: An agent must find *MATH* objects in a fixed order. It
+tests three aspects of an agent: its ability to explore the environment
+efficiently, the ability to learn to collect items in a predefined order
+and its ability to store as part of its hidden state where items were
+located so they can be retrieved in the correct order. We tested two
+versions of this scenario with 4-items or 6-items.
+
+
+Find and return: The agent starts next to a green totem, must
+explore the environment to find a red totem and then return to the
+starting point. This is our implementation of &quot;Minotaur\&quot; scenario from
+[*REF*]. The scenario tests an agent&apos;s ability to navigate and
+retain information over long time periods.
+
+
+All the tasks require different levels of spatial memory and reasoning.
+For example, if an agent observes an item out of order it can store the
+item&apos;s location in its spatial memory and navigate back to it later. We
+observe that scenarios that require more spatial reasoning, long term
+planning and recollection are where the agent achieves the greatest
+improvement in performance. In all scenarios there is a small negative
+reward for each time-step to encourage the agent to complete the task
+quickly.
+
+
+Experimental strategy and generalization to unseen environments ---
+Many configurations of each scenario were created through procedural
+generation and partitioned into separated training and testing sets of
+size 256 and 64 respectively for each scenario type. Although the task
+in a scenario is fixed, we vary the locations of the walls, item
+locations, and start and end points; thus we ensure a diverse range of
+possible scenario configurations. A limited hyper-parameter sweep was
+undertaken with the baseline architecture to select the
+hyper-parameters, which were fixed for both the baseline, Neural Map and
+EgoMap agents. Three independent experiments were conducted per task to
+evaluate the algorithmic stability of the training process. To avoid
+information asymmetry, we provide the baseline agent with
+*MATH* concatenated with its visual features.
+
+
+Training Details --- The model parameters were optimized with an
+on-policy, policy gradient algorithm; batched Advantage Actor Critic
+(A2C) [*REF*], we used the popular PyTorch
+[*REF*] implementation of A2C [*REF*]. We sampled
+trajectories from 16 parallel agents and updated every 128 steps in the
+environment with discounted returns bootstrapped from value estimates
+for non-terminal states. The gamma factor was 0.99, the entropy weight
+was 0.001, the RMSProp [*REF*] optimizer was used with a
+learning rate of 7e-4. The EgoMap agent map size was *MATH* with a grid
+sampling chosen to cover the environment size with a 20% padding. The
+agent&apos;s policy was updated over 1.2B environment steps, with a frame
+skip of 4. Training took 36 hours for the baseline and 8 days for the
+EgoMap, on 4 Xeon E5-2640v3 CPUs, with 32GB of memory and one NVIDIA
+GK210 GPU.
+
+
+Results --- Results from the baseline and EgoMap policies evaluated
+on the 4 scenarios are shown in table, all tasks benefit from the inclusion of
+inverse projective mapping and spatial memory in the agent&apos;s network
+architecture, with the largest improvement on the Find and Return
+scenario. We postulate that the greater improvement in performance is
+due to two factors; firstly this scenario always requires spatial memory
+as the agent must return to its starting point and secondly the objects
+in this scenario are larger and occupy more space in the map. We also
+compared to the state of the art in spatially structured neural memory,
+Neural Map [*REF*]. Figure shows agent training curves for the
+recurrent baseline, Neural Map and EgoMap, on the Find and Return test
+set configurations.
+
+
+TABLE 
+
+
+An ablation study was carried out on the improvements made by the EgoMap
+architecture. We were interested to see the influence of key options
+such as the global and attention-based reads, the similarity function
+used when querying the map, the learnable temperature parameter and the
+incorporation of location-based querying. The Cartesian product of these
+options is large and it was not feasible to test them all, we therefore
+decided to selectively switch off key options to understand which
+aspects contribute to the improvement in performance. The results of the
+ablation study are shown in Table. Both the global and self-attention reads
+provide large improvements in performance over the baseline recurrent
+agent. The position-based query provides a small improvement. A
+comparison of the similarity metric of the attention mechanism
+highlights the L1-similarity achieved higher performance than cosine. A
+qualitative analysis of the self-attention mechanism is shown in the
+next section.
+
+
+Analysis
+
+
+Visualization --- The EgoMap architecture is highly interpretable
+and provides insights about how the agent reasons in 3D environments. In
+figure and figure we show analysis of the spatially structured memory and how the agent has learned to
+query and self-attend to recall pertinent information. The Figures show
+key steps during an episode in the Ordered 6-item and Find and
+Return scenarios, including the first three principal components of a
+dimensionality reduction of the 16-dimensional EgoMap, the attention
+distribution and the vector returned from position queries. Refer to the
+caption for further details. The agent is seen to attend to key objects
+at certain phases of the task, in the Ordered 6-item scenario the
+agent attends the next item in the sequence and in the Find and Return
+scenario the agent attends to the green totem located at the
+start/return point once it has found the intermediate goal.
+
+
+FIGURE
+
+
+Conclusion
+
+
+We have presented EgoMap, an egocentric spatially structured neural
+memory that augments an RL agent&apos;s performance in 3D navigation, spatial
+reasoning and control tasks. EgoMap includes a differentiable inverse
+projective transform that maps learned task-specific semantic embeddings
+of agent observations to their world positions. We have shown that
+through the use of global and self-attentive read mechanisms an agent
+can learn to focus on important features from the environment. We
+demonstrate that an RL agent can benefit from spatial memory,
+particularly in 3D scenarios with sparse rewards that require
+localization and memorization of objects. EgoMap out-performs existing
+state of the art baselines, including Neural Map, a spatial memory
+architecture. The increase in performance compared to Neural Map is due
+to two aspects. 1) The differential projective transform maps what the
+objects are to where they are in the map, which allows for direct
+localization with attention queries and global reads. In comparison,
+Neural Map writes what the agent observes to where the agent is on
+the map, this means that the same object viewed from two different
+directions will be written to two different locations on the map, which
+leads to poorer localization of the object. 2) Neural Map splits the map
+to four 90-degree angles, which alleviates the blurring highlighted in
+the appendix, our novel solution to this issue stores a single unified
+map in an allocentric frame of reference and performs an offline
+egocentric read, which allows an agent to act in states spaces where the
+angle is continuous, without the need to quantize the agent&apos;s angle to
+90-degree increments.
+
+
+We have shown, with detailed analysis, how the agent has learned to
+interact with its structured internal memory with self-attention. The
+ablation study has shown that the agent benefits from both the global
+and self-attention operations and that these can be augmented with
+temperature, position querying and other similarity metrics. We have
+demonstrated that the EgoMap architecture is robust to actions with
+tolerances of up to 10%. Future work in this area of research would be
+to apply the mapping and memory architecture in more realistic-looking
+domains and aim to incorporate both dynamic and static objects into the
+agent&apos;s network architecture and update mechanisms.

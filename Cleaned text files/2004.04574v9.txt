@@ -1,0 +1,914 @@
+Model-based actor-critic: GAN (model generator) + DRL (actor-critic) =\\&gt; AGI
+
+
+Introduction: GAN (generative model) vs DRL (actor-critic) 
+-- offline learning vs online learning 
+
+
+Currently all problems in artificial intelligence (AI) are formulated as
+an end-to-end (deep) artificial neural network optimization problem,
+also known as deep neural network learning or in short deep learning
+(DL) [*REF*]. These problems are mainly classified into: offline
+learning and online learning; Offline learning refers to learning from
+the stored data or dataset which are nowadays known as big data problem.
+In offline learning, the stored big or small dataset might not have any
+labels (unsupervised), might be partially labeled (semi-supervised) or
+might be fully labeled (fully-supervised). Online learning refers to
+learning from devices or machines such as robots (simulated or real)
+directly in real-time to achieve a specific goal or accomplish a
+specific task. Online learning might be refered to as reinforcement
+learning (RL) or reward-based learning or robot learning or robust
+control learning as well. RL is sometimes refered to as deep RL (DRL)
+which is due to the application of DL to RL problems. Originally
+DL [*REF*] was proposed as a powerful solution to offline
+learning, more specifically supervised learning (SL) of big data such as
+Imagenet classification [*REF*] and TIMIT speech
+recognition [*REF*]. Currently, generative adversarial nets
+(GAN) [*REF*] &amp; deep reinforcement learning (DRL) [*REF*], specifically actor-critic (AC) algorithms are the
+fore-frontiers of DL/AI community: (A) GAN for offline learning or (un/,
+semi-/,fully-)supervised learning (SL) [*REF*; *REF*]; and (B) AC for online
+learning or (deep) RL or DRL [*REF*; *REF*]. DL formulates an
+optimization problem with a user-defined objective (loss or cost)
+function and lacks a single unifying objective (loss or cost)
+function [*REF*; *REF*]. GAN &amp; AC both consist of
+two models (networks): one of which approximates the main function for
+prediction (actor for AC or generator for GAN) and another one
+approximates the objective (loss or cost) function (discriminator for
+GAN or critic for AC). This has revolutionized the assumptions behind DL
+algorithms in terms of having a pre-defined fixed objective (loss or
+cost) function although applying gradient descent (and ascent) to these
+networks (GAN &amp; AC) often leads to mode collapse, unstable training and
+no convergence in some cases. AC methods [*REF*; *REF*] and
+GAN [*REF*] are two main classes of multilevel (in
+fact bilevel) optimization problems with close
+connection [*REF*]. Since both of these hybrid or
+multilevel optimization models suffer from stability issues, mode
+collapse, and convergence difficulties, techniques [*REF*]
+for stabilizing training have been developed largely independently by
+the two communities. This work is mainly inspired and built upon some
+important previous works directly or indirectly [*REF*].
+In this work, we mainly focus on the two most stable one of each:
+Wasserstein GAN (WGAN) [*REF*] and deep deterministic
+policy gradients (DDPG) [*REF*]. The main contribution
+of this work is to point out: 1. the strong connection/similarity
+between WGAN and DDPG as the two most stable classes of GAN and AC (DRL)
+model; 2. Given the first contribution, we argue that DDPG demonstrates
+adversarial learning behavior very similar to WGAN; 3. Given the first
+contribution, how this similarity can lead to a model-based DDPG
+(model-based actor-critic); Eventually, we want to conclude that
+adversarial intelligence (as the product of adversarial learning
+process/behavior) might be a general-purpose AI (AGI) since it is
+applicable to both offline learning through GAN for (un-, semi-,
+fully-)SL and online learning through AC (DRL) for RL and robot
+learning.
+
+
+GAN for offline learning 
+
+
+Generative adversarial networks (GAN) [*REF*]
+formulates the unsupervised learning problem as a game between two
+opponents: a generator G which generates sample images from a random
+noise sampled from a fixed probability distribution/density function
+(PDF) or a fixed noise source such as normal function; and a
+discriminator D which classifies the sample images as real/true or
+fake/false (maps an image to a binary classification probability); The
+original or vanilla GAN [*REF*] was formulated as a
+zero sum game with the cross-entropy loss between the discriminator
+prediction and the true identity of the image as real or generated/fake.
+To make sure that the generator has gradients from which to learn even
+when the discriminator classification accuracy is high, the generator
+loss function is usually formulated as maximizing the probability of
+classifying a generated sample as true rather than minimizing its
+probability of being classified false (or fake). GAN is formulated in a
+bilevel optimization setting.
+
+
+GAN for offline learning or (un, semi-, fully-) supervised learning (learning from data) 
+
+
+GAN was initially applied to unsupervised learning (no label available
+for the dataset) for image generation, data distribution modelling and
+discovering the data structure [*REF*]. Later on, it
+was applied to (semi-)supervised learning (SL)
+problem [*REF*; *REF*] where the data is either
+partially labeled (semi-supervised) or fully labeled
+(fully-supervised) [*REF*] such as image classification, object
+detection, and object recognition. The first application of GAN to
+(semi-)SL problem [*REF*] reported 64% accuracy on SVHN [^1]
+dataset with 1% labeled data. In another original
+work [*REF*] by Tim Salimans at OpenAI, GAN reaches over
+94% accuracy on the same SVHN dataset using only 1,000 labeled examples
+out of almost 100,000 examples which means only 1% of the entire dataset
+is labeled. Though originally GAN was proposed as a form of generative
+model for unsupervised learning [*REF*], GAN has
+proven useful for semi-supervised learning [*REF*], and
+fully supervised learning [*REF*]. Therefore, GAN is a potentially
+capable approach for offline-learning of big data such as big data
+analytics/mining and visualization.
+
+
+GAN has no proof of convergence. 
+
+
+Unfortunately, there is no proof of convergence for GAN. No one has yet
+shown that GAN [*REF*] will converge to an
+equilibrium. On contrary, very many practical experiences have shown
+that GAN is unstable and might lead to mode collapse which means
+technically no convergence (equilibrium) at all. One ray of hope is
+provided in the idea of using Earth Mover&apos;s metric (or Wasserstein
+metric) [*REF*]. MIX-GAN [*REF*]
+architecture with multiple generators and discriminators can also reach
+an approximate equilibrium under fairly tight conditions which are not
+usually practical. Generative multi-adversarial
+network [*REF*] shows that multiple discriminators does
+indeed improve empirical performance.
+
+
+Wasserstein GAN: stable GAN with Wasserstein loss 
+
+
+WGAN [*REF*; *REF*] uses Wasserstein
+loss (also known as earth mover) as an alternative loss function instead
+of the traditional/original GAN loss function, cross-entropy
+loss [*REF*]. Wasserstein loss improves the stability
+of GAN training/learning considerably by almost eliminating the
+important problem of mode collapse. WGAN [*REF*] is
+applied to semi-supervised learning for classification without labels
+(partially labelled). Using Wasserstein distance loss and some other
+tricks (gradient penalty), WGAN [*REF*] achieved
+state-of-the-art results in semi-supervised classification on MNIST,
+CIFAR10 and SVHN at the time of publication. Later on, we show that
+Wasserstein loss provides deep connection and deep similarity with
+Bellman loss (TD loss using Bellman equation or Q-learning or Q-loss
+learning) which is used in DDPG [*REF*] as the most
+stable AC method in DRL.
+
+
+Self-attention GAN: GAN using attention layers 
+
+
+Self-Attention GAN (SAGAN) uses attention [*REF*] for
+long-range dependency modeling (proven by [*REF*]) for
+video prediction [*REF*] and image generation tasks. In contrast
+with vanilla GAN which can generate high-resolution images with only
+spatially local points, SAGAN can generate higher resolution images
+using spatially non-local points (or global and local points at the same
+time as mentioned in non-local neural net [*REF*]). Visualization
+of the attention layers in the generator shows the non-local regions
+which correspond to the object shapes are detected compared to the local
+regions of a fixed shape in the vanilla GAN.
+
+
+DRL (actor-critic) for online learning (real-time learning by interacting with environment) 
+
+
+Actor-critic (AC) methods are a long-established class of techniques in
+reinforcement learning (RL) \ [2\]. While most RL algorithms either focus
+on learning a value function like value iteration and TD-learning
+(value-based methods), or learning a policy directly such as policy
+gradient methods (policy-based methods), AC methods learn both the actor
+(policy) and the critic (value) simultaneously. In some AC methods, the
+actor model (policy function) is updated with respect to the approximate
+critic model (value function), in which case learning behavior and
+architecture similar to those in GAN can result. Formally, consider the
+typical Markov decision processes (MDP) setting for RL, where we have a
+set of states S, actions A, and discount factor \ [0, 1\]. The aim of AC
+methods is to simultaneously learn an action-value function that
+predicts the total expected discounted future reward and learn a policy
+that is optimal for that value function. Actor-critic is also formulated
+in a bilevel optimization setting similar to GAN: There are many AC
+methods that attempt to solve this problem. The distinction between
+these methods lies mainly in the way training proceeds. Traditional AC
+methods optimize the policy through policy gradients and scale the
+policy gradient by Bellman loss, also known as temporal-difference (TD)
+loss or TD error, while the action-value function is updated by ordinary
+TD error learning [*REF*]. In this work, we mainly focus on
+deep deterministic policy gradients (DDPG) [*REF*]
+which is intended for the case where actions and observations are
+continuous, and use deep learning (DL) for function approximation of
+both the action-value function (critic) and the state-action function or
+policy (actor). DDPG is an established DRL (AC) approach with continuous
+actions which updates the policy (actor) by backpropagating the
+gradients of the estimated value from critic with respect to the actions
+rather than backpropagating the TD error directly.
+
+
+Actor-critic for online learning and (deep) RL or DRL 
+
+
+Deep Q-learning (DQL) or deep Q-network [*REF*] was one of the
+breakthrough work in RL and the beginning of deep RL (DRL). Actor-critic
+(AC) algorithms [*REF*] are one of the most powerful RL or DRL
+algorithms which are composed of two networks: actor and critic. AC
+methods are models from deep reinforcement learning (DRL) in which a
+model learns an action-value function that predicts the expected total
+future reward (the Critic), and a policy that is optimal for maximizing
+that value (the Actor or controller). DDPG [*REF*], as
+a stable DL-based AC method, is in fact the extension of DQL approach to
+the continuous action space since DQL was in fact applied to the Atari
+game for discrete action space control and search.
+
+
+Actor-critic methods have proof of convergence to an optimal policy. 
+
+
+The original AC method [*REF*] can be viewed as the
+formal beginning of work in computational reinforcement learning. The
+critic in AC is like the discriminator in GAN, and the actor in AC
+methods is like the generator in GAN. In both systems, there is a game
+being played between the actor (generator) and the critic
+(discriminator). The actor begins exploring the state space, and the
+critic should learn to evaluate the random exploratory behavior of the
+actor. It was formally proved by Konda [*REF*; *REF*; *REF*] that in any
+Markov decision process (MDP), AC methods will eventually converge to
+the optimal policy. The proof was non-trivial and shown a decade after
+AC proposal [*REF*]. Recently (35 years after AC methods
+proposal) Google DeepMind proposed the same AC algorithm combined with
+DL (DDPG [*REF*]) to solve the difficult Atari games
+from raw video input.
+
+
+Deep Deterministic Policy Gradients: stable AC (DRL) method with Bellman/TD loss 
+
+
+Deep Deterministic Policy Gradients (DDPG) [*REF*]
+(stable AC approach in terms of convergence) is the application of DL to
+AC methods. DDPG uses Bellman loss [*REF*] or
+temporal-difference (TD) loss [*REF*] as the loss function.
+TD loss learning is also know as Q-learning [*REF*] which
+after the introduction of DL [*REF*] gave birth to Deep
+Q-learning (DQL) or deep Q-network [*REF*] which was the
+beginning of deep RL (DRL). DDPG [*REF*], as a stable
+DL-based AC method, is in fact the extension of DQL approach to the
+continuous action space since DQL was in fact applied to the Atari games
+for discrete action space control and search.
+
+
+Connection between GAN and AC methods 
+
+
+Both GAN and AC methods can be seen as bilevel or two-time-scale
+optimization problems, meaning one model is optimized with respect to
+the optimum of another model. Bilevel optimization problems have been
+extensively studied under AC methods by
+Konda [*REF*; *REF*; *REF*] mainly under
+the assumption that both optimization problems are linear or
+convex [*REF*]. On contrary, both
+DDPG [*REF*] and WGAN [*REF*] which
+are the center of attention in this work and the most stable kind of GAN
+and AC methods, are in fact non-linear and have non-convex optimization
+surfaces due to DL which are non-linear function approximator. The
+question is though: (A) if GAN and AC are by nature the same algorithms
+or not? Or (B) can one emerge from another? if yes, which emerges from
+which? Pfau and Vinyals [*REF*] show that GAN can be viewed
+as AC methods in an environment where the actor cannot affect the
+reward. Therefore, they answer the above questions as following: (A)
+Yes, they are connected; (B) Yes, GAN can emerge from AC methods; They
+review a number of extensions to GAN and AC algorithms with even more
+complicated information flow. They encourage both GAN and AC (DRL)
+communities to develop general, scalable, and stable algorithms for
+multilevel optimization with DL, and to draw inspiration across
+communities. Pfau and Vinyals [*REF*] confirmed that AC and
+GAN are siblings and therefore there must be a parent
+algorithm/architecture that include both methods. Pfau and
+Vinyals [*REF*] encourage us for more investigation of
+deeper connection (and possibly convergence and unification) between GAN
+and AC methods for the development and adoption of a more
+general-purpose AI technique (AGI) applicable as GAN or AC (DRL). Pfau
+and Vinyal [*REF*] describes the connection between GAN and
+AC as an MDP in which GAN is a modified version of AC method as
+following: Consider an MDP where the actions set every pixel in an
+image. The environment randomly chooses either to show the image
+generated by the actor or show the real image. Let the reward from the
+environment be 1 if the environment chose the real image and 0 if not.
+This MDP is stateless as the image generated by the actor does not
+affect future data. The AC architecture learning in this environment
+resembles the GAN game. A few adjustments have to be made to make it
+identical. If the actor had access to the state, it could trivially pass
+a real image forward. Therefore the actor must be a blind actor, with no
+knowledge of the state. Stateless MDP doesn&apos;t prevent the actor from
+learning though. The mean-squared Bellman/TD loss is usually used as the
+loss function for AC (specifically DDPG), mean-cross entropy adversarial
+loss is used instead for GAN (so-called GAN loss). The actor&apos;s
+parameters in AC should not be updated if the environment shows a real
+image. Critic zeros down its gradients for the actor (no update for
+actor&apos;s parameters/weights) if the reward is 1 for the real image. If
+the reward is 0 for the fake image, critic still zeros down its
+gradients for the actor. If the reward is 1 for the fake image, it&apos;s
+time for updating actor&apos;s parameters using critic&apos;s output and
+gradients. This is how, GAN can be seen as a modified AC method with
+blind actor in stateless MDP.
+
+
+Is actor-critic adversarial? 
+
+
+According to [*REF*], it is not obvious why an AC
+algorithm should lead to an adversarial behavior; Typically the actor
+and critic are trying to optimize complimentary loss functions
+(compatible or orthogonal), rather than optimize the same loss function
+in different directions (adversarial). The adversarial behavior in AC
+emerges due to the stateless MDP in which the GAN game is being played
+since the actor cannot have any causal effect on the reward in this
+stateless MDP. A critic, however, cannot learn the causal structure of
+the game from input examples alone, and moves in the direction of
+features that predict reward more accurately (minimizing the reward
+prediction error/loss). The actor moves in a direction to increase
+reward (maximizing the reward value) based on the best estimate from the
+critic, but this change cannot lead to an increase in the true reward,
+so the critic will quickly learn to assign lower value in the direction
+the actor has moved. Thus the updates to the actor and critic, which
+ideally would be orthogonal (as in compatible actor-critic or
+complimentary loss functions) instead becomes adversarial. Despite these
+differences between GAN and typical RL problems (settings), we believe
+there are enough similarities to generalize between GAN and AC (DRL)
+algorithms. This generalization might be the path toward general-purpose
+AI or artificial general intelligence (AGI).
+
+
+Target networks is the only main difference between AC method (specifically DDPG) and GAN (specifically WGAN). 
+
+
+Since the action-value function appears twice in the Bellman equation,
+stability can be an issue in Q-learning with function approximation.
+Target networks address this by fixing one of the networks in TD updates
+or possibly slowing down the updates of this network so-called target
+network. This will turn the Q-learning problem from RL to SL and helps
+the Q-learning to converge whereas without it will most likely diverge.
+Since the GAN game can be seen as a stateless MDP, the second appearance
+of the action value function disappears. Therefore, we do not consider
+target networks applicable to the GAN setting [*REF*].
+
+
+Compatibility of actor-critic 
+
+
+According to [*REF*], one of the unique theoretical
+developments of AC methods is the notion that the actor and critic are
+compatible or complementary in terms of loss function. It is not clear
+if the notion of compatibility can be naturally extended to the GAN
+setting. We would generally prefer our GAN to be adversarial than
+compatible. We hope that by pointing out the deep connections between
+GAN and AC (DRL), we encourage both communities of GAN and DRL (AC) to
+merge and join forces.
+
+
+Model-based actor-critic: GAN + DRL (actor-critic) 
+
+
+We propose to teach machines to accomplish more complex tasks in one
+common environment with modelling the real world/environment with rich
+textures and complex structural compositions. We address three
+challenges in particular for training an agent to model the real-world:
+First, how to apply the adversarial
+learning [*REF*] to improve the quality of the
+generated environment model (*MATH*) since GAN is proved to be
+effective in image generation and modelling data distribution
+tasks [*REF*]. This is also known as explicit modelling of the
+environment. Actor-critic (AC) methods, specifically deep deterministic
+policy gradients (DDPG) [*REF*] models the
+environment internally in the critic network. We chose DDPG as our
+default AC approach due to the continuous action space of the agent.
+Second, how to build an efficient differentiable neural renderer
+that can simulate the environment and is transferable to other tasks as
+well so that we don&apos;t need to start training the environment from
+scratch. Also the more tasks our agent accomplishes, the more accurate
+our environment model (the generator or the neural differentiable
+simulator/renderer) becomes. We train a generative neural network which
+directly maps the current action (*MATH*) and the current state of
+environment/world *MATH* into the next state of environment (*MATH*). This
+differential renderer (generator) can be combined with AC and turn into
+model-based AC that can be trained in an end-to-end fashion, which might
+significantly boosts both the modelling quality and convergence speed in
+terms of solving the task. NOTE: generator, neural simulator,
+differential renderer, environment modeller, and world renderer are all
+the same. Third, how to design a reward function is another really
+important challenge since reinforcement learning (RL or deep RL also
+refered as DRL) or reward-based learning is impossible without the
+reward. Manually designing this reward function for the complex
+problems/tasks is almost impossible. Specifically, if we want to apply
+DRL or deep RL to the robotics problem, we have to be able to design an
+accurate reward function or go for a simple task which the reward
+function design is fairly easy. The latter is not always possible and
+therefore we have to be able to also learn the reward function. This has
+turned into a headache for many researchers in artificial intelligence
+(AI) and robotics. In summary, our contributions/solutions for the three
+aforementioned challenges/problems are also three-fold: 1. We
+approach the modelling task with the GAN and build a model-based DRL
+agent by combining GAN with (model-free) AC method (DDPG) that can model
+the agent&apos;s environment. To this end, we build a differentiable neural
+renderer (generator) for efficiently modelling the environment. This
+neural environment renderer (generator) and a discriminator model the
+world by training model-based DRL agent in an end-to-end fashion.
+Discriminator is required to discriminate between the real environment
+samples and fake ones (generated/rendered ones) by neural environment
+model. 2. Explicitly modelling the environment with generator neural
+net compared to implicitly modelling it in critic of AC method
+(DDPG [*REF*]) helps transferring this model to other
+problems and tasks in that same environment. This transfer learning
+makes our DRL agent very sample efficient, meaning it can accomplish the
+same task with much less episodes compared to (model-free) AC or
+original DDPG. 3. Given the explicit transferable environment model
+(generator) and the target image (an image of the goal or what we want
+to accomplish/gain at the end), we can learn how to design the reward
+function with the discriminator as it becomes more and more powerful in
+discriminating between the real environment and explicit environment
+model. This is also solves the problem of designing/hand-engineering the
+reward function for complex tasks.
+
+
+Literature 
+
+
+SPIRAL [*REF*] is an adversarially trained DRL agent
+that learn the structures in images and tries to paint them from
+scratch, but fails to recover the details of images.
+SPIRAL++ [*REF*] is an improved version of SPIRAL
+which is using GAN and RL agent at the same time in a reinforced
+adversarial learning fashion for paining an image in a canvas from
+scratch. Both SPIRAL and SPIRAL++ are composed of an actor-critic and
+discriminator but they use a fixed/non-differentiable renderer which is
+generating the painting. StrokeNet [*REF*] combines
+differentiable neural image/paining renderer (a generator) on top of
+actor-critic and discriminator using recurrent neural network (RNN) to
+train agents to paint but fails to generalize on color images. The most
+inspiring and similar work to us is done by Huang et
+al. [*REF*] which is proposing a model-based DDPG which is
+in fact a model-based actor-critic as well. He is proposing four neural
+networks in his model-based DDPG agent to learn how to paint on canvas
+from scratch and without any external reward. He eventually
+experimentally compared his model-based DDPG to the original
+(model-free) DDPG and experimentally demonstrates the superiority of
+model-based DDPG.
+
+
+DRL approaches 
+
+
+Superficially, SPIRAL and SPIRAL++ can be seen as a model-free RL
+techniques for stroke based, non-photorealistic rendering/generating.
+Similarly to some modern stroke-based rendering techniques, the
+positions of strokes are determined by a learned system (namely, an RL
+agent). Unlike traditional methods however, the objective function that
+determines the goodness of the output image is learned unsupervised via
+the adversarial objective (adversarial loss). This adversarial objective
+allows us to train without access to ground-truth strokes, enabling the
+method to be applied to domains where labels are prohibitively expensive
+to collect, and for it to discover surprising and unexpected styles. In
+this line of work, there are a number of works that use constructions
+similar to SPIRAL and SPIRAL++ to tune the parameters of
+non-differentiable/fixed simulators. In another line of work, Frans and
+Cheng (2018) [*REF*], Nakano (2019) [*REF*], Zheng et al. (2019) [*REF*],
+and Huang et al. (2019) [*REF*] achieve remarkable learning
+speed by relying on backpropagation/ neural model of the renderer,
+however they rely on being able to train an accurate model of the
+environment in the first instance.
+
+
+Model-free vs model-based RL approaches 
+
+
+Recently, several works (Frans and Cheng in 2018 [*REF*], Nakano in 2019 [*REF*], Zheng
+et al. in 2019 [*REF*], and Huang et al. in 2019 [*REF*]) proposed to improve sample efficiency and
+convergence stability of generative RL agents by replacing the actual
+non-differentiable/fixed rendering simulator with a differentiable
+neural one (generator neural net) which is trained offline to predict
+how an action affects the state of the canvas environment. Although
+promising, there are three scenarios in which model-free approaches like
+SPIRAL and SPIRAL++ might be a better approach: Firstly, one of the
+main advantages of the neural environments is training agents by
+directly backpropagating the gradient coming from the objective of
+interest (either reconstruction loss if there is no discriminator or
+adversarial loss if there is a discriminator or GAN setting).
+Unfortunately, this means that the action space of the agent has to be
+continuous to efficiently use backpropagation gradient (neural net
+learning). This means if the action space is discrete, we might have
+problem in learning our neural networks in model-based approaches.
+Secondly, the success of the RL agent training largely depends on
+the quality of the neural model of the environment. The simulator used
+in SPIRAL and SPIRAL++ is arguably easy to learn since new strokes
+interact with the existing drawing in a fairly straightforward manner.
+Environments which are highly stochastic or require handling of object
+occlusions and lighting might pose a challenge for neural network based
+environment models. Thirdly, while in principle possible, designing
+a model for a simulator with complex dynamics may be a non-trivial task.
+The majority of the recent works relying on neural renderers assume that
+the simulator state is fully represented by the appearance of the canvas
+and therefore only consider non-recurrent state transition models. There
+is no need for such an assumption in the SPIRAL and SPIRAL++ framework.
+
+
+Conclusion of the literature 
+
+
+The use of neural simulators in model-based DRL are largely orthogonal
+to SPIRAL and SPIRAL++ and are likely to improve their performance
+further. Nonetheless model-based DRL approaches are dependent on a given
+target image which is not the case for SPIRAL and SPIRAL++.
+
+
+Model-based actor-critic 
+
+
+We propose the model-based DRL framework shown in
+Figure [1].
+
+
+FIGURE
+
+
+This framework is mainly composed of two stream frameworks: GAN
+framework for adversarial learning stream and AC framework for
+reinforcement learning stream.
+
+
+GAN framework for adversarial learning stream 
+
+
+Since GAN has been widely used because of its great ability in modelling
+the data distribution by measuring the distribution distance between the
+generated (fake) data and the target (real) data, therefore the
+adversarial learning stream is mainly composed of GAN, a generator and
+discriminator, with an actor as you can see in
+figure [2].
+
+
+FIGURE
+
+
+Wasserstein GAN (WGAN) [*REF*] is our preference
+compared the original GAN [*REF*] since it is an
+improved version of the original GAN [*REF*] which
+uses the *MATH* distance, also known as Earth-Mover distance.
+The objective of the discriminator in WGAN is defined
+as equation: *MATH* where *MATH* denotes the discriminator,
+*MATH* and *MATH* are the fake samples and real samples distribution. The
+adversarial learning stream is responsible for two important tasks:
+1. modeling the environment using the generator as accurately as
+possible. Discriminator in this stream helps discriminating between the
+real environment and the environment model *MATH*. Using a
+generator neural network to model the environment has two advantages:
+First, it is transferable to any other tasks in that same
+environment and also the more tasks we do with this environment model
+the more accurate it will become in terms of predicting the next state
+of the environment *MATH* given the current state *MATH* and current taken
+action *MATH*; Second, it boosts the performance of the agent in terms
+of successful completion of the task and sample-efficiency which in
+simple words means completing the task in much less episodes of
+try-and-error; The training samples can also be generated randomly using
+Computer Graphics rendering programs. The generator (environment model
+*MATH*) can be quickly trained with supervised learning on the
+GPU/s. The model-based transition dynamics *MATH* 
+and the reward function *MATH* are differentiable neural network.
+The generator is a deep (end-to-end) neural network consisting of
+several fully connected layers and convolution layers.
+
+
+2. learning the reward function for the reinforcement learning
+stream since the reinforcement learning stream is impossible without the
+the reward function. Using a discriminator neural network to model the
+reward has also two advantages: First, it is adaptable to other
+tasks in that same environment and we don&apos;t have to manually
+engineer/design the reward function; Second, it boosts the
+performance of the agent in terms of successful completion of the task
+by accurately learning the appropriate reward function for that specific
+task; The discriminator similar to generator is also a deep (end-to-end)
+neural network consisting of several fully connected layers and
+convolution layers but the output is a scalar value/score *MATH*. The
+conditional GAN training schema [*REF*] is suggested
+by [*REF*] as the reward metric, where fake samples and the
+target vs real samples and the target are used for reward learning as
+shown in Figure [3] taken from [*REF*].
+
+
+FIGURE
+
+
+we want to reduce the differences between the current state and target
+state as much as possible. To achieve this, we set the difference of
+discriminator scores from *MATH* to *MATH* using
+equation as the reward for guiding the learning of the
+actor. *MATH*.
+
+
+Actor-critic framework for DRL
+
+
+The reinforcement learning stream is mainly composed of the actor-critic
+model and the generator which contain the model of the environment
+*MATH* as shown in figure [4].
+
+
+FIGURE
+
+
+The optimization of the RL agent using the model-based AC is different
+from that using the original AC. At timestep *MATH*, the critic takes
+*MATH* as input instead of both of *MATH* and *MATH* as shown in
+figure [5]. The critic still predicts the expected reward *MATH* for the state *MATH* but
+without the need for current action as the input also shown in
+figure [5]. The new expected reward *MATH* is a value function *MATH* trained using
+discounted reward: *MATH* Here *MATH* is the
+reward when performing action *MATH* based on *MATH*. The environment
+function *MATH* is the generator network which
+models the environment.
+
+
+Model parameters and variables 
+
+
+We model a task as an MDP with a state space *MATH* an action space *MATH*, a
+reward function *MATH*, an environment function *MATH* which
+can be the real environment *MATH* or the environment model
+*MATH*. The details of these components are as following: The
+state space includes all information regarding the state of the
+environment which can be observed by the agent. The environment
+function *MATH* makes the transition process from the
+current state of the environment to the next state. The action space
+*MATH* of the agent is a set of continuous parameters that control the
+position and orientation of the agent or part of the agent required for
+completing the target task. We define the behavior of an agent as a
+policy function *MATH* that maps states to deterministic actions
+(*MATH*). Timesteps *MATH* is every step that the agent
+make an observation of the environment state *MATH* and takes an action
+accordingly *MATH* and in result of the taken action, the current state of
+the environment evolves/transitioned based on the environment function
+*MATH* which can be the real one *MATH* or the fake one
+*MATH*. Reward Selecting a suitable metric to measure the
+difference between the current state and the target state is crucial for
+RL agent. In fact, reinforcement learning is reward-based learning and
+without a stable reward function/metric it is not possible. The reward
+is defined as follows: *MATH* where
+*MATH* is the reward at step *MATH*, *MATH* is the measured loss
+between the target environment state *MATH* and the current state *MATH* and
+*MATH* is the measured loss between the target environment state *MATH* 
+and the next state *MATH*. *MATH* and *MATH* is formulated as the
+discriminator output score for current environment state *MATH* and the
+next state *MATH*. To reach the target environment state *MATH*, the agent
+should model the environment accurately for an precise prediction of the
+next state (adversarial learning stream using GAN) and maximize the
+cumulative rewards (reinforcement learning stream using AC) in one
+episode.
+
+
+Why model-based actor-critic? 
+
+
+Since the action space in the control and robotic tasks are mainly
+continuous and high dimensional, discretizing the action space to adapt
+to discrete DRL methods such as deep Q-network (DQN) [*REF*]
+and policy gradients (PG) [*REF*] is quite burdensome if
+possible. In contrast, deterministic policy gradients
+(DPG) [*REF*] uses deterministic policy to resolve
+the difficulties caused by high-dimensional continuous action space. If
+the environment states are also high-dimensional, (original)
+DDPG [*REF*] solves this problem too using deep
+(end-to-end) convolutional neural network (DNN) so-called deep learning
+(DL) [*REF*; *REF*]. In the original DDPG,
+there are two networks: the actor *MATH* and critic *MATH*. The
+actor models a policy *MATH* that maps a state *MATH* to action *MATH*. The
+critic estimates the expected reward for the agent taking action *MATH* at
+state *MATH*, which is trained using Bellman
+equation as in Q-learning [*REF*] and the data
+is sampled from an experience replay buffer:
+*MATH*. Here *MATH* is a reward given by the
+environment when performing an action *MATH* at the state *MATH*. The actor
+*MATH* is trained to maximize the critic&apos;s estimated value
+*MATH*. In other words, the actor decides an action/policy for
+each state. Based on the current state and the target state, the critic
+predicts an expected reward for the action. The critic is optimized to
+estimate more accurate expected rewards. We cannot train a
+good-performance RL agent using original DDPG because it&apos;s hard for the
+agent to model the complex environment well composed of real-world
+images/observations during learning. The World Model [*REF*]
+is a method to make agent understand the environments effectively.
+Similar to [*REF*; *REF*; *REF*], we
+design a neural model of the environment (refered to as neural renderer
+in the cited works) so that the agent can model the environment
+effectively. Then it can explore the modelled environment and improve
+its policy efficiently. The difference between the two algorithms
+visually shown in Figure [5] from [*REF*] is very similar to what
+we are proposing.
+
+
+FIGURE
+
+
+Experiments: Initial limited experimental results 
+
+
+We implemented and tested the proposed model-based actor-critic in some
+simulated environments such as OpenAI Gym and Unity ML agents that
+simulates a number of independent tasks in their own environment which
+provides both sensors input and the reward function as visualized in
+figure [6]. These two simulators provide a number
+of tasks in their own unique environments that varies from classical
+control problems (e.g. CartPole), robotic problems (e.g. Reacher arm),
+and famous video games (e.g. Car race). These task environments are
+independent from each other in a sense that the knowledge from one is
+not required nor can be transferred to another one. The inputs and
+output of the AI model (agent) and the task environment (env) are
+visually shown in figure [6] for better understanding of the data
+flow in between the AI model (agent) and the environment task (env) and
+how the experiments are being performed.
+
+
+FIGURE
+
+
+Reacher environment simulated by Unity ML-agents as a robotic arm problem 
+
+
+Reacher is one of the Unity ML-agents environments for deep
+reinforcement learning (DRL) research experiments. Reacher environment
+features and specifications are listed as following: Reacher is a
+double-jointed arm which can move to target locations; Goal: The
+agents must move its hand to the goal location, and keep it there;
+Agent Reward Function (independent): For each step, agent&apos;s hand
+reaches the goal location, it receives +0.1; State space: A vector
+of 26 variables corresponding to position, rotation, velocity, and
+angular velocities of the two arm rigid bodies; Action space: A
+vector of 4 continuous variables corresponding to torque applicable to
+two joints; To solve this task, Benchmark Mean Reward: 30 Reacher
+environment is capable of using one agents or 20 agents (multi-agents)
+(figure [7]).
+
+
+FIGURE
+
+
+We have implemented the proposed model-based actor-critic for initially
+experimentation on solving such tasks
+(figure [6]) using PyTorch library which is a
+python-based deep learning framework for Facebook. The initial results
+of applying the model-based actor-critic to the Reacher environment with
+one agent or multi-agents (twenty) are shown in
+figure [8]. Based on the solving criteria of
+Reacher, the proposed model-based actor-critic solved this task with one
+agent in roughly 500 episodes and with twenty agents (multi-agent) in
+roughly 175 episodes as shown in
+figure [8]. We conducted this experiment to
+make sure that we can implement the proposed architecture or it is
+implementable. We also wanted to make sure that it works in terms of
+solving reinforcement learning tasks.
+
+
+FIGURE
+
+
+Conclusion &amp; future perspective 
+
+
+Our limited experiments show that deep reinforcement learning (DRL) and
+GAN in (our AGI model) can result in an incremental goal-driven
+intellignce required to potentially solve (general-purpose) variety of
+independent tasks, each in their own separate independent environments.
+Our future focus is to investigate:
+- the connection between the model-based actor-critic (DDPG) and the
+brain: is model-based DDPG architecture and learning compatible and
+plausible with the brain?
+- the connection between GAN and the brain: is there any adversarial
+learning in the brain?
+- the application of GAN to (semi-/fully-) SL problems for offline
+learning of the stored data for big data analytics (mining) &amp;
+visualization: is it applicable to all variety of SL problems?
+- the application of model-based actor-critic (DDPG) to variety of
+independent tasks in only one same environment with reward (or
+reward function) such as DeepMind control suite: can it transfer
+skill from one task to another?
+- the application of model-based actor-critic (DDPG) for (simulated or
+real) robotic control without reward signal from the environment:
+can we learn reward function instead of manually
+engineering/designing it in a robotic environment?
+
+
+Connection between model-based actor-critic and the brain 
+
+
+The proposed Model-based Actor-Critic algorithm/architecture is the most
+sensible/reasonable way of combining of GAN and DRL (AC algorithms). I
+am reasoning that GAN can be used to model the
+environment/surroundings/our world as a generative model and in a
+realistic form. And DRL (AC algorithms) can be used to to perform/come
+up with the set of actions which maximize the future reward in order to
+perform a task composed of multiple skills or accomplish a goal.
+Neuroscientifically speaking, I highly believe this is how our brain
+functions or this is a systematic architecture of our brain (shown in
+figure [9] A): Cerebellum (CBL) can be the actor, Cortex (CTX) can be the generator to
+generate/model the environment and Basal ganglia (BG) can be the
+discriminator (indirect path) &amp; critic (direct path). The work on this
+topic is very important in terms of building AGI models, combining
+model-free and model-based RL algorithms by figuring out how to combine
+GAN with DRL in a sensible/reasonable way.
+
+
+FIGURE 
+
+
+A similar computational model of the brain is also illustrated in
+figure [10].
+
+
+FIGURE
+
+
+Hippocampus role in DRL systems 
+
+
+Figure [9] C is a conceptual illustration of hippocampus as a short-term episodic memory
+space containing: (A) Temporal events within a specific context in which
+they occurred. These episodes are composed of temporal organization of
+events such as links between events and episodes; (B) Spatial navigation
+or events as a spatial memory according to Eichenbaum
+(2004) [*REF*]; According to this recent article WEBSITES,
+Kumaran et al. [*REF*] updates the complementary learning
+systems (CLS) theory proposed by and McClelland et
+al. [*REF*], which holds that intelligent agents must
+possess two learning systems, instantiated in mammalians in neocortex
+and hippocampus. The CLS theory states that the brain relies on two
+memory systems that allow it to rapidly soak in new information, while
+maintaining a structured model of the world that&apos;s resilient to noise.
+The core principles of the CLS theory is the understanding of memory in
+biological systems according to Kumaran et al.. In 1995, McClelland et
+al. observed a ground-breaking memory phenomenon in patients with damage
+to their hippocampus which was the fact that they could no longer form
+new memories although their past memories and concept were untouched and
+retrievable. This led a land-mark paper by McClelland et al. in which
+they proposed CLS theory which in fact introduces hippocampus as a
+short-term memory (replay buffer or episodic memory) and cortex as
+long-term memory. According to Bendor [*REF*], the
+hippocampus does not fully replay all the recent activation patterns.
+Instead, it picks the most rewarding events and selectively replays them
+to the cortex. This &apos;replay&apos; has been postulated to be important for
+memory consolidation. Task-related cues can enhance memory consolidation
+when presented during a post-training sleep session, and, if memories
+are consolidated by hippocampal replay, a specific enhancement for this
+replay should be observed. Bendor [*REF*] also indicates
+that this replay during sleep can be manipulated by external stimulation
+which provide further evidence for the role of hippocampal replay in
+memory consolidation. This might also means that rare but meaningful
+events might be prioritized for cortical learning, this is also known
+prioritized replay in DRL literature as well applied to
+D4PG [*REF*] compared to DDPG [*REF*].
+
+
+Potential to unify DRL field inside AGI community 
+
+
+Our proposed AGI model has the potential to unify DRL field inside AI
+community by producing competitive performance compared to the best of
+model-based (PlaNet [*REF*]) and model-free
+(D4PG [*REF*]) approaches in DRL since our proposed AGI
+model architecture adds an environment model network on top of
+model-free architecture (DDPG as an AC model). This environment model
+network functions as a long-term memory of environment since it models
+the environment and can predict the next state of the environment given
+its current state and the action applied to it. Our proposed AGI model
+is based on policy network (actor), value network (critic), and model
+network (env. model or generator or generated env.) which makes it
+model-based, policy-based, and value-based all at the same time. We
+should be able to compare our proposed AGI model with the best of
+model-based (PlaNet [*REF*]) and model-free
+(D4PG [*REF*]) in the new DeepMind simulated environment
+(DeepMind Control Suite [*REF*]) which is built to benchmark
+model-based (and model-free) DRL algorithms. This
+environment [*REF*] includes variety of tasks in one
+environment and under one environmental condition which makes it much
+more suitable to evaluate and compare DRL algorithms compared to OpenAI
+Gym and Unity ML-agents environments which are composed of variety of
+independent task environments with their own different independent
+environment conditions.
+
+
+Towards learning the reward function by demonstration to bridge the gap between AI &amp; robotics 
+
+
+The goal is learning-by-demonstration for the reward function problem or
+reward engineering problem. The main problem in applying AI to robotics
+is the reward (and punishment) signal. Hand-engineering the reward
+function for a goal-oriented/driven behavior is a very difficult and
+sometimes impossible problem. Learning-by-demonstration [*REF*]
+helps us approach this problem using proposed AGI architecture. The GAN
+network help us learn a task by the demonstration of a
+task [*REF*]. Using Q-learning (and the Q-network or critic
+network or value network) As shown in figure [1], we can
+generate the reward by the discriminator network in every time-step for
+the robot similar to figure [3] proposed by Huang [*REF*].
+We have two different kinds of task for the robots: (a) the task we know
+how to do it so that we can demonstrate for the robot; (b) The task we
+don&apos;t know how to do it but we know how it looks like when it is done or
+accomplished; Either one of them needs a reward function so that it can
+quantify the progress and the direction for the robot in terms of
+solving the task. Therefore designing such reward function is the most
+crucial gap between robotics and AI. Recently there have been some
+successful developments in the state of this art (reviewed by
+Amarjyoti [*REF*]). Our proposed AGI model tackles this
+problem or at least approaches this problem by learning the Q-network
+(critic network) which is related to defining reward function for the
+robot. We can learn this reward function by demonstration of a user if
+the user knows how to demonstrate the task. In case we don&apos;t know how to
+do the task, we should be able to provide some preliminary data to the
+AGI model so that it knows how the final state of environment looks like
+in terms success or failure. The latter one sounds much more complicated
+than what we think it is and it needs much more investigation.

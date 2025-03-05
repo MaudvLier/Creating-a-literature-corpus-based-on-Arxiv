@@ -1,0 +1,635 @@
+Introduction 
+
+
+Deep reinforcement learning (RL) has been instrumental to successful
+sensorimotor control, either in simulation [*REF*] or on
+physical robots [*REF*]. However, state-of-the-art approaches
+today train a policy network from scratch that is specifically tailored
+to a particular robot morphology (i.e., kinematic shape) and
+characteristics. But if we are to ever create general, pre-trainable
+priors for robot control similar to those for image
+classification [*REF*] or natural language [*REF*], it is imperative for policies to be
+applicable to agents with differing morphologies.
+
+
+Can a general-purpose controller be pre-trained for multiple agents by
+simply reducing to a multi-task RL problem? This is not easy to manifest
+for several reasons. Although deep RL has been proven useful in making
+these agents learn from scratch without any priors, their success is
+limited to learning a separate controller for one agent at a time with
+tedious hyperparameter tuning [*REF*]. Moreover, unlike
+pre-training of vision or language models, it is difficult to
+contemplate as to what does pre-training a controller mean for robots
+because each agent may have different number of limbs, sensory inputs,
+motor commands, morphology, and control behaviors, as shown in
+Figure [1].
+
+
+FIGURE
+
+
+Fortunately, our natural world is abound with examples of modularity and
+reuse in sensorimotor systems [*REF*: *REF*; *REF*].
+In fact, an evidence for pre-trained controllers is seen in precocial
+and superprecocial animals that manage to fly or walk soon after birth,
+e.g. songbirds, horses, giraffe, etc. [*REF*; *REF*; *REF*]. At
+the evolutionary level, modularity allows sensorimotor design motifs to
+only be developed once and reused across the organism&apos;s body and
+propagated efficiently to its descendants. At the level of organism&apos;s
+lifetime, modularity offers the tools of locality and parallel
+processing as a means to manage complexity. Sensorimotor units only
+sense and act locally, e.g., a motor neuron pool may only excite a
+particular muscle group and only receive information from sensors
+physically near that muscle group [*REF*].
+
+
+In contrast, current RL policies are typically centralized and holistic
+objects that jointly output controls for all of the agent&apos;s actuators. A
+centralized and holistic artificial neural network policy misses an
+opportunity to exploit modularity and reuse advantages both at training
+and execution. Can we build artificial policies that simultaneously
+generalize to a wide variety of agents and exploit modularity and reuse?
+
+
+To answer this question, we introduce Shared Modular Policies (SMP), a
+policy architecture built entirely out of a single reusable module
+that is re-instantiated at each of the agent&apos;s actuators. Each module
+instance only perceive information from the actuator&apos;s local sensors.
+What makes complex coordination between modules possible is a message
+passing procedure where each module receives and sends learned message
+vectors to its neighboring actuators -- in our case neighboring limbs in
+the tree-structured morphology of the agent. The sensorimotor
+arrangement in SMP resembles a decentralized but communicating
+multi-agent population. Fascinatingly, such an arrangement makes it
+possible to orchestrate globally coherent, coordinated behaviors, such
+as locomotion for complex high-dimensional agents.
+
+
+SMP is trained with standard policy gradient reinforcement learning as
+shown in Figure and is able to generalize to control of variants
+not seen during training as we show in Section [5.3]. This is a very hard task, as training a
+controller for only one of these morphologies is by itself a challenging
+task [*REF*]. The idea of sharing controllers across
+limbs has been investigated to control self-assembling agents
+in  *REF*. Self-assemblies allow the flexibility to
+evolve agent morphologies to be easier to control, and hence, learn a
+specialized, yet generalizable policy. In contrast, our setup requires
+that the module must perform well across all morphologies to learn a
+unified policy. Such a requirement ensures we learn a policy that is
+truly appropriate to all agents. We find message passing -- both
+top-down and bottom-up -- to be crucial for successful operation and
+show that complex communication protocols emerge that transmit
+information across distant limbs despite only local connectivity as in
+show in Section [6].
+
+
+Our contributions are as follows: firstly, we present a generalizable
+modular policy architecture appropriate for control of arbitrary agents.
+Secondly, we show that resulting policies can effectively control
+locomotion behaviors of several planar agents simultaneously and still
+match the performance of corresponding oracle, i.e., state-of-the-art
+method trained for the individual agents. Lastly, we analyze how
+centralized coordination can emerge from decentralized components in the
+context of sensorimotor control.
+
+
+Learning General-Purpose Controllers
+
+
+Consider *MATH* agents, each with a unique morphology. Each agent
+*MATH* contains *MATH* different limb actuators which are
+connected together to constitute its overall morphological structure.
+Examples of such agents include half-cheetah, 2D-humanoid, etc. agents
+with different physical structures (Figure [1]),
+all geared towards a common goal of learning to walk. The objective is
+to learn a single, general-purpose controller that can simultaneously be
+trained on all these *MATH* agent morphologies via reinforcement learning
+and generalize to held-out morphologies in a zero-shot manner without
+any further finetuning. Our key insight is to employ modularity at the
+most fundamental level of sensorimotor learning loop, i.e., across limbs
+(i.e. actuators) of the agents.
+
+
+Representing Agent Morphologies as Graphs 
+
+
+Consider a planar agent morphology that has *MATH* limbs, which we
+represent as an undirected graph *MATH*. Each node
+*MATH* for *MATH* represents a limb of the
+agent, and there is an undirected edge *MATH* if
+*MATH* and *MATH* are connected by a joint. For the brevity of method
+description, let&apos;s assume that the graph is connected and acyclic (i.e.,
+a tree) with the root node be one of the limbs, although it&apos;s easy to
+incorporate cycles as discussed in Section [3.3]. Each node/limb thus contains an actuator
+that controls its movement relative to its parent node/limb.
+
+
+Sensorimotor Modules 
+
+
+We develop a modular sensorimotor control policy *MATH* that is
+re-purposed to output the torques for each agent limb individually. The
+parameters *MATH* of this module are shared across all the limbs
+*MATH* of all agents *MATH*. At each discrete
+timestep *MATH*, the policy *MATH* for the *MATH* limb of an agent
+*MATH* receives a local sensory state of the limb *MATH* as input and then
+outputs the torque values *MATH* for the corresponding actuator
+controlled by this limb. Upon executing the combined action
+*MATH* for agent *MATH* at time *MATH*, the environment
+returns the next state *MATH* corresponding to all
+individual limbs of the agent *MATH* and an overall reward for the whole
+morphology *MATH*. We now discuss the joint policy optimization and how the coordination
+emerges within each agent as a result of modularity.
+
+
+Modular Policy Optimization
+
+
+A straightforward way to implement a modular policy architecture is to
+train each limb&apos;s shared policy independently to optimize the joint
+reward function for whole morphology. Note that each limb has its own
+state-space containing positions, velocity, rotation etc., see
+Section [4.0.0.1] for details. The parameters *MATH* of
+this policy *MATH* are optimized to maximize the joint reward via
+deep reinforcement learning as follows: *MATH*.
+
+
+In case of independent modular policies, this objective is optimized
+such that action is produced by a policy which is conditioned on the
+local state of the limb. This is similar in spirit to neural module
+networks used for visual question answering [*REF*] with
+the difference that our output is also modular and not just the input,
+i.e., each module directly outputs the limb actuation torques unlike in
+NLP where the output of all modules is aggregated to generate the
+answer.
+
+
+We optimize this objective in Equation via actor-critic setup of deterministic policy
+gradient algorithm which is standard practice for continuous control
+tasks [*REF*]. In particular, we use the TD3
+algorithm [*REF*]. Note that we used an off-the-shelf
+implementation of TD3 without much change, and our method&apos;s ability to
+perform across diverse morphologies stems mostly from the modularity of
+proposed controllers.
+
+
+Modular Communication 
+
+
+Learning a locomotion controller for walking across diverse agent
+morphologies, see Figure, is challenging for a pure reinforcement-based
+setup. First reason, of course, is the sheer complexity of hard joint
+optimization posed by this general setup. However, a bigger issue is the
+absence of a common gait that could perform locomotion with these agent
+morphologies. For instance, a bipedal walker can move efficiently with
+alternating walking gait while a walker with one leg (unipedal) will
+have to hop forward. A walker with one full leg and the other one short
+needs to lead with one leg and drag with the other and so on. Similar to
+the presence of different locomotion gaits across animals in the natural
+world, there exist many different locomotion gaits for our agents as
+different numbers of legs require different coordination with the torso
+and other non-locomotory limbs. Therefore, when the modular policies at
+each limb operate independently from other limbs, it is nearly
+impossible to represent different goal-directed behaviors (e.g.
+locomotion gaits) across different agent morphologies due to lack of
+ability to model coordination in absence of communication across limbs
+(actuators).
+
+
+To facilitate limb coordination within an agent and represent different
+behaviors across agents, we propose to condition each limb&apos;s policy
+module *MATH* on a message vector generated by its neighboring
+limbs in addition to conditioning on just the local state of the limb
+itself. Intuitively, we argue that the communication setup by these
+messages would enable the emergence of coherent full-body behaviors
+solely from identical local modules. Since our policies are fully
+shared, modular and communicate only with local neighbors via learned
+message vectors, we dub our approach as Shared Modular Policies (SMP).
+
+
+Communication via Messages
+
+
+As discussed in Section [2.1], we can represent each agent
+morphology as an undirected graph *MATH*. The node *MATH* in the
+graph corresponds to the *MATH* limb and the edges denote the
+connectivity of limbs of agent *MATH*. Messages are passed along the edges
+between the neighboring nodes.
+
+
+Let&apos;s define the torso as the root node for brevity, although any limb
+of the agent can act as root node of the graph and still achieve similar
+performance, as discussed in Section [5.4]. Let *MATH* be the unique parent of the
+*MATH* node, *MATH* be the set of its children nodes and
+*MATH* be the message from *MATH* node to *MATH* 
+node. This message is a 32-dimensional learned vector generated by the
+limb policy.
+
+
+The order in which these messages are passed governs prediction of each
+action *MATH* in Equation. We describe three message passing schemes:
+bottom-up, top-down, and both-way, in which the first two are
+decentralized while both-way can lead to the emergence of a centralized
+controller.
+
+
+FIGURE
+
+
+Decentralized Message Passing 
+
+
+The communication between our modules is naturally decentralized because
+we have only one type of module which gets shared across all limbs. In a
+decentralized setup, messages can be passed either from leaf nodes to
+the root node, or from root node to leaf nodes, discussed as follows.
+
+
+Bottom-Up Message Passing
+
+
+Messages are passed from leaf nodes towards the root and the policy
+parameters *MATH* are obtained by maximizing
+objective equation under the following constraints for action
+generation: *MATH* is an aggregator function that collects all
+the messages from child nodes and combines them into a fixed dimension
+output. Examples of such functions include an element-wise sum, average
+or max operator, etc. We discuss alternatives to aggregation in
+Section [3.4].
+
+
+Top-down Message Passing
+
+
+Messages are passed from the root node to leaves. For simplicity, let&apos;s
+assume that the parent nodes passes same message output to all of its
+children. The policy parameters *MATH* are trained to optimize
+Equation subject to following constraints on *MATH*: *MATH*.
+In many cases, passing a common message to all children may have issues
+for body-level coordination: for instance, if left and right legs have
+same state, then a common message won&apos;t be able to break the symmetry.
+To handle this, an alternative is to allow the parent to pass different
+messages to all its children via caching trick discussed in
+Section [3.4].
+
+
+Both-way Message Passing: Emergence of Centralization 
+
+
+A purely decentralized controller should be sufficient when the
+diversity in morphologies is not huge and all the limb modules can
+converge to a similar whole-body strategy implicitly. However, in the
+presence of drastically different agents like humanoid and walker, some
+back-and-forth communication between modules is necessary to govern a
+consistent full-body behavior. Although, such centralization would have
+to emerge and can not be encoded because our reusable design does not
+permit any special module which can act as a &apos;master&apos; node.
+
+
+We allow centralization to emerge via both-way message passing:
+first from leaves to root, and then from root to leaves. The bottom-up
+pass generates only messages, and actions are predicted in the top-down
+pass. The root node can eventually learn to emerge as a centralized
+module that aggregates information from all other nodes and then pass on
+its information to others via messages. An intuitive way to understand
+this scheme is to draw an analogy with the central nervous system in
+animals where sensory neurons (upwards pass) carry information from
+end-effectors (leaves) to the brain (root) and then motor neurons
+(downward pass) carry instructions from the brain to generate output
+actions. To implement this, we divide our modular policy *MATH* 
+into two sub-policies with parameters *MATH* and *MATH* for the
+upwards pass and the downwards pass respectively. Parameters *MATH* 
+are trained to optimize Equation subject to following constraints:
+*MATH*. Note that the upwards pass occurs sequentially from leaf
+to root and only outputs a message passed to the parent. The downwards
+pass, in contrast, happens sequentially from root to leaf and generates
+the final action output and messages passed to children. The pseudo-code
+of the complete method is provided in the Appendix [9.5].
+
+
+If the morphological graph contains cycles, which however is rarely seen
+in the animal kingdom, the message passing can be generalized to perform
+multiple both-way (i.e., bottom-up and then top-down) message passing
+until the messages converge, as in loopy-belief-propagation 
+[*REF*] for Bayesian networks with cycles.
+
+
+Handling Different Number of Children Nodes 
+
+
+A parent node can have multiple children in an acyclic graph which poses
+a choice whether to pass the same or different messages to each child
+node. Section [3.2] described the scenarios when the same
+message is transmitted to all children nodes, which is not always
+optimal. For instance, when left and right legs are not symmetric and
+have different numbers of limbs, the torso would want to pass different
+latent &apos;instruction&apos; to each leg. In our implementation, we allow
+different messages via a simple caching trick where the parent node in
+top-down pass always outputs as many messages as the max number of child
+nodes across joints of all agents, i.e., *MATH*. If a certain joint
+has fewer children, the first few distinct messages are used by each
+child and the remaining ones are simply ignored. A similar idea is
+employed in the bottom-up pass to prevent loss of information in sum or
+average operation over messages from different children nodes. The
+bottom-up policy takes *MATH* number of messages, and if the number
+of actual children is fewer at some node, zero vector is appended to
+compensate. We found that, in practice, allowing different messages
+between each parent-child pair in this manner works better than passing
+the same message to all child nodes. A generic alternative to handle
+different messages across child nodes is to implement the aggregator
+function *MATH* as a recurrent neural network.
+
+
+The emergence of complex coordination within agent limbs by local
+communication between shared modules has also been explored in dynamic
+graph networks (DGN) [*REF*]. However, there are two key
+differences: (a) The agent shapes in our setup are static and not
+dynamic, thus, we do not allow the flexibility to dynamically adapt the
+physical morphology to make the controller learning easier. (b)
+Furthermore, our emphasis is on learning diverse control behaviors or
+gaits across these different static morphologies via different message
+passing mechanisms as discussed above. In contrast, in DGNs, no-message
+and bottom-up message passing is good enough for agents that are allowed
+to adjust their shape.
+
+
+FIGURE
+
+
+Experiment Setup
+
+
+We investigate our proposed general-purpose controllers on the standard
+Gym MuJoCo locomotion tasks. We run all environments in parallel with
+the shared controller across limbs. Each experiment is run with four
+seeds to report the mean and the standard error. The reward for each
+environment is calculated as the sum of instant rewards across an
+episode of *MATH* time-steps.
+
+
+Environment and Agents 
+
+
+We choose the following environments from Gym MuJoCo to evaluate our
+methods: &apos;Walker2D-v2&apos;, &apos;Humanoid-v2&apos;, &apos;Hopper-v2&apos;, HalfCheetah-v2&apos;. To
+facilitate the study of general-purpose locomotion principles across
+these agents, we modify the standard 3D humanoid to constrain it to a 2D
+plane similar to walker, hopper, and cheetah.
+
+
+To systematically investigate the proposed method when applied to
+multi-task training, we construct several variants of each of the above
+agents, as shown in Figure. We create the following collections of
+environments using these variants: (1) 12 variants of walker
+\[walker++\], (2) 8 variants of humanoid \[humanoid++\], (3) 15 variants
+of cheetah \[cheetah++\], (4) all 12 variants of walker and 3 variants
+of hopper \[walker-hopper++\], and (5) all 12 variants of walker, 3
+variants of hopper, and all 8 variants of humanoid
+\[walker-hopper-humanoid++\]. We keep 20% of the variants as the
+held-out set and use the rest for training. Note we do not solely
+evaluate the methods on the hopper environment because there are only
+three variants possible. And we do not perform cross-category training
+with the cheetah environment because it uses a different integrator,
+making it unstable when jointly trained with other environments.
+
+
+To create the variants for each agent, consider each agent as a tree
+with the root being the torso. We create all possible subsets (the power
+set) of all the nodes in the tree and keeping only those that contain
+the torso and form connected graphs. This can also be done by
+procedurally removing one leaf node at a time and enumerating all
+possible combinations. Note that we leave out those variants that are
+structurally infeasible for locomotion (e.g. humanoid without legs) in
+training and testing.
+
+
+States and Actions
+
+
+The total state space of agent *MATH*, *MATH*, is a
+collection of local limb states. Each of these limb states, *MATH*,
+contain global positions, positional velocities, rotational velocities,
+3D rotations, and range of movement of the limb body. We represent these
+3D rotations via an exponential map
+representation [*REF*]. The range of movement is
+represented as three scalar numbers *MATH* normalized
+to *MATH*, where *MATH* is the joint position at time *MATH*, and
+*MATH* is the allowed joint range. To handle different numbers of
+children nodes, we implement the simple caching trick discussed in
+Section [3.4]. Note that the torso limb has no
+actuator in any of these environments, so we still keep a sensorimotor
+module for torso for message passing but ignore its predicted torque
+values.
+
+
+We use TD3 [*REF*] as the underlying reinforcement
+learning method. The internal modules which are shared across all limbs
+of over 20 agents are just two 4-layered fully-connected neural networks
+with ReLU and tanh non-linearity, one for bottom-up message passing and
+the other one for top-down message passing. The dimension of message
+vectors is 32. Other details of training and a sanity check section that
+compares the Shared Modular Policies to a standard monolithic policy
+trained on single-agent environments can be found in the appendix.
+
+
+FIGURE
+
+
+Results and Ablations
+
+
+We evaluate the effectiveness of our approach by asking three questions:
+Can our Shared Modular Policies (SMP) outperform the standard multi-task
+RL approach when simultaneously trained on many diverse agents? How do
+different message passing schemes compare and does centralized control
+emerge? Can it generalize to unseen morphologies in a zero-shot manner,
+a task that has been considered infeasible for the standard RL approach?
+We examine these questions in three steps:
+- We first compare against the standard multi-task baseline and see
+how well our proposed method compares to such a monolithic policy
+simultaneously trained on multiple agents.
+- Next we examine the role of message passing, specifically the
+performance resulted from different message passing schemes.
+- Finally we test our learned modular policy on unseen agent
+morphologies in a zero-shot manner.
+
+
+Also, we examine whether Shared Modular Policies are robust to the
+choice of root node while constructing the kinematic graph for message
+passing by choosing non-torso limbs as the root.
+
+
+Multi-Task RL Baseline
+
+
+Following the setup by  *REF*, the baseline that we compare
+to is a standard monolithic RL policy trained on all environments with
+TD3. The state space for each environment consists of the state of the
+agent in joint-coordinate (as in most existing methods) plus a task
+descriptor containing the number of limbs present and a one-hot
+environment ID. The policy is a four-layered fully-connected neural
+network. For each agent, it takes the state of the entire agent as input
+and outputs the continuous torque values for all the actuators. Note
+that the dimensions of the state space and the action space differ
+across different environment, so we zero-pad the states and actions to
+the maximum dimension across all environments.
+
+
+As shown in Figure, the multi-task baseline fails to perform well in
+any environment, possibly due to the diversity of the agents and hence
+the difficulty of learning a single controller for all the agents. In
+contrast, SMP with both-way message passing can model many different
+gaits across these drastically different agents.
+
+
+Role of Message Passing 
+
+
+As shown in Figure, different schemes of message passing have a
+significant impact on the performance of the morphologies. Not only does
+the both-way message passing scheme outperforms the multi-task RL
+baseline, but it performs significantly better than the decentralized
+message passing schemes (e.g. top-down only and bottom-up only).
+
+
+Figure shows the superiority of both-way message passing
+in obtaining higher average rewards across a number of agents, yet it
+does not show in what ways both-way message passing is superior than
+decentralized message passing schemes. To investigate this, we plot one
+figure for each morphology in Walker++, where all the agent morphologies
+are trained with a single policy. As shown in
+Figure, although decentralized message passing
+schemes seem to work in few morphologies, they fail to model different
+types of motion as these morphologies exhibit drastically different
+gaits (e.g. a two-limb walker can only hop forward). Both-way message
+passing, on the other hand, learns these gaits simultaneously, a task
+that is even infeasible by the formulation of most RL methods.
+
+
+Zero-Shot Generalization 
+
+
+There are several examples in animal kingdom where locomotion abilities
+are present at birth (i.e. almost &apos;zero-shot&apos;), for instance, foals
+start to walk soon after they are born [*REF*; *REF*]. Similarly, our goal of
+learning a general-purpose controller is not limited to training
+morphologies but also to generalize to new ones in a zero-shot manner
+without any further training.
+
+
+During test time, the modular policies can potentially adapt to many
+morphological structures, and in this section, we test the trained
+policy on a set of held-out agent morphologies. As shown in
+Figure, both-way message passing has a definitive
+advantage in generalization, achieving high rewards even in a zero-shot
+manner. This demonstrates that it can generalize to a wide variety of
+different morphologies with no fine-tuning, showing it has learned
+important priors for locomotion -- a key step towards learning
+general-purpose controllers. Please look at the success as well as the
+failure videos on the project website.
+
+
+FIGURE
+
+
+Training with a Non-Torso Limb as Root 
+
+
+As our method operates on a per-actuator level, it relies on the
+graphical representation of an agent&apos;s morphological structure, which is
+often a tree. Most MuJoCo environments come with such morphological
+structures by defining agents as an acyclic graph where torso is the
+root. In all the experiments in the previous sections, we simply adopt
+the built-in structure for each environment. However, we note that our
+method is agnostic to where the root is defined. To verify this, we
+construct another walker environment where the root is the left foot
+instead of the torso. We run four different seeds for the same walker
+morphology with this foot-root setup, the default torso-root setup, and
+the monolithic baseline. We report the mean and standard deviation of
+training rewards at 1M timesteps. Note that treating left foot as root
+even performs slightly better.
+
+
+TABLE
+
+
+Analysis of Message Passing 
+
+
+Illustrated by Section [5.2], message passing plays a crucial role for
+agents to orchestrate globally coherent behaviors. However, does message
+passing convey contextual information essential for learning
+general-purpose controllers or is it purely an empowering technique for
+modeling high-complexity tasks? We answer this question by examining the
+role of message passing in this section.
+
+
+Consistency over Time
+
+
+In many of the locomotion tasks, we repeatedly observe alternating
+behaviors, a result of global coordination, e.g. walker moves by
+alternating its two legs and hopper hops by contracting and relaxing its
+leg. Do our learned messages capture this essence of locomotion? We
+investigate this question by plotting one-dimensional
+t-SNE [*REF*] of the torso message, which has
+aggregated global information after bottom-up message passing, over the
+time of an episode. As shown in
+Figure, a clear message pattern emerges over the course
+of training. Furthermore, we visualize the agent across the episode
+time-steps and found that the agent&apos;s pose is also highly consistent
+with the torso message, again proving that a centralized controller can
+emerge from training decentralized controllers via message passing.
+
+
+Related Works
+
+
+Modular approaches to control that are similar to ours have been
+explored by robotics and virtual evolution communities. To control
+customizable and reconfigurable robot platforms,   *REF* 
+[*REF*] condition the control policy on an encoding of the
+robot&apos;s morphology.   *REF* avoid learning a parametric control
+policy altogether and instead use trajectory optimization to control the
+robots. When the morphology of the robot is fixed but some
+pre-determined parameters vary, meta-learning can be used to adapt the
+policy online [*REF*; *REF*] or to train with
+variability over parameters to make the control policy insensitive to
+their precise value  [*REF*]. Virtual evolution similarly
+requires co-adaptation of the morphology and the control mechanism.
+Advantages of modular control have been observed in this context by *REF*.
+
+
+Another recent line of work exploiting modularity and reuse in deep
+learning are graph-structured neural networks  [*REF*] --
+see  [*REF*] for a comprehensive review. Global
+coordination in such graph networks is either implemented via global
+aggregation or decentralized message passing, as in
+[*REF*; *REF*]. In deep reinforcement learning,
+graph structure has typically been used to efficiently encode agent&apos;s
+observations (i.e. world entities and interactions) as in
+[*REF*; *REF*]. Exceptions are works of
+*REF* [*REF*], which similarly to our work
+exploit graph structure present in the agent&apos;s morphology.
+
+
+Our message passing modules also bear resemblance to a communicating
+multi-agent system. Global coordination emerging from decentralized
+agents was observed from deep reinforcement learning agents in
+[*REF*; *REF*; *REF*]. Modularity has also been observed to an important component of a
+biological sensorimotor organization -- see  [*REF*] for a
+review. Examples of global coordination observed in this area include
+central pattern generators for control of rhythmic behaviors
+[*REF*] and muscle synergies  [*REF*].
+
+
+Conclusion
+
+
+In this work, we have presented a policy architecture built entirely out
+of a single reusable module -- that while acting and sensing only
+locally creates globally-coordinated complex movement behaviors. Such an
+architecture can produce locomotion for a wide variety of agents
+simultaneously, even those not seen during training. Overall, we hope
+that our work provides the foundation for general-purpose pre-trained
+priors of sensorimotor control.

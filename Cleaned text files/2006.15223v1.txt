@@ -1,0 +1,516 @@
+Perception-Prediction-Reaction Agents for Deep Reinforcement
+
+
+Introduction
+
+
+In the reinforcement learning (RL) problem, an agent is trained to solve
+an environment cast as a Markov decision process (MDP), specified as a
+tuple of states, actions, transition probabilities, and rewards:
+*MATH*. The agent must learn which states
+and actions lead to the best rewards without prior knowledge of *MATH*. In
+many interesting RL problems, however, the agent receives an
+observation, *MATH*, which does not completely
+specify the state of the MDP at that time step, resulting in partial
+observability. Therefore, for partially observable Markov decision
+processes (POMDPs) [*REF*; *REF*], a focus of
+agent design is how to integrate the sequence of historical observations
+*MATH* to best approximate the state *MATH* and
+produce a policy *MATH* to maximise future rewards. In deep RL,
+recurrent neural networks (RNNs) allow integrating observations over
+time with constant computational complexity [*REF*].
+Agents based on traditional recurrent networks, e.g.
+LSTMs [*REF*], are widely effective, but they sometimes
+struggle to learn in more complex environments involving long-term
+memory retention.
+
+
+In this paper, we introduce a recurrent agent architecture, and
+associated auxiliary losses [*REF*], which aim to
+improve deep RL in partially observable environments, particularly those
+requiring long-term memory. Specifically, we introduce a slowly ticking
+recurrent core to augment the standard fast ticking agent core, to allow
+a pathway for long-term memory storage and ease the backwards flow of
+gradients over long time spans. In addition, we construct two auxiliary
+policies, the first of which is required to use only current
+observations without long-term memory (perception), and the second
+which must only use the long-term memory without current observations
+(prediction). These auxiliary policies are trained jointly with the
+full-information policy (reaction), with all three policies
+regularizing each other and shaping the representation of the
+slow-ticking recurrent core.
+
+
+We evaluate this agent, dubbed the Perception-Prediction-Reaction
+agent (PPR) on a suite of experiments on 3D, partially observable
+environments [*REF*], and show consistent improvement compared to
+strong baselines, in particular on tasks requiring long-term memory.
+Ablation studies highlight the efficacy of each of the structural priors
+introduced in this paper. Finally, we apply this agent to the
+challenging DMLab-30 domain (one agent which must learn across 30
+different POMDPs simultaneously) and Capture the
+Flag [*REF*], and show that even in these highly varied RL
+domains, the PPR agent can improve performance. It is striking that our
+simple regularising losses can have such a strong effect on learning
+dynamics. Without intending to replicate any biological system, we drew
+loose inspiration for our architecture from concepts in hierarchical
+sensorimotor control; we refer the interested reader to related articles
+such as [*REF*; *REF*; *REF*; *REF*].
+
+
+The Perception-Prediction-Reaction Agent
+
+
+FIGURE
+
+
+This section introduces the structural and objective priors which
+constitute the PPR agent. We start with background on recurrent neural
+network-based agents for reinforcement learning, followed by discussion
+of a minimal hierarchical agent as an intermediate concept.
+
+
+Reinforcement Learning and Recurrent Agents
+
+
+In an MDP, the goal of the RL agent is to find a policy over actions,
+*MATH*, conditioned on the state, that maximizes the expected
+discounted sum of future rewards, *MATH*. The
+objective remains the same under partial observability (POMDPs) however
+the agent does not have access to the full state, instead receiving
+incomplete information gleaned from observations, *MATH*.
+
+
+In POMDPs, recurrent agents can improve their internal understanding of
+the current state by carrying information from past observations,
+*MATH*, in an internal state, *MATH*, to
+complement the current observation, *MATH*. The agent updates its
+internal state by *MATH*, and the remaining network layers
+receive conditioning as *MATH* to produce the policy, see
+Figure [1](a). Training by backpropagation through time (BPTT)  [*REF*; *REF*] allows
+rewards to influence the processing of observations and internal state
+over earlier time steps. Sophisticated recurrent functions, *MATH*, can
+extend the agent&apos;s ability to handle longer (and hence more difficult)
+sequences. LSTM-based agents have succeeded in a range of partially
+observable environments, including ones with rich visual observations
+[*REF*; *REF*], but many such tasks remain difficult
+to master or are learned slowly with the traditional architecture.
+
+
+Minimal Temporally Hierarchical Agent 
+
+
+Temporal hierarchy promises to further improve the processing of long
+sequences by dividing responsibilities for short- and long-term memory
+over different recurrent cores, simplifying the roles of each. See
+Related Work for numerous examples of architectures with different
+hidden neurons operating at different time scales. As a special case of
+this concept applied to RL, we consider employing an additional
+recurrent unit operating at a rate slower than the MDP. This unit
+reduces the number of intermediate computations between distant time
+steps and allows error gradients to skip backwards through long segments
+of time.
+
+
+An example of such a hierarchical agent is shown in
+Figure [1](b): the slow core advances every *MATH* time
+steps (depicted is *MATH*); during the interim it provides a fixed
+output to modulate the fast core; the fast core provides summary
+information to the slow core. As depicted, the recurrence equations
+could take the following form: *MATH* 
+where the superscripts *MATH* and *MATH* denote slow and fast cores,
+respectively, *MATH* are the recurrent states, *MATH* is the
+observation, and *MATH* denotes a vector of zeros (i.e. the
+initial recurrent state). The policy could generically depend on the
+recurrent states, *MATH* (in our case *MATH* is an MLP).
+The internal state of the fast core is periodically reset to *MATH* 
+so as to divide memory responsibilities by time-scale; all information
+originating prior to *MATH* must have routed
+through the slow core.
+
+
+This minimal hierarchical agent does not on its own guarantee efficient
+training of long-term memory in a way that improves overall learning
+relative to the flat agent, see ablations in
+Figure [3](b). Indeed, previous examples of temporally hierarchical
+agents [*REF*; *REF*] introduce auxiliary
+objectives to best make use of similar hierarchical structures.
+
+
+The PPR Agent 
+
+
+Our contribution is to construct a new hierarchical structure and
+associated auxiliary losses which enhance recurrent learning. It relies
+on architectural elements designed to create an information asymmetry
+(as in [*REF*]) which permits leveraging certain
+policy priors to simultaneously (a) shape the representation of the
+slow-ticking core, (b) maximize information extracted from observations,
+and (c) balance the importance of both in the policy.
+
+
+The PPR agent is depicted in Figure [1](c), and we build its description starting
+from the minimal hierarchical agent. First, we eliminate the possibility
+of a trivial feed-through connection from fast-slow-fast. Rather than
+attempt a partial information bottleneck, we prevent the fast core
+(reaction) which receives input from the slow core, from passing any
+output back to the slow core. We introduce another fast-ticking core
+(perception) which feeds its output into the slow core but does not
+take input from it. Resetting the fast internal states at the interval
+*MATH* forms branches in the graph. The reaction branch produces the
+agent&apos;s behavior policy by integrating new observations together with
+the slow core&apos;s output. The slow core assumes a central role in
+representing information originating prior to
+*MATH*, as it receives periodic, short-term
+summaries from the perception branch, which also integrates
+observations. This forms a Perception-Reaction Agent without auxiliary
+losses, a baseline in our ablation experiments.
+
+
+The final architectural element of the PPR agent is an additional fast
+recurrent core (prediction). It branches simultaneously to reaction
+and receives the slow core&apos;s output and possibly partial information
+*MATH*. This creates an information asymmetry against the perception
+branch, which lacks long-term memory, and the fully-informed reaction
+branch. We can leverage this asymmetry to enhance recurrent learning. We
+do so by drawing auxiliary policies, *MATH* and *MATH* from the
+perception and prediction branches, respectively, to form the
+auxiliary loss: *MATH* where *MATH* is a statistical distance -- we use the symmetrized
+Kullback-Leibler Divergence. All three branches are regularized against
+each other; *MATH* encourages their policies to agree as
+much as possible despite their differences in access to information.
+Rather than apply a loss directly on the recurrent state, which may
+assume somewhat arbitrary values, the policy distribution space offers
+grounding in the environment.
+
+
+The recurrence equations and policy structure of the PPR agent are
+summarized in Table [1]. Loosely speaking, reaction is a
+short-term sensory-motor loop, perception a sensory loop, prediction
+a motor loop, and the slow core a long-term memory loop, all of which
+are decoupled in forward operation. The auxiliary divergence losses can
+be seen as imposing two priors on the fully informed reaction branch
+ -- that the policy should be expressible from only recent observations
+(perception) and from only long-term memory (prediction).
+
+
+TABLE
+
+
+Implementation.
+
+
+Although the contents of partial information *MATH* remain flexible in
+our definition, deliberate selection of this quantity may be required to
+enable useful regularization. For visual environments, the recurrent A3C
+Agent [*REF*] suggests a convenient delineation, which
+we use in our experiments: the partial observation consists of the
+previous action and reward in the environment, *MATH*.
+This is compared to the full observation provided to the agent
+*MATH* which additionally includes the screen
+pixels *MATH*. The actions provide critical information for the forward
+model of the prediction branch, and they hold natural appeal as
+information internal to the agent.
+
+
+In practice, the PPR architecture is implemented as a self-contained
+recurrent neural network core, and training only requires an additional
+loss term *MATH* computed on the current training batch,
+allowing the agent to be easily incorporated in most existing deep RL
+frameworks. In our experiments we found it possible to use the same
+recurrent network weights in all branches, as reflected in
+Table [1]. Weight sharing limits the increase in
+recurrent parameters to only *MATH* over the flat agent, using the
+same core size.
+
+
+Related Work
+
+
+Recurrent networks with multiple time scales have appeared in numerous
+forms for supervised learning of long sequences, with the intent of
+leveraging the prior that time-series data is hierarchical. In the
+Sequence Chunker  [*REF*], a high recurrent level
+receives a reduced description of the input history from a low level,
+and the high level operates only at time-steps when the low level is
+unable to adequately predict its inputs. Hierarchical recurrent networks
+[*REF*] were constructed with various fixed structures
+for multiple time scales. Hierarchical Multiscale RNNs
+[*REF*] extended this idea to include learnable
+hierarchy by allowing layers in a stacked RNN to influence temporal
+behavior of higher layers. They introduce three possible operations in
+their modified LSTM: FLUSH -- feed output to higher level and reset
+recurrent state, UPDATE -- receive input from lower level and advance
+recurrent state, and COPY -- propagate the exact recurrent state. Our
+architecture can be understood in these terms, but we utilize a
+specific, new structure with multiple low levels assuming different
+roles, implemented by a fixed choice of when to perform each operation.
+Clockwork RNNs (CW-RNNs) [*REF*] and Phased LSTMs [*REF*]
+perform hierarchical learning by using a range of fixed timescales for
+groupings of neurons within a recurrent layer. In contrast to these two
+methods, we construct a distinct routing of information between
+components (e.g., in CW-RNNs, information flows generically from slow
+to fast groups), and we require only two time scales to be effective.
+
+
+Relative to vanilla RNNs, several works have improved learning on long
+sequences by introducing new recurrence formulas to address vanishing
+gradients or provide use of explicit memory. Long Short-Term Memory
+(LSTM)  [*REF*] is a widely-used standard which we employ
+in all our experiments. More recent developments include: the
+Differentiable Neural Computer [*REF*], an explicit
+memory-augmented architecture; Relational RNNs [*REF*],
+which supplement LSTMs to include memory-interaction operations; plastic
+neural networks using Hebbian learning  [*REF*]; and the Gated
+Transformer-XL (GTrXL) [*REF*], which adapted a
+purely self-attention based approach [*REF*] for RL. The
+GTrXL agent was measured on a similar benchmark to ours (although using
+a more recent learning algorithm) and showed similar or better
+improvements over a 3-layer LSTM agent. However, this improvement came
+at the cost of orders of magnitude more parameters in their 12-layer
+self-attention architecture, and the other architectures likewise share
+the drawback of significantly increased computational burden over LSTMs.
+Still, any of them could be employed as the recurrent core within the
+PPR agent --- future work could seek compounding gains.
+
+
+In RL specifically, our work relates closely to the For-The-Win (FTW)
+agent of [*REF*]. The FTW agent features a slow-ticking
+and a fast-ticking core, similar to what is depicted in
+Figure [1](b), and includes a prior to regularise the
+hidden state distribution between slow and fast cores via an auxiliary
+loss. Our work also builds on recent approaches to learning priors with
+information asymmetry for RL. In [*REF*], a &quot;default&quot;
+policy is learned simultaneously to the agent&apos;s policy through a
+regularisation loss based on their KL divergence, which replaces entropy
+regularisation against the uniform prior. In their experiments, hiding
+certain input information from the default policy, such as past or
+current states, was beneficial to the agent&apos;s learning.
+Distral [*REF*] promotes multitask learning by distillation
+and regularisation of each task policy against a shared, central policy.
+
+
+Other works utilise a combination of memory modules and new learning
+algorithms for better learning through
+time [*REF*; *REF*], and a wealth of previous work
+exists on more explicit hierarchical RL which often exploits temporal
+priors [*REF*; *REF*; *REF*]. Unlike these
+methods, we impose minimal change on the RL algorithm, requiring only
+auxiliary losses computed using components of the same form as those
+already present in the standard deep RL agent.
+
+
+Experiments
+
+
+FIGURE
+
+
+We conducted experiments seeking to answer the questions: (a) does the
+PPR hierarchy lead to improved learning relative to flat architectures,
+and if so, (b) which kind of tasks is it most effective at accelerating,
+and (c) what are the effects of different components of the
+architecture. We report here experiments on levels within the DMLab-30
+suite [*REF*]. It includes a collection of visually rich, 3D
+environments for a point-body agent with a discrete action space. The
+range of tasks vary in character from memory-, navigation-, and reactive
+agility-based ones. Language-based tasks are also included. Next, we
+report the PPR agent&apos;s performance on the recent Capture the Flag
+environment, which combines elements of memory, navigation, reflex, and
+teamwork [*REF*]. Lastly, we present an in-depth study
+isolating the prediction component of the agent in order to further
+clarify the effect of the combined architecture.
+
+
+In our experiments, we used LSTM recurrent cores with hidden size 256
+and shared weights among the three fast branches. We trained our agents
+and baseline using the V-Trace algorithm  [*REF*] on trajectory
+segments of length 100 agent time-steps, using action-repeat 4 in the
+environment. We introduced hyperparemeters to weight each auxiliary
+loss, one for each branch-pair, and included these in the set of
+hyperparameters tuned by Population-based training (PBT) [*REF*]. For
+visual levels, our convolution network was a 15-layer residual network
+as in  [*REF*], and our baselines all used the identical architecture
+except with a flat LSTM core for memory. We typically fixed the slow
+core interval, *MATH*, to 16.
+
+
+PPR Agents in DMLab
+
+
+DMLab Individual Levels.
+
+
+We tested PPR agents on 12 DMLab levels. For each level, we trained a
+PPR and a baseline agent for 2 billion environment frames. Figure
+[2] highlights results from four tasks. Compared to the baseline, the PPR agent showed
+significantly faster and higher learning in tasks requiring long-term
+memory. In all 12 levels we tested, the PPR agent achieved the same or
+higher score as the baseline --- full results are in the Appendix.
+
+
+In &apos;emstm_non_match&apos;, the agent sees an object and must memorize it to
+later choose to collect any different object. The PPR agent demonstrated
+proper memorisation, scoring 65 average reward, whereas the baseline
+agent did not, scoring 35. In &apos;emstm_watermaze&apos;, the agent is rewarded
+for reaching an invisible platform in an empty room and can repeatedly
+visit it from random respawn locations within an episode. The second
+rise in learning corresponds to memorisation of the platform location
+and efficient navigation of return visits, which the PPR agent begins to
+do at roughly half the number of samples as the baseline. The level
+&apos;nav_maze_random_goal_03&apos; is similar in terms of resets but takes place
+in a walled maze environment with a visible goal object. Here as well,
+the PPR agent exhibits significantly accelerated learning, surpassing
+the final score of the baseline using less than half as many samples.
+
+
+In contrast, &apos;lt_hallway_slope&apos; is a laser tag level requiring quick
+reactions without reliance on long-term memory; the PPR agent is not
+expected to improve learning. Significantly, the equal scores shows that
+the hierarchy did not degrade reactive performance. While experimenting
+with agent architectures, it was a design challenge to increase
+performance on memory tasks without decreasing performance on reactive
+ones, the main difficulty being a learning mode in which the policy
+became less dynamic, to be easier to predict. One effective way we found
+to mitigate this phenomenon is to apply *MATH* to only a
+(random) subset of training batches (found concurrently
+by [*REF*]), to permit the policy to sometimes update toward
+pure reward-seeking behavior. Through experimentation, we also found
+rescaling *MATH* by a factor randomly sampled from *MATH* 
+for each batch worked well. We used these techniques in all our
+experiments.
+
+
+DMLab-30.
+
+
+We next tested the PPR agent on a multi-task learning problem --- the
+entire DMLab-30 suite --- to test whether benefits could extend across the
+range of tasks while using a single set of agent weights and
+hyperparameters for all levels. Indeed, the PPR agent outperformed the
+flat LSTM baseline, achieving an average capped human-normalized ELO
+across levels of 72.0% mean (across 8 independent runs), compared to
+64.3% with the baseline [*REF*], Figure [3]. The Appendix
+contains per-level scores from these learning runs. This difference,
+while modest, is difficult to achieve compared to the highly tuned
+baseline agent and represents a significant improvement.
+
+
+FIGURE
+
+
+Ablations.
+
+
+To determine the effects of individual components of the PPR agent, we
+returned to experimenting on individual DMLab levels. First, Figure
+[3](c) shows results from &apos;emstm_watermaze&apos;, for slow core interval, *MATH*, ranging
+from 2 to 32. A wide range worked well, with best performance at
+*MATH*. We also experimented with evolving *MATH* using PBT but
+did not observe improved performance.
+
+
+In a separate experiment, with fixed *MATH*, we activated different
+combinations of the three PPR auxiliary loss terms. Using no auxiliary
+loss reverts to the bare Perception-Reaction architecture. Figure
+[3](b) shows results, also on &apos;emstm_watermaze&apos;, with the full PPR agent performing
+best. The prediction branch, which is only trained via the auxiliary
+loss, is revealed to be crucial to the learning gains, and so is
+inclusion of the behavior policy in *MATH*. Although using
+two of the three auxiliary losses was sometimes effective in our
+experiments, we measured more consistent results with all three active.
+
+
+PPR Agents in Capture the Flag
+
+
+FIGURE
+
+
+The Capture the Flag environment is a first-person, 2-vs-2 multiplayer
+game based on the Quake III engine, developed in [*REF*].
+The RL agent controls an individual player, and must learn to coordinate
+with a teammate to retrieve a flag from the opponent base, while the
+opponent team attempts to do the same. Players can &quot;tag&quot; opponents (as
+in laser tag), removing them from the game temporarily until they
+respawn at their base. Human-level performance by RL was first achieved
+in this game by [*REF*]. They trained agents from scratch
+using a combination of techniques including PBT, careful opponent
+selection for playing thousands of matches in parallel, and a temporally
+hierarchical agent architecture with an associated auxiliary loss and
+Differentiable Neural Computer recurrent cores [*REF*]. The
+PBT-evolved parameters included internal agent weightings for several
+possible reward events, to provide denser reward than only capturing a
+flag or winning/losing a match, which lasts 5 minutes. Together, these
+advancements comprised their For-The-Win (FTW) agent.
+
+
+In our experiment, we used all components as in the FTW agent and
+training, except for the recurrent structure. Our baseline used the flat
+LSTM architecture, and the PPR agent used LSTM cores.
+Figure shows win rates against bots, evaluated
+during training on the procedurally generated levels (see Appendix for
+bots of other skill levels). Without auxiliary losses, the
+Perception-Reaction hierarchical agent performed slightly above the
+baseline, reaching 62% and 50% win rates, respectively. By including the
+auxiliary losses, however, the full PPR agent dramatically accelerated
+learning and reached higher asymptotic performance, nearly 90% by 1.5B
+steps. Slow time scales of either 8 or 16 gave similar performance,
+showing low sensitivity to this hyperparameter. Using a reduced
+auxiliary loss rate (0.1 and 0.05 shown) further improved performance,
+with the best learning resulting from evolving the rate by PBT. In this
+experiment, the PPR agent demonstrated improved learning of the
+complicated mix of memory, navigation, and precision-control skills
+required to master this domain.
+
+
+Flat, Prediction Agent (Ablation)
+
+
+FIGURE
+
+
+In another ablation, we sought performance gains for a flat LSTM agent
+by training with the auxiliary regularisation loss of a prediction
+branch, Figure. During training we rolled out
+predictions up to 10 steps, and for some agents we included training
+samples from the prediction policy, *MATH*. We then evaluated final
+agent performance under three different behavior schemes: i) the
+baseline using only *MATH*, ii) using *MATH* at a fixed number of steps
+after branching, and iii) using *MATH* along a branch from its starting
+point. Figure [4](a) and (b) show evaluations using
+3-step and 7-step predictions, respectively, using the same trained
+agents, in &apos;rat_goal_driven_large&apos;. Using the branch-following
+scheme, the best 7-step prediction agents scored above 300, close to
+the baseline agent (around 340). In contrast, additional baseline agents
+we trained with frame-skip 32 performed significantly worse --- score 50,
+Figure [4](c) --- despite using the same refresh
+rate for incorporating new observations into the policy.
+
+
+These experiments show that the fast perception and control loops are
+essential, although they can operate more loosely coupled than in the
+baseline agent. Clearly, the auxiliary policy encodes future sequences
+of high-reward behavior, despite lacking access to input observations
+over similar time scales as used for the PPR agent&apos;s hierarchy. Yet in
+no case did we observe any improvement in the base agent&apos;s learning.
+Evidently, the full PPR agent is needed to accelerate learning.
+
+
+FIGURE
+
+
+Conclusion
+
+
+In this paper we introduced a new agent to learn in partially observable
+environments, the PPR agent, which incorporates a temporally
+hierarchical recurrent structure, as well as imposing priors on the
+behaviour policy to be both predictable from long-term memory only, and
+from current observations only. This agent was evaluated on a diverse
+set of 3D partially observable RL problems, and showed improved
+performance, in particular on tasks involving long-term memory. We
+ablated the various components of the agent, demonstrating the efficacy
+of each. We hope future work can build upon these ideas and continue
+exploring structural- and loss-based priors to further improve deep RL
+in partially observable environments.

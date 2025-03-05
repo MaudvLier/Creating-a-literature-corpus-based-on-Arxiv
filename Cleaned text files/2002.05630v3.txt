@@ -1,0 +1,903 @@
+I. [Introduction]
+
+
+Perception is the medium by which agents organize and interpret
+sensory stimuli, in order to reason and act in an environment using
+their available actions *REF*. We focus on scenarios
+where embodied agents are situated in realistic environments, i.e.
+the agents face partial observability, coherent physics, first-person
+view with high-dimensional state space, and low-level continuous motor
+(i.e. action) space with multiple degrees of freedom.
+
+
+In classical robotics, we can use a controlled robotic setup where we
+utilize external information about the agent and the environment, such
+as position, joint parameters, object positions, and annotated data.
+This allows the experimenter to distill its knowledge in the form of
+priors into the system (e.g. knowledge of the workspace in the case of
+an a robot interacting with objects on a table). However, this
+information might not be available in the general case. In Nature,
+children and animals do not have access to this information when they
+are born. They start from a relatively naive setup, and then build
+perception via interaction with the environment. We aim at developing
+theories and applications for this tabula-rasa case where the agent is
+naive: it can only actuate its motors (without any description of what
+they do) and receive observations through its sensors.
+
+
+Embodied agents, when acting in their environment, produce a stream of
+sensorimotor data, composed of successions of motor states and sensory
+information. While most current approaches for building perception
+consider that the interpretation of sensory information is an
+isolated problem that only requires extracting relevant information in
+instantaneous sensor values *REF*, *REF*, several approaches *REF*,
+*REF*, *REF*, *REF* that can be traced back to 1895 *REF*, advocate the
+necessity of studying the relationship between sensors and motors for
+the emergence of perception.
+
+
+FIGURE
+
+
+Inspired by these works, we study the commutativity of action
+sequences with respect to sensors, which we term sensory
+commutativity, illustrated in Fig. *REF* Sensory
+commutativity occurs when two sequences of actions played in different
+orders lead to the same final sensory state. In order to study the
+commutation properties of sequences of actions, we introduce Sensory
+Commutativity experiments (SC-experiments), which consists in having
+the agent play an action sequence in two different orders from the
+same starting point. Sensory Commutativity Probability (SCP) of a
+degree of freedom is then a measure of how likely two sequences of actions (in different
+orders) on this degree of freedom will lead to Sensory commutation.
+Note that learning SCP is a priori dependent on the environment and
+the morphology of the agent.
+
+
+We show that this value has intrinsic meaning for the embodied agent:
+if the SCP is high then the degree-of-freedom has a low impact on the
+environment (e.g. moving a shoulder is more likely to lead to
+environment changes than moving a finger, so SCP for a shoulder is
+lower than for a finger). By computing the SCP for each degree of
+freedom of the agent, we are able to characterize its motor space
+without any a priori knowledge and use this information for subsequent
+tasks. In our experiments, we illustrate how SCP, and more generally
+SC-experiments, can be used to learn about objects in the environment
+and improve sample-efficiency in a Reinforcement Learning (RL)
+problem. Our contributions are therefore the following:
+-  We provide a mathematical framework to express sensory
+commutativity, and theoretical insights on how it can be useful for
+building perception for an embodied artificial agent.
+-  We introduce Sensory Commutativity experiments and the Sensory
+Commutativity Probability criterion: tools based on the commutative
+properties of action sequences that allow learning about the agent
+and the environment.
+-  We provide methods to compute them, including in realistic robotics
+setups.
+-  We experimentally show how SC-experiments and SCP can be useful for
+object discovery and improving sampleefficiency in a RL setup. Our
+code is available in the supplementary material.
+
+
+II. [Related work and motivation]
+
+
+A. Related work
+
+
+SensoriMotor theory (SMT) is a theory of perception that gives
+prominence to the role of motor information in the emergence of
+perceptive capabilities *REF*. Inspired by
+philosophical ideas formulated more than a century ago by H.Poincaré
+*REF*, it led to theoretical results regarding the
+extraction of the dimension of space *REF*, the
+characterization of displacements as compensable sensory variations
+*REF*, the grounding of the concept of point of view
+in the motor space *REF*, *REF*, as
+well as the characterization of the metric structure of space via
+sensorimotor invariants *REF*. The present work
+studies the commutativity of action sequences with respect to sensory
+information and takes inspiration from this literature.
+
+
+An important insight from this literature is that action and sensor
+spaces have a shared underlying structure, since they are causally
+linked (sensory changes are caused by actions). It is suggested that
+the group structure would be well adapted to describe those links
+*REF*, *REF*, yet it has never been
+formalized in these works. However recently, Symmetry-Based
+Disentangled Representation Learning (SBDRL) *REF*,
+*REF* used group theory to formalize disentanglement
+in Representation Learning using symmetries, i.e. transformations of
+the environment that leave some aspects of it unchanged. Groups are
+composed of these transformations, and group actions are the effect of
+the transformations on the state of the world and representation. Inspired
+by this approach, we formalize the group structure suggested in the
+SMT theory and use it to define the SCP criterion.
+
+
+More generally, the idea of learning how actions influence sensations,
+and how this information can be used for exploration has been
+investigated in many ways. A large body of work has investigated
+developmental robotics *REF*, *REF*,
+with for instance a concept related to the present work called the
+slowness principle *REF*. The idea is that meaningful
+sensory dimensions change slowly even in the case of rapid actuator
+changes, which allows identifying meaningful structures such as
+objects. With the SCP criterion, we actively apply action sequences in
+different orders and observe the difference in sensors in order to
+organize useful degrees of freedom of the agent in terms of how much
+they impact sensors. This general idea is also present in the
+psychology and neurosciences literature, and is termed proximo-distal
+principle *REF*: the tendency in infants for more
+general functions of limbs to develop before more specific or fine
+motor skills. This principle is also visible with the SCP, which
+allows to explore sensorimotor relations by prioritizing degrees of
+freedom which lead to bigger sensory changes: fine motor skills have
+high SCP and general function of limbs have low SCP.
+
+
+These principles can be applied to acquire meaningful state
+representations in order to learn how to act in the environment. Our
+main motivation is to give insights on how sensory commutativity can
+allow seeing the problem in a novel way. We investigate two
+applications problems: object detection and sample-efficiency in
+Reinforcement Learning (RL). For object detection, we either have
+well-performing methods based on computer vision algorithms and
+largely annotated databases *REF*, or algorithms
+based on data collected by the agent itself *REF*,
+*REF*, *REF*. With sensory
+commutativity, we fall in the second category, as we aim at using
+sensory commutativity as the tool for detecting objects that the agent
+can interact with. About sample effiency in RL, the problem is often
+dependent on representations that are used as states. Most recent
+solution aim at improving the decision making component of the problem
+by building a new learning algorithm (HER *REF*, SAC
+*REF*, PPO *REF*, and many more)
+which are comparatively better on standard benchmarks. Here, we do not
+improve the learning algorithm, but rather try to show that by knowing
+the agent better (by computing its SCP criterion), we can improve
+sampleefficiency in RL by modifying its exploration strategy.
+
+
+B. Motivation
+
+
+Poincaré *REF* suggested that the set of compensable
+transformations of the environment together with the composition
+operation forms a group, while *REF* further
+attempted at describing this group. Using action sequences and their
+commutative property, the authors suggested that spatial
+transformations and non-spatial transformations can be disentangled.
+
+
+In this paper we build on those previous works by considering the
+set of action sequences, termed Seq(M), and their commutative
+properties. We study the group and subgroup properties of
+Seq(M), with the aim of organizing the motor space M hierarchically. This will be achieved with the
+definition of the Sensory Commutativity Probability criterion.
+
+
+III. [Commutative properties of action sequences]
+
+
+FORMULA
+
+
+A. Formalism choice
+
+
+In the SMT theory, the agent sensory motor experience is
+described as follows: FORMULA.
+
+
+This formalism, while close to the RL formalism, is centered around
+the agent and its perception. At a time t, the agent is in a
+particular motor state mt. This means that its motors are in a
+particular setup called mt (e.g. the actuator&apos; torque and angle).
+The environment is defined by everything that&apos;s not the agent. It&apos;s
+thus an entity that is in a state Et, e.g. a room with 6 walls
+plus light sources and objects placed in different locations. The
+agent can perceive the world through its sensorimotor dependencies
+φ: a function that takes as input mt and Et and produces
+sensory inputs from its sensors st.
+
+
+Next, we would like to describe the dynamics of the world. This
+description is generally not present in SMT theory. Thus
+*REF* is not sufficient to support the description of
+the dynamics of the world. We propose to model these dynamics with the
+following equation: FORMULA.
+
+
+Intuitively, two actions sequences are equivalent for a particular
+motor state and environment state if applying them lead to the same
+sensory state. For instance in the case of multiple-joints arm moving
+freely in an empty space, there are multiple different ways of moving
+the arm from one motor state to another. This yields action sequences
+(h1,.., hn) which are equivalent in this situation (mt, Et), we thus have FORMULA.
+
+
+However in other situations these actions sequences can become
+not equivalent, for instance if there are objects on the way as
+illustrated in Fig. *REF*. 
+
+
+PROPOSITION 1
+
+
+PROOF 1
+
+
+B. Group structure of the set of action sequences Seq(M)
+
+
+We will now formalize groups and sub-groups of symmetries in the case
+of an agent moving in its environment. We study the set of motor
+command (or action) sequences of finite
+length, referred to as Seq(M), and will attempt at describing its structure.
+
+
+Philipona *REF* first defined a relation between
+action sequences: h ∼ g if and only if h and g affect the
+sensors in the same way. Using our formalism, we can translate this
+concept into an equality.
+
+
+DEFINITION 1
+
+
+This structure is consistent with the intuitions in SBRL and SMT theories. In the
+following, we build on the observation that composing action
+sequences is not generally commutative as we can measure to which
+degree they commute. We show how this property can lead the agent to
+organize and interpret its motor space.
+
+
+C. Philipona&apos;s conjecture
+
+
+Philipona *REF* already studied how action sequences
+commute with respect to the sensory information received by
+the agent. Notably, Philipona defined commutative residues. Suppose
+that an agent doing FORMULA leads to a different outcome
+in observations than doing FORMULA, then a commutative residue
+g is an action sequence that the agent has to do to compensate the
+difference in sensory experience.
+
+
+DEFINITION 2
+
+
+Starting from this definition, he conjectured that all action
+sequences that are not displacements commute with any action
+sequences. For instance, moving your arms (displacement action) then
+opening the eyes (non-displacement action) will always commute whereas
+two displacement actions will not necessarily commute, depending on
+which starting situation s is selected.
+
+
+Conjecture 1 (Philipona&apos;s conjecture). Let Seq(M) be the
+set of action sequences. The subset of Seq(M) composed of
+non-displacements action sequences is the sub-group of Seq(M) that
+commutes.
+
+
+We will illustrate this conjecture with experiments in Sec. [IV-C.].
+
+
+D. Sensory commutativity probability of an action sequence
+
+
+Based on Philipona&apos;s conjecture, we derive a criterion for
+characterizing how much each degree of freedom of the agent affects
+the world, computable using only sensorimotor data. We define \&quot;degree
+of freedom\&quot; (DOF) as a dimension of the multidimensional continuous
+action space of the agent. We also define what we term a sensory
+commutativity experiment: for an action sequence h, the agent plays
+it in two different orders starting from the same situation.
+
+
+Definition 3 (Sensory commutativity experiment (SC-experiment)). Let h be an action sequence of finite length. Let hp be
+a random permutation of h (same sequence but different order).
+
+
+We define a sensory commutativity experiment (SCexperiment) as
+playing h and hp from the same starting point and comparing the two
+resulting observations in the agent&apos;s sensors.
+
+
+Using the conjecture, we have that for an SC-experiment, the agent can
+experience two different sensory outcomes only if the action sequence
+h is composed of at least one displacement action (an action that
+affects the environment such as moving limbs or going forward).
+
+
+However, not all displacement actions are equivalent. The agent is
+more likely to observe two different outcomes if the action sequence
+is composed of displacement actions that affect the environment a
+lot. Consider moving your forearm (elbow joint) compared to moving
+your whole arm (shoulder joint): the latter is more likely to move
+things around in the environment and thus induce sensory
+non-commutativity when played in two different orders (i.e. having two
+different sensory outcomes). An elbow joint should therefore have a
+higher SCP than a shoulder joint.
+
+
+We formalize this intuition by defining the Sensory Commutativity
+Probability (SCP) of a degree of freedom, averaged over all starting
+situations s:
+
+
+Definition 4 (Sensory commutativity probability of a degree of
+freedom). Let Seq(Mk) be the set of motor commands (or
+action) sequences of finite length for the k^th^ degree of freedom of
+M (motor state space). Let h ∈ Seq(Mk) and let hp be a random
+permutation of h (same sequence but different order).
+
+
+The Sensory Commutativity Probability of the k^th^ degree of freedom
+SCP (Mk) is defined as: FORMULA.
+
+
+E. Sensory Commutativity Probability computation
+
+
+We propose a straightforward procedure to estimate the SCP of each
+degree of freedom of the agent. We initialize the SCP
+value to 0 (SCP←0). We then repeat the following process n
+times for each DOF:
+-  Sample an action sequence using the selected degree of freedom (a
+sequence of action where each action is a value between -1 and 1).
+-  Play it in 2 different orders starting from the same randomly chosen
+state and save the two final sensor images s1 and s2.
+Compute the distance between the two images d(s1, s2).
+-  Count one FORMULA, zero otherwise.
+Finally, the estimator of the SCP is the average over the number of
+trials (SCP←SCP/n).
+
+
+The parameters of the algorithm are the selected distance
+function d that allows comparing the agent&apos;s observations, the
+threshold τ, and the number of iterations n. Note that using a
+simulation allows playing the two action sequences of different orders
+from the exact same starting position. We discuss the need for
+simulation to compute SCP and more generally SCexperiments in Sec.
+[VI] and how to overcome this
+requirement for real-life experiments.
+
+
+F. SC-experiments for object detection
+
+
+The concept of SCP is based upon comparing outcomes of SC-experiments
+and evaluating whether the two resulting observations are considered
+equal or not. Going beyond this equality test, we propose to have a
+finer analysis of the differences between the two observations
+obs1 and obs2 resulting from an SC-experiment.
+
+
+Comparing obs1 and obs2 leads to three possible outcomes
+from which the agent can learn about immovable and movable objects in
+the environment.
+-  obs1 and obs2 are entirely different: the two action
+sequences from this starting position do not commute, because the
+agent interacted with immovable objects. Using the position of the
+agent, we can now map immovable objects in the environment.
+-  obs1 and obs2 are identical: the two action sequences
+from this starting position commute, because the agent did not
+interact with anything in the environment (free movement). Using the
+position of the agent, we know that there are no objects in the
+current space around it.
+-  obs1 and obs2 are identical except for a limited area
+corresponding to an object that has been moved: it&apos;s the case where
+the agent has interacted with a movable object that did not block the
+agent&apos;s movement. Hence the two action sequences would have commuted
+for most of the environment, except for the object that has been
+moved. We can learn to detect this moving object and track it.
+
+
+G. Experiments
+
+
+In order to illustrate all these concepts, the experiments presented
+in the remainder of this paper are organized as follows: we first show
+how to compute SCP in 2D simple
+environments, then in 3D realistic robotic setups. Then, we show how
+we can use SC-experiments to learn about immovable and movable objects
+in realistic robotics setups. Finally, we show how SCP can be used for
+improving sample-efficiency in RL. Our code is attached in the
+supplementary material.
+
+
+IV. [Sensory Commutativity Probability experimental analysis]
+
+
+In this first experimental section, we compute and interpret the SCP
+in a 2D and a 3D embodied agent scenarios. In order to study the
+properties of SCP and how it relates to the emergence of the notion of
+objects, we use simulation environments that have the following
+properties: embodied agent, navigable space with objects to interact
+with, first-person high-dimensional observations, low-level
+high-dimensional action space, and coherent physics.
+
+
+A. 2D experimental setup
+
+
+FIGURE
+
+
+Simulation description. Our first experiment uses Flatland
+*REF*, a platform for creating 2D RL environments. We
+construct an agent called Polyphemus (a Cyclop from the Greek
+mythology), that has a base that can move forward and rotate, a
+rotatable head and two 2-DOF arms. The agent sees through its unique
+eye that has an activable eyelid, for a total of 8 DOF. The
+observation received by the agent is a 64x3 line of RGB pixels (as the
+world is 2D), which corresponds to the field of view of 90 degrees.
+This agent is placed in a room with fixed, moving, or movable
+entities, all of different colors. It can move around and physically
+interact with these entities. Its point of view can change through
+base movement, rotation, and head rotation. Our simulation is
+illustrated in Fig. *REF* For each degree of freedom, an
+action or motor command corresponds to a change in the
+longitudinal/angular velocity of the degree of freedom.
+
+
+FIGURE 
+
+
+SCP computation. In order to compute the SCP of each of the 8
+agent&apos;s degrees of freedom (Fig. *REF* left), we have
+to select a distance and threshold as mentioned in Sec.
+[III-E]. The distance selected here is simply the mean squared error between s1 and
+s2, the observations resulting from the two sequences of actions
+of a SC experiment. Because there is no noise in the dynamics of the
+environment and the sensor, the future of the agent is deterministic.
+Therefore, in this particular case we can use a threshold of 0. This
+means that we consider that two action sequences sensory commutes if
+and only if applying the two action sequences from the same initial
+state lead to exactly the same sensors. This hard constrain will be
+relaxed in subsequent experiments (Sec. [IV]).
+
+
+Baselines. The SCP criterion derived in this paper estimates how
+much each degree of freedom affects the environment in an embodied
+agent scenario. We tried two alternatives to this approach in order to
+estimate the same quantity. A straightforward approach to this
+problem, which we call the naive alternative (Fig. *REF* 
+middle), is to play action sequences of each degree of freedom and
+quantify how much the sensors change. A more involved approach is to
+use prediction on the sensory change caused by each degree of freedom
+(Fig. *REF* right), a common approach used to improve
+exploration in RL *REF*, *REF*. We
+call this alternative the prediction error approach. The DOF that are
+harder to predict could be the ones affecting the environment the
+most, and thus the most important for manipulation and navigation.
+
+
+B. 3D realistic experimental setup
+
+
+We also compute and interpret the SCP for a realistic embodied agent
+scenario using the interactive Gibson environment (iGibson).
+
+
+Simulation description. iGibson is a simulation environment for
+robotics providing fast visual rendering and physics simulation. It is
+packed with a dataset with hundreds of large 3D environments
+reconstructed from real homes and offices, and interactive objects
+that can be pushed and actuated. In our experiments, we use the Rs
+environment, which is basically a regular apartment. We place the
+Fetch robot in this environment (Fig. *REF* left). Fetch
+is originally a 10-DOF real robot *REF* equipped with
+a 7-DOF articulated arm, a base with two wheels, and a liftable torso.
+Fetch perceives the environment through a camera placed in his head
+(Fig. *REF* middle).
+
+
+SCP computation. In the Flatland environment, two action sequences
+commuted only if the sensory result of applying both from the same
+starting situation was perfectly equal. We relax the strict equality
+condition to compute the SCP for Fetch (Fig. *REF* right). Indeed, with real
+images, only an offset of one pixel would render the two action
+sequences non-sensory commutative. Instead of using the mean squared
+error as a distance, we use a perceptual distance using the VGG16
+*REF* features of each observation. We thus have formula. The choice of
+the threshold τ is partly arbitrary, as we are interested in
+relative comparisons between degrees of freedom. We verify in our
+experiments that our results and conclusions are valid for a large
+range of τ.
+
+
+C. Results
+
+
+In the Flatland environment, Fig. *REF* (Left) shows that
+only two actions have an SCP of 1: eyelid and head rotation. All
+other actions have an SCP inferior to 1. This is consistent with
+Philipona&apos;s conjecture (Sec. [III-C]): eyelid and head rotation
+are the two degrees of freedom that are not associated with
+displacements, thus action sequences composed of actions of these type
+commute with respect to the sensors. On the contrary, all other
+degrees of freedom are associated to displacements, and thus will
+eventually induce non-zero commutation residues when played in
+different orders from the same starting situation. We observe the same
+results in iGibson, presented in Fig. 5: the torso
+lift DOF is not associated with displacement in the environment, so it
+has an SCP of 1, i.e. it always sensory commutes. Hence the results
+are consistent with the conjecture and can be used by the agent to
+autonomously discover which of its actions are associated with
+displacements or not.
+
+
+Qualitatively, SCP is inversely proportional to how each degree of
+freedom affects the environment. By that we mean that from the
+computation of the SCP, we obtain a hierarchical organization of the
+action space in which the more important dimensions for manipulation
+and navigation are separated from the dimensions that are not crucial
+for such tasks. For instance, we inferred that shoulders should have a
+lower SCP than elbows since activating the shoulder joint is more
+likely to induce non-commutativity by moving things around or hitting
+walls/obstacles. This intuition is verified by our results. Shoulders
+and base movement have a lower SCP than elbows which in turn have a
+lower SCP than eyelid and head rotation, as observed in Fig.
+*REF* Without having any prior knowledge about the
+simulation, we can automatically organize the agent&apos;s degrees of
+freedom in a hierarchy. Moreover, the symmetry of the action space is
+kept, as elbow 1 and 2 have equal SCP, and so do shoulder 1 and 2. We
+reach the same conclusions on iGibson (see Fig. *REF* 
+right). The wheels have the lowest SCP since they provide longitudinal
+movement and rotations for the robot. Then comes the first DOF of the
+articulated arm, i.e. the ones that are closer to its base (like
+shoulders vs. elbows in the Flatland experiments). Finally, the
+highest SCP values correspond to the arm DOF that are further on its
+arm and the torso lift. Once again, we obtain a hierarchical
+organization of the action space in which the less important
+dimensions for manipulation and navigation are separated from the
+dimensions that are not crucial for such tasks.
+
+
+About the choice of the threshold to compute the SCP, we tried a range
+of values for τ, from 20 to 100, and in each case,
+we obtain the same hierarchy and thus the same conclusion, only the
+nominal values change, which is irrelevant for the use of SCP.
+
+
+FIGURE
+
+
+In additional experiments presented in [A], we verified the
+robustness of these results. We computed the SCP for 8 different
+combinations of agents and environments (longer/smaller arms,
+more/fewer objects) and confirmed our intuitions on the interpretation of SCP described above. In additional experiments presented
+in *REF* we also verified the robustness of these results
+in iGibson by computing the SCP for a different type of robot called
+JackRabbot *REF*. We reach the same conclusions as
+with the Fetch robot.
+
+
+Alternative methods are not adapted. Details for these two
+experiments are available in [A] and results are
+illustrated in Fig. *REF* Both approaches fail to replace
+the SCP criterion. We see that for the naive approach, rotating the
+head of the agent changes dramatically what the agent sees, even
+though this degree of freedom does not affect the environment. For the
+prediction error alternative, we see the same problem with head
+rotation and a great difference between the two base movements
+(rotation and longitudinal movement) while they affect the environment
+in similar ways. Indeed, it&apos;s harder to predict what&apos;s outside the
+field of view of the agent so rotation is harder to predict compared
+to longitudinal movement. To conclude, the proposed alternatives could
+not yield the same organization of the agent&apos;s DOF.
+
+
+V. [Applications of Sensory Commutativity]
+
+
+A. Sensory Commutativity Probability for object detection
+
+
+We would like to verify the intuition described in Sec.
+[III-F]: there are three possible outcomes to an SC-experiment (different observations,
+identical observations, and identical observations up to moved
+objects) and from these outcomes, the robot can detect and map
+immovable and movable objects in the environment, by doing
+SC-experiments (playing action sequences in different orders from the
+same starting point and comparing the resulting observations obs1
+and obs2). Our experiments are performed in iGibson with the Fetch
+robot.
+1) Method: In order to verify the aforementioned intuition, Fetch
+needs to be able to perform an SC-experiment and then detect: 1) if
+the two resulting observations are identical or not, 2) if they are
+identical except for the parts of an image corresponding to an
+object that moved. Studies in cognitive science indicate that
+children are capable of doing this differentiation at a very young age (1 month old)
+*REF*, *REF*, so we consider that
+equipping the agent with this basic ability is a reasonable
+assumption. Therefore, we equip the agent with a vision system that
+gets two observations as input and outputs two masks which will be all
+zeros if the two observations are identical, all ones if they are
+different, and the mask of the modified area if something has changed.
+
+
+We thus train a neural network with generated data to predict those
+two masks with two observations as input. We refer to this model as
+the \&quot;mask predictor\&quot;.
+
+
+Dataset. The data is collected in the Placida environment by
+starting at a random position in the environment (observation
+obs1) and then collecting data for the three possible outcomes:
+-  no difference: it suffices to keep the same observation and the
+corresponding masks are all zeros. The data is (obs1
+\+ all zeros mask, obs1 + all zeros mask).
+-  completely different: we move the robot and get a different
+observation obs2, the corresponding masks are all ones. The data
+is (obs1 + all ones mask, obs2 + all ones mask).
+-  no difference except moved objects: we randomly disturb the
+orientation and position of some movable objects and get a new
+observation obs2 identical to obs1 up the moved objects. The
+data is (obs1 + moving objects mask, obs2 + moving objects
+mask).
+
+
+The resulting dataset is illustrated in Fig. *REF* The
+objects we use for training are the original objects found in the
+interactive Placida environment, augmented with several object from
+the YCB object benchmark.
+
+
+Architecture and training. We then train the neural network to
+predict the masks given the observations. This process is similar to
+predicting the optical flow of two consecutive frames in a video.
+Thus, for the mask predictor, we compared FlowNet-S
+*REF*, a popular baseline for optical flow
+prediction, with the state-of-the-art RAFT model
+*REF*, and selected RAFT because of its higher
+prediction accuracy. We train the model using the same architecture
+and optimization process as in the paper, except for the loss function
+and the output activation function. We change the loss function to a
+binary cross-entropy loss between the ground truth mask and the output
+mask of the network. We select the sigmoid function as output
+activation function so that the model outputs
+binary masks instead of the original optical flow map output (2 ∗ W ∗
+H). All training details are available in the original
+open-source implementation we used.
+
+
+FIGURE
+
+
+Inference. Once the mask predictor is trained, we place the agent
+in an environment and perform SC-experiments where we let it play an
+action sequence in different orders from the same starting point.
+Then, the goal is for the agent to detect immovable and movable
+objects using the generated data from the SC-experiments and the mask
+predictor. All experimental details are described in
+*REF*. 
+
+
+Evaluation. For qualitative and quantitative evaluation, we
+manually create a test set with 50 tuples (obs1, obs2,
+mask1, mask2) of the three possible scenario resulting from a
+SC-experiment. We cannot construct this dataset automatically, as the
+mask has to be manually created by either assessing if the two
+observations are different or identifying which object has moved
+between the two observations. Using this dataset, we can first assess
+the prediction accuracy among the three possible scenarios.
+
+
+In the case where an object has moved (see example in lower right
+corner of Fig. [6]), we can further analyze the accuracy
+of the predicted mask using the Jaccard index, or Intersection over
+Union (IoU). It quantifies the overlap between predicted (p1,
+p2) and ground-truth (gt1, gt2) masks. It is defined as FORMULA.
+
+
+2) Experiments and results: Quantitatively, the performance of the
+mask predictor on the manually collected test set reach a prediction
+accuracy among the three possible scenarios of 82%. We reach an
+average Jaccard index of 0.85 on the subset of instances where an
+object has moved (see example in lower right corner of Fig.
+6). 
+
+
+Do SC-type experiments allow detecting movable objects? We compute
+SC-experiments using a DOF selected using SCP value. We select the DOF
+with SCP closest to 0.5 in order for the outcome of SC-experiments
+to be as diverse as possible, i.e. the DOF of the arm that is closest
+to the body of the agent.
+
+
+Results presented in Fig. *REF* &amp; *REF* show
+that using the mask detector with the outcome of these SC-experiments
+allows to detect objects that have been moved. Note that the mask
+detector only detects objects that have moved between the two
+resulting observations, rightfully ignoring the other potential
+objects that were not moved. After this detection, we can then use
+semi-supervised tracking algorithms such as *REF* in
+order to track the detected object.
+
+
+Do SC-type experiments allow detecting immovable objects? Results
+presented in Fig. *REF* show that the mask predictor is
+also able to accurately predict when the observations are different or
+identical. By isolating those two cases from the case where only one
+or a few objects have moved, we can compute a local SCP value that
+tells us whether the agent interacted with an immovable object during
+the SC-experiment. We can compute this local SCP value for different
+starting positions in the environment, and then construct a map of
+immovable objects in the environment. We present this map in Fig.
+*REF* for the arm&apos;s DOF that is closer to the body of the
+agent (we choose this DOF with the same reasoning as the previous
+result). Results show that regions with low local SCP value correspond
+to regions where there are walls and immovable objects in the way of
+Fetch&apos;s arm.
+
+
+Indeed, in the kitchen part (room at the top), the space is cramped
+and so most of the positions indicate low SCP (less than 0.4)
+because of the interactions induced with the furniture.
+
+
+FIGURE
+
+
+In the living room (main room) and the bedroom (at the left), most
+empty space show high local SCP (around 0.8 and 1.0). Notice how
+the local SCP value is also high around objects that are low and thus
+have to low chance to interact with the arm (bed in the bedroom, low
+table in the living room). We thus obtain a mapping of immovable
+objects in the environment using SCP.
+
+
+3) Generalization study: In principle, this movable and immovable
+object detection method is designed to work in any environment, any
+objects and any field of view. Indeed, it only relies on having a
+precise mask predictor, which we show can be achieved. We thus
+performed a generalization study of our method. We performed
+inference on data with objects, environments and field of view that
+were not shown during training. For this study, we selected the
+Rs-environment and the Bolton environment, objects from the YCB
+benchmark that were not shown during training, and a bigger field of
+view (90 versus 45 for training).
+
+
+In Fig. *REF* we show results for the generalization
+study, which indicate that the mask predictor can indeed be used with
+environments, objects, and field of view that have been not shown
+during training. Qualitatively, the mask predictor seem to be able to
+precisely predicts which objects has moved. Quantitatively, the
+precision of our object detection method in those generalization
+scenarios is mostly not affected. We manually created another test set
+of 20 instances with out-of-distribution environments and objects,
+for the scenario where an object has moved. We reach an average
+Jaccard index of 0.78, with most instances with a Jaccard index of
+1, and a few where the detection is totally missed, thus lowering the
+average. We observe that when the detection does not totally miss the
+object, the precision of the mask is excellent. The low performance
+drop between in-distribution and out-of-distribution test set (0.05)
+allows us to conclude that our method generalizes to new environments,
+objects and field of view.
+
+
+4) Alternatives are not adapted: Alternatives to SCexperiments such
+as just playing an action sequence and comparing the first and last
+observations would detect much fewer objects because many
+experiments would result in a complete image change where the
+SC-experiments would highlight only a particular object. Another
+alternative would be to start in a position, play an action
+sequence, and then go back to this starting point and compare what&apos;s
+changed. While this approach would be comparable for movable object
+detection, this would not allow detecting immovable objects.
+
+
+B. Sensory Commutativity for efficient RL
+
+
+We now illustrate how SCP can be used for unsupervised exploration, by
+using it to improve sample-efficiency in an RL setup. For
+computational reasons, we experiment with the Flatland simulator.
+
+
+1) Experimental setup: We use the PPO2 *REF* 
+implementation from Stable-Baselines *REF*. The
+policy is composed of a 1D convolutional feature extractor followed
+by a recurrent policy. We consider the same agent, Polyphemus, for
+which we computed the SCP criterion in Fig. *REF* The
+input of the policy is the RGB image of what Polyphemus&apos; eye sees.
+The environment considered is a square room with 3 dead zones (which
+terminate the episode with a -20 reward) and a goal zone (which
+terminates the episode with a +50 reward), illustrated in Fig.
+*REF* We propose two methods that take advantage of the
+SCP to modify the action space of the agent. The goal is to improve
+sample-efficiency when learning to solve a task in this embodied
+scenario.
+
+
+SCP-truncated action space. We propose to to focus exploration on
+the degrees of freedom that have a high impact on the environment, by
+fixating degrees of freedom corresponding to high SCP. We implement
+this by halving the dimension of the action space, keeping only the
+degrees of freedom that have the most effect on the environment, i.e.
+lower SCP value. We thus keep the base movement and rotation, and the
+shoulders joint, while discarding the elbow joints, head rotation, and
+eyelid activation. We refer to this method as SCP-truncated action
+space. This action space reduction will simplify the RL task, as long
+as the necessary actions such as base motion are selected by the SCP
+criteria.
+
+
+SCP-adapted action space. A less involved proposition is to modify
+the action sampling interval according to the SCP value, for each
+degree of freedom. This method will modify the exploration dynamics to
+favor important actions. Suppose that
+
+
+the sampling interval for each dimension of the action space is
+\[−1, 1\]. If a dimension has high SCP, i.e. it does not affect
+the environment a lot, we then reduce the interval from which actions
+are sampled FORMULA. The function
+l maps the highest SCP to 0 and lowest SCP to 1, then we use a
+linear interpolation between those two points to deduce values for
+SCP FORMULA. We refer to this method as SCP-adapted
+action space.
+
+
+Comparison protocol. We compare those two strategies to a baseline
+policy trained to solve the task with the complete action space. We
+average the result of each policy over 30 trials initialized with
+different random seeds, and we test the
+statistical significance of our results according to the guidelines
+provided by *REF*.
+
+
+2) Results: The results are displayed on Fig. *REF* 
+First, we notice that all strategies are viable to solve the task.
+We now compare sample-efficiency between the strategies. The policy
+trained with SCP-truncated action space can learn how to solve the
+task more than twice as fast as the baseline policy. The discarded
+degrees of freedom are not crucial in this navigation task, hence
+the agent is still able to solve the task using only the degrees of
+freedom that have the lowest SCP value. The policy trained with
+SCP-adapted action space is less sampleeffective than the
+SCP-truncated but still learns significantly faster than the
+baseline policy.
+
+
+VI. [Discussion and conclusion]
+
+
+Discussion: extending SCP and SC-experiments to real life. The
+difficulty for SCP and SC-experiments in real-life is that the agent
+has to be able to play two action sequences from the same starting
+point. Thus, in a real-life scenario, the method has to overcome
+stochasticity and irreversible actions (e.g. breaking a glass) which
+break that assumption. Also, if an object is moved, you would have to
+place it back to its
+
+
+original position. However, this could be overcome by learning an
+accurate forward model of the environment that allows the agent to
+predict what will happen when it plays an action sequence. Consider
+the forward model as a proxy for one of the experiences. Recent works
+have made significant progress in this direction
+*REF*, *REF*. Using this forward
+model, the agent could play one action sequence and then imagine what
+would have happened if it had played it in a different order, thus
+performing an SC-experiment. We believe this is an important future
+work for using sensory commutativity to build perception for
+artificial agents, drawing links with the processes of visual
+attention and surprise *REF*.
+
+
+Conclusion. We studied the sensory commutativity of action
+sequences for embodied agent scenarios. We introduced SC-experiments
+and the SCP criterion. We showed that SCP is a good proxy for
+estimating the effect of each action on the environment, for 2D and 3D
+realistic embodied scenarios. We illustrated the potential usefulness
+of such criterion and SCexperiments in general by performing movable
+and immovable object detection and improving sample-efficiency in an
+RL problem.

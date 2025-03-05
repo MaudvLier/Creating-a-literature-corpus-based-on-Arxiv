@@ -1,0 +1,814 @@
+CARL: Controllable Agent with Reinforcement Learning for Quadruped locomotion
+
+
+Introduction
+
+
+The quality of character animation in cartoons, video games, and digital
+special effects have improved drastically in the past decades with new
+tools and techniques developed by researchers in the field. Amongst
+various types of characters, quadrupeds are especially challenging to
+animate due to their wide variations of style, cadence, and gait
+pattern. For real-time applications such as video games, the need to
+react dynamically to the environments further complicates the problem.
+
+
+Traditionally, to synthesize new animations from motion capture data,
+one would create an interpolation structure such as a motion
+graph [*REF*; *REF*], where the nodes represent
+well-defined actions from motion capture data, and the edges define the
+transition between the actions. Aside from the long and tedious process
+of labeling the graph, it is often difficult to acquire sufficient
+motion capture data for quadrupeds to cover different gait patterns and
+styles. Furthermore, the motion graph would become impractically big and
+complex in dynamic environments to take into account the numerous
+interactions between the agent and its surroundings. Despite the
+complexity, the motion graph would still not be useful for motion
+synthesis when unseen scenarios arise.
+
+
+Research on the kinematic controller solves the labeling problem by
+reducing the need for crafting transitions between actions while
+allowing users to control the agent to produce the desired
+motions [*REF*]. But since a kinematic controller is designed
+to imitate the motion dataset, the agent would fail to respond naturally
+when it encounters unseen interactions between the agent and its
+surroundings in dynamic environments. For example, in a scenario
+involving a quadruped agent walking on a slippery, undulating boat, it
+would clearly be highly impractical to collect, or hand-engineer, enough
+reference motions to train the kinematic controllers. One can certainly
+resort to physics-based controllers to model complex phenomenons
+effectively, as a physical simulation enables the agent to produce
+meaningful reactions to external perturbations without the need to
+collect or animate such a reaction. Although, physical constraints such
+as gravity, friction, and collision introduce numerous difficulties in
+designing a physics-based controller.
+
+
+In this paper, we propose a data-driven, physics-based, controllable
+quadruped agent by adopting (1) the ability to interact physically with
+the dynamic environments, and (2) the natural movements learned from
+reference motion clips. It is a three-stage process that starts by
+learning the reference motions through imitation. The agent then learns
+to map high-level user controls such as speed and heading into joint
+actions with Generative Adversarial Networks (GANs). Through Deep
+Reinforcement Learning (DRL), the agent then gains the ability to adapt
+and recover from unseen scenarios, allowing us to synthesize meaningful
+reactions against external perturbations. One can then control the
+trained agent by attaching navigation modules that emulate higher-level
+directive controls, such as path-finding and ray-sensor. We summarize
+our contributions as follows:
+- A GAN supervision framework to effectively map between high-level
+user controls and the learned natural movements,
+- A physics-based controller for quadruped agents trained through DRL
+that can adapt to various external perturbations while producing
+meaningful reactions without the need for action labels, and
+- A methodology to attach high-level navigation modules to the agent
+for tackling motion synthesis tasks involving agent-environment
+dynamic interactions.
+
+
+Related Works
+
+
+Real-time quadruped motion synthesis not only needs to consider the wide
+range of variations in gait patterns but also dynamic and unseen
+scenarios that happen in real-time. Works in the topic of real-time
+quadruped motion synthesis can be divided into two main categories:
+kinematic controllers and physics-based controllers. Recent advances in
+deep learning have also been incorporated into both categories of
+methods.
+
+
+Kinematic Controllers
+
+
+There has been an extensive amount of research works on character
+animation using kinematic-based methods. Classical
+approaches [*REF*; *REF*; *REF*; *REF*]
+constructed motion graphs that included edges corresponding to each
+short motion clip. The resulting motions were then synthesized by graph
+searching. Alternatively, [*REF*; *REF*; *REF*; *REF*]
+enabled smooth transitions through low-dimensional exploration.
+*REF* used an asynchronous time warping approach to handle the
+gait transitions of a quadruped agent. Despite their successes, motion
+graphs either require a large memory footprint, high order computation
+time, or extensive preprocessing, thus limiting the scalability to more
+complex movements or even larger datasets.
+
+
+Recent approaches use deep learning that is known to scale better with a
+larger dataset. Recurrent Neural Network based approaches [*REF*; *REF*; *REF*]
+predicted the future states given previous observations. *REF* 
+combined a standard feed-forward neural network with an auto-encoder to
+produce motions with a high degree of realism. In their later
+work, [*REF*] used a neural network to model the phase
+function of a biped agent, enabling the agent to traverse uneven
+terrains. However, their approach required extensive labeling of the
+agent&apos;s phase. Exploiting mixtures of experts model to learn quadruped
+locomotion, Mode-Adaptive Neural Networks [*REF*] suppressed
+the need for such a labeling process. Other recent works
+from [*REF*; *REF*] could produce less foot
+sliding artifact while interacting with the environment but sacrifice
+the control responsiveness.
+
+
+In general, kinematic controllers scale with the quality of the motion
+clip dataset and often generate motions with higher-quality compared to
+physics-based controllers. However, their ability in producing dynamic
+movements where complex environments are presented is limited by the
+availability of such motions in the dataset. Capturing and
+hand-engineering enough motion data to accommodate a large number of
+possible agent behaviors are impractical.
+
+
+Physics Based Controllers
+
+
+Physics-based methods offer an effective way to model complex scenarios.
+Such types of controllers not only require to follow control commands
+but also need to maintain balance. Early works in locomotion controller
+design required human-insight [*REF*; *REF*; *REF*; *REF*].
+*REF* designed a locomotion controller for biped agents by
+tracking modulated reference trajectories from motion capture data.
+*REF* designed an abstract dynamic model with hybrid
+optimization processes to achieve robust locomotion controllers.
+Alternatively, works in value iteration [*REF*] developed
+task-based controllers for biped agents with varying body proportions.
+*REF* also used value iteration to produce a quadruped
+locomotion controller in 2D that could traverse terrain with gaps.
+However, their approach required manual selection of important features
+such as desired joint angles and leg forces. Although these approaches
+were robust, they did not scale with complex controls such as
+stylization or other high-level directive controls.
+
+
+Trajectory-based approaches have also been explored in the past few
+years [*REF*; *REF*; *REF*]. *REF* developed an open-loop controller for biped agents.
+These approaches did not scale well with complex and long motions. Such
+a problem was later solved by [*REF*] through the
+reconstruction of past experiences. Recent works on biped and quadruped
+agents [*REF*; *REF*] explored the gait
+patterns of various legged animals. *REF* produced
+plausible variations of different locomotion skills such as walking,
+running, and rolling. These approaches tended to struggle with long-term
+planning. Recent works [*REF*; *REF*; *REF*]
+extended the offline approach to online optimization methods. Optimizing
+over short predictive horizons produced robust
+controllers [*REF*; *REF*]. Physics-based
+controllers are considered an effective way to model complex
+phenomenons, because they produce novel movements from its interactions
+with the environment. However, incorporating high-level controls in
+physics-based controllers is not a trivial task and often causes the
+controllers to look unnatural or is limited in its movement diversity.
+
+
+Deep Reinforcement Learning (DRL)
+
+
+Physics-based methods with deep neural networks, esp., Deep Reinforcement Learning
+(DRL), [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*]
+trained controllers capable of performing diverse motions. Works from
+[*REF*; *REF*] shown the success in
+controlling robots or agents with different morphology. Aerial
+locomotion was also explored through DRL algorithms [*REF*; *REF*]. Works in imitation
+learning [*REF*; *REF*] produced
+high-quality motions through imitating well-defined short-clips.
+However, these methods&apos; ability to scale with the size of motion capture
+data was limited.
+
+
+Recent works from [*REF*] and [*REF*] combined
+kinematic controllers with DRL to produce a responsive controller for
+biped agents. Multiplicative compositional policies (MCP)
+from [*REF*] adopted a new way to blend low-level primitives to
+follow the high-level user intent. Despite their successes with biped
+controllers, these techniques could not generalize to quadruped agents.
+As discussed in [*REF*], modeling gait transitions of quadruped
+agents were harder compared to biped agents. This was because of the
+gait pattern complexity and the limited number of available motion
+capture data.
+
+
+Adversarial Learning on DRL
+
+
+The main challenge of physics-based controllers is to produce natural
+movements. Defining a reward function that captures a movement&apos;s
+naturalness is difficult. Optimizing for high-level objectives such as
+maintaining a certain speed or following a certain turning angle does
+not guarantee the resulting motion being smooth or natural. Generative
+adversarial imitation learning (GAIL) [*REF*], incorporated
+a neural network that provided supervision over the agent&apos;s movements,
+allowing the controller to learn the manifold of natural movements. Such
+an adversarial approach could produce robust
+controllers [*REF*], yet the generated motions were still not
+comparable to the kinematic controllers. The framework of generative
+adversarial networks (GANs) is known to be a powerful estimator of a
+prior known distribution [*REF*; *REF*; *REF*].
+But it is also known to be unstable and sensitive to the objective
+function. Besides, a good objective function for natural gait
+transitions is difficult to define. In summary, DRL approaches struggle
+with defining an objective function that describes natural movements,
+directly adding GAN into the mix would disrupt the learning process,
+causing the controller to produce awkward movements.
+
+
+FIGURE
+
+
+Proposed Method 
+
+
+Our goal is to design a physics-based controller that produces natural
+movements and reactions under external perturbations while following
+high-level user controls. We consider the generated motion as natural
+when it resembles the movement of the reference motion. For this
+purpose, we train the controller in three stages
+(Figure). In the first stage, we aim to
+transfer the natural movements from the reference motion clips to a
+physics-based controller through imitation learning
+(Figure (a)). This is achieved by learning the
+action distribution through a policy network for the physics-based
+controller to follow. This policy network contains a primitive and
+gating network that decompose the action distribution into lower-level
+primitive distributions that can be multiplicatively composed using
+learned weightings. As a result, the policy network produces an action
+distribution that enables the physics-based controller to produce
+natural movements, successfully bridging animation and physics.
+
+
+To enable the controller to adopt high-level control objectives such as
+target speed and heading, it would not be feasible to directly optimize
+for forward progression, as this would end up producing a different
+action distribution which may result in awkward and unnatural movements.
+Therefore, in the second training stage (see Figure (b)), we adopt a GAN Control Adapter
+to enable the high-level gating network to approximate the natural
+action distribution learned previously. However, the lack of external
+perturbations during the second training stage hinders the controller&apos;s
+ability to adapt to unseen scenarios. Therefore, we add a GAN
+regularized DRL fine-tuning stage to empower the controller to recover
+from such scenarios. We further discuss the details of each training
+stage in Section [3.1], Section [3.2], and Section [3.3].
+
+
+Low-Level: Imitation Learning 
+
+
+Our goal in this stage is to learn the action distribution for a
+physics-based controller. To do so, we need the action distribution to
+describe the articulation of the agent. This can be accomplished through
+imitation learning where we treat the reference motion as a form of
+low-level control that specifies the agent&apos;s movement at the joint
+level. For this purpose, we adopt the policy network of [*REF*]
+which consists of two modules: gating and primitive networks (see
+Figure.(a)). The low-level gating network
+*MATH* takes the agent&apos;s current state *MATH* and the reference
+motion *MATH* as input and produces primitive influence
+*MATH*, *MATH* where *MATH*, with k being the total number of
+primitive motions and *MATH* 
+is the joint-level control defined as the target states for the next two
+time steps of the reference motion. Both *MATH* and *MATH* contain
+the information of each joint&apos;s position, velocity, rotation, and
+angular velocity. All the information are represented as 3-dimensional
+vectors except for the rotations, which are represented as 4-dimensional
+quaternions. The redundant storage of both position and rotation in the
+state representation is a widely adopted technique for learning the
+locomotion skills for torque-articulated characters [*REF*; *REF*; *REF*].
+
+
+The primitive network *MATH*, on the other hand, takes in the agent&apos;s
+current state *MATH* and decomposes the action distribution into
+primitive distributions *MATH*, where each primitive
+*MATH* represents the lower-level action distribution that specializes
+in modeling a specific locomotion skill within the action space. Each
+*MATH* is modeled as a Gaussian distribution with state-dependent
+action mean *MATH* and diagonal covariance matrix *MATH*, *MATH*.
+
+
+Unlike [*REF*] which learns the state-dependent covariances, we
+use a fixed diagonal covariance matrix *MATH*. We found that learning
+*MATH* leads to premature convergence, similar to the findings
+of [*REF*]. As discussed in [*REF*],
+multiplicatively composing the Gaussian primitive distributions *MATH* 
+given its influence *MATH* produces a composite distribution that
+is also a Gaussian distribution *MATH* 
+where *MATH* denotes a normalization function, and *MATH* denotes
+the current control objective *MATH*. The agent&apos;s next
+action *MATH* is then sampled from this action distribution.
+Following  [*REF*], we use their pose, velocity, and
+center-of-mass (COM) rewards: *MATH*.
+The pose reward *MATH* encourages the controller to match the
+reference motion&apos;s pose by computing the quaternion difference *MATH* 
+between the agent&apos;s *MATH* joint orientations *MATH* and the
+target *MATH*. The velocity reward *MATH* computes the
+difference of joint velocities, where *MATH* and *MATH* 
+represent the angular velocity for the *MATH* joint of the agent
+and the target respectively. The center-of-mass reward *MATH* 
+discourages the agent&apos;s center-of-mass *MATH* to deviate from the
+target&apos;s *MATH*.
+
+
+We replace the end-effector reward with contact point reward
+*MATH*, *MATH* where *MATH* denotes the logical XOR operation, *MATH* denotes the
+Boolean contact state of the agent&apos;s end-effector, and
+*MATH* left-front, right-front, left-rear, right-rear *MATH*.
+This reward function *MATH* is designed to discourage the agent
+when the gait pattern deviates from the reference motion, and to help
+resolve the foot-sliding artifacts. For instance, the Boolean contact
+state for only the left-front end-effector touches the ground can be
+denoted by *MATH*. Inspired by [*REF*], we use
+the exponential value where *MATH* denotes a
+hyper-parameter that controls the slope of the exponential function, and
+found that *MATH* yields the best outcome.
+
+
+*MATH* is the final form of the reward function. To reduce the training
+complexity, we separate the reference motion of each control objective
+(see Section [4.2]). As a result, our physics-based
+controller can imitate the given reference motion by learning the
+corresponding action distribution. The controller produces natural
+movements, performing different gait patterns depicted by the reference
+motion.
+
+
+High-Level: GAN Control Adapter 
+
+
+Our goal for this stage is to enable high-level user control over speed
+and heading. This allows the user to directly control the agent without
+going through the tedious and laborious process of specifying reference
+motions. However, directly optimizing for forward progression or
+high-level user controls (such as target speed *MATH* or
+heading *MATH* defined later in Eq. and Eq., respectively) causes the policy network to
+ignore the previously learned action distribution, and this eventually
+leads to awkward and unnatural movements. For the remainder of our
+discussion, we represent the high-level user control with two values
+*MATH*, where *MATH* denotes the
+agent&apos;s target speed (m/s), and *MATH* denotes the angular
+difference between the agent&apos;s current heading and target heading. For
+instance, the control for the agent to travel at 1 m/s while rotating 90
+degrees counter-clockwise is *MATH*. During
+training, we consider *MATH* and *MATH* as paired
+labels where *MATH* is derived from the physical states of
+the reference motion *MATH*.
+
+
+Since replacing the reference motion with high-level user controls only
+affects the gating network, learning the mapping between high-level user
+control and the primitive influence translates to learning the agent&apos;s
+action distribution. Standard distance functions such as *MATH* or *MATH* 
+only preserve the low-order statistics of a distribution and do not
+guarantee the samples are drawn from the correct distribution.
+Therefore, we use the GAN framework which, instead of estimating
+low-order statistics, approximates the manifold of the distribution
+through adversarial learning. The GAN framework consists of two modules:
+generator and discriminator. Given real samples of primitive influence
+*MATH* drawn from real data distribution *MATH*, our
+high-level gating network *MATH* serves as the generator and
+produces fake primitive influence *MATH* which is drawn from *MATH*.
+Our discriminator *MATH* aims to distinguish fake samples
+*MATH* from the real samples *MATH* by maximizing *MATH* defined in
+Eq .
+
+
+*MATH*.
+
+
+We train *MATH* by minimizing the objective function *MATH* 
+defined in Eq. Reconstruction loss *MATH* minimizes the
+absolute distance between samples drawn from real and fake data
+distributions. Through the adversarial loss *MATH*, the
+discriminator *MATH* provides supervision to the generated samples by
+classifying it as real or fake. This guides *MATH* to learn
+the real data distribution, i.e., the manifold. Inspired
+by [*REF*], we weigh the importance of each loss by
+*MATH*, and *MATH*. Jointly minimizing the two losses *MATH* and *MATH* allows
+the generator to produce fake samples that are close in terms of
+distance and also come from the real data distribution. The end result
+is a control adapter that translates high-level user control over target
+speed and heading into natural movements.
+
+
+FIGURE
+
+
+High-Level: DRL Fine-Tuning 
+
+
+During the GAN training process, we only expose a small subset of
+possible scenarios to the controller. This means rarely sampled controls
+and external perturbations can cause the agent to fall, as the
+controller may be unable to recover from these unseen scenarios. We
+solve this problem by further fine-tuning the agent with physical
+simulations, where we expose the agent to a significantly larger number
+of scenarios and ask it to recover through trial and error. For example,
+when being bombarded with objects or when the speed suddenly changes,
+the controller should learn to shift the agent&apos;s body weight to prevent
+it from falling.
+
+
+We have observed the tendency for the policy network to change the
+primitive network to compensate for the gating network&apos;s error. As
+discussed previously in Section [3.2], since high-level user control
+only affects the primitive influence, we freeze the parameters of the
+primitive network and only train the gating network to preserve the
+action distribution. We train the high-level gating network with the
+corresponding reward function *MATH* or *MATH* 
+depending on the control objective.
+
+
+*MATH*.
+
+
+The speed reward *MATH* computes the *MATH* -distance between the
+target speed denoted by *MATH* and the agent&apos;s current movement speed
+*MATH*. We found that using *MATH* 
+produces the best result in our case. As for the heading reward
+*MATH*, we compute the cosine similarity between the target
+heading *MATH* - *MATH* and agent&apos;s heading *MATH* projected onto the plane of motion,
+with *MATH* representing the target heading in radians. We
+normalize the value of cosine similarity between 0 and 1.
+
+
+Lastly, to ensure the controller does not deviate too far from the
+learned action distribution, we impose a regularization term
+*MATH*, *MATH* where *MATH* denotes the parameters of *MATH* 
+fully-connected layer of the GAN trained gating network (also used as
+the initialization point), *MATH* denotes the parameters of
+*MATH* fully-connected layer of the currently trained gating
+network, and *MATH* denotes the total number of layers in each gating
+network. We apply the regularization in the parameters space, because
+applying it to the layer&apos;s output would penalize the real unseen
+scenarios. After fine-tuning with DRL, our controller gains the ability
+to recover from unseen scenarios, enabling smooth transitions following
+user high-level controls while being adaptive to external perturbations.
+
+
+Implementation
+
+
+Data Collection 
+
+
+There are multiple ways to obtain the reference motion dataset, such as
+kinematic controllers, motion graphs, or even capturing raw motion data.
+For convenience, we use a readily available kinematic controller[^1]
+provided by [*REF*]. Since our goal is to control both speed
+and heading, collecting reference motion data containing all the
+possible movement speeds, turning rates, and turning angles would make
+the reference motion undesirably complex. As discussed
+by [*REF*], the complexity of the reference motion highly
+affects the success of the imitation learning process. We record two
+datasets, one for each speed and heading controls. For each control
+objective, we record one minute worth of reference motion clip. For
+speed control, the agent travels towards a fixed direction with various
+move speeds ranging from 0 to 4 m/s. The agent automatically changes its
+gait pattern depending on the speed. The agent performs pace at (0, 2)
+m/s, trot at \[2, 3.5) m/s, and canter at \[3.5, 4\] m/s. As for heading
+control, the agent performs turning left and right in the range of 0 to
+180 degrees. Here, the agent only performs pace gait-pattern as it moves
+at a fixed speed of 1 m/s.
+
+
+Online Optimization with DRL 
+
+
+We train the policy network in a single PC equipped with AMD R9 3900X
+(12 Cores/24 Threads, clock speed at 3.8GHz). We adopt a physical
+simulation C++ Bullet physics library [*REF*] for physical
+simulation, which updates at 1200 frames per second. Our physical
+simulation modules query the policy network to obtain the action
+distribution at 30 frames per second. Our policy network learns with
+proximal policy optimization (PPO) [*REF*] and generalized
+advantage estimation (GAE) [*REF*]. We follow
+[*REF*]&apos;s policy network architecture, number of primitives
+(*MATH*), and action space representation. The action at time *MATH*,
+*MATH*, is represented as PD-targets placed at each joint. However,
+instead of learning the action-noise variance, we use a fixed diagonal
+covariance matrix *MATH*, where *MATH* is the identity matrix. The
+value function uses multi-step returns with
+TD(*MATH*) [*REF*]. The learning process is
+episodic, wherein each episode we incorporate early termination and
+reference state initialization proposed by [*REF*].
+
+
+In low-level imitation learning, we separate the learning process of
+speed and heading controls, each imitating the corresponding recorded
+reference motion clip as mentioned in
+Section [4.1]. We then have two separate policy
+networks: one for speed control and the other for heading control.
+Learning rates of the policy networks and value function networks are
+2.5e-6 and 1e-2 respectively. Hyper-parameters for GAE(*MATH*),
+TD(*MATH*), and the discount factor are set to 0.95. The learning
+process takes approximately 250 hours for each policy network.
+
+
+FIGURE
+
+
+In the high-level DRL fine-tuning step
+(Section [3.3]), the two policy networks optimize for
+different reward functions. The policy network for the move speed task
+uses *MATH* (defined in Eq.) because the agent only moves towards a
+single direction. The policy network for the heading task only uses
+*MATH* (defined in Eq.) because the agent moves at the same speed.
+During training, we randomly update the control objective with an offset
+uniformly sampled from *MATH* m/s and *MATH* radian
+for speed and heading respectively. The updates happen at 4 frames per
+second. To encourage the controller to learn the rarely sampled gait
+transitions, we further introduce a 10% probability that the control
+objective being completely altered (e.g. from cantering at 4 m/s to
+standing at 0 m/s). The learning rates for the policy networks and value
+function networks are 5e-5 and 1e-2 for both speed and heading
+respectively, with 0.99 for the discount factor.
+
+
+TABLE
+
+
+The GAN regularization (defined in Eq.) is added to the DRL&apos;s PPO clip surrogate
+loss as an additional term multiplied by 0.001. Our policy networks
+converge after approximately 25 hours for training the speed control and
+40 hours for training the heading control. Alternatively, directly
+learning the high-level user control without GAN Control Adapter, the
+policy network converges after approximately 100 hours for training each
+of the control objectives. The learning curves are shown in
+Figure [1].
+
+
+Offline optimization with GAN
+
+
+The training process involves collecting one million data points
+consisting of the agent&apos;s state, reference motions, and high-level user
+controls (derived from two consecutive reference motions). During
+training, the real samples are drawn from the real data distribution by
+passing the agent&apos; state and high-level user control to the low-level
+gating network.
+
+
+We implement the discriminator as a series of 3-layered fully-connected
+neural networks with the LeakyReLU activation function in between the
+intermediate layers excluding the last classification layer. It
+optimizes for the original GAN objective where the discriminator outputs
+the probability of the input samples being real, as formulated
+by [*REF*]. Inspired by [*REF*; *REF*] we added the reconstruction
+loss *MATH* (defined in Eq.). The training process converges in
+approximately 1 hour (50 epochs) using Adam optimizer with a learning
+rate of 2e-5.
+
+
+Experiment 
+
+
+In this section, we evaluate the effectiveness of using the GAN Control
+Adapter to enable user&apos;s speed and heading controls over the agent. For
+this purpose, we consider two additional algorithms in addition to our
+proposed algorithm (CARL-GAN). Removing the GAN Control Adapter
+component of our method makes it equivalent to MCP [*REF*]
+that directly applies DRL for high-level user control. CARL-L1 uses
+a standard distance function *MATH* instead of GAN as Control Adapter
+(i.e., L1 Control Adapter) to minimize the absolute distance between the
+output of the high-level gating network and the previously learned
+primitive influence.
+
+
+Our evaluations focus on measuring the controller&apos;s ability to follow
+the user control in addition to the quality of the motion. We use the
+motions generated from the kinematic controller [*REF*] as the
+ground truth. To measure the motion quality, we use an approach from
+robotics [*REF*; *REF*], where the range of
+joint movements defines motion similarity. The visual results are shown
+in Figure.
+
+
+Next, we discuss the quantitative results. A controller&apos;s ability to
+follow user control is shown in Section
+[5.1]; quality of generated motions is
+shown in Section [5.2]; visualization and exploration of the
+action distribution are shown in Section
+[5.3]; and discussion about our
+advantages compared to the Kinematic Controller + DRL approach in
+Section [5.4].
+
+
+TABLE
+
+
+Control Accuracy 
+
+
+To evaluate the controller&apos;s ability in following commands, we produce
+10 recordings, each with 5 seconds of duration, for each control
+objective. For speed control, the agent travels in a fixed direction
+with different gait patterns, e.g., pace, trot, and canter. Similarly
+for heading control, the agent travels at a constant speed (1 m/s) while
+performing 90- and 180-degree turns, both clockwise and
+counter-clockwise.
+
+
+Speed Control.
+
+
+Table [1] shows our algorithm&apos;s ability to
+follow the target speed at different gait patterns. The results show a
+significantly lower mean squared error (MSE) of our algorithm CARL-GAN
+compared to both baselines: MCP and CARL-L1. As expected, learning the
+target speed directly (MCP) allows the algorithm to converge better
+compared to L1 Control Adapter (CARL-L1). Note that the MSE of the
+canter gait pattern is greater than other gait patterns across all
+algorithms, due to its larger range of motion.
+
+
+Heading Control.
+
+
+To investigate the controller&apos;s responsiveness to the user&apos;s heading
+control, we ask the controller to follow pre-defined trajectories of
+turning left- *MATH*, right- *MATH*, left- *MATH*,
+right- *MATH*, and calculate their respective angular and positional
+deviations from the reference motions (Table [2]).
+
+
+MCP&apos;s controller ignores the previously learned gait patterns and
+instead overfits the target heading, resulting in relatively high
+deviations. CARL-L1 performs markedly better than MCP because the
+control adapter preserves the learned gait patterns. Results from
+CARL-L1 is a bit biased with better MSE in left turns than right turns,
+due to slight left-turn and right-turn training data imbalance. Finally,
+our proposed algorithm CARL-GAN performs the best in all turning angles.
+It handles turns well even for drastic angles while following the target
+speed.
+
+
+Motion Quality 
+
+
+To measure the quality of the generated motions, we ask the controller
+to perform one gait pattern at a time and record its range of movements
+in the form of end-effector regions (Figure [2]). Along the line of robotics
+research [*REF*; *REF*], we measure the
+similarity of movements by calculating the Intersection over Union (IoU)
+of the end-effectors between the generated motion and the reference
+motion (Table [3]). The results show that our
+controller achieves the highest IoU score consistently across gait
+patterns.
+
+
+These quantitative results translate fairly well to the visual motion
+quality in Figure. For a reference motion that transitions
+from trot to canter (Figure (d)), the controllers in both MCP and
+CARL-L1 continue to perform trot at unnaturally higher cadences instead
+of switching to canter gait-pattern. In contrast, our controller can map
+the high-level user speed control to the previously learned action
+distribution, performing trot-to-canter transition correctly with
+natural movements. The high IoU score when performing canter in Table
+[3] further highlights this property.
+
+
+FIGURE
+
+
+Action Space Exploration 
+
+
+We find it useful to visualize the action distribution for assessing the
+quality of motions. To this end, we collect millions of data points
+consisting of the agent&apos;s state in different gait patterns, and apply
+standard principal component analysis (PCA) to visualize the data in 2D.
+The red dots in Figure [3] represent the action
+distribution obtained from the imitation learning process. MCP (orange
+dots) produces a different distribution, which provides a visual clue on
+why it fails to learn the mapping between high-level user control and
+the extracted action distribution. CARL-L1 (green dots) preserves the
+shape of the action distribution, but the manifold appears to be
+expanded. Ours (blue dots) successfully captures the original action
+distribution, which indicates the effectiveness of the GAN Control
+Adapter in translating high-level user controls to the action
+distribution.
+
+
+TABLE
+
+
+Kinematic Controller + DRL 
+
+
+FIGURE
+
+
+Recent works from  [*REF*; *REF*] provide an
+end-to-end solution by manipulating the physics-based controller through
+a kinematic controller, i.e., Kinematic Controller + DRL. This approach
+can produce an accurate controller, high-quality motion, and is
+responsive, but requires access to action labels or a kinematic
+controller. In contrast, our method does not have such requirements,
+since we enable the controllable property by directly imposing
+high-level control to the physics-based controller. However, this causes
+an inherent problem of the distributional shift, which we address using
+GAN.
+
+
+Given a fixed control setting, the Kinematic Controller (MANN \[Zhang
+et. al 2018\]) + DRL is equivalent to our imitation learning, which
+produces high quality motion as highlighted by the manifold in the last
+column of Figure [3]. As a comparison, we ask each
+controller to follow a set of speed control (dotted line in Figure
+[4]), from which the corresponding action labels are derived for the Kinematic Controller
+(e.g., 0 m/s for stand and 4 m/s for canter). When performing an unseen
+transition (4 m/s to 0 m/s), the Kinematic Controller + DRL fails to
+maintain balance and collapses to the ground due to the lack of such
+motion in the training data, as highlighted by the pink line in Figure
+[4]. To include all of the possible transitions, the training would require more
+reference motion data, which leads to exponentially longer training
+time, as suggested by  [*REF*] in their ablation study.
+Despite using more reference data and training for a longer time, there
+is no guarantee that the controller would converge. In summary, via GAN,
+our method does not require access to either action labels or kinematic
+controllers and requires less reference motion data to model the gait
+transitions, therefore converges faster.
+
+
+FIGURE
+
+
+Applications
+
+
+Modular Control
+
+
+Because the controller is trained to accurately follow the user&apos;s speed
+and heading controls, it becomes fairly straightforward to add complex
+navigation capability. The fact that the locomotion controller is
+decoupled from the navigation module, allows us to reuse pre-trained
+policy networks without compromising the desirable properties of the
+locomotion controller in complex navigation scenarios. Consider a
+navigation task where the controller needs to collect valuable objects
+scattered within a maze. In Figure[5] (left), we implement a
+path-finding algorithm that reads the maze as a 2D map and outputs an
+optimal path for the controller to follow. In another task depicted in
+Figure [5] (right), the controller needs to
+rely on its sensors and observations to locate and collect the valuable
+objects. For this problem, we attach a ray-sensor and implement a
+classical navigation module. A simple translator module then converts
+the path into sequences of speed and heading controls. For instance,
+turning 90 degrees left at 1 m/s is represented as
+*MATH*. The result is an autonomous agent that
+can efficiently solve the navigation task by following the sequence of
+controls.
+
+
+Reacting to External Perturbations
+
+
+Our physics-based controller can effectively model the agent&apos;s
+interaction with a dynamically changing environment. To demonstrate
+this, we expose our agent to multiple unexpected external perturbations.
+The first perturbation involves boxes with various volumes and density
+from random directions. The second perturbation is a slippery terrain
+with the ground&apos;s friction reduced by 90%. Lastly, we introduce a
+rotating and tilting terrain (in the video). Our experiment shows that
+the controller can react to the given perturbations, maintaining its
+balance while moving naturally and learn the importance of maintaining
+its height without being explicitly trained with the corresponding
+reward function (see Figure. [6]).
+
+
+Conclusion
+
+
+In this paper, we present CARL, a quadruped agent that can respond
+naturally to high-level controls in dynamic physical environments. The
+three-stage process begins with a low-level imitation learning process
+to extract the natural movements perceived in the authored or captured
+animation clips. The GAN Control Adapter maps the high-level directive
+controls to action distributions that correspond to the animations.
+Further fine-tuning the controller with DRL enables it to recover from
+external perturbations while producing smooth and natural actions.
+
+
+FIGURE
+
+
+The GAN Control Adapter proves instrumental in enabling the controller
+to respond to high-level user controls, all while complying with the
+original action distribution, as demonstrated in the experiment where
+the GAN Control Adapter was removed or replaced with a simple L1
+adapter. We show the usefulness of our method by attaching navigation
+modules over the controller to enable it to operate autonomously for
+tasks such as traversing through mazes with goals. In addition to that,
+we also create an animation clip, where the agent-environment
+interaction changes dynamically. Equipped with natural movements,
+controllable, adaptive properties, our approach is a powerful tool in
+accomplishing motion synthesis tasks that involve dynamic environments.
+
+
+In the future, we would like to investigate on imposing constraints over
+the manifold&apos;s morphology, such as shape and size, for controlling the
+movement style and transitions. Another interesting direction is to use
+a dynamic lambda to regularize the fine-tuning stage, as a fixed lambda
+may lead to a trade-off between realism and adaptiveness. We hope this
+research in combining the merits of GAN and DRL can inspire future
+research directions towards high realism controllers.

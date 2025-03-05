@@ -1,0 +1,654 @@
+Social Diversity and Social Preferences in Mixed-Motive Reinforcement Learning
+
+
+Introduction
+
+
+In multi-agent reinforcement learning, the actions of one agent can
+influence the experience and outcomes for other agents --- that is, agents
+are interdependent. Interdependent interactions can be sorted into two
+categories based on the alignment of incentives for the agents involved
+[*MATH*]:
+1. Pure-motive interactions, in which the group&apos;s incentives are
+either entirely aligned (pure-common interest) or entirely opposed
+(pure-conflict),
+2. and mixed-motive interactions, in which the group&apos;s incentives are
+sometimes aligned and sometimes in conflict.
+
+
+Examples of the former include games such as Hanabi [*REF*]
+and Go [*REF*]. The latter category is typified by games
+like the Prisoner&apos;s Dilemma [*REF*; *REF*]
+and the tragedy of the commons [*REF*; *REF*].
+This categorical distinction is especially relevant for spatially and
+temporally extended Markov games. In these games, interdependence
+emerges both as a direct impact of one agent&apos;s actions on another&apos;s
+outcomes and as an indirect effect of each agent on the state of the
+substrate environment in which others co-exist.
+
+
+FIGURE
+
+
+In pure-conflict reinforcement learning, self-play solutions for Markov
+games [*REF*; *REF*; *REF*] have
+gradually given way to population-based approaches [*REF*; *REF*] (Figure
+[1]a). A central impetus for this shift has been an interest in ensuring agent
+performance is robust to opponent heterogeneity (i.e., variation in the
+set of potential opponent policies). Similarly, recent work on
+pure-common interest reinforcement learning in Markov games has
+highlighted the importance of robustness to diverse partner policies
+[*REF*; *REF*]. In both of these
+contexts, it is desirable to train agents capable of adapting and best
+responding to a wide range of potential policy sets.
+
+
+In mixed-motive Markov games, the effects of partner heterogeneity have
+not received much attention. Most mixed-motive reinforcement learning
+research has produced policies through self-play
+[*REF*; *REF*] or co-training policies in fixed groups
+[*REF*; *REF*]. Such methods foster homogeneity
+in the set of policies each agent encounters.
+
+
+We aim to introduce policy heterogeneity into mixed-motive reinforcement
+learning (Figure [1]b). In recent years, a growing body of work has
+explored the effects of furnishing agents in mixed-motive games with
+various motivations such as inequity aversion [*REF*; *REF*], social imitation
+[*REF*], and social influence [*REF*]. Thus,
+a natural starting point for the study of heterogeneity is to explore
+the effects of diversity in intrinsic motivation
+[*REF*]. Here we endow our agents with Social Value
+Orientation (SVO), an intrinsic motivation to prefer certain group
+reward distributions between self and others.
+
+
+FIGURE
+
+
+Psychology and economics research has repeatedly demonstrated that human
+groups sustain high levels of cooperation across different games through
+heterogeneous distributive preferences [*REF*; *REF*; *REF*; *REF*; *REF*].
+A particularly compelling account from interdependence theory holds
+that humans deviate from game theoretic predictions in economic games
+because each player acts not on the &quot;given matrix&quot; of a game --- which
+reflects the extrinsic payoffs set forth by the game rules --- but on an
+&quot;effective matrix&quot;, which represents the set of outcomes as subjectively
+evaluated by that player [*REF*]. Players receive the
+given matrix from their environment and subsequently apply an &quot;outcome
+transformation&quot; reflecting their individual preferences for various
+outcome distributions. The combination of the given matrix and the
+outcome transformation form the effective matrix (Figure
+[2]). Though an individual&apos;s social
+preferences may decrease their given payoff in a single game, groups
+with diverse sets of preferences are capable of resisting suboptimal
+Nash equilibria.
+
+
+In multi-agent reinforcement learning, reward sharing is commonly used
+to resolve mixed-motive dilemmas [*REF*; *REF*; *REF*; *REF*].
+To date, agent hyperparameters controlling reward mixture have typically
+been shared. This approach implies a homogeneous population of policies,
+echoing the representative agent assumption from economics
+[*REF*; *REF*]. The continued reliance on
+shared reward mixtures is especially striking considering that the
+ability to capture heterogeneity is a key strength of agent-based models
+over other modeling approaches [*REF*].
+
+
+Homogeneous populations often fall prey to a peculiar variant of the
+lazy agent problem [*REF*], wherein one or more agents begin
+ignoring the individual learning task at hand and instead optimize for
+the shared reward [*REF*]. These shared-reward agents
+shoulder the burden of prosocial work, in a manner invariant to radical
+shifts in group composition across episodes. This &quot;specialization&quot;
+represents a failure of training to generate generalized policies.
+
+
+To investigate the effects of heterogeneity in mixed-motive
+reinforcement learning, we introduce a novel, generalized mechanism for
+reward sharing. We derive this reward-sharing mechanism, Social Value
+Orientation (SVO), from studies of human cooperative behavior in social
+psychology. We show that across several games, heterogeneous
+distributions of these social preferences within groups generate more
+generalized individual policies than do homogeneous distributions. We
+subsequently explore how heterogeneity in SVO sustains positive group
+outcomes. In doing so, we demonstrate that this formalization of social
+preferences leads agents to discover specific prosocial behaviors
+relevant to each environment.
+
+
+Agents
+
+
+Multi-agent reinforcement learning and Markov games
+
+
+In this work, we consider *MATH* -player partially observable Markov games.
+A partially observable Markov game *MATH* is defined on a finite
+set of states *MATH*. The game is endowed with an observation
+function *MATH*; a set of available actions for each player,
+*MATH*; and a stochastic transition function *MATH*,
+which maps from the joint actions taken by the *MATH* players to the set of
+discrete probability distributions over states. From each state, players
+take a joint action *MATH*.
+
+
+Each agent *MATH* independently experiences the environment and learns a
+behavior policy *MATH* based on its own observation
+*MATH* and (scalar) extrinsic reward *MATH*. Each
+agent learns a policy which maximizes a long term *MATH* -discounted
+payoff defined as: *MATH* where *MATH* is a utility function and
+*MATH* for simplicity. In standard reinforcement
+learning, the utility function maps directly to the extrinsic reward
+provided by the environment.
+
+
+Social Value Orientation
+
+
+Here we introduce Social Value Orientation (SVO), an intrinsic
+motivation to prefer certain group reward distributions between self and
+others.
+
+
+We introduce the concept of a reward angle as a scalar representation
+of the observed distribution of reward between player *MATH* and all other
+players in the group. The size of the angle formed by these two scalars
+represents the relative distribution of reward between self and others
+(Figure [3]). Given a group of size *MATH*, its corresponding
+reward vector is *MATH*. The reward angle for
+player *MATH* is: *MATH* where *MATH* is a statistic summarizing the rewards of all other
+group members. We choose the arithmetic mean
+*MATH* [*REF*]. Note that reward angles are invariant to the
+scalar magnitude of *MATH*.
+
+
+The Social Value Orientation, *MATH*, for player *MATH* is
+player *MATH* &apos;s target distribution of reward among group members. We use
+the difference between the observed reward angle and the targeted SVO to
+calculate an intrinsic reward. Combining this intrinsic reward with the
+extrinsic reward signal from the environment, we can define the
+following utility function *MATH* to be maximized in
+Eq.: *MATH* where *MATH* is a weight term controlling the effect of Social Value
+Orientation on *MATH*.
+
+
+In constructing this utility function, we follow a standard approach in
+mixed-motive reinforcement learning research
+[*REF*; *REF*; *REF*] which
+provides agents with an overall reward signal combining extrinsic and
+intrinsic reward [*REF*]. This approach parallels
+interdependence theory, wherein the effective matrix is formed from the
+combination of the given matrix and the outcome transformation, and
+ultimately serves as the basis of actors&apos; decisions
+[*REF*].
+
+
+For the exploratory work we detail in the following sections, we
+restrict our experiments to SVO in the non-negative quadrant (all
+*MATH*). The preference profiles in the
+non-negative quadrant provide the closest match to parameterizations in
+previous multi-agent research on reward sharing. Nonetheless, we note
+that interesting preference profiles exist throughout the entire ring
+[*REF*].
+
+
+FIGURE
+
+
+Algorithm
+
+
+We deploy advantage actor-critic (A2C) as the learning algorithm for our
+agents [*REF*]. A2C maintains both value (critic) and
+policy (actor) estimates using a deep neural network. The policy is
+updated according to the REINFORCE policy-gradient method, using a value
+estimate as a baseline to reduce variance. Our neural network comprises
+a convolutional layer, a feedforward module, an LSTM with contrastive
+predictive coding [*REF*], and linear readouts for
+policy and value. We apply temporal smoothing to observed rewards within
+the model&apos;s intrinsic motivation function, as described by
+[*REF*].
+
+
+We use a distributed, asynchronous framework for training
+[*REF*]. We train populations of *MATH* agents with
+policies *MATH*. For each population, we sample *MATH* players at
+a time to populate each of 100 arenas running in parallel (see also
+Figure [1]a,
+in which arenas are represented as &quot;samples&quot; from the agent population).
+Each arena is an instantiation of a single episode of the environment.
+Within each arena, the sampled agents play an episode of the
+environment, after which a new group is sampled. Episode trajectories
+last 1000 steps and are written to queues for learning. Weights are
+updated from queues using V-Trace [*REF*].
+
+
+Mixed-motive games
+
+
+Intertemporal social dilemmas
+
+
+FIGURE
+
+
+For our experiments, we consider two temporally and spatially extended
+mixed-motive games played with group size *MATH*: HarvestPatch and
+Cleanup. These two environments are intertemporal social dilemmas, a
+particular class of mixed-motive Markov games (c.f.,
+[*REF*]).
+
+
+Intertemporal social dilemmas are group situations which present a
+tension between short-term individual incentives and the long-term
+collective interest [*REF*]. Each individual has the
+option of behaving prosocially (cooperation) or selfishly (defection).
+Though unanimous cooperation generates welfare-maximizing outcomes in
+the long term, on short timescales the personal benefits of acting
+selfishly strictly dominate those of prosocial behavior. Thus, though
+all members of the group prefer the rewards of mutual cooperation, the
+intertemporal incentive structure pushes groups toward
+welfare-suppressing equilibria. Previous work has evaluated the game
+theoretic properties of intertemporal social dilemmas
+[*REF*].
+
+
+HarvestPatch
+
+
+HarvestPatch is a variant of the common-pool resource appropriation game
+Harvest [*REF*] (Figure a). Players are rewarded for
+collecting apples (reward *MATH*) within a *MATH* gridworld
+environment. Apples regrow after being harvested at a rate dependent on
+the number of unharvested apples within a regrowth radius of 3. If there
+are no apples within its radius, an apple cannot regrow. At the
+beginning of each episode, apples are probabilistically spawned in a
+hex-like pattern of patches, such that each apple is within the regrowth
+radius of all other apples in its patch and outside of the regrowth
+radius of apples in all other patches. This creates localized stock and
+flow properties [*REF*] for each apple patch. Each patch is
+irreversibly depleted when all of its apples have been
+harvested --- regardless of how many apples remain in other patches.
+Players are also able to use a beam to punish other players (reward
+*MATH*), at a small cost to themselves (reward *MATH*). This enables the
+possible use of punishment to discourage free-riding [*REF*; *REF*].
+
+
+A group can achieve indefinite sustainable harvesting by abstaining from
+eating &quot;endangered apples&quot; (apples which are the last unharvested apple
+remaining in their patch). However, the reward for sustainable
+harvesting only manifests after a period of regrowth if all players
+abstain. In contrast, an individual is immediately and unilaterally
+guaranteed the reward for eating an endangered apple if it acts
+greedily. This creates a dilemma juxtaposing the short-term individual
+temptation to maximize reward through unsustainable behavior and the
+long-term group interest of generating higher reward by acting
+sustainably.
+
+
+In HarvestPatch, episodes last 1000 steps. Each agent&apos;s observability is
+limited to a *MATH* RGB window, centered on its current
+location. The action space consists of movement, rotation, and use of
+the punishment beam (8 actions total).
+
+
+Cleanup
+
+
+Cleanup [*REF*] is a public goods game (Figure b). Players are again rewarded for
+collecting apples (reward *MATH*) within a *MATH* gridworld
+environment. In Cleanup, apples grow in an orchard at a rate inversely
+related to the cleanliness of a nearby river. The river accumulates
+pollution with a constant probability over time. Beyond a certain
+threshold of pollution, the apple growth rate in the orchard drops to
+zero. Players have an additional action allowing them to clean a small
+amount of pollution from the river. However, the cleaning action only
+works on pollution within a small distance in front of the agents,
+requiring them to physically leave the apple orchard to clean the river.
+Thus, players maintain the public good of orchard regrowth through
+effortful contributions. As in HarvestPatch, players are able to use a
+beam to punish other players (reward *MATH*), at a small cost to
+themselves (reward *MATH*).
+
+
+A group can achieve continuous apple growth in the orchard by keeping
+the pollution levels of the river consistently low over time. However,
+on short timescales, each player would prefer to collect apples in the
+orchard while other players provide the public good in the river. This
+creates a tension between the short-term individual incentive to
+maximize reward by staying in the orchard and the long-term group
+interest of maintaining the public good through sustained contributions
+over time.
+
+
+Episodes last 1000 steps. Agent observability is again limited to a
+*MATH* RGB window, centered on the agent&apos;s current location. In
+Cleanup, agents have an additional action for cleaning (9 actions
+total).
+
+
+Results
+
+
+Social diversity and agent generality
+
+
+We began by training 12 homogeneous populations per task, with *MATH*:
+four consisting of individualistic agents (all *MATH*),
+four of prosocial agents (all *MATH*), and four of
+altruistic agents (all *MATH*) agents. These resemble
+previous approaches using selfishness [*REF*], inequity
+aversion [*REF*; *REF*], and strong reward
+sharing [*REF*; *REF*], respectively.
+The population training curves for homogeneous selfish populations
+closely resembled group training curves from previous studies
+[*REF*; *REF*] (see sample population training
+curves in Figure [4]). In particular, performance in both
+environments generated negative returns at the beginning of training due
+to high-frequency use of the punishment beam. Agents quickly improved
+performance by learning not to punish one another, but failed to learn
+cooperative policies. Ultimately, selfish agents were unable to
+consistently avoid the tragedy of the commons in HarvestPatch or provide
+public goods in Cleanup.
+
+
+FIGURE
+
+
+Optimal hyperparameter values may vary between HarvestPatch and Cleanup.
+Thus, we selected the weight values *MATH* for the two tasks by conducting
+an initial sweep over *MATH* with homogeneous populations of *MATH* 
+altruistic agents (all *MATH*). In HarvestPatch, a weight
+*MATH* produced the highest collective returns across several runs
+(Figure [5]a). In Cleanup, a weight
+*MATH* produced the highest collective returns across several runs
+(Figure [5]b).
+
+
+FIGURE
+
+
+As expected, in HarvestPatch, the highest collective returns among the
+homogeneous populations were achieved by the altruistic populations
+(Table [1], Homogeneous row). The prosocial and individualistic populations
+performed substantially worse. In Cleanup, the highest collective
+returns similarly emerged among the altruistic populations. The
+populations of prosocial and individualistic agents, in contrast,
+achieved near-zero collective returns.
+
+
+TABLE
+
+
+We next trained 80 heterogeneous populations per task. To generate each
+heterogeneous population, we sampled *MATH* SVO values from a normal
+distribution with a specified mean and dispersion. Since we treated SVO
+as a bounded variable for these initial experiments, we selected five
+equally spaced values from *MATH* to *MATH* to act as
+population means and and four equally spaced values from *MATH* 
+(*MATH* radians) to *MATH* (*MATH* radians)
+to act as population standard deviations. For each mean-standard
+deviation pair, we generated four populations using different random
+seeds. We used the same weights *MATH* as for the homogeneous populations.
+
+
+TABLE
+
+
+Among the heterogeneous populations, we observed the highest equilibrium
+collective returns among the *MATH* population (Table
+[1], Heterogeneous row). In HarvestPatch, the performance of homogeneous
+altruistic populations outstripped the performance of the *MATH* 
+populations. In Cleanup, the reverse pattern emerged: the highest
+collective returns among all populations are achieved by the
+heterogeneous *MATH* populations.
+
+
+We unexpectedly find that homogeneous populations of altruistic agents
+produced lower equality scores than most other homogeneous and
+heterogeneous populations (Table [2]). Homogeneous,
+altruistic populations earned relatively high collective returns in both
+tasks. However, in each case the produced rewards were concentrated in a
+small proportion of the population. Agents in these homogeneous
+populations appear to adopt a lazy-agent approach [*REF*] to
+resolve the conflict between the group&apos;s shared preferences for selfless
+reward distributions. To break the symmetry of this dilemma, most agents
+in the population selflessly support collective action, thereby
+optimizing for their social preferences. A smaller number of agents then
+specialize in accepting the generated reward --- shouldering the &quot;burden&quot;
+of being selfish, in contravention of their intrinsic preferences. This
+result highlights a drawback of using collective return as a performance
+metric. Though collective return is the traditional social outcome
+metric used in multi-agent reinforcement learning, it can mask high
+levels of inequality.
+
+
+We therefore revisited population performance by measuring median
+return, which incorporates signal concerning the efficiency and the
+equality of a group&apos;s outcome distribution [*REF*].
+Median return can help estimate the generality of learned policies
+within homogeneous and heterogeneous populations. We compare median
+return for the two population types by measuring the median return for
+each population after it reaches equilibrium. We conduct a Welch&apos;s
+t-test and report the resulting t-statistic, degrees of freedom, and
+p-value. We subsequently provide effect estimates (*MATH*) and
+p-values from linear models regressing median return on the mean and
+standard deviation of population SVO.
+
+
+FIGURES
+
+
+Figures [6] and [7] show the generality of
+policies trained in HarvestPatch and Cleanup, respectively. In
+HarvestPatch, heterogeneous populations enjoyed significantly higher
+median return (*MATH*) than homogeneous populations (*MATH*)
+at equilibrium, *MATH* (Figure[6]a). Among heterogeneous
+populations, a clear pattern could be observed: the higher the
+population mean SVO, the higher the median return received (Figure
+[6]b). Specifically for populations with high mean SVO, median return appeared to increase
+slightly when the SVO distribution was more dispersed. When tested with
+a linear model regressing median return on the mean and standard
+deviation of SVO, these trends primarily manifested as an interaction
+effect between mean population SVO and the standard deviation of
+population SVO, *MATH*, *MATH*. In Cleanup, heterogeneous
+populations received significantly higher median return (*MATH*)
+than homogeneous populations (*MATH*) at equilibrium,
+*MATH* (Figure [7]a). Among heterogeneous
+populations, the highest median returns were observed in tandem with
+high mean SVO (Figure [7]b). However, in this case
+the effect of the interaction between mean SVO and standard deviation of
+SVO was non-significant, *MATH*.
+
+
+In summary, our comparison of homogeneous and heterogeneous populations
+shows that populations of altruists performed effectively in traditional
+terms (collective return). However, these populations produced highly
+specialized agents, resulting in undesirably low equality metrics.
+Populations with diverse SVO distributions were able to circumvent this
+symmetry-breaking problem and achieve high levels of median return in
+HarvestPatch and Cleanup.
+
+
+Social preferences and prosocial behavior
+
+
+FIGURE
+
+
+How exactly does the distribution of SVO help diverse populations
+resolve these social dilemmas? We next evaluated the behavioral effects
+of SVO by examining a single, heterogeneous population within each task.
+We randomly selected two populations that achieved high equilibrium
+performance during training, parameterized with mean SVOs of *MATH* 
+and standard deviations of *MATH*. We gathered data from 100
+episodes of play for both of these evaluation experiments, sampling 5
+agents randomly for each episode. All regressions reported in this
+section are mixed error-component models, incorporating a random effect
+to account for the repeated sampling of individual agents. The
+accompanying figures depict average values per agent, with superimposed
+regression lines representing the fixed effect estimate (*MATH*) of
+SVO.
+
+
+In our evaluation experiments, we observed a positive relationship
+between an agent&apos;s target reward angle and the group reward angles it
+tended to observe in HarvestPatch, *MATH*, *MATH* (Figure
+[8]a). The effect of SVO on observed reward angle was similarly significant in Cleanup,
+*MATH*, *MATH* (Figure [8]b). This reflects the
+association of higher agent SVO with the realization of more-prosocial
+distributions. In both environments, the estimated effect lies below the
+*MATH* line, indicating that agents acted somewhat more selfishly
+than their SVO would suggest.
+
+
+In HarvestPatch, an agent&apos;s prosociality can be estimated by measuring
+its abstention from consuming endangered apples. We calculated
+abstention as an episode-level metric incorporating the number of
+endangered apples an agent consumed and a normalization factor encoding
+at what points in the episode the endangered apples were consumed. An
+abstention score of 1 indicates that an agent did not eat a single
+endangered apple (or that it ate one or more endangered apples on the
+final step of the episode). An abstention score of 0, though not
+technically achievable, would indicate that an agent consumed one
+endangered apple from every apple patch in the environment on the first
+step of the episode. We observe a significant and positive relationship
+between an agent&apos;s SVO and its abstention, *MATH*, *MATH* 
+(Figure [9]).
+
+
+FIGURE
+
+
+The structure of the HarvestPatch environment creates localized stock
+and flow components. Hosting too many agents in a single patch threatens
+to quickly deplete the local resource pool. Thus, one rule groups can
+use to maintain sustainability is for group members to harvest in
+separate patches, rather than harvesting together and sequentially
+destroying the environment&apos;s apple patches. We find that SVO correlated
+with distance maintained from other group members, *MATH*,
+*MATH* (Figure [10]). Consequently, groups with higher mean
+SVO established stronger conventions of interagent distance. This simple
+behavioral convention helped higher-SVO groups guard against
+environmental collapse.
+
+
+FIGURE
+
+
+In Cleanup, an agent&apos;s prosociality can be estimated by measuring the
+amount of pollution it cleans from the river. There was a significant
+and positive relationship between an agent&apos;s SVO and the amount of
+pollution it cleaned, *MATH*, *MATH* (Figure
+[11]). Agents with higher SVOs acted
+more prosocially by making greater contributions to the public good.
+
+
+FIGURE 
+
+
+Finally, do SVO agents develop any sort of prosocial conventions in
+Cleanup to help maintain high levels of river cleanliness? In Cleanup,
+we examined one potential coordinating convention that we term
+behavioral preparedness: an inclination to transition from harvesting to
+cleaning even before the orchard is fully depleted. In Cleanup, groups
+that follow the short-term, individual-level incentive structure will
+respond primarily to the depletion of the orchard, rather than acting
+preventatively to ensure the public good is sustained over time. Groups
+that adopt welfare-maximizing strategies, on the other hand, will not
+wait for the orchard to be fully harvested to clean the river. We find a
+positive relationship between the average number of apples observable to
+agents at the times of their transitions to cleaning in each episode,
+*MATH*, *MATH*. The size and significance of this effect
+are not meaningfully affected by controlling for the number of times
+each agent transitioned to the river in a given episode,
+*MATH*, *MATH* (Figure [12]). In aggregate, this behavioral
+pattern helped high-SVO groups maintain higher levels of orchard
+regrowth over time.
+
+
+FIGURE
+
+
+Discussion
+
+
+Recent research on pure-conflict and pure-cooperation reinforcement
+learning has highlighted the importance of developing robustness to
+diversity in opponent and partner policies [*REF*; *REF*; *REF*]. We
+extend this argument to the mixed-motive setting, focusing in particular
+on the effects of heterogeneity in social preferences. Drawing from
+interdependence theory, we endow agents with Social Value Orientation
+(SVO), a flexible formulation for reward sharing among group members.
+
+
+In the mixed-motive games considered here, homogeneous populations of
+pure altruists achieved high collective returns. However, these
+populations tended to produce hyper-specialized agents which reaped
+reward primarily from either intrinsic or extrinsic motivation, rather
+than both --- a method of breaking the symmetry of the shared motivation
+structure. Thus, when equality-sensitive metrics are considered,
+populations with diverse distributions of SVO values were able to
+outperform homogeneous populations.
+
+
+This pattern echoes the historic observation from interdependence theory
+that, if both players in a two-player matrix game adopt a &quot;maximize
+other&apos;s outcome&quot; transformation process, the resulting effective
+matrices often produce deficient group outcomes:
+
+
+&quot;It must be noted first that, in a number of matrices with a
+mutual interest in prosocial transformations, if one person acts
+according to such a transformation, the other is better off by acting
+according to his own given outcomes than by adopting a similar
+transformation.&quot; [*REF*]
+This quote highlights a striking parallel between our findings and the
+predictions of interdependence theory. We believe this is indicative of
+a broader overlap in perspective and interests between multi-agent
+reinforcement learning and the social-behavioral sciences. Here we
+capitalize on this overlap, drawing inspiration from social psychology
+to formalize a general mechanism for reward sharing. Moving forward, SVO
+agents can be leveraged as a modeling tool for social psychology
+research [*REF*].
+
+
+In this vein, group formation is a topic important to both fields. It
+is well established among pyschologists that an individual&apos;s behavior is
+strongly guided by their ingroup --- the group with which they
+psychologically identify [*REF*]. However, the processes by
+which individuals form group identities are still being studied and
+investigated [*REF*; *REF*]. What sort of
+mechanisms transform and redefine self-interest to incorporate the
+interests of a broader group? This line of inquiry has potential
+linkages to the study of team and coalition formation in multi-agent
+research [*REF*].
+
+
+Our findings show that in multi-agent environments, heterogeneous
+distributions of SVO can generate high levels of population performance.
+A natural question follows from these results: how can we identify
+optimal SVO distributions for a given environment? Evolutionary
+approaches to reinforcement learning [*REF*] could be
+applied to study the variation in optimal distributions of SVO across
+individual environments. We note that our results mirror findings from
+evolutionary biology that across-individual genetic diversity can
+produce group-wide benefits [*REF*]. We suspect that SVO
+agents can be leveraged in simulo to study open questions concerning
+the emergence and adaptiveness of human altruis [*REF*; *REF*].
+
+
+The development of human-compatible agents still faces major challenges
+[*REF*; *REF*; *REF*]. In pure-common interest reinforcement learning, robustness to partner
+heterogeneity is seen as an important step toward human compatibility
+[*REF*]. The same holds true for mixed-motive contexts.
+Within &quot;hybrid systems&quot; containing humans and artificial agents
+[*REF*], agents should be able to predict and respond
+to a range of potential partner behaviors. Social preferences are, of
+course, an important determinant of human behavior
+[*REF*; *REF*]. Endowing agents with SVO
+is a promising path forward for training diverse agent populations,
+expanding the capacity of agents to adapt to human behavior, and
+fostering positive human-agent interdependence.

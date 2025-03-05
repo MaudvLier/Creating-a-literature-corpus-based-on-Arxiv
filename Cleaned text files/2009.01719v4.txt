@@ -1,0 +1,483 @@
+[Introduction]
+
+
+Language models that exhibit one or few-shot learning are of growing
+interest in machine learning applications because they can adapt
+their knowledge to new information *REF* *REF* *REF* *REF*.
+One-shot language learning in the physical world is also of interest
+to developmental psychologists; fast-mapping, the ability to bind a
+new word to an unfamiliar object after a single exposure, is a much
+studied facet of child language learning *REF* Our goal is to enable
+an embodied learning system to perform fast-mapping, and we take a
+step towards this goal by developing an embodied agent situated in a
+3D game environment that can learn the names of entirely unfamiliar
+objects in a single exposure, and immediately apply this knowledge to
+carry out instructions based on those objects. The agent observes the
+world via active perception of raw pixels, and learns to respond to
+linguistic stimuli by executing sequences of motor actions. It is
+trained by a combination of conventional RL and predictive
+(semi-supervised) learning.
+
+
+We find that an agent architecture consisting of standard neural
+network components is sufficient to follow language instructions whose
+meaning is preserved across episodes. However, learning to fast-map
+novel names to novel objects in a single episode relies on
+semi-supervised prediction mechanisms and a novel form of external
+memory, inspired by the dual-coding theory of knowledge representation *REF*. With
+these components, an agent can exhibit both slow word learning and
+fast-mapping. Moreover, the agent exhibits an emergent propensity to
+integrate both fast-mapped and slowly acquired word meanings in a
+single episode, successfully executing instructions such as &quot;put the
+dax in the box&quot; that depend on both slow-learned (&quot;put&quot;, &quot;box&quot;) and
+fast-mapped (&quot;dax&quot;) word meanings.
+
+
+Via controlled generalization experiments, we find that the agent is
+reasonably robust to a degree of variation in the number of objects
+involved in a given fast-mapping task at test time. The agent also
+exhibits above-chance success when presented with the name for a
+particular object in the ShapeNet taxonomy *REF* *REF* and then
+instructed (using that name) to interact with a different exemplar
+from the same object class, and this propensity can be further
+enhanced by specific metatraining. We find that both the number of
+unique objects observed by the agent during training and the temporal
+aspect of its perceptual experience of those objects contribute
+critically to its ability to generalize, particularly its ability to
+execute fast-mapping with entirely novel objects. Finally, we show
+that a dual-coding memory schema can provide a more effective basis to
+derive a signal for intrinsic motivation than a more conventional
+(unimodal) memory.
+
+
+FIGURE
+
+
+[An environment for fast word learning]
+
+
+We conduct experiments in a 3D room built with the Unity game engine.
+In a typical episode, the room contains a pre-specified number N of
+everyday 3D rendered objects from a global set G. In all training
+and evaluation episodes, the initial positions of the objects and
+agent are randomized. The objects include everyday household items
+such as kitchenware (cup, glass), toys (teddy bear, football),
+homeware (cushion, vase), and so on.
+
+
+Episodes consist of two phases: a discovery phase, followed by an
+instruction phase (see Figure *REF* *REF*).
+In the discovery phase, the agent must explore the room and fixate on
+each of the objects in turn. When it fixates on an object, the
+environment returns a string with the name of the object (which is a
+nonsense word), for example &quot;This is a dax&quot; or &quot;This is a blicket&quot;.
+Once the environment has returned the name of each of the objects (or
+if a time limit of 30s is reached), the positions of all the objects
+and the agent are re-randomized and the instruction phase begins. The
+environment then emits an instruction, for example &quot;Pick up a dax&quot; or
+&quot;Pick up a blicket&quot;. To succeed, the agent must then lift up the
+specified object and hold it above 0.25m for 3 consecutive timesteps,
+at which point the episode ends, and a new episode begins with a
+discovery phase and a fresh sample of objects from the global set G.
+If the agent first lifts up an incorrect object, the episode also ends
+(so it is not possible to pick up more than one object in the
+instruction phase). To provide a signal for the agent to learn from,
+it receives a scalar reward of 1.0 if it picks up the correct object
+in the instruction phase. In the default training setting, to
+encourage the necessary information-seeking behaviour, a smaller
+shaping reward of 0.1 is provided for visiting each of the objects
+in the discovery phase.
+
+
+Given this two-phase episode structure, two distinct learning
+challenges can be posed to the agent. In a slow-learning regime, the
+environment can assign the permanent name (e.g. &quot;cup&quot;, &quot;chair&quot;) to
+objects in the environment whenever they are sampled. By contrast, in
+the fast-mapping regime, which is the principal focus of this work, the environment assigns a
+unique nonsense word to each of the objects in the room at random on a
+per-episode basis. The only way to consistently solve the task is to
+record the connections between words and objects in the discovery
+phase, and apply this (episode-specific) knowledge in the instruction
+phase to determine which object to pick up.
+
+
+[Memory architectures for agents with vision and language]
+
+
+The agents that we consider build on a standard architecture for
+reinforcement learning in multimodal (vision + language)
+environments (see e.g. *REF*). The visual input (raw pixels) is processed at
+every timestep by a convolutional network with residual connections (a
+ResNet). The language input is passed through an embedding lookup
+layer plus self-attention layer for processing. Finally, a core
+memory integrates the information from the two input sources over
+time. A fully-connected plus softmax layer maps the state of this core
+memory to a distribution over 46 actions, which are discretizations of
+a 9-DoF continuous agent avatar. A separate layer predicts a value
+function for computing a baseline for optimization according to the
+IMPALA algorithm *REF* *REF*. 
+
+
+We replicated previous studies by verifying that a baseline
+architecture with LSTM core memory *REF* could learn to
+follow language instructions when trained in the slow-learning regime.
+However, the failure of this architecture to reliably learn to perform
+abovechance in the fast-learning regime motivated investigation of
+architectures involving explicit external memory modules. Given the
+two observation channels from language and vision, there are various
+ways in which observations can be represented and retrieved in
+external memory.
+
+
+Differentiable Neural Computer (DNC). In the DNC *REF* at each timestep t a
+latent vector FORMULA, computed from the previous hidden state ht−1 of
+the agent&apos;s core memory LSTM, the previous memory read-out
+rt−1, and the current inputs xt, is written to a
+slot-based external memory. In our setting, the input xt is a
+simple concatenation \[vt, lt\] of the output of the
+vision network and the embedding returned by the language network.
+Before writing to memory, the latent vector et is also passed
+to the core memory LSTM to produce the current state ht. The
+agent reads from memory by producing a query vector q(ht)
+and read strength β(ht), and computing the cosine similarity
+between the query and all embeddings currently stored in memory
+ei (i \&lt; t). The external memory returns only the k most
+similar entries in the memory (where k is a hyperparameter), and
+corresponding scalar similarities. The returned embeddings are then
+aggregated into a single vector ˆrt by normalizing the
+similarities and taking a weighted average of the embeddings. This
+reading procedure is performed simultaneously by n independent read
+heads, and the results FORMULA are
+concatenated to form the current memory read-out rt. The
+vectors et and ht are output to the policy and value networks.
+
+
+Dual-coding Episodic Memory (DCEM) We propose an alternative
+external key-value memory architecture inspired by the Dual-Coding
+theory of human memory *REF* *REF*. 
+The key idea is to allow different modalities (language and vision) to
+determine either the keys (and queries) or the values. In the present
+work, because of the structure of the tasks we consider, we align the
+keys and queries with language and the values with vision. However,
+for different problems (such as those requiring language production)
+the converse alignment could be made, or a single memory system could
+implement both alignments.
+
+
+In our implementation, at each timestep the agent writes the current
+linguistic observation embeddings lt to the keys of the
+memory and the current visual embedding vt to its values. To
+read from the memory, a query FORMULA is computed and compared to the keys by cosine
+similarity. The k values whose keys are most similar to the query,
+FORMULA, are returned together with similarities
+FORMULA. To aggregate the returned memories into a single
+vector rt, the similarities are first normalized into a distribution and then applied to weight the
+memories FORMULA. These k weighted memories are then passed through a self-attention layer and
+summed elementwise to produce rt. As before this is repeated for n read heads, and
+the results concatenated to form the current memory read-out
+rt. rt is then concatenated with ht−1 and new
+inputs xt to compute a latent vector FORMULA, which is passed to the
+core memory LSTM to produce the subsequent state ht, and
+finally et and ht are output to the policy and value
+networks.
+
+
+TABLE 
+
+
+Gated Transformer (XL) We also consider an architecture where the
+agent&apos;s core memory is a Transformer (*REF* *REF*) including the gating mechanism from *REF*. 
+The only difference from *REF* *REF* is that we
+consider a multi-modal environment, where the observations xt
+passed to the core memory are the concatenation of visual and language
+embeddings. We use a 4-layer Transformer with a principal embedding
+size of 256 (8 parallel heads with query, key and value size of 32 per
+layer). These parameters are chosen to give a comparable number of
+total learnable parameters to the DCEM architecture.
+
+
+Policy learning The agent&apos;s policy is trained by minimizing the
+standard V-trace off-policy actorcritic loss *REF*. Gradients flow through the
+policy layer and the core LSTM to the memory&apos;s query network and the
+embedding ResNet and self-attention language encoder. We also use a
+policy entropy loss as in *REF* to encourage random-action exploration. For more
+details and hyperparameters see Appendix [A.4.].
+
+
+Observation reconstruction In order to provide a stronger
+representation-shaping signal, we make use of a reconstruction loss in
+addition to the standard V-trace setup. The latent vector et
+is passed to a ResNet g that is the transpose of the image encoder,
+and outputs a reconstruction of the image input d^im^ =
+g(et). The image reconstruction loss is the cross entropy
+between the input t and reconstructed images: FORMULA. The language decoder
+FORMULA is a simple LSTM, which also takes the latent vector et as
+input and produces a sequence of output vectors that are projected and
+softmaxed into classifications over the vocabulary FORMULA. The
+loss is the cross entropy between the classification produced and the
+one-hot vocabulary indices of the input words: FORMULA. For more details regarding the
+flow of information and gradients see Appendix [A.4.]
+
+
+[Experiments]
+
+
+We compared the different memory architectures with and without
+semi-supervised reconstruction loss on a version of the fast-mapping
+task involving three objects (N = 3) sampled from a global set of 30
+FORMULA. As shown in Table *REF* only the DCEM and
+Transformer architectures reliably solve the task after FORMULA timesteps of training.
+
+
+DCEM vs. TransformerXL Importantly, the Transformer and DCEM are
+the two architectures that can exploit the principle of dual-coding.
+Since the inputs to the Transformer are the concatenation of visual
+and language codes, this model can recover the dual-coding aspect of
+the DCEM by learning self-attention weights Wk and Wq
+that project the language code to keys and queries, and weights
+Wv to project the visual code to values. Learning in the DCEM
+was marginally more sample-efficient, but this is perhaps expected
+given it was designed with fast-mapping tasks in mind. In light of
+this, is it really worth pursing memory systems with explicit episodic
+memories?
+
+
+FIGURE
+
+
+To show one clear justification for external memory architectures, we
+conducted an additional comparison in which the memory windows of
+both the DCEM and the Transformer agents were limited to 100 timesteps
+(from 1024 in the original experiment), approximately the length of an
+episode if an agent is well-trained to the optimal policy. With a
+memory span of 100, the Transformer is forced to use the XL
+window-recurrence mechanism to pass information across context windows
+*REF* *REF* while any capacity
+to retain episodic information beyond 100 timesteps in the DCEM must
+be managed by by the LSTM controller. In this setting we observed that
+the DCEM was substantially more effective (Table *REF* 
+left, bottom). While this imposed memory constraint may seem
+arbitrary, in real-world tasks working memory will always be at a
+premium. These results suggest that DCEM is more
+&apos;working-memory-efficient&apos; than the Transformer agent. Indeed, by
+employing a simple heuristic by which the agent only writes to its
+external memory when the language observation changes from one
+timestep to the next, the DCEM agent with only 20 memory slots could
+solve the task with similar efficiency to a Transformer agent with a
+1024-slot memory. See Appendix [A.1] for these results and
+details of the selective writing heuristic.
+
+
+1. [Generalization]
+
+
+To explore the generalization capabilities of our agents, we subjected
+trained agents to various behavioural probes, and measured
+performance across thousands of episodes without updating their
+weights. Unless stated otherwise, all experiments in this section
+involve the DCEM+Recons agent.
+
+
+Number of objects We first probed the robustness of the agent to
+fast-mapping episodes with different numbers of objects. In all
+conditions, the same objects appear in both the discovery and
+instruction phases of the episode, and the objects are sampled from
+the same global set G FORMULA.
+
+
+As shown in Figures *REF* and (c) (red curves), with the
+(default) meta-training setting involving
+three objects in each episode, performance on episodes involving five
+objects is approximately 70%, and with eight objects around 50%. This
+sub-optimal performance suggests that, with this metatraining
+regime, the agent does tend to overfit, to some degree, to the
+&quot;three-ness&quot; of its experience. Figure *REF* shows,
+however, that the overfitting of the agent can be alleviated by
+increasing the number of objects during meta-training. Finally, Figure
+*REF* confirms, perhaps unsurprisingly, that the agent
+has no problem generalizing to episodes with fewer objects than it
+was trained on.
+
+
+Novel objects To probe the ability of the agents to quickly learn
+about any arbitrary new object, we instrumented trials with objects
+sampled from a global test set of novel objects FORMULA. 
+As shown in Figure *REF* we found that an
+agent meta-trained on 20 objects (i.e. FORMULA)
+
+
+was almost perfectly robust to novel objects. As may be expected, this
+robustness degraded to some degree with decreasing FORMULA, which is
+symptomatic of the agent specializing (and overfitting) to the
+particular features and distinctions of the objects in its
+environment. However, we only observed a substantial reduction in
+robustness to new objects when FORMULA was reduced as low as three --
+i.e. a metatraining experience in which all episodes contain the
+same three objects (the first three elements of G alphabetically, i.e. a boat, a book and a bottle).
+
+
+FIGURE 3
+
+
+FIGURE 4
+
+
+Fast category extension Children aged between three and four can
+acquire in one shot not only bindings between new words and specific
+unfamiliar objects, but also bindings between new words and
+categories *REF*. We conducted an
+analogous experiment by exploiting the category structure in ShapeNet
+*REF* *REF* In a test trial,
+in the discovery phase the agent is presented with exemplars from
+three novel (held-out) ShapeNet categories (together with nonsense
+names). In the instruction phase, the agent must then pick up a
+different and unseen exemplar from one of these three new categories
+as instructed. As shown in Figure *REF* when trained as
+described previously, the agent achieves around 55% accuracy on test
+trials, which is above chance (33%) but still a substantial error
+rate. However, this performance can be improved by requiring the agent
+to extend the training object categories as it learns. In this regime,
+three ShapeNet exemplars from distinct classes are encountered by the
+agent in the discovery phase of training episodes, and the instruction
+phase involves different exemplars from the same three classes. When
+trained in this way (which share similarities with matching networks
+*REF* *REF*) performance on extending novel categories increases to 88%.
+
+
+Role of temporal aspect Through ablations we found that both novel
+objects generalization and category extension relied on the agent
+reading multiple values from memory for each query. See
+[A.2] for a discussion of these results, which suggest that the temporal aspect of the agent&apos;s
+experience (and learning from multiple views of the same object) is an
+important driver of generalization.
+
+
+2. [Intrinsic motivation]
+
+
+The default version of the fast-mapping task includes a shaping reward
+to encourage the agent to visit all objects in the room. Without this
+reward, the credit assignment problem of a fast-mapping episode is too
+challenging. However, we found that the DCEM agent was able to solve
+the task without shaping rewards by employing a memory-based algorithm for
+intrinsic motivation (NGU; *REF*). NGU computes a &apos;surprise&apos; score for
+observations by computing its distance to other observations in the
+episodic memory, as described in Appendix [A.4.3.]. The surprise score is
+applied as a reward signal r^NGU^ which is added to the environment
+reward to encourage the agent to seek new experiences. We compared the
+effect of doing this in the DNC and the DCEM agents. For DCEM, the NGU
+computation can be applied to the memory&apos;s keys (language) column, its
+values (vision) column, or both. In the former case, the agent seeks
+novelty in the language space FORMULA and in the latter, in the visual space. 
+The final reward is FORMULA. As shown in Figure *REF* we found that the DCEM agent (with
+FORMULA) was able to solve the fast-mapping tasks without any shaping reward. This
+was not the case for the DNC agent, presumably because the required signal for &apos;language-novelty&apos;
+is not approximated as well by the surprise score of the merged
+visual-language codes in the episodic memory.
+
+
+3. [Integrating fast and slow learning]
+
+
+To test whether our agents can integrate new information with existing
+lexical (and perceptual and motor) knowledge, we combined a
+fast-mapping task with a more conventional instruction-following task.
+In the discovery phase, the agent must explore to find the names of
+three unfamiliar objects, but in this case the room also contains a
+large box and a large bed, both of which are immovable. The positions
+of all objects and the agent are then re-randomized as before. In the
+instruction phase, the agent is then instructed to put one of the
+three movable objects (chosen at random) on either the bed or in the
+box (again chosen at random). As shown in Figure *REF* if
+the training regime consisted of conventional lifting and putting
+tasks, together with a fast-mapping lifting task and a fast-mapping
+putting task, the agent learned to execute the evaluation trials with
+near-perfect accuracy. Notably, we also found that
+substantially-above-chance performance could be achieved on the
+evaluation trials without needing to train the agent on the evaluation
+task in any form. If we trained the agent on conventional lifting and
+putting tasks, and a fast-mapping task involving lifting only, the
+agent could recombine the knowledge acquired during this training to
+resolve the evaluation trials as a novel (zero-shot) task with
+less-than-perfect but substantially-above-chance accuracy.
+
+
+4. [Results with Another Environment]
+
+
+To verify that the observed effects hold beyond our specific Unity
+environment, we added a new task to the DeepMind Lab suite *REF* Results for this task
+are given in Appendix [A.3.].
+
+
+[Related work]
+
+
+Meta-learning, of the sort observed in our agent, has been applied to
+train matching networks: image classifiers that can assign the
+correct label to a novel image, given a small support set of (image,
+label) pairs that includes the correct target label *REF*. Our work is also inspired
+by *REF* *REF* who propose a more efficient way to integrate a small support set of experience into
+a coherent space of image &apos;concepts&apos; for improved fast learning, and
+*REF* *REF* who show that the successful meta-training of image classifiers can benefit
+substantially from external memory architectures such as Memory
+Networks *REF* *REF* or DNC *REF* *REF*. 
+
+
+FIGURE 6
+
+
+In NLP, meta-learning has been used to train few-shot classifiers for
+various tasks (see *REF* *REF* for a
+recent survey). Meta-learning has also previously been observed in
+reinforcement learning agents trained with conventional
+policy-gradient algorithms *REF*. In Model-Agnostic Meta Learning *REF* models are (meta) trained
+to be easily tunable (by any gradient algorithm) given a small number
+of novel data points. When combined with policygradient algorithms,
+this technique yields fast learning on both 2D navigation and 3D
+locomotion tasks. In cognitive tasks where fast learning is not
+explicitly required, external memories have proven to help
+goal-directed agents *REF* *REF* and can be particularly powerful when combined
+with an observation reconstruction loss *REF* *REF*. 
+
+
+Recent work at the intersection of psychology and machine learning is
+also relevant in that it shows how the noisy, first-person perspective
+of a child can support the acquisition of robust visual categories
+in artificial neural networks *REF* 
+*REF* When deep networks are trained on data recorded
+from children&apos;s head cameras, unsupervised or semi-supervised learning
+objectives can substantially improve the quality of the resulting
+representations *REF* *REF*. 
+
+
+[Conclusion]
+
+
+Our experiments have highlighted various benefits of having an
+explicitly multi-modal episodic memory system. First, mechanisms that
+allow the agent to query its memory in a modality-specific way (either
+within or across modalities) can better allow them to rapidly infer
+and exploit connections between perceptual experience and words, and
+therefore to realize fast-mapping, a notable aspect of human
+learning. Second, external (read-write) memories can achieve better
+performance for the same number of memory &apos;slots&apos; than
+Transformer-based memories. This greater &apos;memoryefficiency&apos; may be
+increasingly important as agents are applied to real-world tasks with
+very long episodic horizons. Third, in cases where it is useful to
+estimate the degree of novelty or &quot;surprise&quot; in the current state of
+the environment (for instance to derive a signal for intrinsic
+motivation), a more informative signal may be obtained by separately
+estimating novelty based on each modality and aggregating the result.
+Finally, an episodic memory system may ultimately be essential for
+fast knowledge consolidation. The potential for memory buffers and
+offline learning processes such as experience replay to support
+knowledge consolidation is not a new idea *REF*. 
+For language learning agents, the need to both rapidly acquire and 
+retain multi-modal knowledge may further motivate explicit
+external memories. Retaining in memory visual experiences together
+with aligned (and hopefully pertinent) language (i.e. a dual-coding
+schema) may facilitate something akin to offline &apos;supervised&apos; language
+learning. We leave this possibility for future investigations, which
+we will facilitate by releasing publicly the environments and tasks
+described in this paper.

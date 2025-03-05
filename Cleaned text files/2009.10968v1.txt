@@ -1,0 +1,784 @@
+Hierarchical Affordance Discovery using Intrinsic Motivation
+
+
+Introduction
+
+
+Continuous adaptation to the environment constitutes a key feature of
+the human learning process. It enables humans to learn to interact with
+newly discovered objects, either by reusing and adapting previously
+acquired knowledge or by building new skills more adapted to the
+situation at hand. This competence, named life-long learning, is one of
+the central challenges for service robots to act in our every day
+environment, towards socially assistive robotics and human agent
+interaction.
+
+
+To tackle this, we adopt the approach of developmental robotics. Indeed,
+studying how infants learn and adapt constitutes an essential example of
+life-long learning. It highlights multiple mechanisms involved in this
+learning. Among them, we decide to focus on two in particular: the way
+infants relate what they see to how they may interact with surrounding
+objects; and how they explore and interact with their environment while
+building new skills.
+
+
+The first one, coined since 1979 by Gibson as the concept of affordance
+[*REF*], describes the strong relationship between visual cues and
+possible interactions. Contrarily to classical computer vision, central
+to the notion of affordance are the concepts of embodiment and of motor
+capabilities [*REF*]. For instance, adults
+and infants do not see the same affordances for the same objects because
+they do not have the same body, the same way humans do not perceive the
+same affordances as robots. Such affordances evolve all along the life
+of a person, directly through its interactions with its surroundings.
+
+
+The latter, the capacity that infants have to autonomously explore their
+environment, may be one of the answers of how affordances are learned.
+Indeed, infants use their curiosity to drive their exploration and build
+new skills through it [*REF*]. This capacity, described as
+intrinsic motivation in psychology [*REF*], provides a powerful
+mechanism to learn motor skills such as affordances.
+
+
+In this paper, we focus on combining those two aspects of the human
+learning process: affordances and intrinsic motivation, by proposing a
+robotic framework to learn affordances thanks to active learning. We
+apply it to the case of a mobile robot. Moreover, as we aim at complex
+affordances that might require not only primitive actions but a
+succession of actions to be combined, we use planning to chain actions
+in order to perform task of various difficulty.
+
+
+Related work
+
+
+In this section we review the work related to two aspects of our
+approach: affordances learning and active learning algorithms,
+especially those using intrinsic motivation. We also present
+reinforcement learning methods we compare with later in the article.
+
+
+Affordances learning
+
+
+Many approaches to affordance learning has been developed: the
+traversability affordance for instance, has been studied in different
+works [*REF*; *REF*]. Likewise, the grasp affordance is a
+recurrent topic and various approaches exist to learn it such as
+learning based on visual descriptors or raw image input
+[*REF*; *REF*]. However such methods are not easily generalised
+and tend to focus on one, or a fixed number of specific affordances,
+with no mechanism adapting it to new or more complex affordances.
+
+
+More general approaches, not focusing only on one affordance, have also
+been proposed. Such approaches build and update a list of affordances
+through the robot interactions with its environment. In [*REF*],
+Bayesian Networks are used to learn dependencies between actions,
+effects, and visual properties; a strongly spread definition of
+affordances in robotics. Likewise, [*REF*] also uses a Bayesian approach
+but coupled with a fixed and finite pre-programmed action set to learn
+affordances. In our case, we aim to continual learning of multiple
+affordances through the interaction with its environment. Thus, the
+robot builds itself sensory motor skills using a wide variety of
+actions. The robot can use actions of unbounded length and duration, in
+a continuous action space. In [*REF*], Ugur
+et al. propose a developmental approach of affordance learning. The
+robot learns by stages: simple affordances first and more complex later.
+But they limit their approach to simple affordances with no multi-object
+interaction possible. In all of those methods above, the approach is
+limited to a single scene and to a single object interaction at a time,
+guiding the robot exploration without letting it choose autonomously.
+Furthermore, the considered setups usually focus on fixed robot with an
+end-point manipulator, while in our case we decide to consider a mobile
+robot, using its mobility to explore its surroundings by itself and
+choosing which object to interact with.
+
+
+Active motor learning
+
+
+Central to Gibson&apos;s theory is the notion that the motor capabilities of
+the agent dramatically influence perception. Therefore affordance is
+closely linked to motor learning. In recent years, multiple approaches
+have emerged for active motor learning. For instance, several methods
+exist to learn forward and inverse models, map motor policies to
+sensorimotor outcomes; as formalised by
+[*REF*; *REF*]. However, as the dimensionality of
+the spaces considered increase, the learner faces the curse of
+dimensionality [*REF*] and no comprehensive method is possible.
+
+
+Developmental methods, inspired by how infants explore and learn, have
+also been proposed to tackle this issue [*REF*].
+Indeed, curiosity has been identified as a key mechanism for exploration
+[*REF*]. Other methods, even further inspired by human psychology
+has been developed [*REF*], using goal-babbling
+mechanism to generate goals and drive their exploration.
+
+
+More recently, methods using intrinsic motivation to build a hierarchy
+of interrelated skills has been proposed. Firstly by using a
+pre-programmed and static hierarchy [*REF*], then by learning
+it through exploration for robotic arms [*REF*] or mobile robots
+[*REF*]. The latter provides an algorithm, CHIME, that uses intrinsic
+motivation to guide its exploration. It is capable of adaptive addition
+and modification of a skill hierarchy based on its interactions. It may
+also plan of sequence of actions to perform complex tasks.
+
+
+Reinforcement learning
+
+
+In other domains, such as reinforcement learning, numerous methods have
+emerged to tackle solving daily tasks, using either classical
+approaches, such as Q-Learning or more recent neural network based ones:
+DQN [*REF*] or Actor Critic algorithm [*REF*]. But
+such methods differ from our approach as they are designed to tackle
+specific tasks, defined by a reward function that need to be provided to
+the learner. For a more general approach of reinforcement learning
+methods, Universal Value Function Approximators [*REF*] have been
+proposed: the task goal is this time learned as an environmental state
+instead of being fixed. This lets the learned value function to be more
+general and applicable to various goals. Closer to our approach, the
+CURIOUS algorithm has been proposed, combining deep reinforcement
+learning and intrinsic motivation to generate goals to explore [*REF*].
+
+
+We decide to base our proposition on the CHIME algorithm and adapt their
+learning algorithm to the affordance learning problem by using
+sensorimotor features. Whereas in [*REF*], CHIME could not generalise
+its skills to new objects, our algorithm is capable to generalise to new
+objects, as its learning is based on sensory features.
+
+
+Proposition
+
+
+Before describing our method, we first present the experiment and
+formalise the learning problem.
+
+
+Setup 
+
+
+The experimental setup used in this article is presented in Figure [1].
+
+
+FIGURE
+
+
+A mobile robot, equipped with two controllable wheels is placed in a
+rectangular room. It is surrounded by multiple objects and possesses a
+LIDAR sensor, helping it to detect obstacles. It can navigate between
+them or learn to push them. The robot starts with a limited prior
+knowledge:
+- how many effectors it possesses, in this case its 2 wheels,
+- a method to perform actions on its effectors. In our case, the
+method lists indexes of the effectors to activate and the action
+parameters *MATH* representing the intensity of the
+current to apply to each wheel.
+- a list of the objects present in the room. We consider 9 cylinders
+in our setup, of various sizes and colors. The green objects are
+pushables whereas the red ones are not.
+- a method to observe the properties of each of the objects (including
+the robot itself). The properties used in our experiment are:
+position, shape, radius, height, color, and the position relative to
+the robot. A pushable object requires more torque to be moved as its
+radius and height increase.
+
+
+With this knowledge, the robot has to autonomously explore its
+environment and learn how to perform various tasks: moving itself,
+placing an object somewhere, pushing an object using another one. It
+also has to learn affordances corresponding to such tasks and to be able
+to recognise (or estimate) objects on which an affordance may apply or
+not. E.g. the pushability affordance cannot be applied to red objects,
+as those are fixed.
+
+
+The robot explores the room in episodes of arbitrary length of 100
+actions. At the beginning of each episode, the position and properties
+of the objects are initialised at random values and the robot always
+starts at the center of the room.
+
+
+In real life operation, the robot can extract this information and
+properties from its sensors. It our case, the real life system can use
+an RGB-D sensor to segmentate objects and an variational autoencoder to
+extract properties from each of them. All the acquired data are used to
+fill in an environmental map, used in turn to provide data to the
+learning algorithm described in this article. To keep this system simple
+and avoid multiplying the source of errors, this article focuses only on
+the learning algorithm, with direct access to high-level data.
+
+
+Problem formalization
+
+
+Let us consider a robot interacting with its non-rewarding environment
+by performing sequences of motions of unbounded length in order to
+induce changes in its surroundings.
+
+
+Each one of these motions is a primitive action described by a
+parametrised function with *MATH* parameters: *MATH*. Each primitive action *MATH* 
+corresponds to a command that may be sent to one or several actuators of the robot.
+
+
+Our robot can perform sequences of primitive actions. Such sequence may
+be of any length *MATH*, and described by *MATH* successive
+primitive actions: *MATH*. Thus the
+primitive action space exploitable by the robot is a continuous space of
+infinite dimensionality *MATH*.
+
+
+Each of the actions performed by the robot may have consequences on the
+environment, observable by the robot. We call such consequences
+observations and note them *MATH*.
+
+
+Each subspace of *MATH* is related to a given property of an object
+*MATH* present in the environment (e.g. the position of an
+object). We consider this relation known to the robot, as such knowledge
+is required to build an affordance. This is a weak assumption as such
+information may be extracted from visual segmentation or by exploiting
+data from a semantic map. In our case, such data are directly given by
+the simulator itself.
+
+
+Formalization of our approach
+
+
+To learn how to interact with its environment, the robot learns models
+of relations between primitive actions *MATH* and outcomes
+*MATH* (relative observations before and after executing an
+action) obtained after performing this action within a given context
+*MATH* (absolute state before executing the action,
+for more convenience we indicate with *MATH* the context spaces to
+differentiate them from outcome spaces).
+
+
+For convenience, we define the controllable ensemble *MATH*, regrouping both
+primitive actions *MATH* and observables that may be
+controlled (*MATH*), i.e. that a model may be used
+to find one or a sequence of primitive actions to be performed in order
+to induce a value for the given observable. *MATH* is a
+subset of *MATH* and this set changes dynamically as the robot
+discovers new control models.
+
+
+More generally, the robot may learn models between controllables
+*MATH* (not only primitive actions) and relative
+observations within a given context. Indeed, our robot may learn how to
+reach a goal observation value by first inducing a change in another
+observable of the environment. E.g. pushing an object can be performed
+after reaching the object.
+
+
+To formalise affordances we use two elements. First we note an
+Affordance model *MATH*, where *MATH* is the input space of the
+affordance, *MATH* is the output space and *MATH* is its context space. And, secondly,
+to visually identify this affordance, we associate *MATH* with a visual
+predictor *MATH*. It learns on *MATH* and indicates whether *MATH* may be
+applied to an object *MATH* in the scene or not, accordingly to its visual
+or physical properties. Moreover, to be able to learn how to use the
+affordance to complete tasks, *MATH* possesses a forward model *MATH* and an
+inverse model *MATH*. Both models learn the relationship between
+*MATH* and *MATH* knowing a context *MATH*.
+The forward model is used to predict the observable consequences
+*MATH* of a controllable *MATH* in a given context *MATH*.
+Conversely, the inverse model is used to estimate a controllable *MATH* 
+to be performed in a given context *MATH* to induce a goal
+observable state *MATH* as a result of *MATH*. These models are trained
+on the data acquired by the robot all along its life and recorded in its
+dataset. Let us note *MATH* this dataset.
+
+
+Each affordance *MATH* can be seen as a basic skill, letting the robot
+perform a given simple task, e.g. reaching a position, placing an object
+somewhere.
+
+
+Let us note *MATH* the ensemble of the affordances used by our
+robot. As our robot aimed to be adaptive, *MATH* varies along
+time.
+
+
+Algorithm
+
+
+For our robot to learn to associate a sequence of primitive actions
+*MATH* to desired consequences on multiple objects in its
+environment, our robot needs to learn which consequences *MATH* can be
+observed and learn the control actions to realise these consequences.
+For this learning problem, we propose an algorithm in this section. We
+first introduce its global architecture before detailing its key
+processes: how intrinsic motivation drives the exploration, how actions
+are executed and finally how affordance models are built and updated.
+
+
+Global architecture
+
+
+Our algorithm is based on the CHIME algorithm [*REF*]. Both are
+iterative and active learning algorithm that learn by episodes, but
+unlike CHIME our algorithm is designed to consider visual properties
+during its learning process.
+
+
+The global layout of the algorithm architecture is presented in Figure
+[2] and the corresponding pseudo code can be
+seen on Algorithm. At the beginning of the learning, the dataset
+*MATH* and the affordance hierarchy *MATH* are both empty:
+the robot autonomously collects data and creates affordances.
+
+
+FIGURE
+
+
+At each episode, the robot explores its environment by performing
+actions, observes the context and the outcomes obtained and processes
+the acquired data. One episode is composed of multiple iterations, and
+at each iteration one primitive action is performed.
+
+
+Starting an episode, the robot decides either to explore a random action
+(l.), or to use goal babbling to generate a goal to attain during the episode (l.). 
+This decision is stochastic, based on a
+parameter *MATH*, and it also depends on whether interesting goals may
+be generated or not. E.g. at the first episode, no data has been
+acquired yet and thus only a random action may be performed.
+
+
+When choosing a random action, the robot generates a random controllable
+to be tested *MATH* among all the controllable spaces
+(including the primitive actions). If required, this controllable is
+then converted to an executable primitive action, as only primitive
+actions may be performed by the robot effectors. This process is
+described in Section.
+
+
+When choosing to generate a goal, an affordance *MATH* and a goal
+*MATH* are selected, based on an interest metric detailed later in
+section [4.2]. The robot next decides on which object this goal will be tested.
+Currently it just selects the closest object considered as valid by the
+affordance visual classifier *MATH*. The robot then uses its inverse
+models and its planning system to infer a sequence of controllables
+*MATH* to be performed in order to reach *MATH*. Once
+again, these controllables are broken down into executable primitive
+actions, if required, using the same process as previously.
+
+
+In both cases, the robot generates a sequence of primitive actions
+*MATH* of length *MATH*. This
+corresponds to a random action or to a sequence of actions designed to
+reach a generated goal *MATH*. These actions are then executed by
+the robot (l.): for each sub primitive action *MATH*, the
+absolute value of each observable space is first recorded (corresponding
+to the context of the subaction), *MATH* is then performed and the
+difference for each observable space (compared to before the execution)
+is retrieved.
+
+
+After finishing an episode, the robot obtains a list of
+*MATH* for each iteration. Where *MATH* corresponds to the iteration index and *MATH* 
+to the number of subspaces of *MATH*. These data are then stored in
+*MATH* (l.). It is also processed and used to improve
+existing affordances (l.), decide whether creating a new affordance
+is necessary or not, and update the intrinsic motivation system. These
+different processes are described in the following sub sections.
+
+
+ALGORITHM
+
+
+Intrinsic motivation 
+
+
+This algorithm uses intrinsic motivation to guide its exploration. It is
+based on the CHIME algorithm [*REF*], itself inspired by the SAGG-RIAC
+algorithm [*REF*].
+
+
+For each affordance *MATH*, the system creates an interest map: a partition of *MATH* that is
+constructed incrementally based on progress measures as described in
+[*REF*]. The goal of this process is to divide
+*MATH* into regions and attribute a value of interest to each
+region. This interest corresponds to a monitoring of how much exploring
+this region may improve the robot knowledge in the future.
+
+
+This measure is linked to a notion of competence. In our case, we
+define the competence of an affordance *MATH* near a goal
+*MATH* as *MATH* for the *MATH* last
+outcomes near *MATH*. *MATH* corresponds to an outcome goal
+estimated by the algorithm for a given controllable *MATH* and *MATH* 
+to the effective outcome reached during the exploration.
+
+
+The derivative of this competence is used to define a learning
+progress: how much an affordance model has been improved. And the
+interest value of a region then corresponds to the mean of the last
+*MATH* learning progresses in this region.
+
+
+More details about this process and the region splitting mechanism may
+be found in [*REF*] and in [*REF*].
+
+
+Action and controllable execution []
+
+
+To perform sequence of controllables *MATH*, our algorithm uses the same
+system as CHIME. For each element *MATH* of *MATH*:
+- if the sub-controllable to be performed *MATH* is a primitive action,
+it is directly sent to the effectors and executed without any
+pre-processing
+- in the other case, if *MATH* is not a primitive action, it
+corresponds to an observable the robot wants to induce within its
+environment, i.e. *MATH* but *MATH*. Then it cannot be directly executed
+by the effectors of the robot and it needs to be broken down into
+primitive actions beforehand. An affordance *MATH* is then selected 
+(with *MATH*) and its inverse model is applied onto
+*MATH* in order to obtain a lower level controllable
+*MATH*. If *MATH* is difficult to reach using only
+one lower level controllable, a planning phase is used to build a
+sequence of element of *MATH* in order to reach *MATH* when
+executed. Once again for each element of this newly created
+sequence, if it is not primitive the same mechanism is applied
+recursively on it until having only primitive actions.
+
+
+At the end of this mechanism, we obtain a list
+*MATH* composed only of primitive actions that
+can be executed directly.
+
+
+Additional information can be found in [*REF*].
+
+
+Affordance addition and update
+
+
+The CHIME algorithm has been designed to autonomously learn model of
+data. We diverge from it to autonomously learn affordances instead. In
+this section we present how affordances are added to *MATH* and
+updated.
+
+
+At each episode, the robot has to decide multiple elements: whether a
+new affordance must be added or if existing affordances are enough; how
+to train the visual classifiers of affordances and if affordances need
+to be updated.
+
+
+To answer those questions, the robot follows the procedure presented on Algorithm.
+
+
+At the end of each episode, subspaces of *MATH* for which non null
+relative outcomes *MATH* has been observed are listed. Then the robot
+randomly picks a space among this list and verifies if it matches an
+existing affordance. A space matches an affordance if adding the data
+from this space to the training set of the affordance does not reduce
+its competence. If not matching, it tries to add context spaces to the
+affordance or then tries to create a new affordance. The predictor *MATH* 
+is afterwards trained on the acquired data (positive or negative).
+
+
+The predictor *MATH* used in our system is a binary neural network
+composed of 3 fully connected layers using as input all the properties
+of the object *MATH* currently considered. It is trained using action
+replay on balanced data (objects on which the *MATH* is applicable and the
+others).
+
+
+ALGORITHM
+
+
+Performance of our algorithm
+
+
+We used our experimental setup to perform three series of tests:
+- firstly, evaluating our system itself, which affordances are
+created, and when;
+- then, comparing the task performance of our system compared to
+CHIME;
+- finally, comparing our system to other reinforcement learning
+approaches.
+
+
+Evaluation method
+
+
+To measure the performance of our (or other) algorithm at completing
+tasks, we define an evaluation metric as follows: for each task, we
+pre-define a list of points (robot position or object position) to be
+reached. Then, during evaluation, the system attempts to reach each
+point in the simulator and *MATH* the mean error at reaching those points
+is defined as the evaluation of this task.
+
+
+Affordances learning
+
+
+In our first test, we let the robot explore the environment presented in [3.1].
+This environment is simulated in python using a 2D physics engine
+named pymunk.
+
+
+We perform 10 runs, letting the robot autonomous during 4000 iterations
+and we report the mean results.
+
+
+FIGURE
+
+
+At the end of its exploration, we observe the affordances created and
+their evaluation, as presented in Figure [3].
+The robot has successfully discovered multiple affordances, we count 12
+at the end for the majority of runs. Among them, 3 where expected:
+- *MATH*: moving the robot itself,
+- *MATH*: pushing an object by moving the robot and
+- *MATH*: pushing an object using another object.
+
+
+The other affordances discovered are unintended, but still valid: they
+correspond to unexpected correlations the robot has found between
+various spaces. In our analysis we focus on the first 3 affordances
+mentioned above.
+
+
+Even in this simple environment, the algorithm has managed to create a
+hierarchy of interrelated skills: *MATH* depending on *MATH* to be
+completed, itself depending on *MATH*.
+
+
+More than just the final number of affordances, it is interesting to
+observe the creations, deletions and updates of affordances all along
+the exploration.
+
+
+Concerning the affordance *MATH*, we can see in Figure [4]
+(top) that the affordance is created since iteration t=25. At the moment
+of the discovery of this affordance, the model created by the robot does
+not take as input any context space. As no walls or obstacles have been
+encountered yet the robot thinks the movement of the robot only depends
+on its wheels speed. At iteration t=150 the affordance is updated and
+the relative position between an object and the robot is added as
+context space. A wrong assumption but coherent with the data acquired so
+far. Then quickly, at iteration 175, this context space is replaced with
+the robot LIDAR space and kept as such until the end. No physical
+properties is used here as a context space, this is due to the fact that
+the robot is the only object using this affordance.
+
+
+The results of *MATH* in Figure [4]
+(bottom) show that this affordance is created much later than *MATH*.
+This is explained by the fact that the robot has first to collide with
+an object to discover how to push objects directly with its body. The
+first occurrence of such collision was around t=500 iterations on
+average. Here again, the context space of the affordance has evolved
+during the exploration and has finally converged to the relative
+position between the object and the robot. At the difference of *MATH*, 2
+physical properties are here added as context spaces of this affordance:
+the radius and the height of the object at hand. As the pushability of
+each object depends on these two physical properties it is normal to see
+them appear here, and this confirm that our algorithm has well captured
+the dependency to such properties.
+
+
+Once *MATH* has been created, its visual classifier *MATH* is also
+created and trained to identify to which object *MATH* may be applied or
+not. At the end of the 4000 iterations, we use *MATH* to check its
+prediction for each object in the room including the robot itself: it is
+positive for all the green objects and negative for the robot. This is
+expected as the robot cannot push itself neither it can push fixed red
+objects. Hence, our algorithm has successfully managed to construct both
+a model affordance and the corresponding visual classifier.
+
+
+For *MATH*, *MATH* and *MATH*, the affordances are created directly as soon
+as collected data permit it. This behaviour is desired and due to a low
+affordance creation threshold *MATH*. This favours
+exploration of newly discovered spaces and regions: indeed, with a low
+threshold value, affordances are easily created and a goal may be
+generated to explore them. If the exploration then points out that it is
+a false positive, that affordance is destroyed. On the contrary if the
+exploration confirms it as a valid affordance, active learning continues
+to gradually collect new data to increase the robot&apos;s competence for
+this affordance.
+
+
+FIGURE 
+
+
+Random and Goal Babbling impact
+
+
+To further analyse our algorithm we decided to test two extreme
+situations: one with only random action exploration; and another one
+using only goal babbling whenever possible.
+
+
+The first case favours novelty and discovery: the rate of affordance
+addition is high, but the exploration and the mastering of the already
+discovered affordance is delayed. In Figure [3] we
+can see that the competence curve for *MATH* requires more time to
+converge than in the previous test.
+
+
+At the opposite, using only goal babbling whenever available, the number
+of affordances discovered is greatly reduced, and focused at the
+beginning of the exploration. In this configuration, *MATH* is discovered
+later compared to the previous configuration.
+
+
+Comparison with other approaches
+
+
+We compare our approach to baselines belonging to two different
+families: firstly to reinforcement learning algorithms on similar
+setups. Secondly, we compare it to affordance learning algorithms. But
+to our knowledge such methods do not focus on mobile robot and are thus
+evaluated on experimental setups significantly different from ours.
+
+
+Reinforcement learning
+
+
+As we want to compare our algorithm to existing ones on the same setup,
+we choose to use classical reinforcement learning algorithms such as
+Q-Learning, DQN (Deep Q-Network) and Actor Critic in our experimental
+setup. As they are not designed for multi-task learning and require an
+extrinsic reward, some setup modifications have been made to enable
+these algorithms to learn in our setup: we limited the experiment to one
+object at a time (except for *MATH*) and added a reward function to
+provide a feedback. Unlike our method, where the exploration is
+self-guided, the desired behaviours or tasks to be completed with these
+algorithms must be explicited through the reward function. We test these
+algorithms on 3 increasingly difficult tasks: moving the robot, pushing
+an object directly and then by using another object as a tool. To match
+the general aspect of our algorithm, we use Universal Value Function
+Approximators [*REF*] for these three algorithms in order to learn
+how to reach various goals. We use 2 different kinds of reward function
+for each setup: SETUP.
+
+
+In addition to these algorithms, we also compare ours to CURIOUS, a
+reinforcement learning algorithm using intrinsic motivation for
+exploration. We base its reward on the non-guided version.
+
+
+When required, *MATH* has been discretised uniformly. Actions have
+also been discretised into 4 when needed: forward, backward, turning
+left, turning right. When reaching the zone or after 1000 iterations the
+episode ends, the setup is reset and the robot is randomly placed inside
+the room.
+
+
+We perform 10 runs over 50000 iterations for each task, reward function
+and algorithm and report the result in Figure [5].
+
+
+For the first task (top), we can see that all the algorithms succeed in
+10000 to 20000 iterations. With our algorithm, moving the robot is
+mastered as soon as 250 iterations. The difference mainly comes from the
+use of planning in our case. It lets the robot reach distant spots even
+with such a few exploration done.
+
+
+For the second task (middle), only the guided version are successful,
+requiring between 12500 and 26000 iterations to be learned. The
+non-guided versions fail because of the combinatorial explosion of all
+the states involved and the difficulty to reach the final goal. In our
+case this task is learned within 1000 iterations.
+
+
+For the most complex task (bottom), only CURIOUS and our algorithm
+manage to succeed, CURIOUS reaches a competence of 0.96 using 32000
+iterations. The other algorithms, even using the guided rewards, fail
+due to the complexity of the task at hand. Our algorithm only requires
+2100 iterations to reach the final level of competence of CURIOUS.
+
+
+For all the examples above, as we use UVFA, the Q-Learning is highly
+dependent to the number of goal it has to explore (as each goal
+corresponds to a different state). Thus, this adds another prior (in
+addition to the reward function) that is not required with our
+algorithm.
+
+
+FIGURE
+
+
+Affordance learning
+
+
+As the majority of works in affordance learning uses robot arms to
+manipulate objects and not mobile robot, experimental setups are
+difficult to compare. Thus, we decide to provide a qualitative
+comparison between our approach and existing affordance learning ones.
+We analyse the learning process reported for the subsequent affordances
+in these different setups.
+
+
+In [*REF*], the system extracts pre-programmed controllables from the considered
+objects, like in our algorithm, then discretises them and clusterises
+them. It then builds a dependency graph that encompasses visual
+controllables, performed action and the action context. In our case, the
+information contained in this graph are all included in our models and
+visual classifiers. Thus, our system is capable to build the same
+affordances. Conversely, the pre-programmed actions in [*REF*] are in
+our case autonomously learned by the robot, requiring less prior
+information and adding more flexibility. In both cases, the temporal
+aspect of sequences of actions is not learned, but in our algorithm, the
+planning layer automatically creates successive sequences, based on the
+models learned.
+
+
+On the contrary, in [*REF*], the system builds a hierarchy of
+affordances like in our proposition. This time intrinsic motivation is
+used to select which action to execute within a finite set of
+pre-defined low level actions. Whereas in our system, the robot manages
+to learn primitive actions in a continuous space, and is capable to use
+sequences of actions by chaining primitive actions.
+
+
+Conclusion
+
+
+For affordances learning, we have presented an algorithm combining the
+affordances concept and intrinsic motivation exploration. It allows a
+robot to autonomously discover unknown affordances and learn actions to
+exploit them. The learning is based on active learning to collect data
+through new interactions with the environment, guided by the heuristics
+of intrinsic motivation; Once learned, these affordance control models
+are used to plan complex tasks with known or unknown objects, by using
+their physical properties to decide whether or not a learned affordance
+may be applied.
+
+
+Our main contribution in this article is to propose a learning algorithm
+for multiple objects based on physical properties so as to generalise to
+new objects. We have shown that it can discover in a developmental
+manner non-predefined affordances from the easiest to the most complex
+ones, and can use unbounded sequences of learned actions to complete
+complex tasks. We have compared our algorithm to others to outline two
+main properties: the hierarchical and developmental learning process,
+as well as the capacity to use sequences of actions to adapt to the
+complexity of the task at hand.
+
+
+This algorithm broadly relies on the concept of embodiment and is
+strongly inspired by human development from this point of view; for both
+the affordance aspect and the intrinsic motivation one.
+
+
+In future works we want to deepen the comparison with existing methods
+by considering similar setups, and thus applying our algorithm onto
+robotic arms. Also, we aim for a more complete system, including a
+mechanism for visual feature extraction in order to provide inputs for
+our algorithm.
