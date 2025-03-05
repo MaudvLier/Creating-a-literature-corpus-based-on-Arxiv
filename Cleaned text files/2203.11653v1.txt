@@ -1,0 +1,463 @@
+Transferring Multi-Agent Reinforcement Learning Policies for Autonomous Driving using Sim-to-Real
+
+
+INTRODUCTION
+
+
+Coordination of Autonomous Vehicles (AVs) in traffic is a hard problem
+with a non-trivial optimization objective. On the one hand, rule-based
+policies can provide acceptable solutions to specific and
+heavily-simplified situations, but cannot possibly cover all scenarios
+that can happen in the real world [*MATH*], and require manual
+crafting of the rules. Moreover, rule-based methods cannot achieve
+effective coordination between agents and cannot adapt to changing
+environments. On the other hand, multi-agent learning algorithms can
+achieve effective agent-agent coordination and can potentially explore a
+great number of different environment configurations.
+
+
+Multi-Agent Deep Reinforcement Learning (MARL) is potentially a powerful
+scalable framework for developing control policies for AVs. MARL uses
+Deep Neural Networks to represent complex value functions or agents
+policies that would otherwise require specific hand-crafted rules.
+However, MARL cannot be trained in live Autonomous Driving systems due
+to safety concerns [*REF*; *REF*]. Furthermore,
+these algorithms must be trained using thousands or even millions of
+steps, which cannot be achieved in the real world. Therefore, MARL
+algorithms must be trained in simulation environments, and then the
+policies can be transferred to the real system.
+
+
+FIGURE
+
+
+Simulations have been an essential tool in the field of reinforcement
+learning, providing a flexible environment to train and test new
+algorithmic developments efficiently. However, the performance of
+policies trained in simulation is not likely to be replicated in the
+real world. The difference between a simulated environment and its real
+counterpart is called reality gap [*REF*],
+and is usually observed through the overfitting of the learned policy to
+the unique characteristics of the simulations.
+
+
+The reality gap can become even larger for multi-agent systems, such
+as those involving AVs. These systems introduce additional complexities
+to the Sim-to-Real problem, such as agent collaboration, environment
+synchronization and limited agent perception. Little work has been done
+on bridging the gap between simulation and reality in multi-AV systems.
+Attempts have been made to make MARL more robust to uncertainty
+[*REF*; *REF*], although these methods have not been tested
+in the real world. Therefore, in this study, we propose a method to
+train multi-AV driving policies in simulation and effectively transfer
+them to reality. For this purpose, we present a multi-agent autonomous
+driving gym environment that resembles the Duckietown testbed
+[*REF*], which consists of small differential drive robots with
+two conventional wheels and a passive caster wheel. We then train
+different multi-agent policies in simulation and transfer them to the
+Duckietown using Domain Randomization
+[*REF*]. We compare the method against a
+traditional rule-based method on a case study with 3 agents and 3
+stationary vehicles which act as obstacles, and show the benefit of
+training policies with domain randomization when transferring them to
+reality.
+
+
+The rest of this paper is structured as follows. Section
+[2] presents the background and related work.
+Section [3] proposes the methodology including the MARL
+modeling framework, the Duckietown testbed, the gym environment and the
+Sim-to-Real transfer mechanism. Section
+[4] presents the main results and Section [5] concludes with insights to future work.
+
+
+RELATED WORK 
+
+
+Multi-Agent Learning for Autonomous Vehicles
+
+
+A taxonomy for multi-agent learning in Autonomous Driving was presented
+in [*REF*], consisting of five levels, where the first level M0
+represents rule-based planning with no learning, and the last level
+M5 represents agents with a high degree of forward-planning, working
+to optimize the Price of Anarchy of the overall traffic scenario
+[*REF*; *REF*]. Most multi-agent learning paradigms find it
+difficult to reach level M5, as most traffic scenarios would be
+cataloged as massive multi-agent games. Fortunately, a significant
+amount of algorithms fit either in M3, allowing agents to behave and
+expect in return partially cooperative behavior [*REF*], and
+M4, where a local Nash equilibrium is achieved through the grouping
+of agents [*REF*].
+
+
+A few studies have addressed multi-AV problems using MARL. [*REF*]
+proposed an open-source MARL simulation platform, that includes several
+traffic scenarios with the possibility of choosing different AV
+controllers, environment configurations and MARL algorithms. Similarly,
+[*REF*] presented MACAD-gym, an Autonomous Driving
+multi-agent platform based on the CARLA [*REF*] simulator.
+[*REF*] modeled the multi-agent problem as a graph and used
+Graph Neural Networks in combination with Deep Q Network to control
+lane-changing decisions in environments with multiple Connected
+Autonomous Vehicles (CAVs).
+
+
+Sim-to-Real
+
+
+To bridge the gap between simulation and reality, known as reality
+gap, various domain-adaptation approaches have been developed
+[*REF*]. To this date, the area with the highest amount of
+contributions in Sim-to-real is robotic manipulation. The methods that
+have been used include imitation learning, data augmentation and real
+world reinforcement learning. The latter-most case is the most difficult
+one to replicate due to lack of resources, safety concerns and
+difficulty in resetting training runs. There are simple ways of
+automating the reset in real world robotic manipulation
+[*REF*], or to continue training efficiently without resetting
+[*REF*; *REF*]. However, in the case of AVs, human interference
+is needed in order to reset the environment or to prevent catastrophic
+events. Therefore, most of the techniques used in robotic manipulation
+are impractical to adapt to environments with AVs.
+
+
+For AV scenarios, [*REF*] proposed ModEL, a modular infrastructure
+which considered perception, planning and control, each being trained
+using reinforcement learning. They used vision as the agent&apos;s main
+sensorial perception, and the CARLA simulator [*REF*] during training
+for data augmentation and domain generalization, in order to improve
+overall agent robustness.
+
+
+Furthermore, in the case of multi-agent systems, there are more reality
+gaps compared to single-agent settings. Three significant gaps have been
+reported in [*REF*]: the control architecture gap, which relates to
+the tendency of simulators to synchronize the actions of all agents at
+each time step; the observation gap, which relates to the limited
+perception of agents in scaled-out environments; and the communication
+gap which, similar to the previous one, relates to the highly limited
+and inconsistent communication which in multi-agent systems. Given
+traditional methods of software simulation, the aforementioned gaps are
+non-trivial to overcome, even with a redesign of the simulation itself.
+The study suggests that more robust modeling of the interaction between
+agents would be more beneficial. [*REF*] proposed a method called Agent
+Decentralized Organization (ADO), which encourages agents to share a
+board of information provided at certain time frames, without the
+necessity for the information to be complete or up to date.
+
+
+Although research in Sim-to-Real for AV learning is extensive, the main
+focus of the literature is generalizability over diverse environments,
+not different actors. This can make progress in the literature slower,
+since the hardware is usually significantly different and not open
+source. Thankfully, there are attempts to standardize the research
+hardware, with open source sets like Duckietown [*REF*] and
+DeepRacer [*REF*], which ensure that more prior research becomes
+easier to reproduce consistently. However, practically no study has
+focused on transferring multi-agent policies for autonomous driving to
+the real world.
+
+
+METHODOLOGY 
+
+
+Multi-Agent Deep Reinforcement Learning
+
+
+The MARL problem can be modeled as a Decentralized Partially Observable
+MDP (Dec-POMDP), which can be defined by the tuple *MATH*, where *MATH* is a finite
+set of agents, *MATH* is the set of states, *MATH* is the set of actions for
+agent *MATH*, *MATH* is the transition function, *MATH* is the reward function,
+*MATH* is the set of observations for agent *MATH* and *MATH* 
+is the set of observation probabilities. The goal of Dec-POMPD is to
+find the joint optimal policy *MATH* that maximizes the expected
+return.
+
+
+Multi-Agent Proximal Policy Optimization (MAPPO):
+
+
+MAPPO [*REF*] is an extension of the Proximal Policy Optimization
+algorithm to the multi-agent setting. As an on-policy method, it can be
+less sample efficient than off-policy methods such as MADDPG
+[*REF*] and QMIX [*REF*]. Despite this fact, MAPPO
+has been found to be a strong method for cooperative environments,
+outperforming state-of-the-art off-policy methods and achieving similar
+sample efficiency in practice. In addition, knowledge of prior states
+gets recalled through the usage of recurrent neural networks (RNNs) for
+the actor and critic networks.
+
+
+The architecture of MAPPO consists of two separate networks: an actor
+and a critic network. The actor network uses the observation of each
+agent, while the critic network observes the whole global state.
+Therefore, it is directly related to the Centralized Training
+Decentralized Execution (CTDE) paradigm. The centralized critic can
+foster cooperation among agents during training, but during execution
+agents&apos; policies (actors) are implemented in a decentralized way. We
+assume that all agents share both networks for simplicity, even though
+MAPPO allows for different networks for each individual agent.
+
+
+Duckietown testbed
+
+
+Duckietown [*REF*] is a multi-robot testbed that consists of
+several small autonomous robots (Duckiebots) [*REF*] that
+transit inside a city (Duckietown). Each Duckiebot is a differential
+drive vehicle equipped with wheel encoders, a monocular camera, an
+Inertial Measurement Unit (IMU) and a time of flight sensor.
+
+
+For positioning, we use a NaturalPoint OptiTrack MoCap system, with 8
+PrimeX13 cameras tracking at 120 Hz, to obtain the real-time pose of the
+Duckiebots. A unique asymmetric passive marker configuration is used for
+each car, and the system was calibrated to be accurate up to 0.5 mm. The
+3D pose of each car is broadcasted to the simulator through the NatNet
+SDK such that position *MATH* and orientation *MATH* are directly
+obtained after a coordinate transformation, and velocities are
+calculated from applying finite differences to consecutive measurements.
+
+
+Duckietown Multi-Agent Autonomous Driving Environment (Duckie-MAAD)
+
+
+For the purpose of training and evaluating multi-AV policies, we
+introduce a new environment called Duckietown Multi-Agent Autonomous
+Driving Environment (Duckie-MAAD), which is based on the Gym-Duckietown
+environment [*REF*]. The original Gym-Duckietown is a
+single-agent lane-following environment that can be used to test
+different Reinforcement Learning methods. We extend this environment to
+the multi-agent setting and allow agents to take high-level decisions
+based on local observations. The agents (Duckiebots) can move around a
+track, following predefined lane paths and taking decisions to
+accelerate, brake, or change lanes. In addition, each agent can perceive
+nearby agents and objects in the track within a given radius. Based on
+perception, proximity and collision penalties can be assigned to agents,
+as well as a penalty for leaving the track. Although the agents follow a
+path predefined by waypoints, they have to learn to stay inside the
+track, because going too fast will take them off. Figure
+[2] shows a test track with 3 agents (the moving cars) for the Duckie-MAAD
+environment.
+
+
+FIGURE
+
+
+Upon a new environment step, the MAPPO algorithm takes in the
+observations of the agents and outputs a high-level action *MATH* for each
+car. Using this as input, a Path Following logic is implemented that
+determines for each car its next goal waypoint (within a pre-defined
+list that extends along each lane), and calculates the required linear
+and angular velocities *MATH* to reach it. These are passed to
+the differential drive Inverse Kinematics models which produces the left
+and right wheel velocities *MATH* that lead to this motion. Said
+velocities are then either fed to the simulated vehicles, where the pose
+is updated via a Non-linear Dynamics model [*REF*], or to
+the real cars, where the pose is then updated via the OptiTrack MoCap
+system. The new robot poses are then used to calculate the Reward *MATH* 
+and the end of of the step is reached. A detailed diagram illustrating
+this step update in the environment can be found in Figure [3].
+
+
+FIGURE
+
+
+We define the individual elements of the Duckietown Multi-Agent
+Autonomous Driving Environment as follows:
+- Agents *MATH*: Each Duckiebot is treated as an individual agent. All
+agents are independent, have a local observation of the environment
+and obtain a unique reward.
+- Observation *MATH*: The local observation of each Duckiebot is
+composed by the steering angle, the distance to the center of the
+lane, the angle with respect to a tangent to the current lane, local
+distances to the closest Duckiebots in the same and opposite lane,
+their respective longitudinal velocities, and a binary variable that
+shows whether the agent is off the track or not.
+- Action *MATH*: A discrete action space with four high-level possible
+decisions -- accelerate (0.25 *MATH*); brake (0.25 *MATH*);
+change lane; keep previous velocity (no acceleration). In each step
+agents can accelerate, brake, change lane or do nothing.
+- Reward function *MATH*: *MATH*; where *MATH* is the agent&apos;s
+measure velocity (*MATH*), and binary variables *MATH* representing a
+collision, *MATH* capturing if the agent is out of the track, and *MATH* 
+if the agent is changing lanes.
+
+
+Simulation to reality transfer
+
+
+There is a significant gap between the simulation environment and
+reality due to several reasons. First, the agent dynamics within the
+Duckie-MAAD gym environment are based on a dynamical model, which is
+based on various assumptions, such as a symmetrical mass distribution of
+the Duckiebots and that the motors operate in steady-state mode. Second,
+in the simulator, agent steps are performed sequentially according to
+the environment&apos;s internal clock, meanwhile in reality the agents may
+take their own step asynchronously. Third, there are certain
+inaccuracies related to the OptiTrack positioning system. Fourth,
+although all the Duckiebots share the same architecture, in practice
+they all behave differently due to small differences in their individual
+components. All of the above create a significant Sim-to-Real gap that
+must be addressed in order to successfully implement multi-agent
+policies trained in simulation.
+
+
+To tackle this gap, we use domain randomization, which is a technique
+that consists in training a DRL model over a variety of simulated
+environments with randomized parameters. The objective is to train a
+model that can adapt to the real world environment, which is expected to
+be a sample of the space of environments created through the
+randomization procedure.
+
+
+We employ uniform domain randomization of the following parameters
+within the Duckie-MAAD environment:
+- Steering factor (*MATH*)
+- Motor constant (*MATH*) (*MATH*)
+- Gain (*MATH*)
+- Trim (*MATH*)
+- Steering error (*MATH*)
+
+
+RESULTS 
+
+
+To implement and validate the proposed methodology, we made use of the
+Duckietown Multi-Agent Autonomous Driving Environment for first training
+and then testing in simulation various policies. Afterward, experiments
+in real life were conducted following the same goals, rewards and
+settings. The specific environment utilized consisted of 3 agents and 3
+permanently parked cars randomly spawned at the beginning of each
+episode throughout the test track shown in Figure [2].
+Agents had the goal to maximize their reward by going around the track
+as fast as possible while avoiding leaving the bounds of the track and
+colliding with other cars (either parked or other moving agents). A
+minimum speed of 0.1 *MATH* was set for all agents; and a maximum speed
+of 0.3, 0.4 and 0.5 *MATH* for each agent, respectively. Both the
+simulations and real experiments were run at discrete time-steps with a
+frame rate of 10 Hz.
+
+
+We trained three policies using the MAPPO RL method with the following
+parameters:
+- N° episodes for training: *MATH* 
+- N° steps per episode: *MATH* 
+- Learning Rate: *MATH* 
+- Critic Learning Rate: *MATH* 
+- PPO epochs: *MATH* 
+- Entropy coefficient: *MATH* 
+- Actor Network: *MATH* 
+- Critic Network: *MATH* 
+
+
+Each policy was trained using a different level of domain randomization
+(none, medium, high) with the distributions shown in Table [1]. All policies converged after
+approximately 500 episodes, as can be seen in the reward plot in Figure
+[4]. For training, a workstation was used
+with an AMD Ryzen Threadripper 3990x 64-core processor and a NVIDIA RTX
+3090 GPU, which resulted in a training time of approximately 3 hours for
+each policy.
+
+
+TABLE
+
+
+FIGURE
+
+
+As a baseline, we implemented Gipps&apos; lane changing model
+[*REF*] -- which is a commonly used rule-based algorithm for
+describing driving behavior -- and set the safe following distances
+according to the RSS model introduced in [*REF*].
+
+
+The four policies were tested first in the simulated environment and
+then in the Duckietown testbed (real life) to measure and compare their
+performance and transferability to real life. To achieve statistical
+significance and reduce the variance of the average of the metrics to be
+recorded, 30 runs were executed in the simulator and then another 30 in
+real life for each policy, with all cars being randomly spawned at the
+beginning of each run. Each run lasted 400 steps, which granted enough
+time to the agents to go around the track at least once.
+
+
+The average rewards achieved by each policy in the simulated environment
+and real life are presented in Figure [5], where it can be seen that policies
+on average clearly perform worse in reality than in the simulator. This
+is due to the previously discussed reality gap, which in this case is
+significant mainly because of the high unreliability of the Duckiebot
+robots. The rule-based policy performed the worst, as was expected,
+because despite following safety distances, it cannot adapt to other
+agents not precisely following their lanes. The policy trained with MARL
+and no domain randomization achieved the best rewards in simulation, but
+the worst in real life among the MARL-trained policies. Note that,
+despite slightly decreasing the simulated performance, the addition of
+domain randomization improves the rewards in real life. The policy with
+a medium level of domain randomization performed better than the one
+with a high level, because the latter learned to be more conservative,
+as can be appreciated in the following figures. On average, the med D.R.
+policy provides almost twice as large reward as the rule-based method.
+The poor performance of the untrained rule-based algorithm can be used
+as a proxy of the reality gap caused mainly by the unreliability and
+unpredictability of the real Duckiebots.
+
+
+FIGURE
+
+
+To better understand the resulting rewards of the policies, we analyze
+the four aspects that compose the reward function: speed, staying within
+the designated track, collisions, and lane changes. The numerical
+results of both the simulation and real tests are presented in
+[6]. The average speed is the highest for
+the rule-based policy, closely followed by the med D.R. one. The policy
+with the slowest average measured speed is the one with high D.R. --
+confirming that this is the most conservative policy, especially in real
+life. Similarly, for the times an agent goes outside the track bounds,
+the rule-based presents the highest number and the high D.R. the lowest;
+notice that this phenomenon happens mainly in real life and not in the
+simulated environment. For collisions, note that for all three MARL
+policies there are virtually no collisions in simulation, and that the
+policies trained with domain randomization tend to have lower collisions
+compared to the other policies. Finally, the average number of times an
+agent changes lanes is significantly larger in real life compared to
+simulation for policies trained with domain randomization, which can be
+interpreted as the agents choosing to switch lanes more to avoid the
+potential crashes that happen more often in real life.
+
+
+FIGURE
+
+
+CONCLUSIONS 
+
+
+Autonomous Vehicles hold an enormous potential to improve safety and
+efficiency in various fields and applications. However, achieving
+reliable solutions will require solving the hard problem of coordination
+and collaboration of AVs. MARL is a tool that can help solve this
+problem, for it is an optimization-based method that can successfully
+allow agents to learn to collaborate by using shared observations and
+rewards. Nevertheless, the training of policies using MARL and other RL
+methods is usually heavily dependent on accurate simulation
+environments, which is hard to achieve due to reality gaps.
+
+
+We present a method to train policies using MARL and to reduce the
+reality gap when transferring them to the real world via adding domain
+randomization during training, which we show has a significant and
+positive impact in real performance compared to rule-based methods or
+policies trained without different levels of domain randomization.
+
+
+It is important to mention that despite the performance improvements
+observed when using domain randomization, its use presents diminishing
+returns as seen with the overly conservative policy, for it cannot
+completely close the reality gap without increasing the fidelity of
+the simulator. Additionally, the amount of domain randomization to be
+used is case-specific and a theory for the selection of domain
+randomization remains an open question. The quantification and
+description of reality gaps presents another opportunity for future
+research.

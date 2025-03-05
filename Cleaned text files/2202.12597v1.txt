@@ -1,0 +1,620 @@
+Context-Hierarchy Inverse Reinforcement Learning
+
+
+Introduction
+
+
+In inverse reinforcement learning (IRL), we model an agent&apos;s behaviors
+as a Markov decision process (MDP) and learn from expert demonstrations
+a reward function that induces desirable behaviors [*REF*]. Most
+existing IRL methods focus on homogeneous demonstrations to infer one
+explicit reward function to explain the underlying behavior [*REF*; *REF*; *REF*].
+Furthermore, in heterogeneous demonstration settings, the causal
+dependencies over each controlled factor are always
+ignored [*REF*; *REF*]. How do we learn the reward
+function with heterogeneous demonstrations and also maintain the causal
+dependencies over different factors with limited data?
+
+
+Complex agent behaviors are often conditioned on the context, and a
+complex context can be decomposed and organized hierarchically.
+Figure shows two illustrative examples. The first one
+is a self-driving vehicle whose actions depend on the context: traffic
+rules and passenger intentions. Can we pool data from different
+contexts --- e.g., driving on the right side and the left side of the
+road --- and learn from them simultaneously rather than learn in each
+context separately? The second example is the well-known taxi domain for
+hierarchical reinforcement learning [*REF*]. A
+robot taxi navigates to pick up a passenger and navigate to send the
+passenger to a destination. The context represents the various subtasks
+forming the overall passenger delivery task. Two subtasks,
+[Get] and [Put], have the common subtask
+[Nav]. The three subtasks have a causal dependency to finish
+the original task. Generally, different contexts may have commonalities
+and dependencies. How can we exploit the commonalities to share data and
+improve learning performance?
+
+
+FIGURE
+
+
+Context-Hierarchy IRL (CHIRL) is a new IRL algorithm that uses a
+context hierarchy to decompose the reward function and represent it as a
+modular deep neural network (NN). Each node of the context hierarchy is
+associated with a network module. Each path, from the root of the
+hierarchy to a leaf node, specifies a full context, and the network
+modules along the path are composed to form the reward function for the
+context. During the learning process, data sharing across different
+contexts occur naturally through the shared reward modules. To increase
+sharing over different contexts, CHIRL represents the context hierarchy
+as a directed acyclic graph (DAG) instead of a tree. Such DAG structure
+naturally captures the causal dependency over different subtasks and
+enables to inject context dependency prior knowledge into IRL. To our
+best knowledge, this is the first work trying to explicitly make use of
+the prior knowledge of hierarchical tasks with causal dependencies in
+IRL domain.
+
+
+Task and motion planning are the principled approach when solving
+complex tasks [*REF*]. The original task are always
+decoupled into a sequence of \&quot;high-level\&quot; task planning and
+\&quot;low-level\&quot; motion planning, which provides better generalization and
+easy solution. Divide-and-conquer is prevalent in such task
+decomposition. How to properly decouple a complex task into subtasks are
+well-studied in the task and motion planning domain, for example, a very
+complex RoboCup [*REF*]. In this paper, we choose one specific
+task decomposition method, MAXQ [*REF*] to
+demonstrate how CHIRL benefits reward learning by injecting the prior
+task graph as domain knowledge.
+
+
+We evaluated CHIRL on several tasks, including the well-studied taxi
+domain [*REF*] and a large-scale autonomous
+driving task in the CARLA simulator [*REF*], and
+obtained promising results. The main contribution of this work is to
+make use of task decomposition to learn subtask reward to solve the
+original task by injecting the task graph into our reward learning while
+maintaining the task dependencies over subtasks. There are three main
+contributors to the improved learning performance: data sharing across
+contexts, context-specific state abstraction, and subtask sharing.
+
+
+Context-Hierarchy Inverse Reinforcement Learning
+
+
+Preliminaries
+
+
+Maximum Entropy Inverse Reinforcement Learning (MaxEnt IRL) In IRL,
+we model the agent behavior as an MDP
+*MATH*, for state space *MATH*, action
+space  *MATH*, state-transition function *MATH*, and reward function *MATH*. Given
+a state *MATH* and an action *MATH*, the probabilistic
+state-transition function *MATH* specifies the probability distribution of
+the resulting state  *MATH*: *MATH*. The
+state reward function assigns a scalar real value *MATH* for reaching
+state *MATH*. It specifies the desired agent behavior. IRL assumes that the
+agent follows an MDP policy *MATH*,
+which prescribes an action *MATH* at every state
+*MATH* in order to maximize the value, i.e. , the expected total
+reward over time: *MATH* where the expectation is taken over the
+distribution of state sequences *MATH*.
+The constant *MATH* is a discount factor. The standard IRL
+formulation [*REF*] assumes that *MATH*, *MATH*, and *MATH* are all known, and
+we want to learn a reward function *MATH* that induces an MDP solution
+policy matching the behavior and the performance of expert
+demonstrations as well as possible.
+
+
+MAXQ decomposition The MAXQ decomposes a given MDP M into a set of
+distinct sub-MDPs *MATH*, arranged over a
+hierarchical structure, denoted as task graph. Specifically, *MATH* is
+the root subtask (i.e. solving *MATH* solves the original MDP M).
+
+
+An normal subtask *MATH* is defined as a tuple *MATH*, where
+*MATH* is the subtask index and
+-  *MATH* is the termination predicate that defines a set of active
+states, *MATH*, and a set of terminal states, *MATH* for subtask
+*MATH*. The policy can only be executed on the active states, *MATH*.
+Whenever the agent reaches the *MATH*, subtask *MATH* is terminated.
+-  *MATH* is a set of actions that can be performed to complete subtask
+*MATH*, which can either be primitive actions, or macro actions
+referring to other subtasks.
+-  *MATH* is the pseudo-reward for transitions from active states *MATH* 
+to terminal states *MATH*.
+
+
+A parameterized subtask is defined as a tuple *MATH*,
+where *MATH* is the group index and
+-  *MATH* is the shared transitions and actions.
+-  *MATH* is a set of parameters, denoted as context variable values.
+-  *MATH* is the pseudo-reward for transitions from active states *MATH* 
+to terminal states *MATH* given a context *MATH*.
+
+
+Context-Hierarchy IRL
+
+
+In CHIRL, we create one reward function *MATH* for each
+context *MATH* and learn the set *MATH* of all
+context-hierarchy reward functions jointly. To do so, we augment a data
+set of trajectories with context labels. Each element of a trajectory
+*MATH* is a triplet of the form *MATH* for
+*MATH*. We preprocess the trajectories so that each
+trajectory contains only tuples with the same context label, by
+splitting a trajectory into multiple ones if necessary. We then break
+*MATH* into subsets according to the context  *MATH*:
+*MATH*. To learn the context-hierarchy rewards, we maximize the joint likelihood *MATH*.
+We can directly derive the gradient of this objective function.
+Specifically, we use the negative log-likelihood of data *MATH* 
+plus the *MATH* and *MATH* regularizers
+*MATH* over the reward function parameters as the loss function. *MATH* 
+where *MATH* are the coefficient of *MATH* regularizers, *MATH* is the context
+parameters in the *MATH* under the context *MATH*. We further derived the gradient of
+*MATH* w.r.t. reward function *MATH* as
+(Detailed derivations can be found in the appendix): *MATH* where *MATH* is the
+empirical state visitation count, and
+*MATH* is the expected state
+visitation count given current reward *MATH*. Based
+on Equation, the total gradient can be written as: *MATH*.
+
+
+Our reward functions can be represented as neural network modules. It is
+straightforward to perform gradient-based optimization, using the
+backpropagation algorithm. At the same time, it is natural to handle
+large state spaces with neural network reward representation. We define
+the reward as a function of state features *MATH* 
+instead of  *MATH*, where *MATH* is an
+*MATH* -dimensional state feature vector [*REF*], and then we can
+represent a reward function with neural network
+*MATH*, parametrized by a set of parameters, *MATH*.
+
+
+The context labels normally comes from the domain knowledge, it has a
+one-to-one mapping from the original task graph to the context
+hierarchy. We represent a context as a set of factored context variables
+and organize them into a DAG so that different contexts may share
+constituent variables. See Figure a for an example. A node of the DAG
+represents a context variable, and an edge between two nodes represents
+the dependency between the corresponding context variables. There are
+two special types of nodes in the DAG: a dummy root node and dummy leaf
+nodes. A context path goes from the root node to a leaf node. It
+contains a sequence of internal nodes with associated context variables
+that fully specify a context.
+
+
+FIGURE
+
+
+Given a context DAG, we construct a NN representation of the
+context-hierarchy reward function *MATH*.
+For each node of the DAG, we construct an NN module, which could be a
+multi-layer perceptron (MLP), a convolutional neural network (CNN),
+etc.. Let *MATH* be the context variable associated with an internal
+node. The corresponding NN module *MATH* 
+is parametrized by a total of *MATH* parameter sets, one for each
+possible value *MATH* of *MATH*. For example, in
+Figure, the context variable *MATH* may
+represent the traffic rule and has two values: left-hand or right-hand
+driving. So *MATH* has two parameter sets. The dummy root node *MATH* has
+no associated context variable. The corresponding NN module
+*MATH* takes the state feature vector *MATH* directly
+as the input. The dummy leaf nodes have no associated context variables,
+either. For a leaf node *MATH*, *MATH* 
+outputs a final reward value. If there is an edge from node *MATH* to node
+*MATH* in the context DAG, the output of *MATH* is then connected to the input
+of *MATH*. Suppose that *MATH* is a context path, with
+root node *MATH* and leaf node *MATH* and that it
+specifies a context *MATH* with *MATH*.
+We obtain the reward function for *MATH* by concatenating all the NN
+modules along the context path: *MATH*.
+
+
+The context hierarchy and the NN reward representation offer many
+benefits to learning. They allow context-hierarchy reward functions to
+share NN modules across contexts and drastically reduce the number of
+parameters to learn. Consider again the example in
+Figure . Suppose that *MATH*. There are
+*MATH* different contexts in the worst case and thus *MATH* parameter sets if
+we learn the reward for each context independently. In contrast, CHIRL
+learns only *MATH* parameter sets, a
+reduction by two orders of magnitude, by taking advantage of the
+factored NN reward representation, which comes from mostly the benefits
+of task decomposition.
+
+
+Algorithm
+
+
+ALGORITHM
+
+
+The CHIRL algorithm with discounted factor *MATH* is described
+in Algorithm. The whole algorithm iteratively improves the
+learned reward in the outer loop and solves the optimal evaluation given
+the estimated reward in the inner loop. The gradient will guide the
+learned reward to minimize the state visitation difference of the
+induced policy and the expert demonstrations.
+
+
+Related Work
+
+
+Learning from demonstration [*REF*] is a powerful approach
+to intelligent agent behaviors. Instead of learning a policy from the
+demonstrated behaviors, IRL learns the underlying reward function, which
+often leads to better generalization. One key question of IRL is reward
+function representation. Early work represents the reward as a linear
+function of handcrafted features [*REF*; *REF*; *REF*]. Later work
+adopts more powerful nonlinear function approximations, e.g., logical
+conjunction of primitive features [*REF*; *REF*] or
+Gaussian processes [*REF*]. More recent work approximates
+the reward as a deep NN and achieves state-of-the-art results on
+standard benchmark tasks [*REF*; *REF*]. The
+above work, however, treats the reward a single monolithic function with
+little structure.
+
+
+Structured reward representations are beneficial. Ziebart et al.
+propose to learn a reward function parameterized by a context
+variable [*REF*], but no data is shared across the
+contexts during learning. Rothkopf and Ballard propose a modular reward
+function representation as a set of weighted components for learning
+visuomotor behaviors [*REF*]. All components jointly
+contribute to the overall behavior according to the weights, which are
+not conditioned on the context.
+
+
+Hierarchical decomposition is prevalent in planning and reinforcement
+learning (RL) [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+It is, however, much less common in IRL. Krishnan et al. treat a task
+as a Gaussian mixture model and try to learn the subtask
+structure [*REF*], but there is no hierarchical dependency
+among the subtasks.  [*REF*] tries to learn the meta reward
+functions based on a probabilistic context variable, however it doesn&apos;t
+consider any context dependencies.  [*REF*]
+and [*REF*] explored the possibility of extending IRL with
+temporally extended actions. They added the optional framework of
+semi-MDP into the IRL as the structured information for option reward to
+accelerate the learning tasks. However, these approaches are worked with
+only one-level hierarchy. In general, all the existing hierarchical
+approaches try to learn both the latent context and reward in the
+heterogeneous setting. However, we argue in this work, if we have prior
+domain knowledge, designing a framework to inject prior knowledge shares
+more benefits of data sharing, state abstraction and context causal
+dependency.
+
+
+Experiments
+
+
+FIGURE
+
+
+We compared CHIRL with the state-of-the-art tabular IRL with neural
+network reward representations, DeepIRL [*REF*], the
+original MaxEnt [*REF*] and HIRL [*REF*], on
+benchmark tasks (Figure ) of increasing difficulty to show the
+benefits of context-hierarchy. We also compared them in a large-scale
+autonomous driving task in the simulation. The results show that CHIRL
+consistently outperforms baselines. Note that there are other later
+works, AIRL [*REF*] and PEMIRL [*REF*] for
+continuous domain. We currently only consider tabular IRL for its
+simplicity to quantify all the metrics and the inner loop uses value
+iteration [*REF*] to have analytical solution. So we
+compare the corresponding best one in tabular versions. Extending to
+continuous domain is easy by changing the MDP to continuous version,
+which can be considered as an extension to this work.
+
+
+Experimental Setup
+
+
+MaxEnt, DeepIRL, and CHIRL all apply the maximum entropy approach to
+IRL, but differ in the reward function representation. For MaxEnt, the
+reward is a linear function of state features. For DeepIRL, it is a
+nonlinear function represented as a single monolithic neural network.
+CHIRL represents the reward as a network of NN modules, using the
+context hierarchy. HIRL is a variant of original HIRL, since original
+HIRL doesn&apos;t have the context label as input. Here, we add the context
+label as extra features to HIRL for a fair comparison.
+
+
+We gave expert demonstration data, with the same data labeling, to all
+algorithms for training. Specifically, we appended context labels as
+part of the input data to MaxEnt, DeepIRL and HIRL. Finally, we
+performed a grid search to fine-tune the hyperparameters for all
+algorithms. All experiments are repeated *MATH* times on a computer server
+with an Intel Xeon CPU and a single GTX 2080 Ti GPU.
+
+
+Evaluation Metric
+
+
+Given an MDP\&#9;,the goal of IRL is to learn the underlying R for the
+expert demonstrations. However, it is always hard to find a proper
+metric to measure the performance of IRL. Expected value difference
+(EVD)  [*REF*; *REF*] provides a
+high-confidence upper bound on the policy loss incurred by using a
+evaluation policy *MATH* under learned reward in place of optimal
+policy *MATH*, where *MATH* is the optimal policy for the
+demonstration reward *MATH*.
+
+
+The policy loss is captured via Expected Value Difference (EVD) of
+*MATH* under the true reward *MATH*, defined as *MATH*.
+
+
+To better understand EVD, we first seek to bound the EVD. However,
+because the optimal policy *MATH* is invariant to any negative scaling
+of the reward function, bounding EVD is ill-posed, as we can easily
+multiply the reward *MATH* any *MATH* to scale EVD to anywhere in the
+range *MATH*. We seek to find a scale invariant EVD score across
+problems at different scales. We can rewrite the EVD as: *MATH* where *MATH* is
+the expected feature counts over states or the occupancy measure of a
+policy *MATH*.
+
+
+To avoid the scaling issue, we can normalize the reward such that
+*MATH*  [*REF*; *REF*]. Note that this
+assumption only eliminates the trival all-zero reward function as a
+potential solution and all other reward can be appropriately normalized.
+All our benchmarks satisfy this assumption. The invariant normalized EVD
+is upper bounded by *MATH* iff
+*MATH*  [*REF*].
+
+
+The other important performance metric is the average training time,
+which measures the average time for learning the reward function per
+epoch. Together, EVD and average training time indicate how well and how
+fast IRL algorithms learn.
+
+
+Comparison Results
+
+
+[GoalNav]
+
+
+A robot navigates in a simple *MATH* grid world with barriers
+(Figure a). Unlike standard IRL tasks, this
+navigation task contains multiple destinations: R, G, B, and Y. The
+robot has four actions, moving one cell in one of the four cardinal
+directions, respectively. Each move succeeds with probability *MATH* in
+the desired direction and probability 0.1 in two neighboring directions.
+The ground-truth reward is *MATH* when the robot reaches the specified
+destination and no reward elsewhere. A single context variable
+represents the intended destination, and the reward depends on it.
+
+
+CHIRL and HIRL significantly outperform both MaxEnt and DeepIRL in EVD
+(Figure). DeepIRL does not perform well on
+this task. This performance difference demonstrates the benefits of
+context modeling with heterogeneous demonstrations.
+[GoalNav] has a very simple context hierarchy with only one
+level. The reward function representations for CHIRL and HIRL thus have
+almost the same architecture, resulting in a similar performance.
+
+
+[JctNav]
+
+
+This task models a simplified, but still a realistic autonomous driving
+scenario at a cross junction. The world is a *MATH* grid, with
+two intersecting roads placed randomly
+(Figure b). A road consists of eight lanes, four in
+each direction, with a center divider separating the two directions. The
+robot vehicle has two partial state observations. One provides coarse
+localization with 9 possible values: the vehicle is located either in
+one of the eight lanes or anywhere else. The other provides road
+information in the local *MATH* neighborhood of the vehicle&apos;s
+current location, indicating whether it is on-road, off-road, or on the
+center divider. The vehicle has nine actions, staying in place or moving
+by one cell in the cardinal or diagonal directions. Its behavior depends
+on two context variables (Figure). One represents the traffic rule: drive on
+the right side (RS) of or left side (LS) of the road. The other
+represents the driving intention: go straight (ST), turn left (TL), or
+turn right (TR). The vehicle&apos;s actions and thus the reward depend on
+these two variables. The ground-truth reward is *MATH* if the vehicle
+drives in the correct lane according to the traffic rule and *MATH* 
+otherwise, as driving against the traffic is extremely dangerous. The
+reward is *MATH*, if the agent mounts the center divider. The reward is
+*MATH*, if the agent successfully passes through the intersection.
+
+
+FIGURE
+
+
+Again, CHIRL outperforms MaxEnt and DeepIRL in EVD
+(Figure). For CHIRL, the learned reward
+matches the ground truth closely. For DeepIRL, the learned reward
+differentiates left-side and right-side driving, but without
+context-hierarchy, it mixes up going straight and turns. This is, of
+course, highly desirable for junction navigation. MaxEnt does not
+perform well in this task at all. Finally, compared with
+[GoalNav], [JctNav] has a slightly more complex,
+two-level hierarchy. The advantage of CHIRL over HIRL starts to show.
+Notice that till now, the causal dependency can be ignored in these two
+cases.
+
+
+[Taxi]
+
+
+This task is originally designed for hierarchical MDP
+planning [*REF*]. A taxi operates in the same grid
+world (Figure b) as that for [GoalNav], but has
+a different task. There are four taxi terminals: R, G, B, and Y. The
+taxi must get a passenger at one terminal and send the passenger to a
+designated destination terminal. The state is a four-tuple
+*MATH*, where *MATH* is the taxi location, *MATH* is the passenger
+location, *MATH* is the destination terminal. The passenger is located
+either in the taxi or one of the terminals. In each task instance, the
+initial taxi location, the initial passenger location, and the
+destination terminal are chosen randomly. There are six primitive
+actions. The four navigation actions are the same as those for
+[GoalNav]. The two extra actions pick up or put down the
+passenger, respectively. Each action incurs *MATH* as the cost. If the
+taxi attempts to get or put the passenger at the wrong terminal or in a
+non-terminal location, there is a penalty of *MATH*. The taxi gets a
+reward of *MATH* when it successfully delivers the passenger to the
+destination.
+
+
+There are three leaf nodes in the TaxiDomain benchmark. In the *MATH* 
+node, the state space contains *MATH* states
+without considering the passenger&apos;s destination. There are four macro
+actions, *MATH*, and one primitive action *MATH*.
+The demonstrations of *MATH* comes from all the data with *MATH* action
+and subtask *MATH*. However, at this level, the macro action *MATH* 
+can be directly finished by defining the termination predicate to move
+the taxi to the destination terminal. For example, *MATH* terminal is at
+*MATH*. Any position in the grid world *MATH*, we can have that
+*MATH*. It means that any position in the grid world
+can be moved to *MATH* terminal after call macro action *MATH*. We just
+record the starting position and termination position as the
+demonstration for the *MATH* macro actions.
+
+
+For this task, the context hierarchy contains three
+variables --- [Get], [Put], and
+[Nav] --- each representing a subtask. By leveraging the
+context hierarchy and the MAXQ decomposition, CHIRL outperforms both
+DeepIRL and MaxEnt (Figure). Interestingly, CHIRL is much faster
+than DeepIRL in training time, because it represents [Taxi]
+as an HMDP with state abstraction rather than a &apos;flat&apos; MDP. Also, with
+this complex subtask hierarchy with a total of 10 contexts, the
+advantage of CHIRL over HIRL becomes evident in both EVD and training
+time.
+
+
+Large-Scale Cost Function Learning for Autonomous Driving
+
+
+We extend CHIRL to learn the large-scale cost function for autonomous
+driving in the high-fidelity CARLA simulator. First, we extend the
+reward neural network to take an RGB image directly as input. The image
+provides a top-down view of the local environment at the vehicle&apos;s
+current location. Top-down views of the area surrounding a vehicle are
+already widely available in commercial vehicles; these are typically
+constructed using a multi-camera system on the
+vehicle [*REF*]. Second, we extend the cost map from one
+specific scenario, i.e. all the benchmarks are one fixed environment, to
+anywhere egocentric cost map in various simulated towns. The reason that
+we can learn large scale cost map for autonomous driving is that all the
+driving behaviors can be treated as repeated local skills given the
+context information. Human drivers can drive anywhere once they learned
+enough basic local skills with traffic rule guidance. We aim to
+replicate the same human behaviors in CHIRL, since CHIRL is designed to
+be easily integrating traffic rules as the context information.
+
+
+TABLE
+
+
+EVD is no longer valid for real-world applications because we don&apos;t have
+the ground truth reward for such applications. To measure the
+performance, we use similar metrics as done in [*REF*]:
+the negative log-likelihood of the demonstration data (NLL) and the
+modified Hausdorff distance (MHD). NLL is used to measure the likelihood
+of expert demonstrations based on the reconstructed reward. MHD is a
+spatial metric for the similarity between the agent and demonstration
+trajectories. Since the original MaxEnt is always worse than DeepIRL
+when there is nonlinearity between the image and the reward function, we
+ignore the MaxEnt in the large-scale application.
+
+
+Table [1] shows the quantitative results of running different methods in the Carla
+simulator. Compared with the deepIRL baseline, CHIRL is better than the
+baseline in both NLL and MHD. Note that the NLL is measured in the log
+scale, the actual loss difference is large. CHIRL has lower MHDs in both
+scenarios, showing that we can learn the cost map well considering the
+different contexts. The intersection scenario has more performance
+gains, showing that the intersection areas are the critical places where
+the contexts matter the most. It is obvious that when there are
+junctions, deepIRL cannot differentiate well. Furthermore, CHIRL works
+better than HIRL, which indicates the benefits of data sharing over the
+DAG structure.
+
+
+Ablation Results 
+
+
+To better understand the main contributors to CAIRL&apos;s performance, we
+performed an ablation study on [Taxi], which has all
+features: multi-level data sharing, subtask state abstraction, and
+subtask sharing.
+
+
+Data Sharing
+
+
+Data sharing across contexts is one main benefit of our context
+hierarchy and is the essential difference between CHIRL and HIRL. Like
+CHIRL, HIRL learns context-dependent rewards, but learns one for each
+context almost independently without data sharing.
+Figure shows that with sufficient data (at least *MATH* 
+trajectories), both CHIRL variants converge and learn good reward
+functions. However, without help from the context DAG and data sharing,
+HIRL takes much longer in training time and converges slower than CHIRL.
+Further, a comparison of the two variants on all the three evaluation
+tasks (Figure) indicate that the benefit of data
+sharing across contexts increases with the complexity of the task and
+the resulting context hierarchy.
+
+
+FIGURE
+
+
+State Abstraction
+
+
+For the [Taxi] task, the context hierarchy contains a MAXQ
+task graph consisting of three subtasks, and CHIRL learn the reward of
+an HMDP. The MAXQ decomposition allows for state abstraction by dropping
+state dimensions irrelevant for a subtask. In particular, the passenger
+destination *MATH* is not needed in [Get], the passenger&apos;s
+initial location is not needed in [Put], and the passenger&apos;s
+location is not needed in [Nav]. Specifically, in
+[Get], [Put] and [Nav], the state space size reduces to *MATH*,
+respectively from the original state space size of
+*MATH*. For comparison, we created a
+variant CHIRL-NoStateAbstraction, which removes the state abstraction,
+but retains the same reward function representation.
+CHIRL-NoStateAbstraction would then have to solve an MDP with 500 states
+for all the [Taxi] subtasks. Figure a shows that both CHIRL and
+CHIRL-NoStateAbstraction learn good reward functions, but CHIRL is
+faster in training time with the help of state abstraction. To confirm,
+we performed additional experiments, which increase the grid world size
+of [Taxi] from *MATH* to *MATH*.
+Figure b shows that the training time gap between
+CHIRL and HIRL grows with increasing grid size. Also, DeepIRL can not
+figure out the proper reward as before. With the increasing size of the
+grid world, the training time of CHIRL grows slowly due to the state
+abstraction. CHIRL solves an HMDP rather than a flat MDP. It makes CHIRL
+easily be adopted to large robotic tasks without the need of solving
+large MDPs with large state space and action space.
+
+
+Conclusion and Future Work
+
+
+CHIRL is a new IRL algorithm that exploits the hierarchically decomposed
+task context to structure the reward function representation as a set of
+interconnected neural network modules. The structured representation
+enables data sharing across contexts and scales up IRL for learning
+complex reward functions. When a context hierarchy represents subtask
+decomposition, it is closely related to the MAXQ task graph, which CHIRL
+exploits for hierarchical MDP solution and benefits from the resulting
+subtask sharing and state abstraction. Experiments show promising
+results on benchmark navigation tasks, including a large-scale
+autonomous driving task in the CARLA simulator.
+
+
+However, our current setup only considers tabular MDPs. We will extend
+to continuous space with motion planning in the future. Furthermore, we
+will explore more complex context-hierarchy to solve large realistic
+tasks, i.e. RoboCup. More interestingly, we want to try to connect CHIRL
+with TAMP [*REF*] architecture for a more generic
+solution for IRLs.

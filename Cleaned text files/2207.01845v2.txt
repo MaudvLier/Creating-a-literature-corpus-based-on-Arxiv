@@ -1,0 +1,287 @@
+Planning with RL and episodic-memory behavioral priors
+
+
+Introduction
+
+
+Reinforcement learning (RL) agents often struggle from cold start
+problems, especially in the case of long horizon tasks
+[*REF*][*REF*][*REF*][*REF*].
+It arises due to random initialization of models leading to poor
+exploration and thus very little learning in initial phase of training.
+
+
+To solve this problem, imitation learning
+[*REF*][*REF*] algorithms introduce behavior
+priors. Expert demonstrations in the form of *MATH* tuples are provided
+to the agent prior to phase-III (RL) training. The agents thus starts
+with a knowledge of &quot;good&quot; or &quot;safe&quot; actions to take in most of the
+situations, leading to more effective exploration in the phase-III (RL)
+and hence better sample efficiency. As the agent explores, it gathers
+the missing knowledge for states not encountered in demonstrations, and
+eventually learns skills at par (and beyond) with the expert. A recent
+popular example of this approach is DQfD [*REF*]. Existing
+Q-Learning-based methods require large amounts of data to create
+robustness to low-level pixel noise and high-level feature noise. This
+coupled with dynamically changing environment [*REF*] make it
+complicated to use such networks for practical application. Moreover,
+the learned policies are not interpretable, leading to difficulty in
+validating such models.
+
+
+In order to make learning more robust, discrete and interpretable
+[*REF*] we demonstrate our Planner module. It is
+loosely based on the Monte Carlo tree search [*REF*], which
+evaluates different alternatives from the current state, conditioned on
+different actions to a certain depth, and choose the best on the basis
+of expected reward.
+
+
+Exploration with behavioral priors
+
+
+The learning starts with using an initial controller *MATH* that executes
+the action given by behavior priors. Essentially, the goal is to gather
+tuple sequences *MATH* of variable length *MATH* returned by
+the environment, in order to learn value of states, given the initial
+controller *MATH*, and initialize planning component which leads to more
+efficient exploration with priors in further phases of learning. For our
+experiments we focus on Learn-to-Race (L2R) environment
+[*REF*][*REF*][*REF*], the details of the
+environment are given in Section [4]. In L2R, we modelled the behavior prior
+as changing direction when an unsafe state is encountered. To
+determine if the state is safe/unsafe, we let the agent drive
+straight at a constant velocity until the episode ends. Due to curved
+tracks, this means that driving straight will always end in a negative
+reward due the car moving out of the track. For these episodes, we mark
+the last unsafe_offset frames as unsafe and the remaining as safe
+states. The agent is trained in phased manner, starting from behavior
+prior, followed by RL phase (Phase-III). In behavior prior based phase-I
+the agent was trained to determine low value states as described above
+(also see Appendix, Algorithm), and in phase-II it explores actions in
+these low valued states (Algorithm). To improve further and
+fill in the missing knowledge, we use planner (See Appendix, Algorithm) to train the agent
+in RL phase (phase-III) as shown in Algorithm.
+
+
+Planning with episodic memory behavioral priors
+
+
+State representation 
+
+
+We trained U-Net [*REF*] and (Sigma) VAE
+[*REF*] models on the collected pictures from the previous
+phases to translate visual representations into the latent space of the
+VAE. For encoding the states, instead of using RGB images returned from
+the environment, the algorithm encodes into latent dimensions the
+semantic masks of the road. The selection of the right semantic is
+important for performance [*REF*] and is a design choice for
+different environments. For L2R, we selected the masks of road-track as
+the semantic information. However, other environments may require
+different encoding schemes.
+
+
+Mathematically, *MATH* where *MATH* is the encoding of the observation *MATH*. 
+*MATH* is semantic extractor U-Net (*MATH*) model. *MATH* is a sigma variational
+autoencoder (*MATH*) to encode the semantic masks extracted by U-Net.
+The parameters of these models are provided in Appendix.
+
+
+Episodic Memory
+
+
+The agent estimates an expected reward value of states using
+trajectories collected with initial behavioral prior policy *MATH*. We use
+low valued states as the primary candidates to explore actions, which
+leads to targeted exploration in the initial learning phase.
+
+
+Episodic memory *MATH* consisting of *MATH* experienced trajectories, where
+*MATH* is state at time step *MATH* in the *MATH* trajectory, *MATH* is
+action, *MATH* is observed reward and *MATH* is any other auxiliary
+information are collected in the following form, each tuple is called a
+Trajectory Point (TP) *MATH*. Once stored, the planner *MATH* selects the best trajectory point
+*MATH* from the episodic memory *MATH* based on criteria listed below
+and executes action taken from that trajectory for a given query state
+i.e. *MATH* is maximized over all i.
+
+
+Apart from state-action-reward we also require other information like a
+pointer to the next TP in a trajectory and other convenience attributes
+like Grid coordinates (see Latent Grid), pointer to k-th step TP in
+future, step index and trajectory ID etc. for various update and
+retrieval tasks. For all algorithmic purposes, consider TP as a data
+structure which stores all the above values.
+
+
+Latent Grid and Storing Trajectories
+
+
+To reduce noise, artifacts and dimensionality of input observation
+space, we encode the observations into low dimensional space of
+dimensionality *MATH* (for L2R, *MATH*) using the method described in
+section [3.1]. Since we aim to leverage
+searchability of states in this lower dimensional latent space, we
+quantize the latent into a grid *MATH* of size *MATH* (for L2R, it will be a
+*MATH* dimensional grid of size *MATH* = *MATH* x *MATH*). Each cell in the grid
+represents a range of continuous latent encoding depending on the range
+of values in the stored DB. Mathematically, to convert an encoding (*MATH* 
+: *MATH*) into latent grid coordinates (G: *MATH*) of matrix with size =
+*MATH*, we use the formula (*MATH* is collection of all encoding value)
+*MATH* i in *MATH*. 
+
+
+Effectively, each grid cell stores all a list of all TPs that lie on it,
+and stores their average value as the its cell value for future use.
+
+
+FIGURE
+
+
+As the agent explores the environment and visits each cell, the cell
+accumulates the value *MATH* as the average of the sum of discounted
+future rewards for each TP lying on grid coordinate *MATH*. Fig.
+[3] demonstrates how
+the cells are populated by explorations during training phases.
+
+
+Retrieving Trajectory Points.
+
+
+In order to select the action to be taken, the planner takes as an input
+the last *MATH* states observed and the episodic memory stored in the
+latent grid and ranks the neighboring stored trajectory points based on
+an estimate of best state values in their near future of *MATH* time steps.
+
+
+The ideology of above design is as follows:
+
+
+- Searching with the correct context: The Markov state model
+assumption that the future state only depends on the current is
+often violated in a practical application environment. We aim to
+alleviate some of this limitation by selecting that trajectory which
+is similar to the current at least for the past *MATH* states. The
+distance between two state encodings *MATH* and *MATH*, both *MATH* 
+dimensional, therefore is:*MATH* where *MATH* is state occurring *MATH* timesteps before *MATH* and
+*MATH* is the L2 norm.
+
+
+This ensures that there is more correlation between the matches than
+mere visual similarity. This is important in environments where
+context plays a significant role and is not captured by state
+information alone.
+
+
+- Searching in a limited area: While searching for a match in the
+latent space, we only consider points which are very close to query
+state. This avoids matches with high value states which do not
+corresponds to the query state, and gives an indication to the
+planner to explore rather than exploit. We consider TPs which lie
+within *MATH* steps of 8-connected grid cells as close neighbors, for
+L2R we have set *MATH*.
+
+
+- Criteria of selection of ideal TP: For those states in immediate
+vicinity of current state, we only consider the value of those state
+in next *MATH* time steps. This is ensure that following these points
+leads to high rewards.
+
+
+The planner effectively explores when the best match is not a good
+values state, otherwise explores an action which is not yet explored in
+the region, a complete algorithm is given in Appendix Algorithm.
+
+
+ALGORITHM
+
+
+ALGORITHM
+
+
+Experiments 
+
+
+To demonstrate the applicability of our approach we deploy our agent on
+L2R environment, the environment is Formula 1 style single player
+racing simulator, which provides first person view of the car as shown
+in the Fig. [1] and Fig. [6] along with velocity information. The
+action space have two actions Steering and Acceleration, both of which
+can be between *MATH*. It features realistic physics and
+visuals. The reward at every time step is proportional to the percentage
+of track completed in that time step and a penalty which is a large
+negative award associated with going out of the track with at least two
+wheels outside the road area. Our approach works with continuous action
+space as well as with discrete action space, something a lot of other
+approaches cannot provide. For the discrete action space, we have
+restricted steering exploration to only three values, that is *MATH* (turn
+right), *MATH* (drive straight) and *MATH* (turn left). We trained the U-Net
+and VAE model using the observations collected in Phase-I, with VAE
+finetuning in Phase-III (RL) as well.
+
+
+See Fig. [4] for training curves for VAE.
+
+
+FIGURE
+
+
+The latent space shows good separation between visually distinct scenes
+as shown in Fig. [2]. The performance metrics and comparisons are
+shared in Fig [4], Fig [5] and Table [1].
+
+
+We have presented results of various agents which were trained on a seen
+track in L2R environment, and evaluated for 3 laps on unseen track. We
+have also included Human (Expert), Random agent and a Model Predictive
+Controller baselines for comparison. The MPC model follows a center line
+of the track at moderate speed and is treated as a naive policy for the
+task. The metrics we have chosen for our study are: success rate, which
+is an indicator of how much % of the track an agent could complete
+without failing and average speed, reported as distance covered per unit
+time (KM/H). See Appendix, Algorithm for evaluation algorithm.
+
+
+TABLE
+
+
+Table 1 shows the comparison with the above baselines, along with
+another popular deep learning approach Soft Actor Critic. The Soft Actor
+Critic required  48 hours of training, compared to  2 hours of training
+for our algorithm (incl. behavior priors, training of VAE, U-Net and
+Phase-III (RL)) on a NVIDIA GTX 1660Ti GPU, a training time interaction
+vs performance graph for our algorithm is given in Fig. [5], the
+graph is an average of 5 training runs, with each training episode
+checkpoint evaluated 3 times. The agent was able to achieve 100% success
+rate after 24 episodes, which is equivalent to 40K environment
+interactions.
+
+
+FIGURE
+
+
+To demonstrate the performance of planner, we present a planner point of
+view for a query state. Fig [1] shows different stored trajectory points
+sorted according to the distance to the query state as described in Eqn. 
+The planner&apos;s decision process can be
+seen in Fig. [1] depicting the comparison of a state with other
+states at different distances and Fig. [6] which depicts the closest neighbors of
+a query state.
+
+
+FIGURE
+
+
+Discussion
+
+
+We presented a behavior prior initialized agent outperforming SAC on L2R
+task with substantially less learning interactions with the environment.
+The planner module utilizes stored episodic memory to learn value
+estimates and guide the agent towards efficient exploration. The
+approach enables sample efficient adaptation and a few-shot learning
+policy [*REF*]. We have shown with our results
+that a planning approach, combined with behavior priors assessments, can
+enable a sample efficient few-shot learning and provide interpreted
+agent decisions.

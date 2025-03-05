@@ -1,0 +1,234 @@
+Meta-Reinforcement Learning Using Model Parameters
+
+
+Introduction
+
+
+Common approaches for developing controllers do not rely on machine learning. Instead, engineers manually construct the controller based on general information about the world and the problem. After repetitively testing the controller in the environment, the engineer improves the controller based on the feedback from these tests. That is, a human is an essential part of this iterative process. Reinforcement Learning (RL) reduces human effort by automatically learning from interaction with the environment. Instead of explicitly designing and improving a controller, the engineer develops a general RL agent that learns to improve the controller&apos;s performance without human intervention. The RL agent is usually general and does not include specific information about the target environment; this allows it to adapt to different environments.
+Indeed, RL agents may achieve higher performance compared to human-crafted controllers [*REF*; *REF*; *REF*]. However, RL agents usually require training from the ground up for every new environment, which requires extensive interaction in the new environment.
+
+
+One solution to speed up the training time is to explicitly provide human-crafted information about the environment (context) to the RL agent [*REF*]. However, such a solution requires explicitly analyzing the target environment, which may be challenging and time-consuming.
+
+
+Instead of relying on the human understanding of the problem for providing such context, a meta-Reinforcement Learning (meta-RL) agent can learn to extract a proper environmental context. To that end, a meta-RL agent is trained on extended interaction in multiple different environments, and then, after a short interaction in a new, unseen environment, it is required to perform well in it [*REF*; *REF*].
+Specifically, a meta-RL algorithm that is based on context extraction is composed of two phases. First, in the meta-learning phase, the agent learns a general policy suitable to all environments given a context.
+Additionally, in this phase, the meta-RL agent learns how to extract a context from samples obtained from an environment. Secondly, in the adaptation phase, the meta-RL agent conducts a short interaction in the new environment, and the context is extracted from it. This context is then fed to the general policy, which acts in the new environment.
+
+
+One common approach for context extraction is using a Recurrent Neural Network (RNN). That is, the RNN receives the history of the states, actions, and rewards and is trained to output a context that is useful for the general policy. However, the RNN long-term memory capability usually limits the effective history length [*REF*].
+Additionally, since the context vector is not explicitly explainable, it is difficult to examine the learning process and understand if the RNN learned to extract the representative properties of the environments.
+
+
+In this paper, we introduce RAMP -- a Reinforcement learning Agent using Model Parameters. We utilize the idea that a neural network trained to predict environment dynamics encapsulates the environment properties; therefore, its parameters can be used as the context for the policy.
+During the meta-RL phase, RAMP learns a neural network that predicts the environment dynamic for each environment. However, since the number of the neural network&apos;s parameters is usually high, it is challenging for the policy to use the entire set of parameters as its context.
+Therefore, the majority of the model&apos;s parameters are shared between all environments, and only a small set of parameters are trained separately in each environment. In that way, the environment-specific parameters represent the specific environment properties. Consequently, a general policy uses only these parameters as context and outputs actions that are suitable for that particular environment. One advantage of RAMP is that the history length used for the context extraction is not limited because the context is extracted from a global dynamic model.
+Additionally, the combination of model learning and RL in RAMP makes the training process more transparent since it is possible to evaluate the performance of the model learning process independently. We demonstrate the effectiveness of RAMP in several simulated experiments in Sec.
+[5].
+
+
+To summarize, the contributions of this paper are:
+
+
+- Suggesting a novel method for meta-reinforcement learning.
+
+
+- Presenting a multi-environment dynamic model learning method that adapts to new environments by updating only a few parameters.
+
+
+- Using the dynamic model parameters directly as a context for the general policy.
+
+
+- Combining model-based and model-free RL.
+
+
+Related Work
+
+
+RL has shown success in numerous domains, such as playing Atari games [*REF*; *REF*], playing Go [*REF*], and driving autonomous vehicles [*REF*; *REF*]. Some are designed for one specific environment [*REF*; *REF*], while others can learn to master multiple environments [*REF*; *REF*]; however, many algorithms require separate training for each environment.
+
+
+Several approaches were proposed to mitigate the need for long training times by using meta-RL methods. We begin by describing methods that, similarly to ours, learn a context-conditioned, general policy. However, they constructed the context vector in different ways. We note that some previous works term the different training environments &quot;tasks\&quot; since they emphasize the changes in the reward function. However, since our work focuses on environments with different dynamics (transition functions), we use the term &quot;environments&quot;. In [*REF*], the environment properties are predicted by a neural network based on a fixed, small number of steps. However, this approach requires explicitly defining the representative environment properties. Moreover, it assumes that these properties can be estimated based on the immediate environmental dynamics. Rasool et al. [*REF*] introduce TD3-context, a TD3-based RL agent that uses a recurrent neural network (RNN) to create a context vector, which receives the recent states and rewards as input.
+However, even though types of RNNs such as LSTM [*REF*] and GRU [*REF*] are designed for long-term history, in practice, the number of previous states considered by the RNN is limited [*REF*]. Therefore, if an event that defines an environment occurs too early, the RNN will &quot;forget\&quot; it and not provide an accurate context to the policy. In our method, RAMP, the context consists of the parameters of a global, dynamic model, which is not limited by the history length. Other approaches use the RNN directly as a policy, based on the transitions and rewards during the previous episode [*REF*; *REF*], instead of creating a context vector for a general policy. These approaches are also vulnerable to this RNN memory limitation.
+
+
+Finn et al. [*REF*] proposed a different principle for meta-learning termed &quot;Model-Agnostic Meta-Learning (MAML).\&quot; In MAML, the neural network parameters are trained such that the model will be adapted to a new environment by updating all parameters only with a low number of gradient-descent steps. However, the training process of MAML may be challenging [*REF*]. Furthermore, MAML uses on-policy RL and therefore is unsuitable for the more sampling-efficient off-policy methods as in our approach. Nevertheless, since MAML can also be used for regression, we compare our multi-environment dynamic model learning method to MAML in Sec.
+[5.1].
+
+
+Some proposed meta-RL methods are suitable for off-policy learning [*REF*; *REF*]. Meta-Q-learning (MQL) [*REF*] updates the policy to new environments by using data from multiple previous environments stored in the replay buffer. The transitions from the replay buffer are reweighed to match the current environment. We compare our method, RAMP, to MQL in our testing environment in Sec.
+[5.2.2].
+
+
+As opposed to all these meta-RL methods, which are model-free, also model-based meta-RL methods were proposed. In model-based meta-RL, the agent learns a model that can quickly adapt to the dynamics of a new environment. Ignasi et al. [*REF*] propose to use recurrence-based or gradient-based (MAML) online adaptation for learning the model.
+Similarly, Lee et al. [*REF*] train a model that is conditioned on the encoded, previous transitions. In contrast to model-free RL, which learns a direct mapping (i.e., a policy) between the state and actions, model-based RL computes the actions by planning (using a model-predictive controller) based on the learned model. In our work, we combine the model-free and model-based approaches resulting in rapid learning of the environment dynamic model and a direct policy without the need for planning.
+
+
+Problem Definition
+
+
+We consider a set of *MATH* environments that are modeled as a Markov Decision Processes *MATH*, *MATH*. All environments share the same state space *MATH*, action space *MATH*, and reward function *MATH* and differ only by their unknown transition function *MATH*. These *MATH* environments are randomly split into training environments *MATH* and testing environments *MATH*.
+
+
+The meta-RL agent is trained on the *MATH*  environments and must adapt separately to each of the *MATH* environments. That is, the agent is permitted to interact with the *MATH* environments for an unlimited number of episodes. Then, the meta-RL agent is given only a short opportunity to interact with each of the *MATH* environments (e.g., a single episode, a number of time steps, etc.), and update its policy based on this interaction. Overall, the agent&apos;s goal is to maximize the average expected discounted for each of the *MATH*  environments.
+
+
+RAMP
+
+
+RAMP is constructed in two phases: in the first phase, a multi-environment dynamic model is learned, and in the second phase, the model parameters of the dynamic model are used as context for the multi-environment policy of the reinforcement learning agent. The following sections first describe how the multi-environment dynamic model is learned by exploiting the environments&apos; common structure. In the second part, we describe the reinforcement learning agent.
+
+
+Multi-Environment Dynamic Model
+
+
+Attempting to approximate the transition function of each environment *MATH* by an individual neural network is likely to work well for the training environments. However, it is unlikely to generalize to the testing environments, as we have only a limited set of data points for them. However, since the environments share a common structure, it will be more efficient to train a neural network that has shared components between all the environments. Namely, we intend to train a general neural network based on the training environments such that it can be adapted to each testing environment using only a limited set of data points.
+
+
+In addition, since RAMP&apos;s second phase uses the neural network&apos;s parameters&apos; values directly as a context for the RL agent, we wish to use only a small number of parameters that should represent the properties of each specific environment dynamics. Therefore, the general neural network shares the vast part of the parameters between all environments and includes only a small set of environment-specific parameters. The environment-specific parameters are, in fact, a compact representation of each environment; therefore, they can be used by RAMP as a context vector (as described in Sec.
+[4.2]).
+
+
+We approximate the transition function of all environments by a neural network with parameters indexed by *MATH*, which are split to environment-specific parameters indexes *MATH*, and to the remaining parameters indexes *MATH*.
+The values of the parameters of each environment *MATH* are denoted by *MATH* and the environment-specific parameters&apos; values by *MATH*. The shared parameters&apos; values, which do not depend on a specific environment, are denoted by *MATH*. Our multi-environment dynamic model is denoted by *MATH*. The multi-environment dynamic model is given a state *MATH* and action *MATH* and outputs a prediction of the state at the following time step *MATH* for each environment *MATH*, i.e., *MATH*.
+
+
+We now describe how to select *MATH* and how to train the neural network parameters *MATH* and *MATH*. At first, we gather sufficient data in the form of *MATH*, for each environment *MATH*. At the beginning of the training process *MATH* and *MATH*. The network is trained using the gradient descent algorithm to minimize the loss, which is the squared error between the predicted and real next state for each environment: *MATH*.
+Initially, *MATH* are trained in all environments to achieve an average model prediction: *MATH*.
+
+
+After the initial training phase, the parameters *MATH* are selected from *MATH* by the algorithm, one-at-a-time. Intuitively, the algorithm should select parameters for *MATH* that have the greatest impact on the difference between the environments. Therefore, at each gradient step, the gradient of the loss function *MATH* relative to *MATH* is computed for each environment *MATH*: *MATH*, and the parameter with the highest variance between all gradients *MATH*  is added to *MATH*: *MATH*.
+Then, the network is trained to minimize the loss function in all environments: *MATH*.  That is achieved by updating the environment-specific parameters *MATH* by the corresponding gradient: *MATH*, and updating the shared parameters by the average gradient: *MATH*, where *MATH* and *MATH* are the learning rates.
+During the training, parameters continue to be added to *MATH* until it reaches a predefined size *MATH*. Algorithm 1 summarizes the multi-environment dynamic model learning.
+
+
+Finally, at the end of the training process (after achieving a low loss value), only parameters *MATH* need to be adjusted for a new environment to get an accurate dynamic model, while parameters *MATH*  remain constant. That is, *MATH*.
+
+
+ALGORITHM 1
+
+
+Reinforcement Learning With Model Parameters Context 
+
+
+The multi-environment dynamic model parameters, described in the previous section, are used as a context for the RL agent. That is, RAMP concatenates the environment-specific parameters&apos; values *MATH* to the state *MATH* for training the RL agent.
+
+
+Unfortunately, the environment-specific parameters *MATH* do not necessarily converge to the same value when trained in the same environment since the amount of these parameters may be greater than the degree of freedom between the environments. That is, there may be more than one way (i.e., single parameters&apos; values) to minimize the multi-environment dynamic model network. Therefore, the RL agent should be trained on multiple possible representations of each environment. To achieve this, the environment-specific parameters&apos; values *MATH* are retrained every *MATH* episodes for each environment *MATH* by collecting data from a single episode with the current policy.
+These values are stored in *MATH*. The shared parameters, *MATH*, remain constant during the entire RL multi-environment training phase.
+
+
+If the RL algorithm uses a replay buffer, If the RL algorithm uses a replay buffer, the current environment index *MATH* is added to each tuple in addition to the standard data stored in the replay buffer (i.e., state, action, next state, reward, and done). When sampling from the replay buffer, a context vector is concatenated to each state according to the tuple&apos;s environment index *MATH*. That context vector, which is the values of the environment-specific parameters *MATH*, is randomly sampled from *MATH*.
+
+
+We note that RAMP can be used with any RL algorithm and also supports off-policy algorithms, which are considered to be more efficient. In this work, we use TD3 [*REF*], which is an off-policy, actor-critic RL algorithm. The TD3 agent contains critic neural networks that estimate the action-value function. The critic is trained by minimizing the Bellman function. The actor, which is a policy represented by a neural network, aims to maximize the expected discounted infinite episode reward by maximizing the action-value function. RAMP using the TD3 algorithm is summarized in 2.
+
+
+ALGORITHM 2
+
+
+Experimental Evaluation 
+
+
+We evaluate RAMP on two domains. The first domain, a sine waves regression test, evaluates the first phase of RAMP alone, i.e., the multi-environment dynamic model learning algorithm. The second domain is the vehicle target-reaching domain, in which vehicles with different dynamics aim to reach a target. The vehicle target-reaching domain tests the complete RAMP algorithm, composed of both phases.
+
+
+Sine Waves Regression 
+
+
+We used a sine waves regression test similar to [*REF*]. The multi-environment dynamic model was trained on random samples of a sine wave function with different amplitudes *MATH* and phases *MATH*: *MATH*. The input to the function, *MATH*, is sampled uniformly from the range *MATH*. The amplitudes of the different functions, are sampled from *MATH*, and the phases are sampled from *MATH*. The network consists of two fully connected hidden layers, with *MATH* neurons in each layer and ReLU activation. The size of the environment-specific parameters is limited to *MATH*, i.e.
+*MATH*, out of a total *MATH* parameters. Contrary to the dynamic model prediction, which receives an action in addition to the current state to predict the next state, in this simple sine regression problem, there is a single input and a single output. The multi-environment model was trained on *MATH* random sine waves with *MATH*  samples each. It was then retrained by updating only environment-specific parameters, *MATH*, on *MATH* samples of new sine waves. We compare the multi-environment dynamic model of RAMP to a small network composed of only *MATH* parameters trained on each new sine wave separately and to MAML [*REF*], which updates the entire network (*MATH*  parameters).
+
+
+The multi-environment dynamic model achieved a Mean Squared Error (MSE) of *MATH*. This result is slightly lower than MAML, which achieved an MSE of *MATH*. Nevertheless, since MAML uses *MATH* parameters, it is impractical to use them as a context for the RL agent. As expected, the network that contains only *MATH* parameters resulted in a very high average MSE, *MATH*. When training on all sine waves together (i.e., all model&apos;s parameters are shared without environment-specific parameters), the MSE was *MATH*. Figure [1] depicts the performance of the multi-environment dynamic model of RAMP on the test set.
+
+
+FIGURE 1
+
+
+Vehicle Target-Reaching Domain
+
+
+The vehicle target-reaching domain is a simple domain that enables us to provide a precise analysis of RAMP&apos;s behavior and demonstrate the concepts behind RAMP. In this domain, an agent controls the vehicle&apos;s throttle and brake and aims to reach a target line in a minimum time.
+The vehicle must reach the target line at a speed of at most *MATH*. The state, *MATH*, consists of the current vehicle&apos;s speed, *MATH*, and the distance to the target *MATH*. *MATH* ranges from *MATH* to *MATH*, the distance to the target at the beginning of the episode is *MATH*, and the desired maximal speed at the target line *MATH* is *MATH*. The continuous throttle/brake action, *MATH*  ranges from *MATH* to *MATH*. The sampling frequency is *MATH* Hz. The reward function returns *MATH* at each non-terminal step. When approaching the target line with a higher speed, than *MATH* the reward is *MATH* otherwise *MATH*.
+
+
+We construct *MATH* vehicle target-reaching environments, split into *MATH*  for training the multi-environment model and two for testing. All vehicles from the different environments have identical acceleration but a different deceleration, which is unknown to the agent. Specifically, the throttle command *MATH* causes an acceleration value *MATH* in all environments. However, the brake command *MATH* causes a deceleration value *MATH* that is scaled down by the braking factor *MATH*, which has a value between *MATH*  and *MATH*. The braking factor in the test environment is *MATH* and *MATH*, which are close to the extremes of all factors.
+
+
+We begin by evaluating the performance of the multi-environment dynamic model learning process, and then we evaluate the performance of the RL learning procedure. Finally, we show the adaptation process in a new environment.
+
+
+Multi-Environment Dynamic Model Learning
+
+
+The multi-environment neural network is identical to the network used for the sine wave regression. The dynamic model state consists only of the vehicle&apos;s speed, and the network predicts the difference between the current and new states. In each environment, *MATH* points are randomly sampled for training, and only *MATH* points are sampled from new environments for the adaptation process. Figure [2] shows speeds of *MATH* different vehicles. All accelerate at the same rate until reaching the maximal speed, and then, each vehicle applies a maximal braking action (*MATH*), resulting in different deceleration values. The points represent the predicted speeds, and the solid lines are the real speeds. Our multi-environment dynamic model results in an MSE of *MATH* on new environments compared to an MSE of *MATH* when trained on all environments together.
+
+
+FIGURE 2
+
+
+Recall that the environment-specific parameters *MATH* are retrained multiple times during the RL training process as described in Sec.
+[4.2]. Figure [3] shows the values of each of the *MATH*  parameters for every environment, in different colors. The different parameter sets are slightly shifted along the horizontal axis. As depicted by the figure, the environment-specific parameters converged to similar values; this can be seen by the consistency of the values between the parameter sets. In addition, the figure shows that the different environments result in noticeable, different values for the first three parameters. In contrast, the remaining parameters show only a minor variance between the environments. This result seems reasonable, since not all parameters are required to determine the variance of the vehicle dynamics, which in fact, has only one degree of freedom.
+
+
+FIGURE 3
+
+
+Recall that in the RL training phase, the general policy must extract the properties of the environments from only the environment-specific parameters. Therefore, beyond the low loss of the prediction, we tested that it is possible to directly predict the braking factor from the environment-specific parameters. To that end, we trained a dedicated regressor, which is not used by RAMP, on *MATH* sets of the trained environment-specific parameters created during the RL training process.
+*MATH* environments were used as a training set, and the *MATH* remaining environments were used as a test set. The regressor is composed of a neural network with two hidden layers with *MATH* neurons each. Figure [4] shows the prediction error distribution of the braking factor. As depicted by the figure, the regressor predicts the braking factor, which ranges from *MATH* to *MATH*, with an average error of *MATH*.
+
+
+FIGURE 4
+
+
+Multi-Environment Reinforcement Learning 
+
+
+We compared RAMP to the following *MATH* other RL agents. The Oracle RL receives explicit information about the vehicle; that is, the braking factor is added to the state. With full knowledge of the environmental properties, the Oracle RL is expected to find a nearly optimal solution.
+Next, we consider a basic RL that is trained in all environments together, without any identification input, and thus cannot distinguish between different vehicles. Therefore, it is expected to learn a conservative policy that enables safe deceleration to the target line, even for the vehicle with the lowest braking capability. The third RL agent is the meta-Q-learning (MQL) algorithm [*REF*].
+
+
+The training process of all methods was repeated *MATH* times with different random seeds and is shown in Fig.
+[5]. Our method&apos;s performance during the training process is comparable to the Oracle RL, achieving consistently higher episode rewards than the basic RL and MQL.
+
+
+FIGURE 5
+
+
+Table [1] summarizes the average performance at the end of the training procedure. The table shows for all agents: the average reward in both test environments, the time to reach the target line by the vehicles with a low and high braking factor, and the average time. As depicted by the table, RAMP reaches an average reward that is very close to the Oracle&apos;s and also has a very similar average time.
+
+
+TABLE 5
+
+
+Next, we analyze the speed profiles of different vehicles driven by policies trained by the different RL agents. The speed profile of the basic RL, Oracle RL, RAMP, and MQL are shown in Figures [6a], [6b], [6c], and [6d] respectively. The orange lines represent speed profiles of vehicles with a high braking factor *MATH*, and the blue lines represent low braking factors *MATH*. These values are close to the extremes of the braking factor range to demonstrate the difference between the environments. The bold columns represent the maximal permitted speed at the target for each of the two environments.
+As depicted by Fig. [6a], the basic RL begins to brake on both vehicles at the same point in time. This happens because the agent cannot know if the vehicle has a higher braking capability that allows braking later or not, which leads to a conservative policy. As shown in Fig. [6b], the Oracle RL begins braking on time in both environments and arrives at the destination at the required maximum target speed. As shown in Fig.
+[6c], RAMP results in a similar speed profile as the Oracle RL. However, unlike the Oracle agent, RAMP does not receive any explicit information about the environment; instead, it learns this information from the trajectory sampled during one episode.
+Figure [6d] illustrates that the MQL agent can distinguish between the vehicles&apos; braking differences because the vehicle with the higher braking factor is allowed to gain more speed.
+However, MQL&apos;s speed profile is not as good as RAMP&apos;s since the MQL agent does not accelerate and decelerate at the maximal values, therefore resulting in longer driving times.
+
+
+FIGURES 6a-d
+
+
+FIGUREs 7a-b
+
+
+To conclude the evaluation of RAMP&apos;s performance in the target-reaching domain, we analyze RAMP&apos;s adaptation process. As opposed to the Oracle RL, which is given the braking factor information, RAMP must learn it from the driving experience. That is, in the first episode, RAMP collects data points, and the environment-specific parameters are trained on it; in the second episode, RAMP drives the vehicle with the updated context. Figure [7] shows the speed profile of a vehicle during two subsequent episodes for the low braking factor vehicle (Fig.
+[7a]) and for the high breaking-factor (Fig.
+[7b]). As depicted by Fig.
+[7a], in the first episode (represented by the dashed line), the vehicle brakes too late and therefore crosses the target line at too high a speed. In the second episode (represented by a solid line), the vehicle brakes earlier and cross the target line at a speed that is within the speed limit.
+Similarly, for the vehicle with a higher braking factor, RAMP learns that the vehicle can brake later. Therefore, in the second episode, it crosses the finish line earlier than in the first episode.
+
+
+Conclusions and Future Work
+
+
+This paper presented RAMP, a novel meta-reinforcement learning algorithm. RAMP is constructed in two phases: learning a multi-environment dynamic model and training a general reinforcement learning policy that uses the model parameters as context. The multi-environment dynamic model is trained on data from multiple environments. The shared parameters are updated by the average gradient computed from the loss resulting from all environments, and the environment-specific parameters are trained separately on data from each environment. The low number of environment-specific parameters allows direct use of them as context for the general policy. That general policy is trained by TD3, an actor-critic, off-policy RL algorithm.
+
+
+We evaluated the performance of RAMP in simulated experiments. First, we tested the multi-environment dynamic model performance by a sine-wave regression test which we show to achieve a slightly lower loss compared to MAML [*REF*]. Then, we tested RAMP in a simple driving domain where every vehicle had a different deceleration rate. We showed that RAMP achieved similar performance to an Oracle RL agent, which is provided with full knowledge of the environment properties.
+
+
+In future work, we plan to test RAMP in more challenging domains, such as controlling the steering of an autonomous vehicle and following a given path. Recall that RAMP assumes that the environments differ by their dynamics and not by their reward function, while most previous works consider the opposite. In order to adapt to environments that also differ by their reward functions, a future extension can be to learn a reward prediction function and uses its parameters as a context in addition to the multi-environment model parameters.

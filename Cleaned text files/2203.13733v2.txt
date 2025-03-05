@@ -1,0 +1,677 @@
+Introduction
+
+
+FIGURE
+
+
+Robotic assembly of objects from a given set of parts is an incredibly
+intriguing avenue for research in artificial intelligence (AI). Not only
+is it a valuable capability we would like autonomous robots to possess,
+but it is a challenging problem statement with open-ended complexity,
+touching upon many fruitful avenues of AI research. Agents that can
+assemble structures can reshape their surroundings, which creates
+dynamic environments with more possibilities for open-ended learning
+[*REF*; *REF*; *REF*]. A key feature
+of assembly is that due to its compositional and modular nature, given a
+set of parts, one can create objects on a broad spectrum of complexity.
+Furthermore, in order to solve the assembly problem, agents must acquire
+a diverse set of skills and capabilities. They must learn to grasp and
+attach components in an order that is amenable to successful completion.
+They must develop physical reasoning capabilities to avoid collision,
+and they need to learn bi-manual coordination. In addition, once agents
+have acquired such skills, it is expected that they can rapidly learn to
+create new desired objects.
+
+
+To study assembly, we create a simulated but naturalistic environment
+which consists of blocks of varying shapes that can be magnetically
+attached to one-another. Agents are then tasked with constructing a
+desired structure from one of almost 200 pre-designed blueprints
+(although generative models can be used to automate this process
+[*REF*]). In this environment, in lieu of grasping
+robotic arms, we enable agents to directly move desired blocks. Such
+direct manipulation and the use of magnetic connections (instead of more
+complex joining mechanisms) abstracts away some details of the assembly
+problem while retaining many of the challenges that make the problem
+hard and interesting. Compared robot manipulation tasks which emphasize
+rearrangement and stacking  [*REF*; *REF*], the
+compositional nature of assembly from a set of blocks leads to an agent
+continually encountering new structures of varying complexities, which
+necessitates developing a richer representation of what constitutes an
+&quot;object\&quot;  [*REF*]. In addition, our magnetic assembly
+benchmark stresses multi-step planning, physical reasoning, and bimanual
+coordination.
+
+
+Despite the complexity of this problem, we find that it is possible to
+train a single agent that can simultaneously assemble all given
+blueprint tasks, generalize to complex unseen blueprints in a zero-shot
+manner, and even operate in a reset-free manner despite being trained in
+an episodic fashion. Our solution relies on a combination of large-scale
+reinforcement learning, structured (graph-based) agent representations,
+and simultaneous multi-blueprint training. Simultaneously training on
+diverse blueprints of varying complexity scaffolds the agent&apos;s learning
+by enabling it to first make progress of simpler tasks (such as simply
+joining two blocks), while structured policy representations enable the
+agent to generalize and transfer its solutions towards solving more
+complex -- and even unseen -- blueprints. We empirically observe a
+progression of learning increasingly large blueprints - many of which
+were not solvable with single-blueprint training. Surprisingly, we find
+other components such as planning or hierarchical approaches to be
+unnecessary for this task. Through experiments, we highlight the
+contributions of various components such as structured policies,
+episodic initial state distribution, curriculum that emphasize training
+on harder blueprints, and discuss qualitative behaviors and maneuvers
+discovered by the trained agents.
+
+
+Our contributions are as follows:
+- We introduce an assembly domain that allows for a controlled study
+of generalization in reinforcement learning (RL).
+- We demonstrate a single agent that can simultaneously solve all seen
+assembly tasks and generalize to unseen tasks.
+- We demonstrate the importance of combining large-scale RL,
+structured policies, and multi-task training as a route to arrive at
+generally capable agents.
+
+
+We hope this work further encourages study of assembly as an open-ended
+means to develop and evaluate embodied agent learning.
+
+
+Magnetic Block Assembly Environment
+
+
+FIGURE 
+
+
+Our goal is to design a minimal tractable assembly environment to study
+generalization in a naturalistic, multi-step, combinatorial, dynamic
+problem requiring bi-hand coordination. We construct a three-dimensional
+environment containing a fixed set of 16 cuboid blocks of 6 different
+types. Blocks contain positive and negative magnet points, rendered as
+red and blue respectively, positioned on the block surface. Positive and
+negative magnets &quot;snap\&quot; together when sufficiently close, and
+disconnect when adequate pulling force is applied. Magnets enable
+creation of arbitrarily complex composed structures from the given
+building blocks. Additionally, magnets can be implemented in the
+real-world, unlike more abstract locking constraints (e.g. instantaneous
+weld constraints), yet are tolerant enough to join objects without
+tackling the problem of high-precision insertion that would be required
+for other connection mechanisms such as pegs or screws. To simplify the
+problem, in lieu of robotic arms we opt for the use of virtual grippers
+which can directly manipulate desired blocks. More specifically, each
+gripper can decide which block to move, and set its positional and
+rotational velocities. The use of direct manipulation abstracts away the
+challenges of grasping and manipulation with a robotic arm, and enables
+us to focus on research questions concerning higher-level assembly
+behaviors such as planning and generalization to unseen structures.
+While the number of grippers is parameterizable, unless otherwise
+specified, throughout this work we will use 2 virtual grippers.
+
+
+To specify the assembly task, we designed 165 blueprints (split into 141
+train, 24 test) describing interesting structures to be built, although
+the blueprints can potentially be procedurally
+generated [*REF*]. The complexity of the created
+blueprints range from requiring only a single magnetic connection, up to
+challenging structures that make use of all 16 available blocks. The
+problem statement in our magnetic assembly environment is simple to
+describe: In each episode, the agent must assemble the blocks to create
+the desired blueprint. Each episode begins with either all blocks
+randomly scattered around the environment, or from a randomly sampled
+pre-constructed blueprint -- with unused blocks dispersed on the ground.
+Episodes are 100 environment steps long, translating to a length of 10
+seconds in the real world. In each step agents receive rewards based on
+how close blocks are to their intended configurations, as well as
+correct and incorrect magnetic connections. Episodes terminate when
+exactly correct magnetic connections are made and blueprint blocks are
+in the correct relative position and orientation, or when 100 steps has
+passed. Our simulated assembly task is implemented in the open-source
+Mujoco [*REF*] physics engine. A detailed description of
+observation space, action space, rewards, and success criterion used can
+be found in Appendix [11].
+
+
+Methodology
+
+
+While solving the magnetic assembly task can be approached through a
+variety of solutions such as hierarchical reinforcement learning and
+geometric planning algorithms (e.g. RRT [*REF*]), in past
+work it has been demonstrated that many tasks which intuitively require
+complex planning strategies can be solved through large-scale
+application of reinforcement learning algorithms using the right
+training setups, and appropriate neural network architectures and
+inductive biases [*REF*; *REF*; *REF*; *REF*].
+Motivated by such results, in this work we explore the ingredients
+necessary to train effective agents for magnetic assembly through RL. In
+the subsequent sections we describe the main ingredients of training
+successful agents and study the contribution of each component.
+
+
+Agents 
+
+
+In this section we describe our structured agents, including
+observations and action spaces, and graph-based network architecture.
+The Python code describing our agent architecture can be found in
+Appendix [12].
+
+
+FIGURE
+
+
+Structured Observations
+
+
+The observations provided to the agent can be divided into two broad
+categories, those concerning the blocks, and those concerning the
+grippers. When designing observations to provide to agents, we have
+taken the effort to ensure observations are invariant to the global
+position and orientation. This is a valuable inductive bias that
+provides agents with the flexibility build desired blueprint anywhere
+and in any rotation.
+
+
+Block Observations
+
+
+In the assembly task, observations pertaining to the blocks can be
+naturally organized into a directed graph, with each node containing
+information about a particular block, and each directed edge
+representing relative information about the two blocks. The information
+contained in each node is very minimal: the &apos;z&apos; height of the block from
+the ground, and whether it was being held by each gripper in the
+previous timestep. The majority of observations are placed on the
+directed edges. An edge connecting two blocks contains the information
+regarding: relative position and orientation of their magnets that need
+to be connected, change in relative position and orientation of the
+blocks needed to match the blueprint, relative position of center of
+mass of the blocks, whether the blocks are magnetically attached, and
+whether the blocks should be magnetically attached according to the
+blueprint. All these observations can be automatically extracted from
+the simulator state and the target blueprint configuration, and can
+realistically be computed in a real-world setting as well by simply
+obtaining each blocks position and orientation. Detailed information
+regarding exact observations can be found in Appendix [11].
+
+
+Gripper Observations
+
+
+For each gripper we include its orientation, positional and rotational
+velocities, and which block the gripper was holding in the previous
+timestep.
+
+
+Graph Neural Network Encoder
+
+
+Given that our magnetic assembly task can be naturally set up using
+graph-based observations, prior to extracting actions and critic values,
+we first encode inputs using a graph neural network
+architecture [*REF*], specifically graph attention
+networks [*REF*]. The two inputs to our encoder are (1)
+a directed graph containing all block observations (2) a &quot;global node\&quot;
+containing gripper observations. After linearly embedding all input
+features, they are passed through *MATH* graph attention layers whose
+design is inspired by Transformers [*REF*] and Graph
+Attention Networks [*REF*]. Concisely, in each layer,
+each node aggregates information by attending to incoming edge and node
+features, and subsequently the global node features are updated by
+aggregating information from the graph nodes. An intuitive diagram
+describing the architecture used can bee seen in Figure [2].
+
+
+Policy
+
+
+Through experimentation, we have discovered that in addition to a graph
+neural network encoder, a key design choice is how to extract policy
+actions from the encoded inputs. The outputs of the graph neural network
+encoder are hidden features per node corresponding to the blocks, and
+hidden features corresponding to the global node. Using linear layers,
+from each block node we obtain 2 vectors: (1) a vector representing how
+the block would like to be moved if a gripper chooses to move it, and
+(2) a vector representing a key vector for the block. From the global
+hidden features, using linear layers we obtain one query vector per
+gripper. To obtain logits representing which gripper decides to move
+which block, we use dot-product attention between the block keys and the
+gripper query vectors, akin to the popular attention mechanism used in
+Transformers [*REF*]. In addition to the use of graph
+neural networks, using this form of decoding from the graph encoder has
+been a key enabler in training effective policies.
+
+
+Critic
+
+
+To train our RL agents we also require critic value estimates, which we
+obtain by passing global features obtained from the graph encoder to a 3
+layer MLP, with 512 dimensional hidden layers, and relu activation
+function.
+
+
+Training and Evaluation 
+
+
+Large-Scale PPO
+
+
+We train our agents using Proximal Policy Optimization (PPO)
+[*REF*] and Generalized Advantage Estimation (GAE)
+[*REF*], and follow the practical PPO training advice of
+[*REF*]. As will be shown below, one of the most key
+ingredient in enabling the training of our magnetic assembly agents is
+the scale of training. Unless otherwise specified, our agents are
+trained for 1 Billion environment timesteps, using 1 Nvidia V100 GPU for
+training, and 3000 preemptible CPUs for generating rollouts in the
+environment. 1 Billion steps in our setup amounts to about 48 hours of
+training. The key libraries used for training are Jax [*REF*],
+Jraph [*REF*], Haiku [*REF*], and Acme [*REF*].
+
+
+Multi-Task Training
+
+
+The blueprints that we have designed range from very simple 2 block
+structures, up to complex blueprints containing all blocks. To train
+assembly agents, we have split blueprints into training and testing
+structures, and unless otherwise specified, agents are trained on the
+full training set of blueprints; in each episode, we sample a training
+blueprint and task the agent with creating that structure.
+
+
+Initial State
+
+
+Episodes start from either (1) all the blocks randomly dispersed on the
+ground, or (2) a randomly chosen preconstructed blueprint structure with
+unused blocks randomly arranged on the ground. Resetting from blueprints
+increases the diversity of initial states, forces the agent to learn how
+to disassemble structures, and as we found enables a reset-free mode of
+operation where the agent can continually construct, deconstruct, and
+reconstruct different blueprints. Unless otherwise specified, we reset
+from training blueprints with probability 0.2.
+
+
+Curriculum
+
+
+We have observed that throughout training, some blueprints can be
+quickly learned while others can be much more challenging. We believe an
+interesting feature of the assembly problem is that even if a blueprint
+is currently unsolvable, due to the modular aspect of building complex
+structures, agents can learn more effectively if we emphasize focus on
+more challenging blueprints rather than allocating resources to rolling
+out policies on blueprints that they are already capable of solving. For
+this reason, in each episode we sample goal blueprints based on a
+curriculum whose detailed description can be found in Appendix [13].
+
+
+Performance Evaluation
+
+
+During training, we evaluate trained policies continuously approximately
+every 10 minutes by freezing the policy and computing average success
+rate over 40 episodes. This continuous evaluation is executed on both
+training and test environments. Also, in each evaluation cycle, we
+generate a video to visualize the agents&apos; behavior. Such visualizations
+have been a valuable asset in iterating over the design of our agents,
+observations, reward functions, and training setups.
+
+
+Experiments
+
+
+Importance of Large-Scale Training
+
+
+FIGURE
+
+
+We begin by verifying that our training procedure leads to capable
+assembly agents. To this end, we train our structured agents (Section
+[4]), using the training procedure described in Section [5], for
+2.5 billion environment steps to observe training patterns that may
+arise over a long period of training. Figure presents the success rates of our agent
+(averaged across two runs) throughout training, on blueprints the agent
+was trained on as well as held-out structures (per blueprint success
+rates presented in Figure [9] in the appendix).
+
+
+The first key observation is the compute scale necessary for effectively
+training our structured agents using PPO [*REF*]. The
+simplest 2 block structures can take up to 100 million steps to be
+reliably solved, while it can take up to 500 million environment steps
+until the first time some of the most complex blueprints are solved. The
+second observation is that after a long period of training, not only can
+agents reliably solve all training blueprints, but they can also
+generalize well to complex held-out blueprints.
+
+
+Multi-Task vs. Single-Task
+
+
+TABLE
+
+
+As noted in Section [5], agents are simultaneously trained to
+construct all blueprints in the training split. To understand the
+contribution of this &quot;Multi-Task\&quot; training, we train three agents in a
+&quot;Single-Task\&quot; setting: one for learning to construct a particular 6
+block blueprint, one for constructing a particular 12 block blueprint,
+and one for constructing a particular 16 block blueprint. The success
+rates for these three agents can be found in Figures [12],
+[13], and [14] respectively. Our key observations are the following: (1) While the 6
+and 12 block blueprints are eventually learned, the 16 block blueprint
+is not learned, (2) In the single-task setting, the 12 block blueprint
+requires approximately 500 million environment steps to be learned,
+while in the multi-task setting (Figure [9]) it is learned within 300 million
+steps, (3) the single-task agents can transfer to some blueprints of
+equal or lower complexity than they were trained on, but mostly fail to
+transfer to any blueprints they were not trained to solve. This is in
+sharp contrast to the multi-task agents which can even transfer to
+complex held-out blueprints. These results highlight the necessity of
+multi-task training, not only for generalization to unseen blueprints,
+but for quickly and reliably solving complex tasks, despite the fact
+that agent architectures are well-matched to the problem domain.
+
+
+Structured Agent Architecture 
+
+
+TABLE 
+
+
+As discussed in section [4], given that state information for the assembly
+task can be naturally organized into a graph representation, the use of
+graph neural networks imbues agents with an inductive bias that is
+well-matched to the domain. Indeed, prior work
+[*REF*; *REF*] have observed that the use of
+agents with relational structures is a key ingredient in solving
+object-oriented tasks. In this section we aim to understand the
+contribution of various components of our agents&apos; architecture.
+
+
+Removing Attention in Graph Layers
+
+
+Figure [8] demonstrates the effect of
+removing the attention mechanism in the graph neural network layers,
+meaning that while our agents continue have a graph inductive bias, the
+hidden representations for each block are updated by treating other
+blocks equally, rather than deciding which blocks to attend to. The
+results in Table and Figure [8] clearly demonstrate the necessity
+of the attention mechanism.
+
+
+Removing Relational Inductive Biases
+
+
+We also attempt to train agents without relational inductive biases.
+Instead, we flatten the environment observations and use a residual
+network [*REF*] encoder, with a similar action and value decoder
+as described in Section [4]. Details of the residual network architecture
+are described in Appendix [14]. We train three variants of the residual network
+agents: (1) trained on the full training set of blueprints, (2) trained
+on a subset of the training blueprints requiring *MATH* blocks, and
+(3) trained on a single training blueprint requiring *MATH* blocks. Figures
+[19], [20], and [21] demonstrate that in all three scenarios,
+removing the relational inductive bias of graph neural networks is
+catastrophic. After 1 billion steps, all agents have a *MATH* success
+rate on all blueprints, and never accomplish higher than *MATH* success
+rate on any train or held-out blueprint.
+
+
+Bimanual Manipulation 
+
+
+Compared to most robotics tasks and
+benchmarks [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*],
+part-based assembly stresses the bimanual coordination of agents. To
+verify that our magnetic assembly domain stresses this skill, we compare
+success rates between bimanual and single-gripper agents in Table and Figure
+[7]. We find that while our single-gripper
+agents finds unique strategies to complete some of the structures, its
+overall success rate is lower than that of a dual-gripper agent,
+particularly on the more complex blueprints. This indicates the
+necessity of using two grippers in our domain.
+
+
+Reset-Free Evaluation
+
+
+As described in Section [5], with probability *MATH*, the initial state of
+an episode is set to be a randomly selected pre-constructed blueprint,
+with remaining blocks dispersed on the ground. This choice has two
+advantages: (1) it provides an opportunity for agents to learn how to
+disassemble incorrect constructions, and (2) it enables the evaluation
+of our agents in a reset-free manner, where we continually task agents
+with constructing new blueprints without resetting the environment to an
+initial state.
+
+
+To evaluate the contribution of this choice, we compare the success rate
+of two agents, one with and one without blueprint resets, in a
+reset-free setting. Specifically, within one reset-free episode we ask
+agents to build 10 consecutive blueprints without resetting to an
+initial state: once an agent successfully constructs a blueprint, or the
+maximum of 100 steps has elapsed, we change the target blueprint. As an
+additional challenge, we sample blueprints from the training set
+structures requiring a minimum of 12 blocks. We report the success rate
+aggregated across 50 reset-free episodes (i.e. 50 *MATH* 10 total
+episodes).
+
+
+When resetting from blueprints is disabled, our agent achieves a sucess
+rate of *MATH*. In constrast, with blueprint resets, the
+success rate increases to *MATH*. This is an exciting
+finding as it demonstrates a scenario where episodic training enables
+agents to be deployed in the practically-relevant reset-free scenario.
+
+
+Curriculum
+
+
+As described in Section [5], throughout training we make use of a
+curriculum that increases the likelihood of sampling more challenging
+blueprints. To analyze its contribution, we compare two runs of agents
+with curriculum, to an agent trained without curriculum. Our results in
+Figures [15] and [16] indicate that our curriculums do
+not have a clear-cut benefit, but may be leading to improvements in
+generalization to blueprints in the held-out test set.
+
+
+Curbing Unrealistic Behaviors
+
+
+Due to the use of direct manipulation, agents can rapidly switch which
+block they are holding, which can result in sometimes unrealistic
+maneuvers not achievable by physical robot grippers. Thus, in the event
+we wanted to transfer the success from our direct manipulation
+environment to more realistic settings using robotic arms, it is
+important to understand how one can mitigate unrealistic behaviors. To
+this end, after training an agent using the default training procedure
+described in Section [5], we modify the environment as follows:
+Whenever a gripper chooses to change the object it is holding, we
+disable that gripper for 2 steps. After this change, we continue to
+train our agent.
+
+
+Figure [17] demonstrates that while
+initially the agent&apos;s success rate drops very significantly, within less
+than 100 million environment steps the agent recovers its strong
+performance. This is a small amount of steps compared to the 2.5+
+billion environment steps to train the agent.
+
+
+Given this result, one might ask whether we could have started training
+our agents using this environment modification from the beginning.
+Figure [18] compares this approach to our default training setup. As can be seen, training agents
+from scratch using gripper transition delays is a significantly more
+challenging problem, and even after 1.5 billion environment steps, the
+agent is still unable to make significant progress on many of the
+blueprints in the training set. These results demonstrate that an
+efficient approach towards training practical agents is to first train
+agents in the simplest settings, and continue to finetune those agents
+in more realistic scenarios. Videos demonstrating behaviors of agents
+discussed in this section can be found in the accompanying project
+webpage.
+
+
+Analyzing Learned Solutions
+
+
+In this section our goal is to obtain a qualitative understanding of the
+strategies learned by our trained agents.
+
+
+Learned Attention Patterns
+
+
+As shown in Section [6.3], the attention mechanism is a key
+ingredient in the graph neural network architecture we used. To
+understand what the attention heads in the different layers have learned
+to focus on, we visualize agents&apos; attention patterns throughout
+different episodes. We observe the following interpretable patterns: (1)
+Some attention heads focus on the blocks that should be connected
+according to the blueprint, (2) Some keep account of which blocks are
+currently connected, and (3) Some focus on which blocks are currently
+being held by the two grippers. Other attention heads, particularly in
+the later layers, are more challenging to interpret, but appear to
+contain a combination of the previously described attention motifs.
+Videos visualizing learned attention patterns can be found in the
+accompanying website.
+
+
+Qualitative Behaviours
+
+
+Rolling out trained agents, we observe a number of interesting learned
+behaviors. Examples of such behaviors include: (1) Despite environment
+observations not providing fine-grained detail about free-space, agents
+appear to have learned robust collision avoidance skills. (2) When
+building complex structures, agents appear to first build separate
+smaller substructures, and subsequently attach the substructures to
+construct the full blueprint.
+
+
+Related Work
+
+
+Assembly and Construction
+
+
+*REF* previously studied two-dimensional construction
+environments, training an agent to assemble a structure for an
+open-ended goal, such as a connecting or a covering structure. Certain
+details of assembly are abstracted away, as the agent has the ability to
+directly summon a block of choice anywhere in the scene and weld blocks
+via an explicit action. By contrast, our environment contains a fixed
+set of blocks that must be moved -- or reassembled from a previous
+structure -- in three-dimensional space, and where block connections are
+made via magnet forces. Such a design makes the environment more easily
+implementable as a real-world robot setup.   *REF* 
+[*REF*] also introduce a three-dimensional assembly
+environment for furniture design from a blueprint. By contrast, we use
+generic blocks, which leads to combinatorial complexity in the space of
+structures, and enables a more controlled study of generalization. A key
+point of differentiation from the above works is that we use assembly as
+a domain for the study of generalization, and train a single agent to
+solve all -- seen and unseen -- assembly tasks simultaneously.
+Additionally, we introduce the use of multiple grippers in assembly
+which allows us to evaluate the bimanual coordination of trained agents.
+*REF* present a task where given side view images of a
+desired structure, Lego blocks must be stacked to create a structure
+with a similar silhouette. At each step, the state of the Lego structure
+is encoded using graph neural networks, and through deep RL, a policy
+learns where the next Lego block must be placed. In contrast, in our
+work we focus on the dynamic task of assembly, where discrete decisions
+and continuous control are solved simultaneously using large-scale deep
+RL.   *REF* introduce a 3D task where blocks must be
+re-arranged to create stable structures that occupy randomly sampled
+target regions. They present a long-horizon manipulation algorithm
+combining deep reinforcement learning and Monte-Carlo tree search, that
+at each step decides which block should be moved to which location.
+Similar to our work, multi-head attention graph neural networks are
+used, which enable generalization to new settings with larger number of
+blocks. By comparison, we train a single policy to jointly consider the
+low-level manipulation of the blocks and block selection.
+*REF* studied assembly of a single chair with real-world
+bimanual robots using offline planning methods.   *REF* 
+[*REF*] studied real-world insertion problem, which is an
+operation in the broader assembly process.   *REF* present a
+planning system to solve long-horizon multi-robot construction problems,
+consisting of stacking parts to create architectural structures. In
+contrast, in this work we focused on the assembly problem and were
+motivated to understand whether deep reinforcement learning can be used
+so simultaneously solve discrete planning and continuous control.
+
+
+Generalization in Robotic Manipulation
+
+
+Much recent work in robot manipulation focused on the tasks of object
+grasping  [*REF*; *REF*], in-hand object manipulation [*REF*; *REF*; *REF*],
+or execution of a motor skill  [*REF*], where variation comes from
+diversity of object shapes and arrangements involved. By contrast, while
+assembly uses a fixed set of blocks, the compound structures that must
+be manipulated have a combinatorial diversity of shape that dynamicaly
+changes during the episode. *REF* [*REF*; *REF*] propose scene
+re-arrangement as a universal task for embodied AI. While re-arrangement
+is general, we caution that many instances of rearrangement can be
+solved as a sequence of largely independent sub-tasks that do not
+influence each other, and can be performed in any order. By contrast,
+assembly steps are coupled and must be performed in a specific order
+that must be discovered by the agent.   *REF* 
+[*REF*] also present robotics benchmarks based on
+block rearrangement, with stronger emphasis on long-horizon planning,
+learning from structured representations, and generalization to unseen
+scenarios.   *REF* introduce a kitchen environment with an
+implicit dependency structure among sub-tasks (i.e. opening a container
+before putting something in it), but such pre-conditions are harder to
+scale.
+
+
+Structured and Object-Centric Policies
+
+
+Besides our work, there have been numerous efforts to parameterize
+policies through structured models such as graph neural networks or
+Transformers, leveraging intrinsic objectness and invariances of the
+physical world [*REF*]. They have been used for
+controlling agents of different morphologies for locomotion and
+manipulation tasks [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*],
+as well as enabling agents to learn a compositionally-challenging task
+like stacking [*REF*]. Other relevant works include
+parameterizing manipulation actions, especially of 2D tasks, as
+object-based spatial actions, which have enabled breakthroughs in
+vision-based manipulation [*REF*; *REF*; *REF*].
+While inspired by similar motivations, our work tackles a uniquely
+challenging task, 3D bi-manual assembly, compared to single-arm or 2D
+tasks in prior work [*REF*; *REF*].
+
+
+Limitations, Discussion, &amp; Future Directions
+
+
+We introduced a new blueprint assembly environment for studying bimanual
+assembly of multi-part physical structures, and demonstrated training of
+a single agent that can simultaneously solve all seen and unseen
+assembly tasks via a combination of large-scale RL, structured policies,
+and multi-task training. While our work showed that a solution to our
+problem exists, it is by no means efficient - requiring billions of
+training episodes. It is likely that by incorporating planning or
+hierarchical methods, the training time can be significantly shortened.
+Additionally, upon maturity of accelerated simulation engines [*REF*; *REF*; *REF*], our
+agents may be trained at a similar compute scale using much more modest
+hardware infrastructures. Beyond more efficient training, in this work
+we chose to abstract away complexities of manipulation and perception. A
+more detailed treatment of these elements, such as constraints that
+prevent overly aggressive behaviors, can bring this work closer to
+robotics applications. And lastly, while we focused on blueprint
+assembly in this work, more open-ended assembly goals as well as
+multi-agent interaction present further research opportunities for
+developing agents of increasing complexity.

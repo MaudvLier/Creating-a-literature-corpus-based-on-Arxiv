@@ -1,0 +1,241 @@
+Modelling non-reinforced preferences using selective attention
+
+
+Introduction
+
+
+Biological agents have the capacity to acquire preferences that inform
+their choices and lead to meaningful interactions with their
+environment. These preferences are a subjective assessment of what
+they would like to experience --- and can be continuously learnt, or
+modified, even in the absence of external feedback i.e, non-reinforced
+preferences (*REF*, *REF*). These are unlike reinforced preferences where preference for a
+stimulus may increase given some positive outcome associated with the
+stimulus i.e., reinforcement learning (*REF*, *REF*). Agents equipped with capacity to modify
+non-reinforced preferences are able to adjust their behaviour and
+adapt to changing environmental dynamics on the fly (*REF*, *REF*; *REF*,
+*REF*; *REF*, *REF*) --- without needing to re-train, tune or optimise
+their world model. This motivates the current study: designing
+artificial agents equipped with a similar capacity to learn
+non-reinforced preferences that encourage adaptive behaviour.
+
+
+Neuroscientific evidence reveals that non-reinforced preference
+changes can be driven by i) mere-exposure effects where frequently
+observed options are preferred (*REF*,
+*REF*; *REF*; *REF*, *REF*), ii) attentional
+mechanisms where attending to an option can deem it more preferable
+(*REF*, *REF*; *REF*, *REF*; *REF*, *REF*), and iii) contextual
+effects where an option is preferred more compared to the alternative
+only in particular settings (*REF*, *REF*). These preference shifts can be encoded using
+local plasticity rules e.g., Hebbian plasticity facilitates learning
+from mere-exposure effects (*REF*, *REF*) or synaptic gating that can encourage
+enhancement of signal or suppression of noise (*REF*, *REF*; *REF*, *REF*). These speak to
+self-supervised learning mechanisms that support acquisition of
+non-reinforced preferences.
+
+
+Here, we introduce Nore, a non-reinforced preference learning
+mechanism that leverages synaptic gating to encode shifts in
+preferences in model-based agents. This allows the agent to learn
+distinct preferences that encourage adaptive behaviour at inference
+time. Briefly, Nore comprises a two-step procedure that occurs after
+the agent&apos;s world model has been optimised for the environment during
+training (see Figure *REF*):
+1. Encoding memories. For this, the agent has short episodes of
+direct exchange with the environment using the current
+non-reinforced preferences, and imagined interactions using an
+exploratory planner to find new novel states with high expected
+information gain (see Plan2Explore (*REF*,
+*REF*)). A history of latent state representations
+from a randomly selected subset (30%) of real environmental
+interactions are interleaved with imagined interactions and
+retained --- an abstraction of how memories are encoded using neural
+replay (*REF*, *REF*).
+2. Encoding preferences using selective attention. Once the agent&apos;s
+memory has been encoded, prior preferences are updated by optimising
+two blocks (attention and gating) via entropy maximisation
+(*REF*, *REF*). The attention block
+constrains the agent&apos;s memories and mimics neural gain control via
+precision manipulation (*REF*, *REF*;
+*REF*, *REF*; *REF*, *REF*; *REF*, *REF*). The gating block encodes
+the (prior) preference distribution by gating and storing relevant
+information in a time-dependent fashion (*REF*,
+*REF*). The outputs of this are used as prior
+preferences for the next environmental interaction.
+
+
+Related work: The task of designing appropriate subjective
+objectives for the agent remains an open challenge in reinforcement
+learning. In the absence of any external stimuli, intrinsic
+motivation has been proposed to guide the behaviour of an agent
+during its learning phase (*REF*). Intrinsic motivation has been formalised in a
+number of ways, using curiosity and surprise
+(*REF*, *REF*; *REF*, *REF*; *REF*, *REF*), empowerment (*REF*, *REF*), information gain
+(*REF*, *REF*), impact (*REF*, *REF*), or successor features (*REF*  *REF*,
+*REF*). Importantly, the underlying objective of such
+agents is exploration for the purposes of learning the environment and
+the ways to exploit it (given extrinsic stimuli at test time). In
+contrast to the aforementioned exploration techniques, our work
+focuses on producing meaningful and adaptive behaviour by learning
+subjective preferences over the states of the world at test time.
+
+
+A related work to Nore is Pepper (*REF*,
+*REF*) -- another preference learning mechanism that
+equips an agent with the ability to update preferences using Hebbian
+learning. This particular procedure restricts the agent&apos;s ability to
+appropriately filter (or gate) irrelevant information. Contrariwise,
+Nore encodes preferences reliant on the gating hypothesis
+(*REF*, *REF*) and learns to accentuate relevant information for a particular environment.
+
+
+Non-reinforced preference learning with selective attention (Nore)
+
+
+We aim to build an agent that can modify its preferences after
+learning about the environment without any reward signal nor
+supervision. This presents two challenges --- encoding diverse memories
+and selectively attending to these for preference formation. We use
+the agent&apos;s world model and imagination to collect appropriate
+memories and optimise a Gated Recurrent Unit (GRU) (*REF*, *REF*) to encode particular
+preferences. The preference learning procedure, Nore, is detailed in
+Algorithm *REF*.
+
+
+World model. The agent&apos;s world model is instantiated as a
+Recurrent State-Space Model (RSSM) (*REF*) and entails mapping a
+history of observations FORMULA and actions
+FORMULA to a sequence of deterministic states
+FORMULA (Fig. *REF*). These deterministic states are used to calculate
+the latent prior and posterior states. These are used downstream for
+planning.
+
+
+Formally, the RSSM consists of the following: (i) GRU based deterministic recurrent model, FORMULA,
+FORMULA; (ii) Latent state posterior, FORMULA, and prior,FORMULA; (iii) Transition
+model, FORMULA; (iv) Image predictor (or emission model), FORMULA ∼ Bernoulli. Here,
+FORMULA denotes an approximate posterior distribution parameterised by FORMULA.
+
+
+The world model is trained by optimising the evidence lower bound
+(ELBO) (*REF*, *REF*) or equivalently, the variational free energy (*REF*) using stochastic
+back-propagation with the Adam optimiser (*REF*,
+*REF*). Here, the training data is collected using
+trajectories generated under an exploratory policy. See Appendix
+[B] for ELBO implementation.
+
+
+FIGURE
+
+
+Planning objective for learning preferences. Following (*REF*), we substitute the planner
+with the expected free energy (G) (*REF*) augmented with 
+conjugate priors to allow for preference learning over time: FORMULA
+where expectations are taken w.r.t. FORMULA and the
+Dirichlet distribution was introduced as the conjugate prior over
+Cat(D) (Appendix [E.1]). See Appendix [B.2] for implementation of G. This
+planning objective bounds extrinsic and intrinsic value (*REF*, *REF*; *REF*, *REF*). Therefore, in the absence
+of non-reinforced preferences, or whilst learning them, intrinsic
+motivation contextualises agent&apos;s interactions with the environment
+in a way that depends upon its posterior beliefs about latent
+environmental states (*REF*, *REF*; *REF*, *REF*). Here, actions are
+selected by sampling from the distribution FORMULA (*REF*, *REF*).
+
+
+Selective attention during preference formation. Motivated by the
+neuroscientific view of attention as a gating mechanism
+(*REF*, *REF*; *REF*, *REF*), we introduce two blocks
+that gate preference encoding through signal accentuation and
+attenuation (*REF*, *REF*; *REF*, *REF*).
+
+
+Attention: FORMULA where, γ denotes the precision term, h the memory buffer and D
+prior preferences. The attention block is a multi-layer perceptron
+(MLPs) and plays an analysis role to classical precision control
+mechanism. The gating block contains a deterministic (i.e., the
+recurrent state of the GRU) and stochastic component with diagonal
+covariance Gaussian distribution. These are trained during inference
+(i.e., preference learning) by maximising entropy over preferences
+using stochastic back-propagation with the Adam optimiser. The prior
+preferences used by the preference learning planner, G, are given by
+a softmax transformation.
+
+
+Experiments
+
+
+Figure 2: Preference learning mechanism. Nore
+comprises two subsequent steps in each episode: 1) environmental and
+imagined interaction, and 2) accumulation of preferences once
+interaction ends using randomly shuffled memories. Both steps function
+in synergy: step 1 influences preference learning and step 2
+influences the interactions in the subsequent episode.
+
+
+Following (*REF*, *REF*), we
+evaluated Nore on a variation of the OpenAI Gym FrozenLake environment (*REF*, *REF*) and
+compared its preference to Pepper (*REF*,
+*REF*) at test time. Here, the agent is tasked with
+navigating a grid world comprised of frozen, hole and sub-goals, goal
+tiles, using four actions (left, right, down or up) without an
+external reward signal. Thus, although Nore and Pepper agents can
+differentiate between tile categories -- given their generative
+model -- no extrinsic signal is received from the environment. We used
+this environment to qualify how preferences evolved under the two
+preference learning
+
+
+mechanisms as a result of environmental volatility. For this, a
+volatile environment was simulated by modifying the FrozenLake grid
+every K steps and initialising the agent in a different location at
+the start of each episode. This provides an appropriate test-bed to
+assess how much volatility was necessary to induce shifts in learnt
+prior preferences. The world model weights were frozen during these
+experiments. Therefore, any behavioural differences are a direct
+consequence of Pepper that induces differences in the planning
+objective, G. See Appendix [E] for architecture and
+training details for each environment.
+
+
+FIGURE
+
+
+Encoded non-reinforced preferences. First, we compared the
+preferences encoded by Nore and Pepper agents when the environment was
+static i.e., no changes to the grid configuration. Figure
+*REF* plots the difference between the two preference
+learning rules. For the Hebbian learning rule (Pepper), preferences
+are reinforced given particular environmental exposure i.e., the more
+the agent experiences something, the more it is preferred. Conversely,
+for the preference learning via synaptic gating (Nore) preferences
+shift across epochs -- with new preferences being encoding until the
+last epoch.
+
+
+Nore behaviour. We evaluated the agent&apos;s behaviour in Figure
+*REF* using Hausdorff distance (Appendix [C]) (*REF*,
+*REF*). With this metric we observed increased
+exploration by the Nore agent at 50%, 75% volatility in the
+environment. Similar to Pepper, the agents pursued long paths from the
+initial location (see Fig. *REF* for sample trajectories).
+Compared to Pepper, Nore agents did not exhibit bi-modal preferences
+at 100% volatility in the environment.
+
+
+FIGURE
+
+
+Concluding remarks
+
+
+We introduced Nore, a new non-reinforced preference learning mechanism
+using selective attention. Nore leverages the agent&apos;s world model and
+imagined roll-out to encode appropriate memories and selectively
+attends to them for preference learning. An agent equipped with this
+non-reinforced preference learning mechanism has the capacity to
+continuously learn and modify its subjective assessment of what is
+preferred; which can induce exploratory behaviours. Practically,
+further downstream these agents might accomplish tasks specified via
+simple and sparse rewards more quickly, or may acquire broadly useful
+skills that could be adapted to specific task objectives.

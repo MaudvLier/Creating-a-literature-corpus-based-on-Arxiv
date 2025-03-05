@@ -1,0 +1,966 @@
+Lifelong Reinforcement Learning with Modulating Masks
+
+
+Introduction 
+
+
+Lifelong reinforcement learning (LRL) is a recent and active area of
+research that seeks to enhance current RL algorithms with the following
+capabilities: learning multiple tasks sequentially without forgetting
+previous tasks, exploiting previous tasks knowledge to accelerate
+learning of new tasks, or building solutions to increasingly complex
+tasks. The remarkable progress of RL in recent years, stemming in
+particular from the introduction of deep RL [*REF*], has
+demonstrated the potential of algorithms that can learn to act in an
+environment with complex inputs and rewards. However, the limitation of
+learning only one task means that such algorithms have a narrow focus,
+and may not scale to complex tasks that first require learning of
+sub-tasks. It is arguable that acquiring knowledge of multiple tasks
+over a lifetime, generalizing across such tasks, exploiting acquired
+knowledge to master new tasks more quickly, or composing simple tasks to
+solve more complex tasks are necessary to develop more powerful AI
+systems that better mimic biological intelligence.
+
+
+LRL shares some of the objectives of lifelong supervised learning (LSL)
+[*REF*; *REF*; *REF*], but due
+to the unique objective and domains of RL, it has developed into a
+separate field [*REF*]. For example, tasks in LRL can
+vary across reward function, input distribution or transition function,
+while tasks in LSL largely vary in the input distribution. A variety of
+recently developed approaches in LSL can be placed under three
+categories: memory methods, synaptic consolidation methods, and
+parameter isolation or modular methods. In LRL, *REF* 
+propose a taxonomy in which approaches can be classified as explicit
+knowledge retention, leveraging shared structures, and learning to
+learn. It can be appreciated that LRL exploits most advances in LSL
+while also developing RL-specific algorithms.
+
+
+Among the LSL categories mentioned above, parameter isolation methods
+have shown state-of-the-art results in classification with approaches
+such as Progressive Networks [*REF*; *REF*], PackNet [*REF*], Piggyback [*REF*] and
+Supermasks [*REF*]. The key concept in such
+methodologies is to find smart and efficient ways to isolate parameters
+for each task. In *REF*, redundancies in large networks are
+exploited to generate masks via iterative pruning, and thus free
+parameters to be used only for specific tasks, thus &quot;packing&quot; multiple
+tasks in one single network. Other approaches instead use the concept of
+directly learned masks [*REF*; *REF*; *REF*] to
+select parts of a backbone network for each task. Instead of learning
+the parameters of a backbone network, which are set randomly, masking
+approaches focus on learning a multiplicative (or modulating) mask for
+each task. Masks can be effective in binary formats, enabling or
+disabling parts of the backbone network while requiring low memory.
+Interestingly, masks can be interpreted as modulatory mechanisms with
+biological inspiration [*REF*] because they exploit
+a gating mechanism on parameters or activations.
+
+
+Surprisingly, while the application of masks has been tested extensively
+in LSL for classification, very little is known on their effectiveness
+in LRL. Also, the current mask methods lack the ability of exploit
+knowledge from previously learned task (forward transfer), since each
+mask is derived independently. This study introduces the use of directly
+learned masks with policy optimization algorithms, specifically PPO
+[*REF*] and IMPALA [*REF*]. We explore (1) the
+effectiveness of masks to maximize lifelong learning evaluation metrics,
+and (2) the suitability of masks to reuse knowledge and accelerate
+learning (forward transfer). To demonstrate the first point, we test the
+approach on RL curricula with the Minigrid environment [*REF*],
+the CT-graph [*REF*; *REF*], Metaworld
+[*REF*], and ProcGen [*REF*], and assess the lifelong
+learning metrics [*REF*; *REF*] when learning multiple
+tasks in sequence. To demonstrate the second point, we exploit linear
+combinations of masks and investigate learning with curricula in which
+tasks have similarities and measure the forward transfer. The
+investigation of the second point gives rise to the understanding of the
+effectiveness of mask knowledge reuse in RL, the initial parameter
+configuration ideal for mask reuse, and the benefits obtained when task
+curriculum grow in complexity or contains interfering tasks. The
+proposed method assumes a task oracle, but the assumption can be
+eliminated through the introduction of task detection methods into the
+system as discussed in Section [7]. To ensure reproducibility, the
+hyper-parameters for the experiments are reported in Appendix
+[10]. The code is published at WEBSITE.
+
+
+Contributions. To the best of our knowledge, this is the first study
+to (1) introduce learned modulating masks in LRL and show competitive
+advantage with respect to well established LRL methods (2) show the
+exploitation and the composition of previously learned knowledge in a
+LRL setup with learned modulating masks. In addition to a baseline
+masking approach with independent mask search, we introduced two new
+incremental mask composition approaches (LC and BLC) with different
+initialization of linear combination parameters. The analysis reveals
+different properties in the exploitation of previous knowledge while
+learning new tasks, either favoring knowledge re-use or exploration.
+
+
+Related work 
+
+
+Deep Reinforcement Learning (DeepRL) 
+
+
+The use of deep networks as function approximators in reinforcement
+learning (RL) has garnered widespread adoption, showcasing results such
+as learning to play video games [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*],
+and learning to control actual and simulated robots
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+These algorithms enable the agent to learn how to solve a single task in
+a given evaluation domain. In a lifelong learning scenario with multiple
+tasks, they suffer from lifelong learning challenges such as
+catastrophic forgetting. Nevertheless, they serve as the basis for
+lifelong learning algorithms. For example, DQN [*REF*] was
+combined with the elastic weight consolidation (EWC) algorithm to
+produce a lifelong learning DQN agent [*REF*; *REF*].
+
+
+Lifelong (Continual) Learning 
+
+
+Several advances have recently been introduced in lifelong (continual)
+learning [*REF*; *REF*; *REF*; *REF*; *REF*],
+addressing challenges such as maintaining performance on previously
+learned tasks while learning a new task (overcoming forgetting), reusing
+past knowledge to rapidly learn new tasks (forward transfer), improving
+performance on previously learned tasks from newly acquired knowledge
+(backward transfer), the efficient use of model capacity to reduce
+intransigence, and reducing or avoiding interference across tasks
+[*REF*]. A large body of work focused on lifelong learning in
+the supervised learning domain and overcoming the challenge of
+forgetting [*REF*].
+
+
+Lifelong learning algorithms can be clustered into key categories such
+as synaptic consolidation approaches [*REF*; *REF*; *REF*; *REF*],
+memory approaches [*REF*; *REF*; *REF*; *REF*; *REF*],
+modular approaches [*REF*; *REF*; *REF*; *REF*; *REF*]
+or a combination of the above. Synaptic consolidation approaches tackle
+lifelong learning by discouraging the update of parameters useful for
+solving previously learned tasks through a regularization penalty.
+Memory approaches either store and replay samples of previous and
+current tasks (from a buffer or a generative model) during training
+[*REF*; *REF*; *REF*; *REF*]
+or project the gradients of the current task being learned in an
+orthogonal direction to the gradients of previous tasks
+[*REF*; *REF*; *REF*; *REF*]. Memory
+methods aim to keep the input-output mapping for previous tasks
+unchanged while learning a new task. Modular approaches either expand
+the network as new tasks are learned [*REF*; *REF*; *REF*] or select
+sub-regions of a fixed-sized network (via masking) for each tasks
+[*REF*]. The masks can be applied to (i) the neural
+representations [*REF*; *REF*], (ii) or to
+synapses, where they are directly learned [*REF*] or
+derived through iterative pruning [*REF*]. The masks can be
+viewed as a form induced sparsity in the neural lifelong learner
+[*REF*; *REF*].
+
+
+In LRL, the learner is usually developed by combining a standard deep RL
+algorithm, either on-policy or off-policy (for example, DQN, PPO
+[*REF*], or SAC [*REF*]), with a lifelong learning
+algorithm. CLEAR [*REF*] is a lifelong RL that combines
+IMPALA with a replay method and behavioral cloning. Progress &amp; Compress
+[*REF*] demonstrated the combination of IMPALA with EWC and
+policy distillation techniques. Other notable methods include the
+combination of a standard deep RL agent (SAC) with mask derived from
+pruning in PackNet [*REF*; *REF*] as demonstrated in the Continual World robotics benchmark
+[*REF*]. In addition, *REF* 
+developed an algorithm combining neural composition, offline RL, and PPO
+to facilitate knowledge reuse and rapid task learning via functional
+composition of knowledge. To tackle a lifelong learning scenario with
+interference among tasks, current methods [*REF*; *REF*] employ a multi-head policy
+network (i.e., a network with shared feature extractor layers connected
+to different output layers/heads per task) that combine a standard RL
+algorithm (e.g. DQN or SAC) with synaptic consolidation methods. In
+another class of LRL approach, *REF* demonstrated a
+lifelong RL agent that combined DQN with multiple-time scale learning at
+the synaptic level [*REF*], and the model was adapted
+to multiple timescale learning at the policy level [*REF*]
+via the combination of knowledge distillation and PPO.
+
+
+Modulation 
+
+
+Neuromodulatory processes [*REF*; *REF*] enable the dynamic
+alteration of neuronal behavior by affecting synapses or the neurons
+connected to synapses. Modulation in artificial neural networks
+[*REF*; *REF*] draws inspiration from modulatory dynamics in biological brains that have
+proven particularly effective in reward-based environments
+[*REF*; *REF*], in the evolution of reward-based learning [*REF*; *REF*],
+and in meta RL [*REF*]. Modulatory methods in lifelong
+learning are set up as masks that alter either the neural activations
+[*REF*] or weights of neural networks [*REF*; *REF*; *REF*; *REF*].
+The key insight is the use of a modulatory mask (containing binary or
+real values) to activate particular network sub-regions and deactivate
+others when solving a task. Therefore, each task is solved by different
+sub-regions of the network. For each task, PackNet [*REF*]
+trains the model based on available network capacity and then prunes the
+network to select only parameters that are important to solving the
+task. A binary mask representing important and unimportant parameters is
+then generated and stored for that task, while ensuring that important
+parameters are never changed when learning future tasks. PiggyBack
+[*REF*] keeps a fixed untrained backbone network, while
+it trains and stores mask parameters per task. During learning or
+evaluation of a particular task, the mask parameters for the task are
+discretized and applied to the backbone network by modulating its
+weights. The Supermask [*REF*] is a generalization of
+the PiggyBack method that uses a k-winner approach to create sparse
+masks.
+
+
+Background 
+
+
+Problem Formulation 
+
+
+A reinforcement learning problem is formalized as a Markov decision
+process (MDP), with tuple *MATH*,
+where *MATH* is a set of states, *MATH* is a set of actions, *MATH* is
+a transition probability distribution *MATH* of the
+next state given the current state and action taken at time *MATH*,
+*MATH* is a reward function that produces a scalar value based on the state and the action
+taken at the current time step, *MATH* is the
+discount factor that determines how importance future reward relative to
+the current time step *MATH*. An agent interacting in the MDP behaves based
+on a defined policy (either a stochastic *MATH* or a deterministic *MATH* 
+policy). The objective of the agent is to maximize the total reward
+achieved, defined as an expectation over the cumulative discounted
+reward *MATH*. It achieves this by learning an optimal policy.
+
+
+In a lifelong learning setup, a lifelong RL agent is exposed to a
+sequence of tasks *MATH*. Given *MATH* tasks, the agent is expected
+to maximize the RL objective for each task in *MATH*. As the agent learns
+one task after another in the sequence, it is required to maintain
+(avoid forgetting) or improve (backward transfer of knowledge)
+performance on previously learned tasks. A desired property of such an
+agent is the ability to reuse knowledge from previous tasks to rapidly
+learn the current or future tasks.
+
+
+Modulating masks 
+
+
+The concept of modulating masks has recently emerged in the area of
+supervised classification learning [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Masks work by modulating the weights or the neural representations of a
+network, and they can be directly learned (optimized) or derived via
+iterative pruning [*REF*], with a goal of implementing
+sparsity in the network. The learned mask approach is employed in this
+work, and masks are used to modulate the weights of a network. By
+modulating the weights, sub-regions of the network is activated, while
+other regions are deactivated. Given a network with layers
+*MATH*, with each layer *MATH* containing parameters
+*MATH*, for each layer *MATH*, a score parameter *MATH* is defined.
+
+
+During a forward pass (in training or evaluation), a binary mask
+*MATH* is generated from *MATH* based on an
+operation *MATH* according to one of the following: (i) a threshold
+*MATH* (where values greater than *MATH* are set to *MATH*,
+otherwise *MATH*) [*REF*], or (ii) top-k values (the top
+*MATH* values in *MATH* yields *MATH* in *MATH*, while the rest are set to
+*MATH*) [*REF*], or (iii) probabilistically sampled from a
+Bernoulli distribution, where the *MATH* parameter for the distribution is
+derived from the sigmoid function *MATH* 
+[*REF*]. An alternative approach is the generation of
+ternary masks (i.e., with values *MATH*) from *MATH*, as
+introduced in *REF*. The binary or ternary mask
+modulates the layer&apos;s parameters (or weights), thus activating only a
+subset of the *MATH*.
+
+
+Given an input sample *MATH*, a forward pass through the layer is given as
+*MATH*, where *MATH* is the element wise multiplication operation. Only the score
+parameters *MATH* are updated during training, while the weights *MATH* 
+are kept fixed at their initial values. For brevity, the weights and
+scores across layers are denoted as *MATH* and *MATH*.
+
+
+The training algorithm updating *MATH* depends on the operation used to
+generate the binary mask. When the binary masks are generated from
+Bernoulli sampling, standard backpropagation is employed. However, in
+the case of thresholding or selecting top *MATH*, an algorithm called
+edge-popup is employed, which combines backpropagation with the
+straight-through gradient estimator (i.e., where the gradient of the
+binary mask operation is set to identity to avoid zero-value gradients)
+[*REF*; *REF*].
+
+
+In a lifelong learning scenario with multiple tasks, for each task
+*MATH*, a score parameter *MATH* is learned and used to generate and
+store the mask *MATH*. During evaluation, when the task is encountered,
+the mask learned for the task is retrieved and used to modulate the
+backbone network. Since the weights of the network are kept fixed, it
+means there is no forgetting. However, this comes at the cost of storage
+(i.e., storing a mask for each task).
+
+
+Methods 
+
+
+We first introduce the adaptation of modulating masks to RL algorithms
+(Section [3.2]). Following, we hypothesize that
+previously learned masks can accelerate learning of unseen tasks by
+means of a linear combination of masks (Section
+[4.2]). Finally, we suggest that
+continuous masks might be necessary to solve RL tasks in continuous
+environments (Section [4.3]).
+
+
+Modulatory masks in Lifelong RL 
+
+
+We posit that a stochastic control policy *MATH* can be
+parameterized by *MATH*, the weights of a fixed backbone network, and
+*MATH*, a set of mask score parameters for
+tasks *MATH*. *MATH* are the scores of all layers of the network
+for task *MATH*, comprising the layers *MATH*, i.e.,
+*MATH*. The weights *MATH* of the network
+are randomly initialized using the signed Kaiming constant method
+[*REF*], and are kept fixed during training across all tasks.
+The mask score parameters *MATH* are trainable, but only *MATH* is
+trained when the agent is exposed to task *MATH*. To reduce memory
+requirements, *REF* discovered that masks can be
+reduced to binary without significant loss in performance. We test this
+assumption by binarizing masks using an element-wise thresholding
+function *MATH* where *MATH* is set to 0. The resulting LRL
+algorithm is described in Algorithm. To assess
+this algorithm, we paired it with the on-policy PPO [*REF*]
+algorithm and the off-policy IMPALA [*REF*] algorithm.
+
+
+ALGORITHM
+
+
+Exploiting previous knowledge to learn new tasks 
+
+
+One assumption in LRL, often measured with metrics such as forward and
+backward transfer [*REF*], is that some tasks in the
+curriculum have similarities. Thus, previously acquired knowledge,
+stored in masks, may be exploited to learn new tasks. To test this
+hypothesis, we propose an incremental approach to using previously
+learned masks when facing a new task. Rather than learn a large number
+of masks and infer which mask is useful for solving a task at test time
+via gradient optimized linear combination, as in
+*REF*, we instead start to exploit previous knowledge
+from any small number of masks combined linearly, plus a trainable
+random mask *MATH*. The intuition
+is that strong linear combination parameters can be discovered quickly
+if similarities are strong, otherwise more weight is placed on the newly
+trained mask.
+
+
+A new mask at layer *MATH* is given by *MATH* 
+where *MATH* are the scores of layer *MATH* in task
+*MATH*, *MATH* denotes the transformed scores for task *MATH* after
+the linear combination (lc) operation, *MATH* denotes the optimal
+scores for previously learned task *MATH*, and
+*MATH* are the weights of the linear
+combination (at layer *MATH*). To maintain a normalized weighted sum, a
+*MATH* function is applied to the linear combination
+parameters before they are applied in Equation. When no knowledge is present in the
+system, the first task is learned starting with a random mask. Task two
+is learned using *MATH*, weighting task one&apos;s mask, and
+*MATH*, weighting the new random mask. The third task will have *MATH*, and so
+on. Note that *MATH* denotes a vector of size *MATH* which
+contains the co-efficient parameters for task *MATH* across all *MATH* layers
+of the network (i.e., *MATH*).
+
+
+In short, two approaches can be devised. The first one in which each
+mask is learned independently of the others. Experimentation of this
+approach will determine the baseline capabilities of modulating masks in
+LRL. We name this Mask Random Initialization (*MATH*).
+
+
+FIGURE
+
+
+The second approach attempts to exploit the knowledge acquired so far
+during the curriculum learning by using a linear combination of masks to
+learn a new one. Experimentation of this second approach will determine
+the capabilities of modulating masks to exploit previously learned
+knowledge. We name this second approach Mask Linear Combination
+(*MATH*). The idea is graphically summarized in Figure [1].
+
+
+It can be noted that, as the number of known tasks increases, the
+relative weight of each mask decreases in *MATH*. This
+could be a problem, particularly as the weight of the new random mask is
+reduced, possibly biasing the search excessively towards an average of
+previous policies. Therefore, we introduce a third approach that
+attempts to combine the benefits of both *MATH* and
+*MATH*: we set the initial weight of the new random mask
+to 0.5, while the remaining 0.5 weight is shared by the masks of all
+known tasks. We name this third approach Balanced Linear Combination
+(*MATH*). It must be noted that the difference between
+*MATH* and *MATH* is only in the
+initialization of weights when a new task is encountered, where
+*MATH* in *MATH* and *MATH* in *MATH*. However, the
+parameters *MATH* can be modified arbitrarily by backpropagation
+during training.
+
+
+For both *MATH* and *MATH*, updates are made only to *MATH* and
+*MATH* across each layer *MATH*.
+After the training on task *MATH* is completed, the knowledge from the
+linear combination is consolidated into the scores for the current task
+*MATH* by applying Equation. Therefore, the other masks and the linear
+combination parameters are no longer required. Algorithm reports 
+the forward pass operations for *MATH*.
+
+
+ALGORITHM
+
+
+Continuous Modulatory Masks for Continuous RL problems 
+
+
+In previous studies, binarization of masks was discovered to be
+effective in classification to reduce the memory requirement and improve
+scalability. As shown in our simulations, this approach was effective
+also in discrete RL problems. However, in continuous action space RL
+environments, we discovered that binary masks did not lead to successful
+learning. It is possible that the quantization operation hurts the loss
+landscape in such environments since the input-output mapping is
+continuous to continuous values. Therefore, a modification of the
+supermask method can be devised to support the use of continuous value
+masks. In the thresholding mask generation operation (given a threshold
+*MATH*), the modified version becomes *MATH*.
+
+
+Such a modification still maintains the ability to learn sparse masks,
+but replaces the unitary positive values with continuous values. The
+results of the empirical investigation of the binary and continuous
+masks in a continuous action space environment is reported in Section [5.4].
+
+
+Experiments 
+
+
+The three novel approaches, *MATH*, *MATH* 
+and *MATH*, are tested on a set of LRL benchmarks across
+discrete and continuous action space environments. A complete set of
+hyper-parameters for each experiment is reported in Appendix [10].
+
+
+First, we employed the ProcGen benchmark [*REF*] that
+consists of a set of video games with high diversity, fast computation,
+procedurally generated scenarios, visual recognition and motor control.
+The masking methods were implemented with IMPALA: *MATH* [*REF*] and tested
+following the ProcGen lifelong RL curriculum presented in
+*REF* (a subset of games in ProcGen). The properties of the
+benchmark make the curriculum challenging (e.g., high dimensional RGB
+observations and procedural generations of levels). The curriculum was
+designed to test generalization abilities: for each task, the lifelong
+evaluations are carried out using procedurally generated levels that are
+unseen by the agents during training. The masking methods were compared
+with baselines such as online EWC, P&amp;C [*REF*], CLEAR
+[*REF*], and IMPALA.
+
+
+With the aim of understanding the learning mechanism and dynamics of the
+masking approaches, other benchmarks were chosen to assess the
+robustness of the method against the following aspects: discrete and
+continuous environments; variations across tasks in input, transition
+and reward distributions. The CT-graph [*REF*; *REF*] (sparse reward, fast,
+scalable to large search spaces, variation of reward), Minigrid
+[*REF*; *REF*] (variation of input
+distributions and reward functions) and Continual World
+[*REF*] (continuous robot-control) were used to
+assess the approaches, with PPO serving as the base RL algorithm. In
+these benchmarks, the masking approaches
+(*MATH*) are compared with a lifelong learning
+baseline, online EWC multi-head (*MATH*), and with the
+non-lifelong learning algorithm PPO. Experiments with a PPO single task
+expert (STE) were also conducted to enable the computation of the
+forward transfer metric for each method, following the setup in
+*REF*. Control experiments with EWC single head,
+denoted as *MATH*, performed poorly as a confirmation that
+our benchmarks contain interfering tasks [*REF*]: we report
+those results in the Appendix [14.1].
+
+
+The metrics report a lifelong evaluation across all tasks at different
+points during the lifelong training, computed as the average sum of
+reward obtained across all tasks in the curriculum. The area under the
+curve (AUC) is reported in corresponding tables. A forward transfer
+metric, following the formulation employed in
+*REF*, is computed for the CT-graph, Minigrid and
+Continual World. For each task, the forward transfer is computed as the
+normalized difference between the AUC of the training plot for the
+lifelong learning agent and the AUC for the reference single task
+expert. For the ProcGen experiments, the lifelong training and
+evaluation plot format reported in *REF* was followed to
+enable an easier comparison with the results in the original paper. As
+tasks are learned independently of other tasks in *MATH*,
+there is no notion of forward transfer in the method. Therefore, the
+method is omitted when forward the transfer metrics are reported.
+
+
+The results presented in the evaluation plots and the total evaluation
+metric reported in the tables below were computed as the mean of the
+seed runs per benchmark, with the error bars denoting the 95% confidence
+interval. The CT8, CT12, CT8 multi depth, and MG10 results
+contained 5 seed runs per method, while the CW10 results contained 3
+seed runs due to its high computational requirement. While the sample
+size for the evaluation metric is the number of seed runs, the sample
+size used for computing the mean and 95% confidence intervals for the
+forward transfer metric and the training plots is the number of seeds
+multiplied by the number of tasks per curriculum (i.e., 40, 60, 40, 50,
+30 for CT8, CT12, CT8 multi depth, MG10, and CW10
+respectively). A significance test was conducted on the results obtained
+to validate the performance difference between algorithms. The result of
+the test is reported in Appendix [9].
+
+
+ProcGen 
+
+
+The experimental protocol employed follows the setup of *REF*,
+with a sequence of six tasks (*MATH*) with five learning cycles.
+Screenshots of the games are reported in the Appendix
+([12.4]). Several environment instances, game
+levels, and variations in objects, texture maps, layout, enemies, etc.,
+can be generated within a single task. For each task, agents are trained
+on 200 levels. However, the evaluation is carried out on the
+distribution of all levels, which is a combination of levels seen and
+unseen during training.
+
+
+IMPALA was used as the base RL optimizer on which we deployed the novel
+masking methods. The results are reported in Figure [2],
+following the presentation style used in *REF*.
+
+
+FIGURE
+
+
+The masking methods (*MATH*, *MATH*, and
+*MATH*) show better performance with respect to other
+baselines across most tasks, while maintaining generalization
+capabilities across training and evaluation environments. As the tasks
+are visually diverse, possibly resulting in less similarity across
+tasks, reusing previous knowledge may not offer much advantage.
+Nevertheless, the evaluation performance for each method reported in
+Table [1] illustrates a significant
+advantage of the masking methods with respect to the baselines,
+particularly in the test tasks, where *MATH* is 44% better
+than the closest runner up (CLEAR) and over 300% better than P&amp;C.
+
+
+TABLE
+
+
+CT-graph 
+
+
+FIGURE 
+
+
+Each instance of the CT-graph environment contains a start state
+followed by a number of states (2D patterned images) that lead to leaf
+states and rewards only with optimal policies. A task is defined by
+setting one of the leaf states as a desired goal state that can be
+reached only via one trajectory. Two experimental setups were employed:
+the first with *MATH* leaf states (reward locations) that serves for *MATH* 
+tasks, denoted as CT8 curriculum (depth-3, breadth-2 graph with
+*MATH* leaves). In the second setup, two graph instances with 4 and 8
+different reward locations, with depth 2 and 3 respectively, result in
+combined curriculum of 12 tasks, denoted as CT12. Such tasks have
+levels of similarities due to similar input distributions, but also
+interfere due to opposing reward functions and policies for the same
+inputs. Additionally, the *MATH* -task graph has a longer path to the reward
+that introduces variations in both the transition and reward functions.
+Graphical illustrations of the CT-graph instances are provided in
+Appendix [12].
+
+
+Each task is trained for 102.4K time steps. Figures [3] and
+[4] report evaluations in the CT8
+and CT12 curricula as agents are sequentially trained across tasks.
+The forward transfer and the total evaluation performance metrics are
+presented in Tables respectively.
+
+
+TABLE 
+
+
+FIGURE
+
+
+The plots show that the masking methods (*MATH*,
+*MATH*, and *MATH*) are capable of avoiding
+forgetting and obtain high evaluation performance, with significantly
+better forward transfer in comparison to *MATH* and PPO. On
+average, the *MATH* approach recovers performance faster
+than *MATH*, and *MATH* performs best. An
+expanded version of the training plots showing the learning curves per
+tasks and averaged across seed runs is reported in the Appendix
+[14.2].
+
+
+Minigrid 
+
+
+The experiment protocol employs a curriculum of ten tasks (referred to
+as MG10), which consist of two variants of each of the following:
+*MATH*, *MATH*, *MATH*, *MATH*,
+*MATH*. Screenshots of all tasks are reported in
+the Appendix ([12.2]). The variations across tasks include
+change in the state distribution and reward function. The results for
+the MG10 experiments are presented in Figure [5] and Table
+[2]. The masking methods obtained better performance in comparison to the
+baselines, with *MATH* obtaining the best performance.
+Appendix [14.2] provides a full experimental details.
+
+
+FIGURE
+
+
+TABLE
+
+
+Continual World 
+
+
+We evaluated the novel methods in a robotics environment with continuous
+action space, the Continual World [*REF*]. The
+environment was adapted from the MetaWorld environment [*REF*]
+that contains *MATH* classes of robotics manipulation tasks. The
+*MATH* curriculum consists of *MATH* robotics tasks: visual
+screenshots are provided in the Appendix ([12.3]). The results for all methods
+were measured using the success rate metric introduced in *REF*,
+which awards a 1 if an agent solves a task or 0 otherwise. For the
+masking methods in this curriculum, the standard quantization of masks
+into binary performs poorly. To demonstrate this, two variants are run:
+the standard setting, where a binary mask is derived from the scores,
+denoted as *MATH*, and another where a continuous mask
+is derived from the scores (discussed in Section
+[4.3]), denoted as *MATH*. The results from Figure
+[6] and Table [3] show that *MATH* performs significantly better than
+*MATH*. Motivated by the results, the linear
+combination of masks method *MATH* presented for this
+curriculum also employed the use of continuous masks.
+*MATH* and *MATH* performed markedly better
+than the baseline *MATH* that appears to struggle on this
+benchmark. Appendix [14.2] reports the details for all methods.
+
+
+FIGURE
+
+
+TABLE 
+
+
+Analysis 
+
+
+The results of the previous section prompt the following questions: what
+linear coefficients emerge after learning? How is rapid learning in
+*MATH* achieved? How is knowledge reused?
+
+
+Another interesting question that arise is the training efficiency
+derived from knowledge reuse in mask methods. The training plots in
+Figures [3](Right), [4](Right), [5](Right), and [6](Right) showed that the mask
+methods required fewer training steps on average to learn tasks in
+comparison to the baselines. For interested readers, Appendix
+[16] reports the analysis conducted on
+the time (i.e., training steps) taken to reach certain level of
+performance per task.
+
+
+Coefficients for the linear combination of masks 
+
+
+To validate whether the proposed linear combination process can
+autonomously discover important masks that are useful for the current
+task, a visualization of the co-efficients after learning each task is
+presented.
+
+
+Figure [7] presents the visualization
+of the coefficients (for the input and output layers) for a
+*MATH* agent trained in the CT8, MG10, and CW10
+curricula respectively. In each plot, each row reports the final set of
+coefficients after training on a task. For example, the third row in
+each plot represents the third task in the curriculum and reports three
+coefficients used for the linear combination of the masks for two tasks
+and the new mask. For the first task (first row), there are no previous
+masks to combine.
+
+
+FIGURE
+
+
+For the CT8 and MG10, the plots show that the coefficients have
+similar weights for each task (i.e., row wise in Figure
+[7]). This observation is consistent across the layers of the network (see Appendix
+[13.2] for plots across all layers). The
+uniform distribution across co-efficients means that the knowledge from
+all previous tasks is equally important and reused when learning new
+tasks, possibly indicating that tasks are equally diverse or similar to
+each other. The knowledge reuse of previous tasks thus accelerates
+learning and helps the agent quickly achieve optimal performance for the
+new task. For example, in the CT-graph curricula where navigation
+abilities are essential to reach the goal, the knowledge on how to
+navigate/traverse to different parts of the graph is encoded in each
+previously learned task. Rather than re-learn how to navigate the graph
+in each task, and subsequently the solve the task, the agent can
+leverage on the existing navigational knowledge. The performance
+improvement therefore comes from the fact the agent with knowledge reuse
+can leverage existing knowledge to learn new tasks quickly. Note that we
+will not expect any performance improvement if the new task bears no
+similarity with the previously learned task.
+
+
+Comparing the values across layers (i.e., column wise in Figure
+[7]), we note that there is little variation. In other words, the standard deviation of each vector
+*MATH* is low, as all values are similar. From such an
+observation, it follows that the vector *MATH* could be replaced
+by a scalar for these two benchmarks.
+
+
+A different picture emerges from the analysis of the coefficients in the
+CW10 curriculum (Figure [7] right-most column). Here
+the coefficients appear to have a larger standard deviation both across
+masks and across layers. Particular values may suggest relationships
+between tasks. E.g., the input layer coefficient *MATH* (from layer
+1, mask 2) is high in task 4 and 7. Similar diverse patterns can be seen
+in the output layer. We speculate that tasks in CW10 are more diverse
+and the optimization process is enhancing specific coefficients to reuse
+specific skills. The non-uniformity of the co-efficients in the analysis
+could be a consequence of different levels of task similarities as
+reported in the forward transfer matrix in *REF* for the CW10.
+
+
+Exploitation of previous knowledge 
+
+
+The linear combination of masks appears to accelerate learning
+significantly as indicated in Figures
+[3]-[6] (right). To investigate the causes
+of such learning dynamics, we plot the probabilities of actions during
+an episode in a new task. The idea is to observe what are the softmax
+probabilities that are provided by the linear combination of masks at
+the start of learning for a new task. A full analysis would require the
+unfeasible task of observing all trajectories: we therefore focus on the
+optimal trajectory by measuring probabilities when traversing such an
+optimal trajectory.
+
+
+Figure [8] shows the analysis for the following
+cases: facing a 4th task after learning 3 tasks in the CT8 benchmark;
+facing the 12th task after learning 11 tasks in the CT12 benchmark;
+facing the 7th task after learning 6 tasks in the MG10 benchmark. The
+chosen task for each curriculum is set to test different instances of
+knowledge reuse. For CT8, the 4th task tests the agent&apos;s ability to
+reuse knowledge after learning a few similar tasks, while the 12th task
+in CT12 investigates the agent&apos;s behavior after learning many tasks.
+In MG10, the input distribution of the 7th task differs from the
+previous ones (i.e., from tasks with no lava to tasks with lava), thus
+testing the agent&apos;s ability to reuse previously learned navigation
+skills while dealing with new input scenarios. The result of the
+analysis is generalizable to other task changes in the curricula.
+
+
+In the analysis, *MATH* produced a purely random policy,
+with a uniform distribution over actions for each time step. Despite
+learning previous tasks, the new random head results in equal
+probabilities for all actions. On the contrary, both
+*MATH* and *MATH* use previous masks to
+express preferences. In particular, in the CT8 and CT12, the policy
+at steps 1, 3, 5 and 7 coincides with the optimal policy for the new
+task, likely providing an advantage. However, at steps 4 and 6 for the
+CT8, and 2, 4, and 6 for the CT12, *MATH* has a
+markedly wrong policy: this is due to the fact that the new task has a
+different reward function and is therefore interfering. Due to the
+balanced combination of previous knowledge with a new mask,
+*MATH* seems to strike the right balance between trying
+known policies and exploring new ones. Such a balanced approach is also
+visible in the MG10 task. Here, task 7 (see the Appendix
+[12.2]) consists of avoiding the walls and the
+lava while proceeding ahead, then turning left and reaching the goal:
+most such skills are similar to those acquired in previously seen tasks,
+and therefore task 7 is learned starting from a policy that is close to
+being optimal.
+
+
+FIGURE
+
+
+If *MATH* and *MATH* are capable of
+exploiting previous knowledge, it is natural to ask whether such
+knowledge can be exploited to learn increasingly more difficult tasks.
+The CT-graph [*REF*] environment allows for increasing
+the complexity by increasing the depth of the graph. In particular, with
+a depth of 5, the benchmark results in a highly sparse reward
+environment with a probability of getting a reward with a random policy
+of only one in *MATH* episodes [*REF*]. We
+therefore designed a curriculum, the CT8 multi depth, composed of a
+set of related but increasingly complex tasks with depth 2, 3, 4 and 5
+(two tasks each depth with a different reward function).
+
+
+Figure [9] shows the performance
+in the CT8 multi depth curriculum. *MATH* was able to
+learn the first 4 tasks with depth 2 and 3, but failed to learn the last
+4 more complex tasks. Interestingly, *MATH* managed to
+learn task 5 and 6 only partially. *MATH* was able to
+learn all tasks, demonstrating that it could reuse previous knowledge to
+solve increasingly difficult tasks. Figure [10] presents the
+training performance for each individual task, highlighting were most
+methods fail in the curriculum.
+
+
+FIGURE
+
+
+FIGURE
+
+
+TABLE
+
+
+Discussion 
+
+
+The proposed approach employs learned modulatory masking methods to
+deliver lifelong learning performance in a range of reinforcement
+learning environments. The evaluation plots (the left panels of Figures
+[3]-[6]) show how the performance
+increases as the agent learns through a given curriculum. The monotonic
+increase, indicating minimal forgetting, is most clear for the CT-graph
+and Minigrid, while the Continual World appears to have a more noisy
+performance. The *MATH* baseline algorithm shows to be a
+highly performing baseline in the CT8 and CT12 curricula, it
+performs less well in the MG10 curriculum, and poorly in the CW10
+curriculum. The masking methods, instead, perform consistently in all
+benchmarks, with the linear combination methods, *MATH* 
+and *MATH*, showing some advantage over the random
+initialization *MATH*. Evaluations on the ProcGen
+environments, while noisy to interpret from Figure [2], reveal
+that the masking methods outperform IMPALA, Online EWC, P&amp;C and CLEAR by
+significant margins (Table [1]).
+
+
+While the learning dynamics of the core algorithm *MATH* 
+indicate superior performance to the baselines, we focused in particular
+on two extensions of the algorithm, *MATH* and
+*MATH*. These use a linear combination of previously
+learned masks to search for the optimal policy in a new unforeseen task.
+These two variations combine previously learned masks with a new random
+mask to search for the optimal policy. One catch with this approach is
+that the performance on a new task will depend on which and how many
+tasks were previously learned. However, this is a property of all
+lifelong learning algorithms that leverage on previous knowledge. The
+balanced approach *MATH* starts with a 0.5 weight on the
+new random mask and can be seen as a blend between the random
+initialization *MATH* and the linear combination
+*MATH*. On average, it appears to achieve slightly better
+performance than either *MATH* or *MATH*.
+The standard linear combination *MATH* was the only
+algorithm able to learn the most difficult task on the CT-graph. This
+suggests that the algorithm is capable of exploiting previous knowledge
+to solve challenging RL problems. The fact that both
+*MATH* and *MATH* have superior performance
+to the core random initialization *MATH* validates the
+hypothesis that previous knowledge stored in masks can be reused.
+
+
+The analysis of the coefficients of the linear combination (Section
+[6.1]) reveals that the optimization can tune them to adapt to the nature of the curriculum. In
+the CT-graph and Minigrid curricula, previous masks are used in balanced
+proportions. On the Continual World environment, instead, particular
+masks, and layers within those masks, had significantly larger weights
+than others. From this observation, we conclude that the new proposed
+approach may be flexible enough to adapt to a variety of different
+curricula with different degrees of task similarity.
+
+
+One concern with modulating masks is that memory requirements increase
+linearly with the number of tasks. This makes the approach not
+particularly scalable to large numbers of tasks. However, the promising
+performance of the linear combination approaches suggests that an upper
+limit could be imposed on the number of masks to be stored. After such a
+limit has been reached, new tasks can be learned solely as linear
+combinations of known masks, significantly reducing memory requirements.
+While this paper tested vector parameters with a scalar for each network
+layer, the analysis of the tuned parameters suggests that in some cases
+a single scalar for each mask could be used, further reducing memory
+requirements. Other suggestions to combat memory requirements in the
+mask approach are discussed in Appendix [15].
+
+
+In the modulating masking setup, it is assumed that a task oracle
+informs the lifelong RL agent of task boundaries and the task presented
+at any given time (during training and evaluation/testing). This is made
+possible by providing a task identifier to the agent to select the
+correct mask. While the explicit specification of task boundaries is a
+limitation of all LRL methods that make this assumption, the nature of
+the proposed mask method, where a mask is associated to a task, implies
+that existing task detection methods could be combined with the mask
+setup to address this limitation. One approach could involve the use of
+forget-me-not Bayesian approach to task detection
+[*REF*], as was employed in *REF*. Another
+approach that could be explored is the use of optimal transport methods
+[*REF*; *REF*] to measure distance of
+states/input across tasks. Also, the few-shots optimization of the
+linear superposition of masks via gradient descent that was employed in
+*REF* for LSL could be employed to infer task mask in
+the LRL setup.
+
+
+Given the fixed nature of the backbone network and the use of binary
+masks to sparsify the network, the representational capacity of the
+network could be affected. Masking approaches have been extensively
+studied in fixed neural networks [*REF*; *REF*], including lifelong
+supervised learning setup [*REF*; *REF*], with discussions about
+representational capacity and generalization. While representation
+capacity could be affected, there are gains in generalization
+*REF* [*REF*] and robustness to noise
+[*REF*] in sparse networks. In the future investigations,
+the gains in generalization could be useful to model-based RL approaches
+in lifelong learning.
+
+
+Conclusion 
+
+
+This work introduces the use of modulating masks for lifelong
+reinforcement learning problems. Variations of the algorithm are devised
+to ignore or exploit previous knowledge. All versions demonstrate the
+ability to learn on sequential curricula and show no catastrophic
+forgetting thanks to separate mask training. The analysis revealed that
+using previous masks to learn new tasks is beneficial as the linear
+combination of masks introduces knowledge in new policies. This finding
+promises potential new developments for compositional knowledge RL
+algorithms. Exploiting previous knowledge, one version of the algorithm
+was able to solve extremely difficult problems with reward probabilities
+as low as *MATH* per episode simply using random
+exploration. These results suggest that modulating masks are a promising
+tool to expand the capabilities of lifelong reinforcement learning, in
+particular with the ability to exploit and compose previous knowledge to
+learn new tasks.
+
+
+Broader Impact Statement 
+
+
+The advances introduced in this work contribute to the development of
+intelligent systems that can learn multiple tasks over a lifetime. Such
+a system has the potential for real-world deployment, especially in
+robotics and automation of manufacturing processes. As real-world
+automation increases, it may lead to reduce the demand for human labor
+in some industries, thereby impacting the economic security of people.
+Also, when such systems are deployed, careful considerations are
+necessary to ensure a smooth human machine collaboration in the
+workforce, ethical considerations and mitigation of human injuries.

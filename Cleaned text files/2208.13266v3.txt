@@ -1,0 +1,185 @@
+JARVIS: A Neuro-Symbolic Commonsense Reasoning Framework for Conversational Embodied Agents
+
+
+Introduction 
+
+
+A long-term goal of embodied AI research is to build an intelligent agent capable of communicating with humans in natural language, perceiving the environment, and completing real-life tasks. Such an agent can autonomously execute tasks such as household chores, or follow a human commander to work in dangerous environments.
+Figure 1 demonstrates an example of dialog-based embodied tasks: the agent communicates with the human commander and completes a complicated task &apos;making a sandwich&apos;, which requires reasoning about dialog and visual environment, and procedural planning of a series of sub-goals.
+
+
+Although end-to-end deep learning models have extensively shown their effectiveness in various tasks such as image recognition [*REF*; *REF*] and natural language understanding and generation [*REF*; *REF*], they achieved little success on dialog-based embodied navigation and task completion with high task complexity and scarce training data due to an enormous action space [*REF*]. In particular, they often fail to reason about the entailed logistics when connecting natural language guidance with visual observations, and plan efficiently in the huge action space, leading to ill-advised behaviors under unseen environments. Conventionally, symbolic systems equipped with commonsense knowledge are more conducive to emulating humanlike decision-makings that are more credible and interpretable. Both connectionism and symbolism have their advantages, and connecting both worlds would cultivate the development of conversational embodied agents.
+
+
+To this end, we propose JARVIS, a neuro-symbolic commonsense reasoning framework towards modular, generalizable, and interpretable embodied agents that can execute dialog-based embodied tasks such as household chores. First, to understand free-form dialogs, a large language model (LLM) is applied to extract task-relevant information from human guidance and produce actionable sub-goals for completing the task (e.g., the sub-goals 1.1, 1.2,\...,3.6 in Figure 1). During the process, a semantic world representation of the house environment and object states is actively built from raw visual observations as the agent walks in the house.
+Given the initial sub-goal sequence and the semantic world representation being built, we design a symbolic reasoning module to generate executable actions based on task-level and action-level common sense.
+
+
+FIGURE 1
+
+
+We evaluate our JARVIS framework on three different levels of dialog-based embodied task execution on the TEACh dataset [*REF*], including Execution from Dialogue History (EDH), Trajectory from Dialogue (TfD), and Two-Agent Task Completion (TATC). Our framework achieves state-of-the-art (SOTA) results across all three settings. In a more realistic few-shot setting where available expert demonstrations are limited for training, we show our framework can learn and adapt well to unseen environments.
+Meanwhile, we also systematically analyze the modular structure of JARVIS in a variety of comparative studies. Our contributions are as follows:
+
+
+- We propose a neuro-symbolic commonsense reasoning framework blending the two worlds of connectionism and symbolism for conversational embodied agents. The neural modules convert dialog and visual observations into symbolic information, and the symbolic modules integrate sub-goals and semantic maps into actions based on task-level and action-level common sense.
+
+
+- Our framework is modular and can be adapted to different levels of conversational embodied tasks, including EDH, TfD, and TATC. It consistently achieves the SOTA performance across all three tasks, with great generalization ability in new environments.
+
+
+- We systematically study the essential factors that affect the task performance, and demonstrate that our framework can be generalized to few-shot learning scenarios when available training instances are limited.
+
+
+Related Work
+
+
+Embodied AI Tasks  An embodied agent that can navigate and interact with the environment has been a long-term research topic in artificial intelligence. Many research problems like goal-oriented visual indoor and outdoor navigation [*REF*; *REF*; *REF*] have been studied. Natural language grounded embodied agent is becoming an emerging research area recently. First, Vision-and-Language Navigation [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*] discusses how an agent may follow human instruction to navigate to the target goal. Vision-and-dialog Navigation [*REF*; *REF*; *REF*; *REF*] takes a step further to get dialog involved in the navigation process.
+*REF*, *REF*, and *REF*  propose a more complex interactive task completion setting that combines object interaction with navigation. Intelligent agents that can communicate with humans and execute complex tasks are of significant meaning in human society. *REF* and *REF* introduce dialog-based embodied agent tasks, which are more close to the real-world scenario. In this work, we focus on building a conversational embodied agent for dialog-based household tasks.
+
+
+Vision-and-Language Navigation and Task Completion  There has been a large volume of research working on embodied AI tasks such as vision-and-language navigation [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*], vision-and-dialog navigation [*REF*; *REF*; *REF*], vision-and-language object navigation [*REF*] and vision-and-language task completion [*REF*; *REF*; *REF*; *REF*]. For embodied navigation and task completion, *REF* proposes to use an LSTM cell to fuse multi-modal information and sequentially predict actions. *REF* then propose an episodic transformer structure to replace the LSTM cell. Further, some modular methods are introduced to break down the whole task into different sub-modules. For example, *REF* proposes to build a semantic voxel to represent environment information, and design a hierarchical high-level and low-level controller for execution. *REF* further propose a semantic policy in their modular system to help find small objects. However, these methods designed for well-organized instruction-guided tasks bear the risk of poor generalization on dialog-based embodied tasks. Instead, our method extracts task-relevant information from the dialog and does neuro-symbolic reasoning for various dialog-based embodied tasks.
+
+
+Neuro-Symbolic Reasoning  Neural models have shown enormous success in the last decade [*REF*; *REF*; *REF*; *REF*], but they may be limited and often hard to interpret in more complex tasks such as visual reasoning, text reasoning, multi-modal understanding, etc., due to the lack of reasoning ability. To this end, many neuro-symbolic methods have been proposed to leverage the reasoning ability of symbolic computation [*REF*; *REF*; *REF*; *REF*; *REF*].
+*REF* propose a neuro-symbolic concept learner for visual question answering, which learns visual concepts by building a symbolic program for each sentence. *REF* extends this framework to the video reasoning task by introducing a dynamic trajectory model. In dialog-based household task completion, there are multiple inputs from different modalities. A single neural model may not be able to understand and reason over these inputs and infer the correct action [*REF*]. To solve this, we propose a modular neuro-symbolic commonsense reasoning framework to transfer the multi-modal inputs into symbolic information and perform commonsense reasoning over these symbolic representations.
+
+
+FIGURE 2
+
+
+Neuro-Symbolic Conversational Embodied Agents
+
+
+Problem Formulation 
+
+
+In this section, we introduce the general formulation of dialogue-based embodied agents. It requires the embodied agent to communicate with humans and execute the instructions with intermediate and long-term goals. The long-term goal is the final purpose, and the intermediate goals can be some milestones during this process. For example, in the long-term goal &apos;make breakfast&apos;, the intermediate goals can be &apos;Find bread&apos;, &apos;Find knife&apos;, &apos;Slice bread&apos;, &apos;Cook egg&apos;, etc. There are two players, Commander and Follower, in the simulated environment: the Commander (which is often a human user in the real world, or another agent in two-agent task completion tasks) can prompt the oracle information of the task and the environment, while the Follower has no access to the oracle information and is supposed to complete the task instructed by the Commander. During this process, the Follower can communicate with the Commander for further guidance.
+
+
+Each task instance starts with an initial state of the environment *MATH*, where *MATH* is the set of all possible environment states. The Commander and the Follower can chat freely for multiple rounds of dialogue *MATH*, where *MATH* indicates the player and *MATH* is an utterance. At each time step *MATH*, the Follower observes the visual image *MATH* and take actions *MATH* to alter the state of the environment. The task will be completed when a desired state *MATH* is reached.
+
+
+*REF* categorizes dialog-based embodied agent tasks into three types. First, in Execution from Dialog History (EDH), the Follower accomplish an unfinished task based on an offline execution history. Meanwhile, Follower in Trajectory from Dialog (TfD) is required to reproduce the action sequence based on the entire communication record. Two-Agent Task Completion (TATC) is the task where the Follower and the Commander communicate to accomplish embodied tasks. In this paper, we introduce a general JARVIS framework for dialog-based embodied agents and apply it to three different settings.
+
+
+Proposed Methods
+
+
+Our JARVIS framework (as shown in Figure 2) consists of a Language Planning module, a Visual Semantic module, and a Symbolic Reasoning module. Specifically, the Language Planning module utilizes a pre-trained large language model to process free-form language input and produces procedural sub-goals of the task. In the Visual Semantic module, we use a semantic segmentation model, a depth prediction model, and the SLAM algorithm to transform raw visual observations into a more logistic form --- semantic maps containing spatial relationships and states of the objects. Finally, in the Symbolic Reasoning module, we utilize task-level and action-level commonsense knowledge to reason about transferred symbolic vision-and-language information and generate actions, and a Goal Transformer is trained to deal with uncertainty by directly producing actions when no relevant information can be retrieved from the visual symbolic representations. Below we introduce our methods in detail; please refer to Appendix A for more implementation details and Appendix B for our notation table.
+
+
+Language Understanding and Planning 
+
+
+The language commands in dialog-based embodied tasks are free-form and high-level, and do not contain low-level procedural instructions.
+Therefore, it is essential to break a command like &apos;can you make breakfast for me?&apos; into sub-goals such as &apos;Find bread&apos;, &apos;Find knife&apos;, &apos;Slice bread&apos;, &apos;Cook egg&apos;, and then generate actions *MATH* to complete the sub-goals sequentially. Large language models (LLMs) are shown to be capable of extracting actionable knowledge from learned world knowledge [*REF*]. In order to understand free-form instructions and generate the sub-goal sequence for action planning, we leverage an LLM, the pre-trained BART [*REF*] model, to process dialog and action, and predict future sub-goal sequence *MATH* for completing the whole task: *MATH* where *MATH* is the collected set of user-utterance pairs and the previous sub-goal sequence *MATH*. For sequential inputs *MATH*, we encode the sub-goals into tokens and concatenate them as the input of the LLM model. For the ground-truth sub-goal sequence *MATH*, we acquire it by a rule-based transformation from the action sequence *MATH*. Concretely, we note that the actions can be categorized as navigations and interactions. For interactions, we coalesce the action and targeted object as the sub-goal. For example, if the embodied agent executes the action of picking up a cup, we will record the sub-goal &apos;PickUp Cup&apos;.
+For navigation, we coalesce &apos;Navigate&apos; with the target object of the next interaction.
+
+
+Note that in cases like the Trajectory from History (TfD) task, where only dialog information *MATH* is given and other history information is missing, Equation 1 reduces to *MATH*.
+The BART model is trained with a reconstruction loss by computing the cross entropy between the generated future sub-goal sequence *MATH* and the ground truth future sub-goal sequence *MATH*.
+
+
+TABLE 1
+
+
+Semantic World Representation 
+
+
+The visual input into a embodied agent is usually a series of RGB images *MATH*. One conventional way in deep learning is to fuse the visual information with other modalities into a neural network (e.g., Transformers) for decision making, which, however, is uninterpretable and often suffers from poor generalization under data scarcity or high task complexity. Thus, we choose to transform visual input into a semantic representation similar to *REF* and *REF*, which can be used for generalized symbolic reasoning later.
+
+
+At each step *MATH*, we first use a pre-trained Mask-RCNN model [*REF*] for semantic segmentation, which we fine-tune on in-domain training data of the TEACh dataset, to get object types *MATH* and semantic mask *MATH* from egocentric RGB input *MATH*  at time stamp *MATH*. Then we use a Unet [*REF*] based depth prediction model as  *REF* to predict the depth of each pixel of the current egocentric image frame. Then, by combining the agent location and camera parameters, we transform the visual information into symbolic information: if a certain object exists in a 3D space, which we store in a 3D voxel. Then we further project the 3D voxel along the height dimension into a 2D map and obtain more concise 2D symbolic information.
+So far, we have transformed the egocentric RGB image into a series of 2D semantic maps, among which each map records a certain object&apos;s spatial location in the projected 2D plane. This symbolic environment information will be maintained and updated during the task completion process as in Figure. 2.
+
+
+Action Execution via Symbolic Commonsense Reasoning
+
+
+After obtaining the sub-goal sequence and the semantic world representation above, the agent is supposed to generate actions next.
+However, the learned representations are not perfect. For example, the sub-goal sequence could be misordered or contain implausible sub-goals leading to an execution failure, and the semantic map may miss certain objects or be inaccurate in certain regions. Therefore, we introduce a Symbolic Reasoning module to reason about executable actions based on task-level and action-level commonsense logics. Sample logic predicates are present in Table 1.
+
+
+Task common sense requires the sub-goals to satisfy prerequisites before execution, represented by logic predicates. For example, *MATH*  will be true if the object *MATH* belongs to the pre-defined movable objects set, and *MATH* will be true only when the agent has not grasped any object and the object *MATH* is movable. We assume an ideal agent can correctly complete all generated sub-goals during the task-level commonsense reasoning. Then, we can preserve the agent&apos;s state and check the prerequisites for particular sub-goals during this process. Thus, if the logic predicates return false values, we will add prerequisite sub-goals or remove implausible sub-goals, such as adding &apos;PickUp knife&apos; before &apos;Slice bread&apos;.
+
+
+Then, given the rationalized sub-goals and the semantic map, we employ two methods to generate executable actions: the Fast Marching Method (FMM) [*REF*] and the Goal Transformer. When the agent can find the target object in the semantic map, the FMM will calculate the distances between the goal location and the agent location in the 2D frame coordinate and lead the agent to reach the next closest empty space. Otherwise, the Goal Transformer, which we modify based on Episodic Transformer [*REF*] and train on the TEACh training set, can encode the previous images *MATH*, actions *MATH*, and sub-goals *MATH* to predict the next action *MATH*: *MATH*.
+
+
+Action common sense aims to rectify potential errors in the generated actions above when applied to the interactive environment. We provide some sample logic predicates for action common sense in Table 1 as well. For instance, *MATH*  will return true if the location *MATH* is empty in the semantic map. At this level, the actions should be consistent with basic environment constraints. For example, only when at least one feasible path exists from location *MATH* to *MATH*, the *MATH* returns true. When the predicates are false for actions, the agent will take a different policy to deal with the issue. For instance, the agent will do random actions or move to the nearest feasible location of *MATH* to deal with the false value of *MATH*. More details of symbolic reasoning can be found in A.
+
+
+TABLE 2
+
+
+Experiments
+
+
+Dataset and Tasks 
+
+
+To evaluate the performance of JARVIS, we use the TEACh dataset [*REF*] as the testbed. The dataset comprises over 3,000 sessions, each initialized with a different initial state *MATH*. Each session includes dialogs *MATH* and sequences of reference actions *MATH* from human-to-human interactions where each time two different annotators play the Commander and Follower roles. At the end of the session, the Follower completes a set of household sub-tasks, and a final state *MATH* is reached. We evaluate our JARVIS framework on three different tasks: Execution from Dialog History (EDH), Trajectory from Dialog (TfD), and Two-Agent Task Completion (TATC).
+
+
+Execution from Dialog History (EDH) EDH requires the agent to predict a sequence of future actions *MATH* that change the environment from *MATH* state to *MATH*, where the state changes correspond to one or few sub-tasks from a segment of the session. The dialog history *MATH* and action history *MATH* from the same session are provided as well as a sequence of reference actions *MATH* collected from human annotators.
+Each EDH instances can be explicitly expressed as *MATH* where *MATH* is the initial state of the EDH instance, *MATH* is the action history and *MATH* are the dialog history. The evaluation is based on the changes of simulator state *MATH* after a sequence of predicted *MATH* at the end of the EDH instance, and the success is reached when *MATH* is the same as *MATH*.
+
+
+Trajectory from Dialog (TfD) Different from EDH, in the TfD task, the agent needs to infer the whole action sequence *MATH* in a session given the entire dialogue history *MATH*. As a result, a TfD instance can be formulated as *MATH* where *MATH* denotes the complete dialog while *MATH* is the corresponding reference action sequence.
+
+
+Two-Agent Task Completion (TATC) TATC models both the Commander and Follower agents. Given the initial instruction, the Follower communicates with the Commander to achieve the household task. The Commander has access to the environment metadata through three APIs, ProgressCheck, SelectOid and SearchObject. The ProgressCheck returns the templated descriptions of the task and provides the changes between the current state *MATH* and the final state *MATH*. For example, the task Make plate of toast has two state changes when the task is initialized, *MATH* and *MATH*. These state changes could include either a general class name or a specific object, and by using SearchObject or SelectOid APIs, the Commander can check the ground truth object location and segmentation. Following the TEACh dataset [*REF*], we adapt JARVIS to two separate models for implementing the roles of Commander and Follower of the TATC task. Specifically, Commander with our designed Task-Level Common Sense Module will give instructions to the Follower, while the latter will ask for help and follow the instructions through Action Execution Module.
+
+
+Experimental Setup
+
+
+Evaluation Metrics We adopt Success Rate (SR), Goal-Condition Success (GC), and Trajectory Weighted Metrics (TLW) as evaluation metrics. Task success is a binary value, defined as *MATH* when all the expected state changes *MATH* are presented in *MATH* otherwise *MATH*.
+SR is the ratio of success cases among all the instances. GC Success is a fraction of expected state changes in *MATH* present in *MATH* which is in *MATH* and the GC success of the dataset is the average of all the trajectories. Trajectory weighted SR (TLW-SR) and GC (TLW-GC) are calculated based on a reference trajectory *MATH* and a predicted action sequence *MATH*. The trajectory length weighted metrics for metric value *MATH* can be calculated as *MATH*.
+In our evaluation, we use *MATH*, and calculate the weighted average for each split by using *MATH* as the weight of each instance. Following evaluation rules in TEACh [*REF*], the maximum number of action steps is 1,000 and the failure limit is 30.
+
+
+Baseline We select Episodic Transformer (E.T.) [*REF*] as the baseline method. E.T. achieved SOTA performance on the TEACh dataset. It learns the action prediction based on the TEACh dataset using a ResNet-50 [*REF*] backbone to encode visual observations, two multi-modal transformer layers to fuse the embedded language, visual and action information, and output the executable action directly.
+
+
+Main Results and Analysis 
+
+
+TABLES
+
+
+EDH We establish the state-of-the-art performance with a large margin over the baseline [E.T.]model, and achieved the first position in Alexa Prize SimBot Public Benchmark Challenge. Our model achieves a higher (around 3X) relative performance than baseline on trajectory weighted metrics as shown in Table 3, suggesting that adding symbolism can also reduce navigation trajectory length. Besides, our framework has less performance gap between seen and unseen environments, showing better generalizability in new environments. We find that [E.T.] usually gets stuck in a corner or keeps repeatedly circling, while our model barely suffers from those issues benefiting from neuro-symbolic commonsense reasoning.
+
+
+TfD Our model achieves state-of-the-art performance across all metrics in TfD tasks, which shows that JARVIS has better capability for task execution based on offline human-human conversation. Compared with EDH tasks, TfD tasks provide only the entire dialog history for the agent, which increases the difficulty and causes performance decreases in both models, while our JARVIS still outperforms the [E.T.] by a large margin, showing that the end-to-end model can not learn an effective and generalized strategy for long tasks completion providing only dialog information.
+
+
+TATC We study the TATC task under different constraint settings for the Commander, since in reality, when agent and human are collaborating to complete a task, it is likely that human could provide helps on different levels. The three settings in our experiment results are human (the commander) is only willing to provide instructions about the current sub-goal, human provides instructions based on both the current sub-goal and ground truth target object location, and human will also utilize the ground truth target object segmentation for creating instructions (original setting of TATC task in *REF*). As shown in Table 4, our JARVIS greatly improves the current only open-sourced baseline model, where the baseline is developed on [E.T.] but fails on all TATC task instances. It shows that the complex nature of the TATC task creates a huge barrier for end-to-end methods and the advantage of our JARVIS in this task domain.
+Additionally, with different settings on the Commander limitations, we find that more information utilized by the commander will cause higher SR, showing that our JARVIS-based Commandercan take advantage of the known information during the interaction and provides helpful instructions that adapt well to different levels of constraint.
+
+
+Few-Shot Learning 
+
+
+Data scarcity has been known as a severe issue for deep neural methods.
+Especially, it is even more severe in language-involved embodied agent tasks since collecting training data is more expensive and time-consuming. Here we also conduct experiments in the few-shot setting, shown in Table 2. We randomly sample ten instances from each of the *MATH* types of household tasks in the TEACh dataset and train the language understanding and planning module and Goal Transfomer in the same way as the whole dataset setting. For [E.T.], we notice a significant performance drop on both EDH and TfD (e.g., 0 success rate in TfD tasks), since it overfits and can not learn effective and robust strategy. Since our framework breaks down the whole problem into smaller sub-problems and incorporates a solid symbolic commonsense reasoning module, it still has the ability to complete some complex tasks. This also indicates the importance of connecting connectionism and symbolism.
+
+
+Unit Test of Individual Module 
+
+
+To better understand the sources of the performance gain of JARVIS, as is shown in Table 5, we conduct extensive ablation studies to evaluate the performance of different modules in our JARVIS framework on EDH and TfD. First, given ground truth perception and sub-goals, the reasoning module achieves performance as high as over 60% in EDH tasks. Our Symbolic Commonsense Reasoning module can infer correct actions and complete the sub-goals with ground truth vision and language symbolic information most of the time. Also, replacing our language planning module with ground truth improves significantly more than replacing the sub-goal executor. These validate the efficacy of our Symbolic Commonsense Reasoning mechanism in the action execution module, especially on shorter tasks.
+
+
+Second, since failing to perform one sub-task will incur the failure of the whole task, as the task gets longer, the probability of success in executing all of the sub-goals will decrease dramatically. Thus, the executor&apos;s performance becomes the main bottleneck for success. And therefore, in TfD, whose task instances are longer than EDH, replacing our executor with a teleport agent can better boost performance than providing ground truth sub-goals. We also notice that Goal Transformer results in a more efficient policy with increased trajectory weighted success rates.
+
+
+Conclusion and Future Work 
+
+
+This work studies how to teach embodied agents to execute dialog-based household tasks. We propose JARVIS, a neuro-symbolic framework that can incorporate the perceived neural information from multi-modalities and make decisions by symbolic commonsense reasoning. Our framework outperforms baselines by a large margin on three benchmarks of the TEACh [*REF*] dataset. We hope the methods and findings in this work shed light on the future development of neuro-symbolic embodied agents.
+
+
+Based on our framework, some problems can be studied in the future.
+First, in EDH and TfD tasks, we find that the information provided at the initial state may not be sufficient for correctly predicting future sub-goals. Second, it is hard for our framework to complete a task when it fails to recognize a target object. Thus, the performance is limited by the capability of the visual perception module.

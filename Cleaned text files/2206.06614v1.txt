@@ -1,0 +1,572 @@
+Introduction
+
+
+In recent years, the Transformer architecture [*REF*]
+achieved exceptional performance on many machine learning applications,
+especially for text [*REF*; *REF*] and image
+processing [*REF*; *REF*; *REF*].
+This intrinsically relates to its few-shot learning nature
+[*REF*]: the attention weights work as context-dependent
+parameters, inducing better generalization. Furthermore, this
+architecture parallelizes token processing by design. This property
+avoids backpropagation through time, making it less prone to
+vanishing/exploding gradients, a very common problem for recurrent
+models. As a result, they can handle longer sequences more efficiently.
+
+
+This work argues that these two capabilities are essential for a
+Meta-Reinforcement Learning (meta-RL) agent. We propose TrMRL
+(Transformers for Meta-Reinforcement Learning), a
+memory-based meta-Reinforcement Learner which uses the transformer
+architecture to formulate the learning process. It works as a memory
+reinstatement mechanism [*REF*] during learning,
+associating recent working memories to create an episodic memory which
+is used to contextualize the policy.
+
+
+Figure illustrates the process. We formulated each task
+as a distribution over working memories. TrMRL associates these memories
+using self-attention blocks to create a task representation in each
+head. These task representations are combined in the position-wise MLP
+to create an episodic output (which we identify as episodic memory). We
+recursively apply this procedure through layers to refine the episodic
+memory. In the end, we select the memory associated with the current
+timestep and feed it into the policy head.
+
+
+Nonetheless, transformer optimization is often unstable, especially in
+the RL setting. Past attempts either fail to stabilize
+[*REF*] or required architectural additions
+[*REF*] or restrictions on the observations space
+[*REF*]. We hypothesize that this challenge is because the
+instability of early stages of transformer optimization harms initial
+exploration, which is crucial for environments where the learned
+behaviors must guide exploration to prevent poor policies. We argue that
+this challenge can be mitigated through a proper weight initialization
+scheme. For this matter, we applied T-Fixup initialization
+[*REF*].
+
+
+FIGURE
+
+
+We conducted a series of experiments to evaluate meta-training, fast
+adaptation, and out-of-distribution generalization in continuous control
+environments for locomotion and robotic manipulation. Results show that
+TrMRL presents comparable or superior performance and sample efficiency
+compared to the meta-RL baselines. We also conducted an experiment to
+validate the episode memory refinement process. Finally, we conducted an
+ablation study to show the effectiveness of the T-Fixup initialization,
+and the sensibility to network depth, sequence size, and the number of
+attention heads.
+
+
+Related Work
+
+
+Meta-Learning is an established Machine Learning (ML) principle to
+learn inductive biases from the distribution of tasks to produce a
+data-efficient learning system [*REF*; *REF*; *REF*]. This principle
+spanned in a variety of methods in recent years, learning different
+components of an ML system, such as the optimizer
+[*REF*; *REF*; *REF*], neural architectures [*REF*; *REF*], metric spaces
+[*REF*], weight initializations [*REF*; *REF*; *REF*],
+and conditional distributions [*REF*; *REF*].
+Another branch of methods learns the entire system using memory-based
+architectures [*REF*; *REF*; *REF*; *REF*]
+or generating update rules by discovery [*REF*] or evolution [*REF*].
+
+
+Memory-Based Meta-Learning is the particular class of methods where
+we focus on in this work. In this context, *REF* 
+[*REF*] concurrently proposed the RL *MATH* framework, which
+formulates the learning process as a Recurrent Neural Network (RNN)
+where the hidden state works as the memory mechanism. Given the recent
+rise of attention-based architectures, one natural idea is to use it as
+a replacement for RNNs. *REF* proposed an architecture
+composed of causal convolutions (to aggregate information from past
+experience) and soft-attention (to pinpoint specific pieces of
+information). In contrast, our work applies causal, multi-head
+self-attention by stabilizing the complete transformer architecture with
+an arbitrarily large context window. Finally, *REF* also
+applied multi-head self-attention for rapid task solving for RL
+environments. However, in a different dynamic: their work applied the
+attention mechanism iteratively in a pre-defined episodic memory, while
+ours applies it recursively through transformer layers to build an
+episodic memory from the association of recent working memories.
+
+
+Our work has intersections with Cognitive Neuroscience research on
+memory for learning systems [*REF*; *REF*; *REF*]. In this context,
+*REF* extended the RL *MATH* framework incorporating a
+differentiable neural dictionary as the inductive bias for episodic
+memory recall. In the same line, *REF*:conf/cogsci/RitterWKB18 also
+extended RL *MATH* but integrating a different episodic memory system
+inspired by the reinstatement mechanism. In our work, we also mimic
+reinstatement to retrieve episodic memories from working memories but
+using self-attention. Lastly, *REF* studied the
+association between working and episodic memories for RL agents,
+specifically for memory tasks, proposing separated inductive biases for
+these memories based on LSTMs and auxiliary unsupervised losses. In
+contrast, our work studies this association for the Meta-RL problem,
+using memory as a task proxy implemented by the transformer
+architecture.
+
+
+Meta-Reinforcement Learning is a branch of Meta-Learning for RL
+agents. Some of the algorithms described in past paragraphs extend to
+the Meta-RL setting by design [*REF*; *REF*; *REF*; *REF*].
+Others were explicitly designed for RL and often aimed to create a task
+representation to condition the policy. PEARL [*REF*] is
+an off-policy method that learns a latent representation of the task and
+explores via posterior sampling. MAESN [*REF*] also
+creates task variables but optimizes them with on-policy gradient
+descent and explores by sampling from the prior. MQL
+[*REF*] is also an off-policy method, but it uses a
+deterministic context that is not permutation invariant implemented by
+an RNN. Lastly, VariBAD [*REF*] formulates the problem as
+a Bayes-Adaptive MDP and extends the RL *MATH* framework by incorporating a
+stochastic latent representation of the task trained with a VAE
+objective. Our work contrasts all the previous methods in this task
+representation: we condition the policy in the episodic memory generated
+by the transformer architecture from the association of past working
+memories. We show that this episodic memory works as a proxy to the
+task representation.
+
+
+Transformers for RL. The application of the transformer architecture
+in the RL setting is still an open challenge. *REF* tried to
+apply this architecture for simple bandit tasks and tabular MDPs and
+reported unstable train and random performance.
+*REF* then proposed some architectural changes in
+the vanilla transformer, reordering layer normalization modules and
+replacing residual connections with expressing gating mechanisms,
+improving state-of-the-art performance for a set of memory environments.
+*REF* also studied how transformer-based models can improve
+the performance of sequential decision-making agents. It stabilized the
+architecture using factored observations and an intense hyperparameter
+tuning procedure, resulting in improved sample efficiency. In contrast
+to these methods, our work stabilizes the transformer model by improving
+optimization through a better weight initialization. In this way, we
+could use the vanilla transformer without architectural additions or
+imposing restrictions on the observations.
+
+
+Finally, recent work studied how to replace RL algorithms with
+transformer-based language models [*REF*; *REF*]. Using a supervised
+prediction loss in the offline RL setting, they modeled the agent as a
+sequence problem. Our work, on the other hand, considers the standard RL
+formulation in the meta-RL setting. This formulation presents more
+challenges, since the agent needs to explore in the environment and
+apply RL gradients to maximize rewards, which is acknowledged to be much
+noisier [*REF*].
+
+
+Preliminaries
+
+
+We define a Markov decision process (MDP) by a tuple
+*MATH*, where *MATH* is a state space, *MATH* is an action space,
+*MATH* is a transition dynamics, *MATH* is a bounded reward function,
+*MATH* is an initial state distribution, *MATH* is a discount factor, and *MATH* is
+the horizon. The standard RL objective is to maximize the cumulative
+reward, i.e., *MATH*, with *MATH* and *MATH*, where *MATH* 
+is a policy parameterized by *MATH*.
+
+
+Problem Setup: Meta-Reinforcement Learning
+
+
+In the meta-RL setting, we define *MATH* a distribution
+over a set of MDPs *MATH*. During meta-training, we sample
+*MATH* from this distribution, where *MATH*.
+Therefore, the tasks[^1] share a similar structure in this setting, but
+reward function and transition dynamics vary. The goal is to learn a
+policy that, during meta-testing, can adapt to a new task sampled from
+the same distribution *MATH*. In this context, adaptation
+means maximizing the reward under the task in the most efficient way. To
+achieve this, the meta-RL agent should learn the prior knowledge shared
+across the distribution of tasks. Simultaneously, it should learn how to
+differentiate and identify these tasks using only a few episodes.
+
+
+Transformer Architecture
+
+
+The transformer architecture [*REF*] was first
+proposed as an encoder-decoder architecture for neural machine
+translation. Since then, many variants have emerged, proposing
+simplifications or architectural changes across many ML problems
+[*REF*; *REF*; *REF*]. Here, we describe the encoder architecture as it composes our
+memory-based meta-learner.
+
+
+The transformer encoder is a stack of multiple equivalent layers. There
+are two main components in each layer: a multi-head self-attention
+block, followed by a position-wise feed-forward network. Each component
+contains a residual connection [*REF*] around them, followed by
+layer normalization [*REF*]. The multi-head self-attention (MHSA)
+block computes the self-attention operation across many different heads,
+whose outputs are concatenated to serve as input to a linear projection
+module, as in Equation: *MATH* where *MATH* are the keys, queries, and values for the sequence input,
+respectively. Additionally, *MATH* represents the dimension size of keys
+and queries representation and *MATH* the number of attention heads.
+*MATH* represents the attention masking operation. *MATH* represents a
+linear projection operation.
+
+
+The position-wise feed-forward block is a 2-layer dense network with a
+ReLU activation between these layers. All positions in the sequence
+input share the parameters of this network, equivalently to a
+*MATH* temporal convolution over every step in the sequence.
+Finally, we describe the positional encoding. It injects the relative
+position information among the elements in the sequence input since the
+transformer architecture fully parallelizes the input processing. The
+standard positional encoding is a sinusoidal function added to the
+sequence input [*REF*].
+
+
+T-Fixup Initialization 
+
+
+The training of transformer models is notoriously difficult, especially
+in the RL setting [*REF*]. Indeed, gradient
+optimization with attention layers often requires complex learning rate
+warmup schedules to prevent divergence [*REF*]. Recent
+work suggests two main reasons for this requirement. First, the Adam
+optimizer [*REF*] presents high variance in the inverse second
+moment for initial updates, proportional to a divergent integral
+[*REF*]. It leads to problematic updates and significantly
+affects optimization. Second, the backpropagation through layer
+normalization can also destabilize optimization because the associated
+error depends on the magnitude of the input [*REF*].
+
+
+Given these challenges, *REF* proposed a weight
+initialization scheme (T-Fixup) to eliminate the need for learning rate
+warmup and layer normalization. This is particularly important to the RL
+setting once current RL algorithms are very sensitive to the learning
+rate for learning and exploration.
+
+
+T-Fixup appropriately bounds the original Adam update to make variance
+finite and reduce instability, regardless of model depth. We refer to
+*REF* for the mathematical derivation. We apply the
+T-Fixup for the transformer encoder as follows:
+- Apply Xavier initialization [*REF*] for all
+parameters excluding input embeddings. Use Gaussian initialization
+*MATH*, for input embeddings, where *MATH* 
+is the embedding dimension;
+- Scale the linear projection matrices in each encoder attention block
+and position-wise feed-forward block by *MATH*.
+
+
+Transformers are Meta-Reinforcement Learners 
+
+
+FIGURE 
+
+
+In this work, we argue that two critical capabilities of transformers
+compose the central role of a Meta-Reinforcement Learner. First,
+transformers can handle long sequences and reason over long-term
+dependencies, which is essential to the meta-RL agent to identify the
+MDP from a sequence of trajectories. Second, transformers present
+context-dependent weights from self-attention. This mechanism serves as
+a fast adaptation strategy and provides necessary adaptability to the
+meta-RL agent for new tasks.
+
+
+FIGURE
+
+
+Task Representation
+
+
+We represent a working memory at the timestep *MATH* as a parameterized
+function *MATH*, where *MATH* is the MDP state, *MATH* 
+is an action, *MATH* is the reward, and *MATH* is a boolean flag to identify whether this is a
+terminal state. Our first hypothesis is that we can define a task
+*MATH* as a distribution over working memories, as in Equation *MATH* 
+where *MATH* is the working memory embedding space. In this context, one
+goal of a meta-RL agent is to learn *MATH* to make a distinction among
+the tasks in the embedding space *MATH*. Furthermore, the learned
+embedding space should also approximate the distributions of similar
+tasks so that they can share knowledge. Figure [1] illustrates this concept for a
+one-dimensional representation.
+
+
+We aim to find a representation for the task given its distribution to
+contextualize our policy. Intuitively, we can represent each task as a
+linear combination of working memories sampled by the policy interacting
+with it: *MATH* where *MATH* represents the length of a segment of sampled trajectories
+during the policy and task interaction. *MATH* represents an
+arbitrary linear transformation. Furthermore, *MATH* is a
+coefficient to compute how relevant a particular working memory *MATH* is
+to the task representation, given the set of sampled working memories.
+Next, we show how the self-attention computes these coefficients, which
+we use to output an episodic memory from the transformer architecture.
+
+
+Self-Attention as a Fast Adaptation Strategy
+
+
+In this work, our central argument is that self-attention works as a
+fast adaptation strategy. The context-dependent weights dynamically
+compute the working memories coefficients to implement Equation. We now derive how we compute these
+coefficients. Figure illustrates this mechanism.
+
+
+Let us define *MATH*, *MATH*, and *MATH* as a
+representation of the working memory at timestep *MATH* in the keys,
+queries, and values spaces, respectively. The dimension of the queries
+and keys spaces is *MATH*. We aim to compute the attention operation in
+Equation for a sequence of *MATH* timesteps, resulting in
+Equation: *MATH* where *MATH* is the dot product between the working memories *MATH* and *MATH*.
+Therefore, for a particular timestep *MATH*, the self-attention output is: *MATH*.
+
+
+Equation shows that the self-attention mechanism implements
+the task representation in Equation by associating past working memories given
+that the current one is *MATH*. It computes this association with
+relative similarity through the dot product normalized by the softmax
+operation. This inductive bias helps the working memory representation
+learning to approximate the density of the task distribution *MATH*.
+
+
+Transformers and Memory Reinstatement
+
+
+We now argue that the transformer model implements a memory
+reinstatement mechanism for episodic memory retrieval. An episodic
+memory system is a long-lasting memory that allows an agent to recall
+and re-experience personal events [*REF*]. It complements the
+working memory system, which is active and relevant for short periods
+[*REF*] and works as a buffer for episodic memory retrieval
+[*REF*]. Adopting this memory interaction model, we model
+an episodic memory as a transformation over a collection of past
+memories. More concretely, we consider that a transformer layer
+implements this transformation: *MATH*
+where *MATH* represents the episodic memory retrieved from the last
+layer *MATH* for the timestamp *MATH* and *MATH* represents the transformer
+layer. Equation provides a recursive definition, and *MATH* 
+(the base case) corresponds to the working memories *MATH* In this
+way, the transformer architecture recursively refines the episodic
+memory interacting memories retrieved from the past layer. We show the
+pseudocode for this process in Algorithm
+(Appendix [13]). This refinement is guaranteed by a crucial
+property of the self-attention mechanism: it computes a consensus
+representation across the input memories associated to the
+sub-trajectory, as stated by Theorem (Proof in
+Appendix [12]). Here, we define consensus representation as
+the memory representation that is closest on average to all likely
+representations [*REF*], i.e., minimizes the Bayes
+risk considering the set of episodic memories.
+
+
+THEOREM
+
+
+Lastly, we condition the policy head in the episodic memory from the
+current timestep to sample an action. This complete process resembles a
+memory reinstatement operation: a reminder procedure that reintroduces
+past elements in advance of a long-term retention test
+[*REF*]. In our context, this &quot;long-term retention test\&quot;
+identifies the task and acts accordingly to maximize rewards.
+
+
+Experiments and Discussion
+
+
+In this section, we present an empirical validation of our method,
+comparing it with the current state-of-the-art methods. We considered
+high-dimensional, continuous control tasks for locomotion (MuJoCo)
+and dexterous manipulation (MetaWorld). We describe them in Appendix
+[8]. For reproducibility (source code and
+hyperparameters), we refer to the released source code at WEBSITE.
+
+
+Experimental Setup
+
+
+Meta-Training. During meta-training, we repeatedly sampled a batch
+of tasks to collect experience with the goal of learning to learn. For
+each task, we ran a sequence of *MATH* episodes. During the interaction,
+the agent conducted exploration with a gaussian policy. During
+optimization, we concatenate these episodes to form a single trajectory
+and we maximize the discounted cumulative reward of this trajectory.
+This is equivalent to the training setup for other on-policy meta-RL
+algorithms [*REF*; *REF*]. For these experiments,
+we considered *MATH*. We performed this training via Proximal Policy
+Optimization (PPO) [*REF*], and the data batches mixed
+different tasks. Therefore, we present here an on-policy version of the
+TrMRL algorithm. To stabilize transformer training, we used the T-Fixup
+as a weight initialization scheme.
+
+
+Meta-Testing. During meta-testing, we sampled new tasks. These are
+different from the tasks in meta-training, but they come from the same
+distribution, except during Out-of-Distribution (OOD) evaluation. For
+TrMRL, in this stage, we froze all network parameters. For each task, we
+ran few episodes, performing the adaptation strategy. The goal is to
+identify the current MDP and maximize the cumulative reward across the
+episodes.
+
+
+Memory Write Logic. At each timestep, we fed the network with the
+sequence of working memories. This process works as follows: at the
+beginning of an episode (when the memory sequence is empty), we start
+writing the first positions of the sequence until we fill all the slots.
+Then, for each new memory, we removed the oldest memory in the sequence
+(in the &quot;back&quot; of this &quot;queue&quot;) and added the most recent one (in the
+&quot;front&quot;).
+
+
+FIGURES 
+
+
+Comparison Methods. For comparison, we evaluated three different
+meta-RL baselines: RL *MATH* [*REF*], optimized using PPO
+[*REF*]; PEARL [*REF*]; MAML [*REF*], whose outer-loop used TRPO [*REF*];
+and VariBAD [*REF*].
+
+
+Results and Analysis
+
+
+We compared TrMRL with baseline methods in terms of meta-training,
+episode adaptation, and OOD performance. We also present the latent
+visualization for TrMRL working memories and ablation studies. All the
+curves presented are averaged across three random seeds, with 95%
+bootstrapped confidence intervals.
+
+
+Meta-Training Evaluation. Figure shows the meta-training results for all the
+methods in the MetaWorld (success rates) and MuJoCo (average returns)
+environments. All subplots represent performance on test tasks over the
+training timesteps. TrMRL presented comparable or superior performance
+to the baseline methods. In scenarios where the task ambiguity is high,
+VariBAD presented stronger results, especially for Push-v2. In this
+context, ambiguity relates to the same working memories belonging to
+multiple different MDPs (as illustrated in Figure [1]). These results support the
+effectiveness of the VariBAD objective that incorporates task
+uncertainty directly during action selection [*REF*].
+Reach-v2 and AntDir also presented some level of ambiguity, but TrMRL is
+on par with these scenarios. For scenarios with less ambiguity, such as
+HalfCheetaVel, TrMRL is way more sample efficient than VariBAD. It is
+worth mentioning that VariBAD&apos;s training objective can be leveraged by
+other encoding methods (such as TrMRL) [*REF*], and we
+let this as a future line of work.
+
+
+PEARL failed to explore and learn these robotic manipulation tasks:
+prior work already pointed out the difficulty of training PEARL&apos;s task
+encoder for dexterous manipulation [*REF*]. On the other
+side, it presented better results on locomotion tasks, especially in
+sample efficiency. This is because of its off-policy nature inherited
+from the Soft Actor-Critic framework [*REF*]. Compared
+with other on-policy methods (such as RL *MATH* and MAML), TrMRL
+significantly improved performance or sample efficiency.
+
+
+Finally, for &quot;MetaWorld-ML45-Train\&quot; (a simplified version of ML45
+benchmark where we evaluate on the training tasks), the more complex
+environment in this work, TrMRL achieved the best learning performance
+among the methods, supporting that the proposed method can generalize
+better across very different tasks in comparison with other methods.
+Additionally, VariBAD&apos;s performance suggests that its proposed objective
+does not scale well for this scenario, harming the final performance
+when compared with RL2. We hypothesize that the supervision from the
+dynamics and rewards in the training objective provides conflicting
+learning signals to the RNN.
+
+
+Fast Adaptation Evaluation. A critical skill for meta-RL agents is
+the capability of adapting to new tasks given a few episodes. We
+evaluate this by running meta-testing on 20 test tasks over six
+sequential episodes. Each agent runs its adaptation strategy to identify
+the task and maximize the reward across episodes. Figure
+presents the results for the locomotion tasks.
+TrMRL again presents a comparable or superior performance in comparison
+to the baselines.
+
+
+We highlight that TrMRL presented high performance since the first
+episode. It only requires a few timesteps to achieve high performance in
+test tasks. In the HalfCheetahVel, for example, it only requires around
+20 timesteps to achieve the best performance (Figure [5] in Appendix
+[10]). Therefore, it presents a nice
+property for online adaptation. Other methods, such as PEARL and MAML,
+do not present such property, as they need a few episodes before
+executing adaptation efficiently.
+
+
+FIGURE
+
+
+OOD Evaluation. Another critical scenario is how the fast adaptation
+strategies perform for out-of-distribution tasks. For this case, we
+change the HalfCheetahVel environment to sample OOD tasks during the
+meta-test. In the standard setting, both training and testing target
+velocities are sampled from a uniform distribution in the interval
+*MATH*. In the OOD setting, we sampled 20 tasks in the interval
+*MATH* and assessed adaptation throughout the episodes. Figure
+[2] presents the results. TrMRL surpasses all the baselines methods with a good margin,
+suggesting that the context-dependent weights learned a robust
+adaptation strategy, while other methods memorized some aspects of the
+standard distribution of tasks. We especially highlight PEARL, which
+achieved the best performance for locomotion tasks among the methods but
+performed poorly in this setting. VariBAD also presented unstable
+performance across the episodes. These results suggest that their task
+encoding mechanisms do not generate effective latent representations for
+OOD tasks.
+
+
+FIGURE
+
+
+Episodic Memory Refinement. We evaluated Theorem
+
+
+empirically in Figure [3]. In these two experiments, we interacted
+with one of the trained policies within the HalfCheetahVel environment
+and collected the episodic memories computed from each layer throughout
+a few episodes and across different tasks. Firstly, we computed the
+dissimilarity between the memories from each layer and the final
+representation from the last layer. We refer to this metric as the
+representation error. Next, we computed linear regression models over
+the &quot;expert&quot; actions sampled from the trained policy. We used the
+episodic memories from each layer as features and reported the mean
+squared error on a test set. We aim to evaluate how meaningful the
+representations from each layer are by predicting the best action given
+a very lightweight model.
+
+
+Figure [3] shows that the representation error
+gradually decreases throughout the layers, suggesting the refinement of
+the episodic memory and the convergence to a consensus representation,
+as supported by Theorem. It also shows a correlated behavior in the
+regression error over the expert actions. This evidence suggests that
+the refinement of an episodic memory induces a consensus representation
+that is more meaningful to predict the best actions from the expert
+agent.
+
+
+Conclusion and Future Work
+
+
+In this work, we presented TrMRL, a memory-based meta-RL algorithm built
+upon a transformer, where the multi-head self-attention mechanism works
+as a fast adaptation strategy. We designed this network to resemble a
+memory reinstatement mechanism, associating past working memories to
+dynamically represent a task and recursively build an episode memory
+through layers.
+
+
+TrMRL demonstrated a valuable capability of learning from reward
+signals. On the other side, recent Language Models presented substantial
+improvements by designing self-supervised tasks
+[*REF*; *REF*] or even automating their generation [*REF*]. As future work, we aim
+to investigate how to enable these forms of self-supervision to leverage
+off-policy data collected during the training and further improve sample
+efficiency in transformers for the meta-RL scenario.

@@ -1,0 +1,556 @@
+[Value Memory Graph: A Graph-Structured World Model for Offline Reinforcement Learning]
+
+
+[Introduction]
+
+
+Humans are usually good at simplifying difficult problems into easier
+ones by ignoring trivial details and focusing on important information
+for decision making. Typically, reinforcement learning (RL) methods
+are directly applied in the original environment to learn a policy.
+When we have a difficult environment like robotics or video games with
+long temporal horizons, sparse reward signals, or large and continuous
+state-action space, it becomes more challenging for RL methods to
+reason the value of states or actions in the original environment to
+get a well-performing policy. Learning a world model that simplifies
+the original complex environment into an easy version might lower the
+difficulty to learn a policy and lead to better performance.
+
+
+In offline reinforcement learning, algorithms can access a dataset
+consisting of pre-collected episodes to learn a policy without
+interacting with the environment. Usually, the offline dataset is used
+as a replay buffer to train a policy in an off-policy way with
+additional constraints to avoid distribution shift problems *REF*. 
+As the episodes also contain the dynamics
+information of the original environment, it is possible to utilize
+such a dataset to directly learn an abstraction of the environment in
+the offline RL setting. To this end, we introduce Value Memory
+Graph (VMG), a graph-structured world model for offline
+reinforcement learning tasks. VMG is a Markov decision process (MDP)
+defined on a graph as an abstract of the original environment. Instead
+of directly applying RL methods to the offline dataset collected in
+the original environment, we learn and build VMG first and use
+it as a simplified substitute of the environment to apply RL methods.
+VMG is built by mapping offline episodes to directed chains in a
+metric space trained via contrastive learning. Then, these chains are
+connected to a graph via state merging. Vertices and directed edges of
+VMG are viewed as graph states and graph actions. Each vertex
+transition on VMG has rewards defined from the original rewards in the
+environment.
+
+
+FIGURE
+
+
+To control agents in environments, we first run the classical value
+iteration *REF* once on VMG to calculate graph state values. This can be done in less
+than one second without training a value neural network thanks to the
+discrete and relatively smaller state and action spaces in VMG. At
+each timestep, VMG is used to search for graph actions that can lead
+to high-value future states. Graph actions are directed edges and
+cannot be directly executed in the original environment. With the help
+of an action translator trained in supervised learning (e.g., *REF*) using the same offline
+dataset, the searched graph actions are converted to environment
+actions to control the agent. An overview of our method is shown in *REF*.
+
+
+Our contribution can be summarized as follows:
+-  We present Value Memory Graph (VMG), a graph-structured
+world model in offline reinforcement learning setting. VMG
+represents the original environments as a graph-based MDP with
+relatively small and discrete action and state spaces.
+-  We design a method to learn and build VMG on an offline dataset via
+contrastive learning and state merging.
+-  We introduce a VMG-based method to control agents by reasoning graph
+actions that lead to high-value future states via value iteration
+and convert them to environment actions via an action translator.
+-  Experiments on the D4RL benchmark show that VMG can outperform
+several state-of-theart offline RL methods on several
+goal-oriented tasks with sparse rewards and long temporal horizons.
+
+
+[Related Work]
+
+
+Offline Reinforcement Learning One crucial problem in offline RL
+is how to avoid out-of-thetraining-distribution (OOD) actions and
+states that decrease the performance in test environments 
+*REF* directly penalize the mismatch between the
+trained policy and the behavior policy via an explicit density model
+or via divergence. Another methods like *REF* constrains the training via penalizing the Q
+function. Model-based reinforcement learning methods like *REF*  *REF*  *REF* 
+*REF*  *REF* constrains the policy to the region of the world model that is close to the training
+data. Compared to previous methods, graph actions in VMG always
+control agents to move to graph states, and all the graph states come
+from the training dataset. Therefore, agents stay close to states from
+the training distribution naturally.
+
+
+Hierarchical Reinforcement Learning Hierarchical RL methods (e.g.,
+*REF*) use hierarchical policies to control agents
+with a high-level policy that generate commands like abstract actions
+or skills, and a low-level policy that converts them to concrete
+environment actions. Our method can be viewed as a hierarchical RL
+approach with VMG-based high-level policy and a low-level action
+translator. Compared to previous methods which learn high-level
+policies in environments, our high-level policy is instead trained in
+VMG via value iteration without additional neural network learning.
+
+
+Model-based Reinforcement Learning Recent research in model-based
+reinforcement learning (MBRL) has shown a significant advantage *REF* 
+in sample efficiency over model-free reinforcement learning. In most of the previous methods, world models are
+designed to approximate the original environment transition. In
+contrast, VMG abstracts the environment as a simple graph-based MDP.
+Therefore, we can apply RL methods directly to VMG for simple and fast
+policy learning. As we demonstrate later in our experiments, this
+facilitates reasoning and leads to good performance in tasks with long
+temporal horizons and sparse rewards.
+
+
+Graph from Experience Similar to VMG, methods like *REF* 
+study the credit assignment problem on a graph
+created from the experience. *REF* are designed for discrete environments.
+*REF*  *REF*  *REF*  *REF* considers the environments
+with finite actions and continuous state space by discretizing states
+or state features via kNN. *REF*  *REF* 
+*REF* introduces a stitch operator to create a graph
+directly by adding new transitions. It can work with environments with
+low-dimensional continuous action spaces like Mountain Car Continuous
+(1 dimension) and Maze2D (2 dimensions). However, the stitch operator
+is hard to scale to high-dimensional action spaces. In contrast, VMG
+discretizes both state and action spaces and thus can work with
+continuous high-dimensional action spaces.
+
+
+Representation Learning Contrastive learning methods learns a good
+representation by maximizing the similarity between related data and
+minimizing the similarity of unrelated data *REF* in the learned representation space.
+Bisimulation-based methods like *REF* 
+*REF* learn a representation with the help of
+bisimulation metrics *REF* measuring the &apos;behavior similarity&apos; of states
+w.r.t. future reward sequences given any input action sequences. In
+VMG, we use a contrastive learning loss to learn a metric space
+encoding the similarity between states as L2 distance.
+
+
+[Value Memory Graph (VMG)]
+
+
+Our world model, Value Memory Graph (VMG), is a graph-structured
+Markov decision process constructed as a simplified version of the
+original environment with discrete and relatively smaller state-action
+spaces. RL methods can be applied on the VMG instead of the original
+environment to lower the difficulty of policy learning. To build VMG,
+we first learn a metric space that measures the
+reachability among the environment states. Then, a graph is built in
+the metric space from the dataset as the backbone of our VMG. In the
+end, a Markov decision process is defined on the graph as an abstract
+representation of the environment.
+
+
+FIGURE
+
+
+1. [VMG Metric Space Learning]
+
+
+VMG is built in a metric space where the L2 distance represents
+whether one state can be reached from another state in a few
+timesteps. The embedding in the metric space is based on a
+contrastive-learning mechanism demonstrated in *REF* 
+We have two neural networks: a state encoder FORMULA
+that maps the original state s to a state feature fs in the
+metric space, and an action encoder FORMULA
+that maps the original action a to a transition FORMULA in the
+metric space conditioned on the current state feature fs. Given a
+transition triple FORMULA, we add the transition
+FORMULA to the state feature fs as the prediction of the next
+state feature FORMULA + FORMULA. The
+prediction is encouraged to be close to the ground truth fst and
+away from other unrelated state features. Therefore, we use the
+following learning objective to train Encs and Enca: FORMULA.
+
+
+Here, FORMULA denotes the L2 distance. FORMULA denotes the
+n-th negative state. Given a batch of transition triples 
+FORMULArandomly sampled from the training set and a fixed margin
+distance FORMULA, we use all the other next states FORMULA
+as the negative states for si and encourage FORMULA
+to be at least m away from negative states in the metric space. In
+addition, we use an action decoder FORMULA
+to reconstruct the action from the transition FORMULA conditioned on
+the state feature fs as shown in *REF*. This
+conditioned auto-encoder structure encourages the transition
+FORMULA to be a meaningful representation of the action. Besides, we
+penalize the length of the transition when it is larger than the
+margin m to encourage adjacent states to be close in the metric
+space. Therefore, we have the additional action loss La shown
+below.
+
+
+FORMULA, the total training loss for metric learning, is the sum
+of the contrastive and action losses.
+
+
+FORMULA
+
+
+2. [Construct the Graph in VMG]
+
+
+To construct the graph in VMG, we first map all the episodes in the
+training data to the metric space as directed chains. Then, these
+episode chains are combined into a graph with a reduced number of
+state features. This is done by merging similar state features into
+one vertex based on the distance in the metric space. The overall
+algorithm are visualized in *REF* and can be found in
+[Appx.B.1.].
+
+
+Given a distance threshold SYMBOL, a vertex set V, and a checking
+state si, we check whether the minimal
+distance in the metric space from the existing vertices to the
+checking state si is smaller than SYMBOL. If not or if the vertex
+set is empty, we set the checking state si as a new vertex vJ
+and add it to V. This process is repeated over the whole dataset.
+After the vertex set V is constructed, each state si can be
+classified into a vertex vj of which the distance in the metric
+space is smaller than SYMBOL. In the training
+set, each state transition FORMULArepresents a directed
+connection from si to SYMBOL. Therefore, we
+create the graph directed edges from the original transitions. For any
+two different vertices vj1, vj2 in
+V, if there exist a transition FORMULA where si and
+SYMBOL can be classified into vj and vj, respectively,
+we add a directed edge FORMULA from vj1 to vj2.
+
+
+FIGURE
+
+
+3. [Define a Graph-Based MDP]
+
+
+VMG is a Markov decision process (MDP) (SG, AG, PG, RG)
+defined on the graph. SG, AG, PG, RG denotes the state
+set, the action set, the state transition probability, 
+and the reward of this new graph MDP, respectively. Based on the graph, each
+vertex is viewed as a graph state.
+
+
+Besides, we view each directed connection FORMULA starting from a
+vertex vj1 as an available graph action in vj1. Therefore,
+the graph state set SG equals the graph vertex set V and the
+graph action set is the graph edge set E. For the graph state
+transition probability PG from vj1 to vj2, we define it
+as 1 if the corresponding edge exists in E otherwise 0. Therefore, FORMULA.
+
+
+We define the graph reward of each possible state transition
+FORMULA as the average over the original rewards from vj1 to
+vj2 in the training set D, plus &quot;internal rewards&quot;. The internal
+reward comes from the original transitions that are inside vj1 or
+vj2 after state merging. An example of graph reward
+definition is visualized in *REF* Concretely,
+FORMULA classified to vj, SYMBOL classified to FORMULA.
+
+
+Note that the rewards of graph transitions outside of E are not
+defined, as these transitions will not happen according to
+*REF* For internal rewards where both the source
+si and the target SYMBOL of the original transition (si, SYMBOL)
+are classified to the same vertex, we split the reward into two and
+allocate them to both incoming and outgoing edges, respectively. This is shown
+as FORMULA and FORMULA in *REF*. Now we have a well-defined MDP on the graph.
+This MDP serves as our world model VMG.
+
+
+4. [How to Use VMG]
+
+
+VMG, together with an action translator, can generate environment
+actions that control agents to maximize episode returns. We first run
+the classical RL method value iteration *REF* 
+*REF* on VMG to compute the value V (vj) of each
+graph state vj. This can be done in one second without learning an
+additional neural-network-based value function due to VMG&apos;s finite and
+discrete state-action spaces.
+
+
+To guide the agent, VMG provides a graph action that leads to
+high-value graph states in the future at each time step. Due to the
+distribution shift between the offline dataset and the environment,
+there can be gaps between VMG and the environment. Therefore, the optimal
+graph action calculated directly by value iteration on VMG might not
+be optimal in the environment. We notice that instead of greedily
+selecting the graph actions with the highest next state values,
+searching for a good future state after multiple steps first and
+planning a path to it can give us a more reliable performance. Given
+the current environment state sc, we first find the closest graph
+state vc on VMG. Starting from vc, we search for Ns future steps to find the future
+graph state SYMBOL with the best value. Then, we plan a shortest path
+FORMULA from vc to SYMBOL via Dijkstra *REF*  *REF* on
+the graph. We select the SYMBOL graph state vc+Nsg and
+make an edge FORMULA as the searched graph action. The
+graph action FORMULA is converted to the environment action
+ac via an action translator: FORMULA. The pseudo algorithm can be found in
+[Appx.B.2.].
+
+
+The action translator FORMULA reasons the executed
+environment action given the current state s and a state SYMBOL in
+the near future. FORMULA is trained purely in the offline
+dataset via supervised learning and separately from the training of
+VMG. In detail, given an episode from the training set and a time step
+t, we first randomly sample a step t + k from the future K
+steps. FORMULA. Then, FORMULA is trained to
+regress the action at at step t given the state st and the
+future state st+k using a L2 regression loss FORMULA. Note that when k = 1,
+FORMULA is determined purely by the environment
+dynamics and FORMULA becomes an inverse dynamics model. As
+k increase, the influence of the behavior policy that collects the
+offline dataset on FORMULA will increase.
+Therefore, the sample range K should be small to reflect the
+environment dynamics and reduce the influence of the behavior policy. In all of our
+experiments, K is set to 10.
+
+
+[Experiments]
+
+
+1. [Performance on Offline RL Benchmarks]
+
+
+Test Benchmark We evaluate VMG on the widely used offline
+reinforcement learning benchmark D4RL *REF* 
+*REF* In detail, we test VMG on three domains:
+Kitchen, AntMaze, and Adorit. In Kitchen, a robot arm in a virtual
+kitchen needs to finish four subtasks in an episode. The robot
+receives a sparse reward after finishing each subtask. D4RL provides
+three different datasets in Kitchen: kitchen-complete,
+kitchen-partial, and kitchen-mixed. In AntMaze, a robot ant needs to
+go through a maze and reaches a target location. The robot only
+receives a sparse reward when it reaches the target. D4RL provides
+three mazes of different sizes. Each of them contains two datasets. In
+Adroit, policies control a robot hand to finish tasks like rotating a
+pen or opening a door with dense rewards. For evaluation, D4RL
+normalizes all the performance of different tasks to a range of 0-100,
+where 100 represents the performance of an &quot;expert&quot; policy. More
+benchmark details can be found in D4RL *REF* 
+*REF* and [Appx.A.].
+
+
+Baselines. We mainly compare our method with two state-of-the-art
+methods CQL *REF*  *REF* and IQL *REF*  *REF* in all
+the above-mentioned datasets. Both CQL and IQL are based on Q-learning
+with constraints on the Q function to alleviate the OOD action issue
+in the offline setting. In addition, we also report the performance of
+BRAC-p *REF*  *REF* BEAR *REF*  *REF* DT *REF*  *REF* and 
+AWAC *REF*  *REF* in the datasets they used.
+Performance of behavior cloning (BC) is from *REF*  *REF*. 
+
+
+Hyperparameters. In all the experiments, the dimension of metric
+space is set to 10. The margin m in *REF* and
+*REF* is 1. The distance threshold SYMBOL is set to 0.5,
+0.8, and 0.3 in Kitchen, AntMaze, and Adorit, separately.
+Hyperparameters are selected from 12 configurations. We use Adam
+optimizer *REF*  *REF* with a learning
+rate FORMULA, train the model for 800 epochs with batch size
+100, and select the best-performing checkpoint. More details about
+hyperparameters and experiment settings are in [Appx.D.].
+
+
+Performance Experimental results are shown in
+Tab *REF* VMG&apos;s scores are averaged over three
+individually trained models and over 100 individually evaluated
+episodes in the environment. In general, VMG outperforms baseline
+methods in Kitchen and AntMaze and shows competitive performance in
+Adroit. Note that a good reasoning ability in Kitchen and AntMaze
+domains is crucial as the rewards in both domains are sparse, and the
+agent needs to plan over a long time before getting reward signals. In
+AntMaze, baseline methods perform relatively well in the smallest maze
+&apos;umaze&apos;, which requires less than 200 steps to solve. In the maze
+&apos;large&apos; where episodes can be longer than 600 steps, the performance
+of baseline methods drops dramatically. VMG keeps a reasonable score
+in all three mazes, which suggests that simplifying environments to a
+graph-structured MDP helps RL methods better reason over a long
+horizon in the original environment. Adroit is the most challenging
+domain for all the methods in D4RL with a high-dimensional action
+space. VMG still shows competitive performance in Adroit compared to
+baselines. Experiments show that learning a policy directly in VMG
+helps agents perform well, especially in environments with sparse
+rewards and long temporal horizons.
+
+
+2. [Understanding Value Memory Graph]
+
+
+To analyze whether VMG can understand and represent the structure of
+the task space correctly, we visualize an environment, the
+corresponding VMG, and their relationship in *REF* We
+study the task &quot;antmaze-large-diverse&quot; shown in *REF* 
+as the state space of navigation tasks is easier to visualize and
+understand. The target location where the agent receives a positive
+reward is denoted by a red circle. A successful trajectory is plotted
+as the green path. To visualize VMG, all the state features fs are
+reduced to two dimensions via UMAP *REF* 
+*REF* and used as the coordinate to plot corresponding
+vertices as shown in *REF* The graph state values
+are denoted by color shades. Vertices with darker blue have higher
+values. As shown in *REF* VMG allocates high values
+to vertices that are close to the target location and low values to
+far away vertices. Besides, the topology of VMG is similar to the
+maze. This is further visualized in *REF* where graph
+vertices are mapped to the corresponding maze locations to show their
+relationship. Our analysis suggests that VMG can
+learn a meaningful representation of the task. Another VMG
+visualization in the more complicated task &quot;pen-human&quot; is shown in
+*REF* and and more visualizations can be found in [Appx.J.].
+
+
+FIGURES
+
+
+3. [Reusability of VMG With New Reward Functions]
+
+
+In offline RL, policies are trained to master skills that can
+maximize accumulated returns via an offline dataset. When the
+dataset contains other skills that don&apos;t lead
+to high rewards, these skills will be simply ignored. We name them
+ignored skills. We can retrain a new policy to master ignored skills
+by redefining new reward functions
+correspondingly. However, rerunning RL methods with new reward
+functions is cumbersome in the original complex environment, as we
+need to retrain the policy network and Q/value networks from scratch.
+In contrast, rerunning value iteration in VMG with new reward
+functions takes less than one second without retraining any neural
+networks. Note that the learning of VMG and the action translator is
+reward-free. Therefore, we don&apos;t need to retrain VMG but recalculate
+graph rewards using *REF* with new reward functions.
+
+
+TABLE 
+
+
+FIGURE
+
+
+We design an experiment in the dataset &quot;kitchen-partial&quot; to verify the
+reusability of VMG with new reward functions. In this dataset, the
+robot only receives rewards in the following four subtasks: open a
+microwave, move a kettle, turn on a light, and open a slide cabinet.
+Besides, there are training episodes containing ignored skills like
+turning on a burner or opening a hinged cabinet. We first train a
+model in the original dataset. Then, we define a new reward function,
+where only ignored skills have positive rewards and relabel training
+episodes correspondingly. After that, we recalculate graph rewards
+using *REF* rerun value iteration on VMG, and test our
+agent. Experimental results in Tab *REF* show that agents
+can perform ignored skills after rerunning value iteration in the
+original VMG with recalculated graph rewards without retraining any
+neural networks.
+
+
+4. [Ablation Study]
+
+
+Distance Threshold The distance threshold SYMBOL directly controls
+the &quot;radius&quot; of vertices and affects the size of the graph. We
+demonstrate how SYMBOL affects the performance in the task
+&quot;kitchen-partial&quot; in *REF* The dataset size of
+&quot;kitchen-partial&quot; is 137k. A larger SYMBOL can reduce the number of
+vertices but hurts the performance due to information loss. More
+results can be found in [Appx.E.].
+
+
+Graph Reward Here we study how will different designs of the graph
+reward RG(vj1, vj2) affect the final performance. In
+addition to the original version defined in *REF* and
+*REF* that averages over the environment rewards, we
+try maximization and summation and denote them as RG,max and
+RG,sum, separately. Besides, we also study the effectiveness of
+the the internal reward through the following three variants of *REF* FORMULA. Experimental
+results shown in Tab *REF* suggest that the original
+design of the graph rewards represent the environment well and leads to the
+best performance.
+
+
+Importance of Contrastive Loss The contrastive loss is the key
+training objective to learning a meaningful metric space. The
+contrastive loss pushes states that can be reached in a few steps to
+be close to each other and pushes away other states. To verify this,
+we train a variant of VMG without the contrastive loss and show the
+results in Tab *REF* The variant without the contrastive
+loss does not work at all (0 scores) in the &apos;kitchen-partial&apos; and
+&apos;antmaze-medium-play&apos; tasks, and the performance in &apos;pen-human&apos;
+significantly decreases from 70.7 to 41.2. Results indicate the
+importance of contrastive loss in learning a robust metric space.
+
+
+Effectiveness of Action Decoder. The Table
+original action from the transition in the
+metric space conditioned on the state feature shown in
+*REF* In this way, the training of the action
+decoder encourages transitions in the metric space to better
+represent actions and leads to a better metric space.
+
+
+TABLE
+
+
+To show the effectiveness of the action decoder, we train a VMG
+variant without the action decoder and show the results in
+Tab *REF* The performance without the action decoder
+drops in all three tested tasks, especially in &apos;kitchen-partial&apos; (from
+68.8 to 15.4). The results verify our design choice.
+
+
+Multi-Step Search In Tab *REF* we list the
+performance of our method without Multiple-Step Search. Compared to
+the original version, we observe a performance drop in
+&apos;kitchen-partial&apos; and &apos;antmazemedium-play&apos; and similar performance
+in &apos;pen-human&apos;, which suggests that instead of greedily searching one
+step in the value interaction results, searching multiple steps first
+to find a high value state in the long future and then plan a path to
+it via Dijkstra can help agents perform better. We think the advantage
+might caused by the gap between VMG and the environment. An optimal
+path on VMG searched directly by value iteration may not be still
+optimal in the environment. At the same time, a shorter path from
+Dijkstra helps reduce cumulative errors and uncertainty, and thus
+increases the reliability of the policy.
+
+
+Limitations As an attempt to apply graph-structured world models
+in offline reinforcement learning, VMG still has some limitations. For
+example, VMG doesn&apos;t learn to generate new edges in the graph but only
+creates edges from existing transitions in the dataset. This might be
+a limitation when there is not enough data provided. In addition, VMG
+is designed in an offline setting. Moving to the online setting
+requires further designs for environment exploring and dynamic graph
+expansion, which can be interesting future work. Besides, the action
+translator is trained via conditioned behavior cloning. This may lead
+to suboptimal results in tasks with important low-level dynamics like
+gym locomotion (See [Appx.H]).
+Training the action translator by offline RL methods may alleviate
+this issue.
+
+
+[Conclusion]
+
+
+We present Value Memory Graph (VMG), a graph-structured
+world model in offline reinforcement learning. VMG is a Markov
+decision process defined on a directed graph trained from the offline
+dataset as an abstract version of the environment. As VMG is a smaller
+and discrete substitute for the original environment, RL methods like
+value iteration can be applied on VMG instead of the original
+environment to lower the difficulty of policy learning. Experiments
+show that VMG can outperform baselines in many goal-oriented tasks,
+especially when the environments have sparse rewards and long temporal
+horizons in the widely used offline RL benchmark D4RL. We believe VMG
+shows a promising direction to improve RL performance via abstracting
+the original environment and hope it can encourage more future works.

@@ -1,0 +1,453 @@
+BIMRL: Brain Inspired Meta Reinforcement Learning &quot;
+
+
+INTRODUCTION
+
+
+A major problem with most model-free RL methods is their sample
+inefficiency and poor generalizability. Even for simple tasks, these
+methods require thousands of interactions with the environment.
+Furthermore, even after learning a task, slight changes in the
+environment dynamics or the underlaying task will force us to basically
+retrain the agent from scratch. To combat these issues, a number of
+methods have been proposed that utilize ideas from multi-task and meta
+learning ([*REF*: *REF*]). Some of these
+methods treat the task-ID like an unobservable latent variable in the
+underlaying POMDP and condition their policy on a learned, task belief
+state [*REF*]. However, these methods generally use some
+simplifying assumptions that limits their generalizability. Our proposed
+method, BIMRL, is similar in that it learns to identify a suitable
+task-specific latent and uses it to quickly adapt, but relaxes some of
+these assumptions. Similar to some prior works
+([*REF*; *REF*]), we use variational
+methods to estimate this latent variable. However, by introducing a new
+factorization of the log-likelihood of trajectories, our method learns a
+different context embedding that is more consistent with POMDP
+assumptions and can also be interpreted in a more meaningful way.
+
+
+Another central issue with RL is the well-known exploration-exploitation
+dilemma [*REF*]. If an agent wants to quickly adapt to a
+new task, it must be able to explore the environment and obtain relevant
+experiences. Nonetheless, with complex tasks and environments,
+conventional exploration methods, such as epsilon-greedy exploration,
+are not enough. Intrinsic rewards that encourage suitable exploration
+are currently one of the most successful approaches. Our novel memory
+module provides an intrinsic reward to guide the exploration; thus
+alleviating the problems that arise from exploration across different
+tasks. Aside from this reward our memory module, which consists of an
+episodic part that resets after each episode, and a Hebbian part
+([*REF*]) which retains information across different episodes
+of a particular task, gives us a performance boost in memory-based tasks
+while helping deal with catastrophic forgetting that comes up in
+multi-task settings.
+
+
+To summarize, our contributions are as follows:
+1. Proposing a multi-layer architecture that bridges model-based and
+model-free approaches by utilizing predictive information on
+state-values. Each layer of our architecture corresponds to a
+different part of the Prefrontal Cortex (PFC) which is known to be
+responsible for important cognitive functionalities such as learning
+a world-model [*REF*], planning [*REF*], and
+shaping exploratory behaviours [*REF*]. One of the
+objectives in this architecture is derived from our newly proposed
+factorization of the log-likelihood of trajectories. This
+factorization is more robust to violations of POMDP assumptions and
+also takes the predictive coding ability of the brain into
+consideration [*REF*].
+2. Introducing a neuro-inspired memory module compatible with
+discoveries in cognitive neuroscience. This module will help in
+memory-based tasks and give the agent the ability to preserve
+information, both within an episode and across different episodes of
+some task. The design of this memory module is reminiscent of
+Hippocampus (HP) as the main region assigned to episodic memory in
+the brain [*REF*].
+3. Proposing a new intrinsic reward based on our memory module. This
+reward does not disappear over time, is task-agnostic, and is very
+effective in a multi-task setting. It will encourage exploratory
+behaviour that leads to faster task identification.
+
+
+RELATED WORK
+
+
+Meta Reinforcement Learning
+
+
+Meta reinforcement learning is a promising approach for tackling
+few-episode learning regimes. It aims to achieve quick adaptation by
+learning inductive biases in the form of meta-parameters. There are
+multiple approaches to meta-RL, two of the most popular being gradient
+based methods and metric based methods. Another popular family of
+approaches use a recurrent neural network (RNN) [*REF*].
+Some previous works try to extend this approach and use an RNN to
+extract some context that will be used to inform the policy. Recently,
+by observing the effectiveness of variational approaches for estimating
+the log-likelihood of trajectories, some methods proposed to use the
+estimated context (referred to as the belief state in the literature) to
+inform the policy about its current task ([*REF*; *REF*]). This belief state
+should contain information about environment dynamics as well as the
+reward function of the task. Ideally, conditioning on this belief would
+convert the POMDP into a regular MDP. However, these methods typically
+impose some constraints on the underlaying POMDP (for instance,
+[*REF*; *REF*] consider Bayes-adaptive
+MDPs which are a special case of the general POMDPs). These restrictions
+may be violated in some scenarios. On the contrary, our proposed method
+is more robust to such violations.
+
+
+Modular Architectures
+
+
+Injecting a modular inductive bias into policies is a promising strategy
+for improving out-of-distribution generalization in a systematic way.
+[*REF*] proposed a modular structure where each module can
+become an expert on a different part of the state space. These modules
+will be dynamically combined through attention mechanisms to form the
+overall policy. [*REF*] introduced an extension called the
+bidirectional recurrent independent mechanism (BRIMs). BRIM is composed
+of multiple layers of recurrent neural networks where each module also
+receives information from the upper layer. A modified version of BRIM is
+used in our architecture as well.
+
+
+Combining Model-Based &amp; Model-Free
+
+
+There has been efforts on trying to combine model-based and model-free
+approaches. Dyna [*REF*] and successor representation
+[*REF*] are two such attempts. There has also been
+some investigations on whether our brains work in a model-based or
+model-free manner, which has resulted in some neuro-inspired
+computational models ([*REF*]). We propose a new way of
+combining these two approaches that is inspired by the predictive
+capabilities of PFC [*REF*].
+
+
+Exploration
+
+
+Another central issue in RL is efficient exploration of the environment.
+Methods that encourage effective exploratory behaviour through the use
+of an intrinsic reward are among the most popular and effective ways of
+dealing with this problem. Intrinsic rewards can be obtained from a
+novelty or curiosity criterion ([*REF*]). It is worth
+noting that effective exploration becomes an even bigger issue in the
+meta-learning setting ([*REF*]).
+
+
+METHODS
+
+
+In this chapter we introduce our proposed method. We will first derive a
+factorization for a trajectory&apos;s log-likelihood. Using this
+factorization, we will design a multi-layered architecture with multiple
+loss functions. We will then shift our focus and introduce our memory
+module. Finally, we will give some intuitive interpretations of our
+proposed method and mention some of the connections to different regions
+of the human nervous system.
+
+
+FIGURE
+
+
+Likelihood Factorization
+
+
+Our method builds upon VariBAD [*REF*] and we use the
+same terminology as is used there. Similar to VariBAD, we aim to
+optimize the following ELBO loss corresponding to log-likelihood of a
+trajectory *MATH*: *MATH* where *MATH* is the trajectory distribution
+induced by our policy, *MATH* is the belief state, and *MATH* is the time
+horizon for a task, which is set to be four times the horizon for an
+episode. Notice that this objective is comprised of two parts. The first
+part, *MATH*, is known as the reconstruction loss and the second part is the
+KL-divergence between the variational posterior *MATH* and the prior
+over the belief state, *MATH*. Unlike VariBAD, we factorize the
+reconstruction loss as follows: *MATH*. It is worth mentioning that unlike previous methods
+which use the Bayes Adaptive Markov Decision Process (BAMDP) formulation
+and assume perfect observability given the belief state (which will not
+hold in extreme partial observability scenarios), our factorization uses
+the predictive information in *MATH* and asserts that our belief should
+contain enough information to predict the next *MATH* states and rewards,
+given the next *MATH* actions. Contrary to VariBAD that conditions the
+trajectory on the full history of actions, we condition a trajectory on
+only the first *MATH* actions (hence, the added fourth summation term in). This
+modification will result in an added action simulation network which
+will also help in learning better representations in the first level of
+the hierarchical structure. This predictive coding capability is
+compatible with those observed in the PFC ([*REF*]).
+
+
+Brain Inspired Meta Reinforcement Learning (BIMRL)
+
+
+Our proposed architecture is composed of a recurrent task inference
+module responsible for updating our estimate of belief state about the
+current task, followed by a hierarchical structure similar to BRIM
+[*REF*], that conditions on the inferred belief state. As
+we will see, this hierarchical structure is similar to PFC in how they
+function. The last layer of this hierarchical structure is a controller
+whose hidden state will be fed into an actor-critic network. We also
+have a memory module that directly interacts with the controller. Figure 
+demonstrates how all these modules are put
+together. In what follows, we will briefly introduce each part.
+
+
+Hierarchical Structure (BRIM)
+
+
+The task inference module is a recurrent network that processes the last
+(observation, action, reward) and produces a belief state that will be
+passed to each of the three layers in the hierarchical structure as well
+as the memory module.
+
+
+The first level of BRIM (as shown in Fig.) is responsible for learning a world model.
+This layer uses the last observation, action and reward in addition to
+the current belief state to predict dynamics, inverse dynamics and the
+rewards. It does so using three simulation networks. This layer is
+trained to maximize the trajectories log-likelihood as is formulated in FORMULA. 
+Figure [1] illustrates this layer in more detail.
+
+
+FIGURE
+
+
+The second level (the &quot;Planning&quot; box in Fig.)
+is responsible for predicting the value of
+the next *MATH* steps. It will take in the previous level&apos;s hidden state
+(*MATH*) as well as the current state and the next *MATH* actions, and
+predicts the value for the next *MATH* time-steps. It aims to minimize the
+following loss function: *MATH* where *MATH* is the *MATH* -step TD return defined as
+*MATH*. In the above equation, *MATH* denotes the parameters of
+*MATH* -step value decoder network, *MATH* is the output of the second level
+and *MATH* shows the parameters of the critic head in the actor-critic
+network.
+
+
+The existence of this layer between the upper layer, responsible for
+learning the model of the environment, and the lower layer, which
+directly affects decision making, allows the following interpretations:
+- Model-based approach: Model-based methods first obtain a model
+of the environment and then plan their next action using this model.
+In our proposed architecture, the first layer aims to learn as much
+as possible about the environment. The second layer receives this
+information and predicts the value for the next *MATH* steps. To do so
+accurately, this layer must be able to perform some sort of
+planning. Therefore, in our model the two explicit stages in
+model-based approaches are performed implicitly by the networks in
+the first and second layer.
+- Context-based RL: Methods such as VariBAD inform the agent of
+its task by providing it with a context vector obtained from a
+dynamics prediction network. The context vector that we provide is
+even more informative as it also contains the necessary information
+for predicting the value of states in the next several steps.
+
+
+Finally, the third level of BRIM, known as the controller, aggregates
+the information form the previous BRIM layer and the most recent
+observations form the environment. Additionally, the hidden state of
+this layer modulates access to the memory, which will be discussed in
+the next section. The aggregated information will then be used by
+shallow actor and critic networks to determine the next action and
+value. We use PPO [*REF*], an on-policy learning
+algorithm, to train our policy networks.
+
+
+This hierarchical structure is reminiscent of certain parts of the
+brain. The first layer is similar to the medial Prefrontal Cortex (mPFC)
+as they are both responsible for learning a predictive model of the
+environment [*REF*]. Similarly, the second layer
+corresponds to the Obitofrontal Cortex (OFC) which, in some
+neuroscientific literature, is identified as the main region responsible
+for multi-step planning in the brain [*REF*]. Lastly, a part
+of the nervous system that connects PFC to HP (episodic memory) and the
+Striatum (which corresponds to actor-critic networks
+[*REF*]) is known as the Anterior Cingulate Cortex
+(ACC) [*REF*]. This region manages the use of control or
+habitual behaviours based on the degree of uncertainty about the task.
+It is also known as one of the pathways for transferring information
+from PFC to HP to guide the transition between the working memory
+(corresponding to PFC [*REF*]) and the episodic memory
+[*REF*]. In our model this corresponds to the third
+layer which modulates the memory and aggregates information in time
+[*REF*].
+
+
+Memory
+
+
+The memory module is itself composed of two parts: an explicit episodic
+memory and a Hebbian memory. At each time step, the output of these two
+parts are combined using an attention mechanism and is then sent to the
+controller (see Fig. [2]). The hidden state of the controller is
+used as the query for this attention mechanism and weights the
+contribution of each module.
+
+
+By concatenating the embedded observation of the agent along with the
+output of the task inference module at each time-step, we create the
+&quot;event key&quot; and the hidden state of the controller is used as the &quot;event
+value&quot;. In what follows, we will reference these event keys and values.
+
+
+FIGURE
+
+
+Explicit memory is a slot-based memory that stores the event keys and
+values. At each time-step, the hidden state of the last level of BRIM is
+used as the query and the explicit memory is accessed using a multi-head
+attention mechanism. At the end of each episode, we compute the
+normalized &quot;reference time&quot; for each slot, which indicates how often
+each stored event was called upon by the incoming queries, on average.
+Equation shows how it is calculated. *MATH*.
+In above equation *MATH* is the reference time for the *MATH* -th slot,
+*MATH* is the time when this slot was added to the memory, *MATH* 
+is attention weight attributed to the *MATH* -th slot at time *MATH* and *MATH* is
+the episode length. As we will see, the reference time is needed for
+updating the Hebbian memory. Figure [3] demonstrates how the episodic memory
+works.
+
+
+FIGURE
+
+
+The Hebbian memory works on the time scale of tasks, i.e., it won&apos;t be
+reset after each episode. Once an episode is completed, the top *MATH* 
+percent of slots with the largest reference times are transferred to the
+Hebbian memory through the process of memory consolidation
+[*REF*]. These transferred slots will update the
+Hebbain memory using the Hebbian learning rule. Equation
+shows a general form of this learning rule: *MATH*. 
+Here, *MATH* is the correlation coefficient,
+*MATH* is the regularization coefficient, *MATH* 
+imposes a soft constraint on the maximum connection weight, and
+*MATH* denotes the parameters of the Hebbian
+network. As can be seen in the above equation, this learning rule
+consists of multiple meta-parameters that control the plasticity of
+synaptic connections. Inspired by the phenomenon of meta-plasticity
+([*REF*]), a meta-learning mechanism is used so
+that these meta-parameters can be learned. Using the Hebbian learning
+rule as learning mechanism in the inner loop will also circumvent the
+issue of facing a second order optimization problem.
+
+
+This transfer of information from a dynamic memory that grows into a
+fixed-size memory can also help with the decontextualization of the
+event [*REF*].
+
+
+Intrinsic Reward
+
+
+Our proposed intrinsic reward is added to the sparse extrinsic reward of
+the environment to encourage exploration, both on episodic and
+task-level time scales. This reward is obtained by multiplying two
+components. The first component, *MATH*, is a
+curiosity based reward that encourages visiting surprising states. It is
+a convex combination of reward, state, and action prediction errors.
+This reward is scaled using a second component, *MATH*. We can think
+of this second part as a factor that adjusts for the newness of the
+current observation. It is defined as the distance between the most
+recent observation and the *MATH* -th nearest event stored in the episodic
+memory. If the agent encounters an observation that is unlike what has
+been seen in the on-going episode, this coefficient will be large,
+resulting in a high intrinsic reward. The following equations fully
+define the intrinsic reward: *MATH* where *MATH*.
+
+
+Note that *MATH* is the
+*MATH* -th nearest event to the current one, among the records that are
+stored in the episodic memory, *MATH*.
+
+
+EXPERIMENTS
+
+
+FIGURE 
+
+
+Experimental Setup
+
+
+For evaluation, we used MiniGrid [*REF*], a set of
+procedurally-generated, partially-observable environments in which an
+agent can interact with multiple objects. At each time-step, the agent
+receives its observation in the form of a *MATH* tensor
+and can perform any of the available *MATH* actions (moving in different
+directions, picking up objects, etc.). In the meta-training, the agent
+will see four episodes of each task and has to learn to adapt and solve
+the task within the time-span of those four episodes. At test time, we
+report the performance on the last (fourth) episode of each task. We
+used four sets of tasks: MultiRoom-N4-S5, MultiRoom-N6, KeyCorridorS3R1,
+and KeyCorridorS3R2. In the KeyCorridor set of tasks, the agent has to
+pick-up an object that is behind a locked door. The key is hidden in
+another room and the agent has to find it. The MultiRoom set of tasks
+provide an environment with a series of connected rooms with doors
+between them. The goal is to reach a green square in the final room.
+
+
+To compare our results, we used a number of baselines: (&apos;VariBAD&apos;)
+[*REF*], (&apos;HyperX&apos;) [*REF*], and FORMULA [*REF*]. We also proposed a new strong baseline
+by augmenting VariBAD with BeBold [*REF*] (&apos;VariBAD+BeBold&apos;),
+a recently introduced intrinsic reward that improves the performance in
+sparse-reward environments.
+
+
+Results
+
+
+Fig. plots the average return of our model as well as
+those of our baselines. As can be seen, some of the baselines do not get
+any reward in the more challenging tasks. This is because those tasks
+have larger state-spaces and require performing several actions in a
+particular order. This makes them difficult to solve for methods without
+a suitable exploration strategy.
+
+
+In all four sets of tasks, our method achieves the best performance
+while converging faster and observing fewer number of frames. In
+MultiRoom-N6, one of the more difficult tasks, our method outperforms
+VariBAD+BeBold by a significant margin. In this task, other baselines
+fail to get any reward even after training for more than *MATH* M frames.
+
+
+Ablation study
+
+
+To investigate the significance of each part of our proposed
+architecture, we evaluated the performance of three ablated versions of
+our model on the MultiRoom-N4-S5 set of tasks. We examined a model
+without the memory module (&apos;BIMRL w/o Mem&apos;), one in which the second
+level of hierarchical structure (responsible for *MATH* -step value
+prediction) was removed (&apos;BIMRL w/o Value pred&apos;), and one with the
+vanilla VariBAD trajectory factorization instead of our proposed
+factorization (&apos;BIMRL w/o N step pred&apos;). The result of this ablation
+study is depicted in Fig. [4]. It can be seen that all ablated versions are
+less sample-efficient, indicating the usefulness of different parts of
+our model. Most notably, the exclusion of the memory module
+significantly reduces the convergence rate.
+
+
+FIGURE
+
+
+CONCLUSIONS
+
+
+We introduced BIMRL, a novel, modular RL agent inspired by the human
+brain. BIMRL induces several useful inductive biases which helps it
+meta-learn patterns across different tasks and to adapt quickly to new
+ones. It emphasizes the significance of taking inspiration from
+biological systems in designing artificial agents. For future work, one
+could investigate adding another layer to the memory, in the form of a
+life-long generative memory module. Additionally, more extensive
+experiments on tasks other than those in MiniGrid, particularly
+memory-based tasks, would shed more light on the extent to which such
+multi-layered architectures can help with fast adaptation to new
+situations. Furthermore, extending our architecture with new modules
+that make use of textual instructions would allow the agent to test its
+adaptation capabilities on a much larger set of tasks. This provides yet
+another avenue for future research.

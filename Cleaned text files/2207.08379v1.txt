@@ -1,0 +1,548 @@
+Inspector: Pixel-Based Automated Game Testing via Exploration, Detection, and Investigation
+
+
+Introduction
+
+
+Game testing is a critical part of game development, and has been long
+recognized as a notoriously challenging task [*REF*; *REF*; *REF*; *REF*]. As
+video games continue growing in both size and complexity, it has become
+more challenging to ensure that all the game content is well tested.
+Most game companies rely on human testers, or human written scripts for
+game testing, which is costly and time-consuming, especially for complex
+video games with large map sizes. As a result, many bugs are still
+undiscovered and left in games (e.g., Cyberpunk 2077) after the official
+release, and then discovered afterwards by game players, which seriously
+hurt players&apos; experiences.
+
+
+In recent years, reinforcement learning (RL) based automated game
+testing has attracted much attention in both academia and the game
+industry [*REF*; *REF*; *REF*; *REF*; *REF*], due to its flexibility, low
+cost, and ease of scale up [*REF*][*REF*][*REF*]. While those methods have
+shown promising results in their tested games, they all rely on game
+internal state information such as player position, player velocity,
+game reward, etc., which has several limitations. First, they may not be
+easily applied to other games, since the internal states of different
+games usually differ a lot, in terms of state dimensions, state
+structure, and update frequency. Second, to access game internal states,
+a testing program/service needs to be deeply integrated into game source
+codes and therefore deeply coupled with the game development process,
+which limits the application of those algorithms to only games with
+source code accessible. Furthermore, even when the source code of a game
+is accessible, since the code is usually under fast change during the
+development stage, it is inconvenient for game developers always to
+maintain the deep integration of the testing code.
+
+
+In this work, we build a general game testing agent/tool, named
+Inspector, purely based on game screenshots, i.e., our agent takes only
+pixel inputs to make decisions. Such a testing agent does not suffer
+from the above limitations: (1) It is internal state free and able to be
+applied to a variety of games with or without access to the source code
+of those games. In other words, such an agent can be provided as a
+general testing service for both first-party games (with source code
+available) and third-party games (with source code unavailable). (2) In
+principle, it can be easily applied to all video games, since we can
+simply resize the screenshots of different games to the same size.
+Another advantage of Inspector over previous methods is that in addition
+to covering all game space for testing, it also mimics human players&apos;
+behaviors to interact with key objects in a game, such as weapons,
+health packs, etc., as bugs usually happen in those player-object
+interactions [*REF*].
+
+
+For these two purposes, Inspector comprises three components: a game
+space explorer, a key object detector, and a human-like investigator.
+(1) The explorer focuses on game space exploration, using a
+curiosity-based reward function which takes the screenshot as input. (2)
+The object detector focuses on key object detection and then the
+investigator takes human-like behaviors to interact with detected key
+objects. To reduce the cost of human labeling, we adopt a few-shot
+object detection method to effectively detect key objects based on a
+small number of labeled screenshots. The human-like investigator is
+trained via imitation learning from human players&apos; trajectories. As an
+integrated system, Inspector explores the game space; when it detects a
+key object, it investigates the object; after the investigation is done,
+it will continue exploring the game, and find the next object to
+investigate and test.
+
+
+We conduct experiments on two video games: Shooter Game and Action RPG
+Game, from the two most popular game categories, shooter and
+action-adventure games, respectively. For game space exploration, we
+show that Inspector can achieve super-human coverage. For key object
+detection, we show that Inspector works well for most of the test cases,
+even for the cases in which the background is never seen in training
+examples. For human-like object investigation, we show that Inspector
+can well mimic human behaviors while interacting with key objects such
+as health packs. Moreover, Inspector also successfully discovers two
+potential bugs in the two games undiscovered before, which seems not
+easy to be found by human testers. We provide several demo videos in
+anonymous GitHub.
+
+
+To summarize, the main contributions of this paper are as follows:
+1. To the best of our knowledge, we are the first to design an
+automated game testing agent purely based on pixel inputs.
+2. In addition to game space exploration, our agent can also detect key
+objects and take human-like behaviors to interact with the objects,
+so as to better expose hidden bugs.
+3. We conduct experiments on two popular video games and demonstrate
+the effectiveness of Inspector.
+
+
+Related Work
+
+
+In this section, we briefly review related work on game testing, with
+special focus on reinforcement learning for game testing.
+
+
+Game Testing
+
+
+As modern games continue growing both in size and complexity, game
+testing has become more challenging; consequently, even the most popular
+games on the market lack sufficient testing [*REF*; *REF*; *REF*]. To improve
+efficiency and reduce cost, game testing has gradually evolved from
+manual and ad-hoc approaches to automated testing [*REF*].
+[*REF*] proposed black box testing and scenario-based testing for online
+games. They only need to refine the game description language and
+virtual game maps, instead of rewriting the virtual client dummy code.
+Complex scenarios such as attacks, party plays, and waypoint movements
+can be tested by combining actions. [*REF*] proposed a testing model
+specifically for the creation and execution of fully automated
+regression tests. The usability and veracity of records and playback
+techniques are combined with the possible test coverage of tests written
+in a game-specific scripting language. However, when a game environment
+changes, test sequences and scenarios such as [*REF*] and [*REF*] become
+obsolete and human efforts are required to create new test sequences.
+[*REF*] proposed a model-based approach for automated test sequence
+generation and modeled platform games using domain modeling for
+representing the game structure and UML state machines for behavioral
+modeling. Unfortunately, generating sequences from UML will run into
+state explosions for large games. [*REF*] designed an AI agent that plays
+according to a Petri net description of a game with high-level actions;
+a limitation is that it only generates test sequences that cover some
+specific game scenarios. [*REF*] and [*REF*] built MCTS [*REF*] based agents
+to exercise synthetic and human-like test goals. The sequences generated
+by the agents are replayed in the game to check for bugs by humans.
+
+
+Reinforcement Learning for Game Testing
+
+
+The latest trend for game testing is to leverage reinforcement learning
+techniques [*REF*; *REF*; *REF*], especially for maximizing the coverage of
+a game [*REF*]. [*REF*] introduced a self-learning mechanism based on DRL
+to explore/exploit game mechanics with a user-defined reward signal.
+[*REF*] leveraged DRL, evolutionary algorithms, and multi-objective
+optimization to perform automated game testing in two commercial combat
+games, which balances between winning a game and exploring the space of
+the game. [*REF*] maximized game state coverage through DRL with a
+count-based reward function [*REF*][*REF*]. [*REF*] leveraged human
+demonstrations to better cover the states of a game. All of the above
+works rely on game internal state information for game space coverage
+and thus a testing agent needs to access the source code of a game to
+collect such information.
+
+
+Such deep integration with game source code is inconvenient when a game
+is under development with fast code changes, not to mention that the
+source code of most games are not available for a third-party testing
+tool. Different from these methods, our work uses only screenshot input
+for game testing, which is not limited by the availability of game
+source code and thus is easy to be applied to many games. Furthermore,
+our work enables the agent to interact with key objects of a game, so as
+to better expose hidden bugs.
+
+
+Inspector
+
+
+In this section, we introduce our pixel-based agent, Inspector, which
+serves two purposes for automated game testing: covering all game space,
+as did in most previous works, and interacting with key objects in games
+like human players/testers, which was ignored in most previous works.
+Inspector consists of three key modules: 1) Game space explorer
+(Section [3.1]), 2) Key object detector
+(Section [3.2]), 3) Human-like object investigator
+(Section [3.3]). Putting them together brings us the
+integrated system of Inspector (Section [3.4]), which can not only explore all
+game space, but also detect key objects and investigate the objects in a
+human-like way. Combining Inspector with some existing works using deep
+learning methods to detect bugs from screenshots (e.g., [*REF*]) leads to
+an end-to-end automated game testing service.
+
+
+Game Space Explorer 
+
+
+FIGURE
+
+
+Exploring and covering all possible states of a game space is the basic
+requirement for automated game testing and well-studied in general
+reinforcement learning research (beyond game testing). The key challenge
+here is how to design effective feedback signals to guide and encourage
+the exploration of new/unseen game states. Some recent work [*REF*]
+adopted the count-based reward function to encourage exploration, which
+counts the number of unique game internal states and uses this number to
+reward exploration. As mentioned before, we aim to design a general
+testing agent taking visual pixels as inputs rather than game internal
+states. However, it is hard to count high-dimensional, continuous
+pixels, and thus this kind of count-based reward function does not work
+for our setting.
+
+
+To address this challenge, we design a curiosity-driven reward function,
+based on Random Network Distillation (RND) [*REF*]. Our RND-based reward
+function is inspired by an interesting property of deep neural networks
+(DNN): DNNs usually have lower prediction errors on those seen examples,
+while having relatively higher prediction errors on those unfamiliar
+examples. When we train a DNN on these seen screenshots during
+exploration, the resulted prediction error is supposed to be large on
+those novel screenshots never seen before and vice versa.
+
+
+Specifically, two neural networks are introduced: a randomly initialized
+and fixed target network *MATH* which sets
+the ground truth for prediction, and a predictor network
+*MATH* trained on the screenshots
+seen during exploration. Both the target network and the predictor
+network map a screenshot to an embedding vector. The predictor network
+with parameter *MATH* is trained to minimize the following mean square
+error: *MATH* where *MATH* denotes the number of screenshots the agent has ever seen
+during exploration. Then the reward function is defined as follows. *MATH*.
+
+
+We illustrate this RND-based reward function in
+Fig. [1]. If a screenshot *MATH* has been seen before, it will have a small prediction
+error and thus a low reward. With this reward function, the agent is
+motivated to explore novel and unseen screenshots. We then use Proximal
+Policy Optimization (PPO) algorithm [*REF*; *REF*; *REF*], which is widely
+used in various applications of DRL, to train the exploration policy in
+our game space explorer.
+
+
+Key Object Detector 
+
+
+FIGURE
+
+
+One important task for human testers is to interact with some key
+objects in a game, as some hidden and difficult-to-find bugs only show
+up when a player interacts with some objects [*REF*]. Therefore,
+different from most previous works which only focus on covering the
+whole game space, another focus of our agent is to detect and
+investigate key objects in a way similar to human players/testers, to
+better expose this kind of difficult bugs.
+
+
+In this subsection, we introduce the key object detector, which is to
+detect key objects in a game during exploration. For example, in FPS
+games, the key object can be health packs, ammo, etc. The technical
+challenge here is that it is costly and time-consuming to manually label
+a large number of screenshots for each kind of key object, especially
+for games with many kinds of key objects. To reduce the cost of human
+labeling, we adopt a simple yet effective two-stage fine-tuning method
+for few-shot object detection [*REF*]. Specifically, we first pre-train
+the entire object detector using MS COCO dataset, which is a
+large-scale dataset for general object detection. Then, we only
+fine-tune the last layers of the detector using a small number of
+labeled screenshots with each kind of key object, while freezing the
+other parameters of the model. The illustration of the two-stage method
+is shown in Figure. [2].
+
+
+For the base detection model, we adopt the widely used Faster
+R-CNN [*REF*], which consists of a feature extractor and a box predictor.
+The feature extractor comprises the backbone (e.g., ResNet [*REF*]), the
+region proposal network (RPN), as well as a two-layer fully connected
+(FC) sub-network as a proposal-level feature extractor. The box
+predictor consists of a box classifier to classify the object categories
+and a box regressor to predict the bounding box coordinates. Both the
+backbone features and the RPN features are class-agnostic and likely to
+transfer to novel classes [*REF*]. We fix the feature extractor and
+directly leverage these features learned from the base classes in the MS
+COCO dataset for the new class of key objects.
+
+
+With the detector trained by the two-stage training with only a few
+samples, Inspector can recognize key objects during exploration, when an
+object is nearby, which then triggers the human-like investigator
+introduced in the following subsection. To determine if the object is
+nearby, we leverage the bounding box size from the detection model when
+the object has been detected.
+
+
+Human-like Object Investigator 
+
+
+The goal of the human-like object investigator is to interact with key
+objects within a game in a human-like manner. Since different kinds of
+objects are usually interacted by human players in different ways,
+leverage imitation learning techniques [*REF*] to train an investigation
+policy for each kind of object. We first collect some demonstration
+trajectories for each kind of key object from human testers when they
+take actions to interact with and investigate the key object. Then, we
+train an investigation policy (a convolutional neural network, CNN) from
+human demonstrations by minimizing the behavior cloning (BC)
+loss [*REF*]: *MATH* where *MATH* denotes the learned policy, and *MATH* denotes the set
+of (screenshot, action) pairs from demonstration trajectories.
+
+
+With the learned investigation policy, Inspector can interact with and
+investigate key objects to expose potential bugs in a human-like manner.
+
+
+The Integrated System 
+
+
+FIGURE
+
+
+After introducing the three modules, in this subsection, we describe the
+integrated system, the Inspector agent.
+
+
+The decision flow of the Inspector agent is shown in
+Fig. [3]. At each timestep *MATH*, the agent
+first uses the detection models to detect whether there exists a key
+object in the current screenshot. If not, the agent will take an action
+using the exploration policy to explore the game space; otherwise, the
+agent starts to investigate the detected object by taking a series of
+actions from the investigation policy for that kind of object. When the
+investigation is done, the agent will continue exploration, until it
+detects the next key object to investigate. The pseudo-code for the
+integrated system is provided in Algorithm .
+
+
+ALGORITHM
+
+
+FIGURE
+
+
+Experiments
+
+
+FIGURE
+
+
+To demonstrate the effectiveness of our Inspector agent, we apply our
+methods to two popular video games developed by Unreal Engine:
+Shooter Game and Action RPG Game. The two games belong to the two most
+popular game categories, shooter and action-adventure games,
+respectively. We first introduce the experimental setup in
+Section [4.1], which includes game descriptions and
+implementation details. After that, we show the empirical results of
+each module in Inspector respectively: super-human coverage results for
+game space explorer (in Section [4.2]), few-shot detection results for key object
+detector (in Section [4.3]), and imitation learning behaviors for
+human-like object investigator (in Section [4.4]). Moreover, we also show the potential
+bugs discovered by Inspector in these two video games (in Section [4.5]).
+Finally, we record the demo video of Inspector, which clearly shows
+different stages of the whole automated testing process  (in Section [4.6]).
+
+
+Experimental Setup 
+
+
+Game description
+
+
+Two popular video games, Shooter Game, and Action RPG Game, are chosen
+to demonstrate the effectiveness of our agent. Shooter Game is a
+first-person shooter (FPS) game, while Action RPG Game is an
+action-adventure game. Both of them are complex and large video games
+developed by Unreal Engine. The screenshot sizes of the two games are
+both (640, 360, 3). In Shooter Game, the player has seven actions to
+take:. In Action RPG Game, the player has six actions to take: {Forward, Back,
+Left, Right, Turn left, Turn right}. Fig. [4] depicts the example screenshots of
+the two games. We use the UnrealCV plugin to facilitate the
+communication between the games and the Inspector agent.
+
+
+FIGURES
+
+
+Implementation Details
+
+
+For the game space explorer, we use the PPO algorithm to train an
+exploration policy based on the RND-based reward function. The policy
+network consists of four convolution layers and a fully connected layer.
+Both the predictor network and the target network adopt the same network
+structure that comprises three convolution layers and three
+fully-connected layers, in which the output embedding size is 512.
+During training, the batch size for updating the parameters of the above
+networks is *MATH*, and the number of epochs for optimization is 20. We
+use the Adam optimizer [*REF*] with a learning rate of *MATH*.
+
+
+For the key object detector, we use Faster R-CNN as our base detector
+and Resnet-101 [*REF*] with a Feature Pyramid Network [*REF*] as the
+backbone. The detection model is trained using the SGD optimizer with a
+mini-batch size of 16, momentum of 0.9, and weight decay of *MATH*.
+During the base training period, the learning rate is 0.02. During the
+few-shot fine-tuning period, the learning rate is 0.001.
+
+
+For the human-like object investigator, the network structure comprises
+four convolution layers, four fully connected layers, and a softmax
+layer. The output represents the probability of actions. We use the SGD
+optimizer with the learning rate of *MATH*, and the batch size is
+*MATH*.
+
+
+For the integrated system, the threshold of the bounding box size is
+*MATH*, while the threshold of the classification probability is
+*MATH*. The two thresholds determine when to start the investigation
+process for Inspector, and the length of an investigation process is 200
+timesteps.
+
+
+Super-human Coverage Results 
+
+
+In this subsection, we evaluate the ability of Inspector to navigate and
+explore the whole map, and show that Inspector achieves super-human map
+coverage in both games. Since the player location is a 3-dimensional
+continuous vector, we discretize the whole game map with a volume of
+*MATH* to compute the map coverage result, where *MATH* is the
+hyper-parameter for discretization.
+
+
+Fig. [5], Fig. [7] show the coverage results of Random agent, Inspector, and Human tester in Shooter Game and
+Action RPG Game, respectively. As the training proceeds, Inspector (red)
+keeps exploring the new areas, and outperforms the results of Human
+tester (black) and Random agent (green), in both games.
+
+
+Fig. [6], Fig. [8] also depict the 3D
+scatter plot of the explored regions by those three methods (*MATH*).
+From the results on Shooter Game, we can see that Random agent (green)
+only covers a small region around the random starting player location.
+Although Human tester (black) can roughly cover the game map, there are
+still a few places that remain unexplored (such as some places around
+the center of the map). In contrast, Inspector (red) can cover the whole
+game space thoroughly. From the results on Action RPG Game, we can see
+that Random agent (green) can achieve good results in this map, since
+the map size of Action RPG Game is much smaller than that of Shooter
+Game. However, Random agent (green) cannot cover some regions on the
+edge of the map. Similar to the results in Shooter Game, Human tester
+(black) can roughly cover the map but still have some places unexplored
+(such as those blank areas in Fig. [8] (c)). In
+comparison, Inspector (red) can consistently achieve the full coverage
+of the game map.
+
+
+Few-shot Detection Results 
+
+
+In this subsection, we evaluate the key object detector on Shooter Game.
+We collect 20 examples of the health pack for few-shot training, and 9
+examples for testing.
+
+
+Fig. [9] shows the detection results of the learned key object detector on the test
+examples. We can see that the key object detector accurately detects the
+health pack in most cases (7 out of 9 examples). It is worth mentioning
+that all the backgrounds in 9 test examples are never seen in the 20
+training examples, which demonstrates the effectiveness of the few-shot
+object detection.
+
+
+FIGURES
+
+
+Imitation Learning Behaviors 
+
+
+In this subsection, we show the learned behaviors by pixel-based
+imitation learning for human-like object investigation in Shooter Game.
+We first collect 25 trajectories (about 5000 labeled screenshots and
+action pairs in total) from human testers for investigating the health
+pack. To investigate health packs, human testers circle around the
+health pack to make sure it looks correct from every angle. After using
+these human demonstrations to learn the investigation policy, we
+evaluate the performance of the investigation policy by deploying it to
+interact with the health pack within the game. We record the video of
+this process in WEBSITE. The snapshots in
+Fig. show the circular motion of the learned
+investigation agent in 0, 90, 180, 270, and 360 degrees, respectively.
+The result shows that the human-like investigation behaviors can be
+learned by the pixel-based imitation learning method with limited
+demonstrations.
+
+
+Potential Bugs Discovered by Inspector 
+
+
+In this subsection, we show two potential bugs hidden in Shooter Game
+and Action RPG Game, which are discovered by Inspector during the
+exploration stage. The two discovered bugs are shown in
+Fig. and Fig., respectively. To be specific,
+Fig. (a) shows us an unimpressive corner in
+the Shooter Game map, and Inspector successfully finds a bug where the
+player can stand without support under the feet after jumping in this
+corner.
+
+
+Fig. shows that when close to a specific rock
+in the Action RPG Game map, Inspector takes a step forward, and then
+clips into this rock. We can see that these two bugs are concealed and
+might be not so easy for the human testers to find. The two found bugs
+suggest that Inspector has the strong ability to explore the game space
+and find the potential bugs in video games.
+
+
+Demo Videos of Inspector 
+
+
+To better show the capabilities of the Inspector agent for automated
+game testing, we record several demo videos for the whole testing
+progress of the agent, which are available at WEBSITE.
+Fig. shows the key snapshots in one of the demo
+videos: At the beginning, the agent explores this area via curiosity
+(a). After some time, the agent detects the health pack during the
+exploration (b). Then, the agent performs the human-like investigation
+to the health pack, by making a full circle around it (c)(d). When the
+investigation is done, the agent keeps exploring new areas, until it
+finds the next health pack to investigate (e).
+
+
+Conclusion and Future Work
+
+
+In this work, we built a general pixel-based automated game testing
+agent/tool, named Inspector, consisting of three key modules: a game
+space explorer, a key object detector, and a human-like object
+investigator. Inspector has two main advantages over previous
+methods/agents: its larger application scope without the limitation of
+accessing game source code, and its ability to discover hidden and
+difficult bugs through human-like investigations with key objects.
+
+
+For future work, there are multiple directions to advance Inspector.
+First, we only tested it with two games both on the Unreal engine in
+this work. We will test it over other game engines (e.g., Unity) and
+across different devices (e.g., PC, Console, etc) with only the
+screenshot input. Second, it is worthy of investigation on how to enable
+Inspector to explore more complex games, e.g., a game with multi-room
+navigation, in which the agent needs to first pick up a key somewhere in
+a room, and then open another room with the key to enter the room.
+Third, the key object detector in this work handles each kind of object
+with a separate detection model and needs human-labeled data for each
+kind of object. We will study how to detect multiple kinds of objects
+with a single model, e.g., through multi-task learning, so as to further
+reduce human labeling costs. Fourth, human players/testers may take
+different actions for different kinds of objects. Similarly, we will
+train a single model to perform human-like investigations over multiple
+kinds of objects. Last but not least, we did not consider the bug
+detection module from screenshots in this work. We will build a complete
+game testing service by enhancing Inspector with a pixel-based bug
+detection module, e.g., [*REF*].

@@ -1,0 +1,581 @@
+
+PALMER: Perception-Action Loop with Memory for Long-Horizon Planning
+
+
+Introduction
+
+
+FIGURE
+
+
+Animals and humans operate on high-dimensional stimuli (e.g., vision) to
+achieve diverse and ever-changing goals necessary for their survival
+[*REF*; *REF*; *REF*; *REF*; *REF*].
+Learning through trial-and-error plays a fundamental role in this
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+Even in simplest environments, a brute-force approach to trial-and-error
+by trying every possible action for achieving every possible goal is
+intractable. The complexity of this search motivates memory-based
+mechanisms for compositional thinking. Examples of such mechanisms
+include: i) remembering relevant segments of past experience, ii)
+recomposing them in new counterfactual ways to form plans, and iii)
+executing such plans as part of a targeted search strategy. Such
+mechanisms for recycling past successful behavior can significantly
+accelerate trial-and-error compared to uniformly sampling all possible
+actions. This is because the same behavior (i.e., sequence of actions)
+can remain valid for different goals and in different contexts, due to
+the inherent compositional structure of real-world goals as well as the
+commonality of the physical laws that govern real-world environments.
+
+
+What principles can allow for memory mechanisms to remember and
+recompose bits of experience? The concept of dynamic programming (DP) is
+directly related to this discussion, as it greatly reduces the
+computational cost of trial-and-error by employing the principle of
+optimality [*REF*]. This principle can be colloquially
+stated as treating new and complex problems as a recomposition of old
+and simpler sub-problems that were already solved before. Recent work
+[*REF*; *REF*; *REF*] employs this
+perspective to build hierarchical reinforcement learning (RL) algorithms
+for goal-reaching tasks. Such methods set edges between states using a
+distance regression model to build a planning graph, perform shortest
+path computations over it using DP-based graph search, and follow the
+resulting shortest paths with a learning-based local policy. Our paper
+builds upon this line of work.
+
+
+[Contribution:] We describe a long-horizon planning
+method that directly operates on high dimensional sensory input
+observable by an agent on its own (e.g., images from an onboard camera).
+Our method combines classical sampling-based planning algorithms with
+learning-based perceptual representations, to retrieve and recompose
+previously observed sequences of state transitions in a replay buffer.
+This is enabled by a two-step process. First, we learn a latent space
+where the distance between two states captures how many timesteps it
+takes for an optimal policy to go from one to the other. To achieve
+this, we use goal-conditioned Q-values learned through offline hindsight
+relabelling [*REF*] for contrastive representation
+learning. Second, we threshold this learned latent distance metric to
+define a neighborhood criterion between states. We then define
+sampling-based planning algorithms that search over the replay buffer
+[*REF*] to retrieve and stitch together trajectory
+segments (i.e., past sequences of observed transitions) whose endpoints
+are neighboring states. This trajectory stitching approach allows for
+creating planning graphs to connect any pair of start and goal states
+that were observed before (as depicted in Fig.[1]). Our
+approach operates on offline unlabeled data, and can therefore be
+combined with any exploration method to populate the replay buffer. Our
+experiments implement an image-based navigation policy in simulation,
+using an offline replay buffer populated with uniform random-walk
+exploration data.
+
+
+Perception-Action Loop with Memory Retrieval 
+
+
+[Nomenclature:] An environment is represented as a tuple
+*MATH*, where *MATH* and *MATH* are the state and action spaces, and
+*MATH* is the Markovian transition dynamics. A trajectory
+*MATH* is any sequence of states and actions. *MATH* 
+, *MATH*, *MATH* denote the first, last, and *MATH* &apos;th states in
+*MATH* respectively. The length of a trajectory in terms of timesteps is
+denoted as *MATH*, and concatenation of two trajectories is denoted
+as *MATH*. We assume an additive reward function *MATH* where
+*MATH*. We call a finite set of trajectories *MATH* a replay buffer.
+
+
+Perceptual Representations that Capture Local Reachability 
+
+
+A key component of our framework is a perceptual encoder
+*MATH* that maps states into a representation space where L2 distance
+*MATH* captures local reachability (i.e., how many timesteps it takes for the optimal policy
+to go from one state to another). To discuss this more rigorously, we
+follow the work of [*REF*; *REF*] and define a goal-conditioned reward function
+*MATH* that returns *MATH* for all steps before reaching a goal. This means
+goal-conditioned Q-values [*REF*; *REF*]
+for the optimal policy correspond to negative shortest-path distances (i.e., *MATH*). We
+can then define a symmetric distance metric between states as
+*MATH*. This in turn corresponds to the two-way consistency criterion proposed
+in [*REF*]. What we want from *MATH* is for
+*MATH* and *MATH* to roughly correlate.
+
+
+Representation Learning via Reinforcement Learning 
+
+
+FIGURE
+
+
+Any perceptual encoder *MATH* whose latent representations satisfy
+the local reachability property defined in Sec.[2.1] can be used to implement the nearest
+neighbor retrieval and trajectory stitching mechanisms for the upcoming sections [2.3] and [2.4].
+This section discusses one possible way to obtain such a perceptual
+encoder, by using goal-conditioned Q-values for contrastive
+representation learning.
+
+
+We propose a model (depicted in Fig.[2]) that includes the following standard
+components from the literature: i) *MATH*, projecting a
+state into a latent representation; ii) *MATH*, modelling the transition
+distribution induced by *MATH* over the latent space
+*MATH*, as discussed in [*REF*; *REF*]; iii)
+*MATH*, defining a distribution of actions to
+reach a goal state, as discussed in [*REF*; *REF*; *REF*]; iv)
+*MATH*, modelling the distribution of timesteps
+necessary to reach a goal state, as discussed in [*REF*]; v) *MATH*, a Q-value
+function that provides local reachability estimates between pairs of
+states, as discussed in [*REF*; *REF*].
+
+
+Following [*REF*; *REF*], we train *MATH* over an offline replay buffer *MATH*, using
+hindsight relabelling [*REF*; *REF*] with a reward function *MATH*.
+After training *MATH* in isolation, we freeze its parameters
+and use it to define a contrastive loss function [*REF*]
+*MATH* as explained below. We then train the remaining components using
+the same replay buffer *MATH*. We randomly sample a transition
+*MATH* and a time difference *MATH*, and set the goal state
+as *MATH*, as in hindsight relabelling. We then minimize the
+following losses:
+- *MATH*, where *MATH* is the hinge loss [*REF*]. This
+contrastive loss dictates that perceptual representations should be
+close together (i.e., *MATH* holds) if and
+only if two states are close to each other in terms of reachability
+(i.e., *MATH* holds). *MATH* and *MATH* are
+hyperparameters.
+- *MATH*, *MATH*, and *MATH* are MSE and cross-entropy losses
+[*REF*; *REF*]. *MATH* and *MATH* dictate that perceptual representations should capture
+enough information to know when and how an agent can reach from one
+state to another, while *MATH* dictates that they should capture
+only a minimal-sufficient statistic for doing so
+([*REF*] presents a more elaborate discussion).
+
+
+Perceptual Experience Retrieval (PER) 
+
+
+Given a perceptual encoder *MATH* that captures local reachability, we
+go over all states *MATH* in the replay buffer and
+compute their projections *MATH*, which are stored
+alongside the states themselves. We then employ *MATH* to implement two
+retrieval mechanisms from the replay buffer: i) retrieving neighboring
+states, and ii) retrieving neighboring trajectories.
+
+
+[i) Retrieving Neighboring States:] Given a query state
+*MATH* and radius *MATH* (i.e., the same one used in the contrastive loss
+*MATH* in Sec.[2.2]), retrieving neighboring states amounts to computing the set
+*MATH*, which can be achieved by a straightforward L2 distance computation and
+thresholding. The number of neighbors *MATH* of a
+query state *MATH* is an approximate measure of how many times the agent
+has visited around *MATH*, which also makes it a good visitation-count
+that is applicable to both discrete and continuous state spaces.
+
+
+[ii) Retrieving Neighboring Trajectories:] Given a
+starting state *MATH* and a goal state *MATH*, we can search the replay
+buffer for the highest reward trajectory segment *MATH* that starts from
+a state *MATH* in *MATH* and ends in a state
+*MATH* in *MATH*. This corresponds to the
+following optimization problem: *MATH*.
+
+
+To find *MATH*, we first select all state pairs *MATH*.
+We then take all sequences of transitions *MATH* that
+start from *MATH*, end at *MATH*, and are below a length threshold in
+terms of timesteps. We sort them based on *MATH*, and
+return the trajectory with the highest reward. We call this trajectory
+retrieval process &apos;Perceptual Experience Retrieval&apos; (PER). We use PER
+only to retrieve short trajectory segments between close-by states
+*MATH* (i.e., hence the length threshold on *MATH*). These
+are then stitched together into long global trajectories using the
+planning algorithms defined in the next section.
+
+
+Long-Horizon Planning Through Stitching Trajectory Segments 
+
+
+This section discusses how PER can be employed for long-horizon
+planning. Classical sampling-based planning algorithms such as RRT
+[*REF*] or PRM [*REF*] connect points
+sampled from obstacle-free space with line segments in order to build a
+planning graph. We instead reimagine them as memory search mechanisms by
+altering their subroutines so that whenever an edge is created, a
+trajectory is retrieved from the replay buffer through PER
+(eq.) and stored in that edge. Our new definitions for these subroutines directly
+mirror the original ones given in [*REF*]:
+
+
+[1) Sampling:] Sampling originally returns a point from
+obstacle free space. We instead return a state *MATH* from the replay
+buffer *MATH* using any distribution (e.g., uniform, or based on
+visitation-counts).
+
+
+[2) Lines and Their Cost:] The equivalent of drawing a
+line segment in our framework is retrieving a trajectory
+*MATH*, and its length and cost are *MATH* and
+*MATH* respectively. [3) Nearest
+State and Neighborhood Queries:] Given a query point *MATH*,
+these subroutines return the closest point or a neighborhood of points
+within a distance, among a set of vertices *MATH*. We preserve
+these definitions, and only replace the metric from euclidean distance
+to *MATH*. *MATH* [4) Collision Tests:] Collision tests
+originally prevent the sampling and line drawing subroutines from
+intersecting obstacles. Since we are planning in retrospect, any such
+undesirable event can be handled during PER by adjusting the reward
+function (i.e., if *MATH* has such an event, this reflects on
+*MATH*).
+
+
+ALGORITHM
+
+
+Using these subroutines directly in-place of their originals, we
+reimplement experiential equivalents of PRM, RRT, and RRT, which we
+call R-PRM, R-RRT, R-RRT. We denote the resulting planned trajectory
+as *MATH*. Algorithms, describe R-PRM as an example, and the
+supplementary contains descriptions for R-RRT, R-RRT.
+
+
+We note two things about our proposed planning algorithms. First, they
+can optimize any general reward function *MATH*. As the number of
+sampled vertices increases, *MATH* gets optimized
+through dynamic programming (i.e., by minimizing the Bellman error
+between vertices of the roadmap *MATH*), therefore employing the same
+mechanism as classical sampling-based planning algorithms
+[*REF*]. Second, they operate on an offline dataset of
+unlabeled transitions which solely consists of high-dimensional on-board
+sensory data (e.g. images), without assuming any auxiliary
+instrumentation in the environment or oracle information that cannot be
+sensed by the agent on its own. They therefore aim to relax the
+assumptions classical sampling-based planning methods make about what
+constitutes a model (e.g., replacing a geometric environment model with
+sensory experience) and what constitutes a state (e.g., enabling search
+and planning directly over images).
+
+
+Refining Memory Contents via Forming and Executing Plans 
+
+
+We iteratively form and execute *MATH*, and whenever execution is
+successful, we insert the resulting new trajectories back into
+*MATH*. We note that these new trajectories are not exactly the
+same as *MATH*, because *MATH* contains approximate
+mismatches between the endpoints of its stitched trajectory segments due
+to nearest neighbor retrieval. Forming and executing plans this way
+creates the following perception-action loop: i) *MATH* with
+refined contents is used to train a more accurate *MATH*,
+ii) a more accurate *MATH* creates a more accurate
+distance metric *MATH*, iii) a better *MATH* generates better
+*MATH*, iv) better *MATH* result in higher frequencies
+of successful execution to further refine *MATH* (see the
+supplementary for an algorithmic description).
+
+
+Related work
+
+
+[Self-supervised goal reaching:] Our approach is closely
+related to goal-reaching methods that combine learning-based
+distance-regression with graph search, particularly Semi-parametric
+Topological Memory (SPTM) [*REF*] and Search on the Replay
+Buffer (SoRB) [*REF*], which we compare to in our
+experiments. The key difference of our approach is that when setting the
+edges of the planning graph, it retrieves transitions that actually
+happened rather than relying on learned distance regression. This
+brings two main benefits. First is robustness. Local reachability
+estimates are susceptible to overestimation when evaluated between pairs
+of states that are far apart or unreachable. This is because such states
+rarely occur together and are therefore out of distribution for the
+distance regression model. This creates &apos;hallucinated&apos; shortcuts in the
+planning graph that corrupt shortest path queries
+[*REF*; *REF*]. To address this,
+[*REF*] employs temporally consistent localization and
+adaptive waypoint selection, while [*REF*] employs
+distributional Q-learning and an ensemble of Q-functions. In our
+approach, eq. naturally addresses this problem, since it requires
+an actual short trajectory in the dataset approximately connecting two
+states before marking them as close. The second benefit of our approach
+is that it can optimize general reward functions. This is because it
+decouples the reachability metric *MATH* (used in nearest neighbor
+queries and as a threshold to create edges) from the downstream task
+reward *MATH* (used to set edge distances), unlike previous
+work.
+
+
+[Image-Based Navigation:] [*REF*; *REF*; *REF*] present
+learning-based navigation systems that incrementally build roadmaps
+through online operation. Our approach has two main differences: i)
+it builds a roadmap entirely using raw offline data, therefore allowing
+applications like multi-robot learning without additional loop-closure
+mechanisms to fuse graphs from multiple agents, ii) our approach can
+optimize general reward functions, therefore it is not limited to
+navigation.
+
+
+[Robot Motion Planning:] A common approach to motion
+planning is to first run a sampling-based planning algorithm
+[*REF*; *REF*], and then refine the result
+through trajectory optimization [*REF*; *REF*; *REF*] to satisfy
+constraints [*REF*; *REF*; *REF*]. An
+important bottleneck is that sampling-based planning algorithms require
+a precomputed map of the environment, and our approach extends such
+algorithms in a way that relaxes this requirement by replacing a
+precomputed map with raw exploration experience.
+
+
+[SLAM and Geometric Maps:] SLAM based methods
+[*REF*] can autonomously construct high-fidelity
+geometric maps [*REF*; *REF*], therefore
+alleviating the bottleneck of precomputing environment maps. The
+downside of such approaches is that they can abstract away useful
+physical and semantic affordances. For example, a purely geometric map
+cannot plan a path through a traversable field of tall-grass, while our
+approach can learn such affordances as long as they are represented in
+past experiences.
+
+
+Experiments[^2]
+
+
+FIGURE
+
+
+[Setup:] Our experiments are performed in ViZDoom
+[*REF*], Habitat [*REF*], and the Maze2D
+benchmark [*REF*]. The VizDoom environment consists of a clover
+shaped maze. States solely consist of four images
+*MATH* that form a panorama (i.e., *MATH* dimensions), and actions move the
+agent North/South/East/West by a fixed distance *MATH*. The maze
+contains many long-thin column-like obstructions (shown as dots in
+visualizations). Habitat experiments contain demonstrations on two
+large-scale scans of real-world apartments: i) Roxboro, with a total
+area of *MATH* m2, and ii) Annawan, which has a total-area of *MATH*.
+States consist of a single 150 FOV image (i.e.,
+*MATH* dimensions). There are 3 actions:
+*MATH*. Maze2D is a continuous control task, where states consist of the 2D
+position and velocity of a point mass, and actions correspond to 2D
+accelerations. In all environments, an offline training dataset is
+collected by a uniform random walk exploring the environment. For
+VizDoom and Habitat, this offline training dataset consists of only 300k
+and 150k timesteps respectively, while for Maze2D there are 1e6
+timesteps. Supplementary material contains further details.
+
+
+Experiments in Vizdoom 
+
+
+[Validating Perceptual Representations:]
+Fig.[3] shows that *MATH* obtained from our model captures a
+suitable notion of local reachability.
+Fig.[5] in turn shows that retrieving nearest
+neighbor states *MATH* from *MATH* using
+*MATH* (i.e., NN retrieval) returns physically close states.
+
+
+FIGURES
+
+
+
+[Validating Perceptual Experience Retrieval (PER):]
+Fig.[5] shows visualizations of trajectories
+retrieved with PER. We implement a retrieval policy *MATH* 
+that computes *MATH* through eq. at
+each timestep *MATH* and executes *MATH*, therefore
+forming a model predictive control (MPC) loop. We evaluate
+*MATH* in an image-based navigation task where start/goal
+images are sampled randomly to have an euclidean distance
+*MATH* in between, and a trial is considered successful if
+the agent can get within *MATH* proximity of the goal position within
+*MATH* time-steps. We use the local policies from SORB
+[*REF*] and SPTM [*REF*] as baselines. Fig.[4] shows
+the results. The main mode of failure for both SPTM and SORB local
+policies is that they get stuck in column-like structures.
+*MATH* avoids this, since eq.
+retrieves collision free *MATH*.
+
+
+[Robust Distances:] PER also helps avoid hallucinations in
+local distance regression. Fig.[5] illustrates this point by setting edges
+between sampled states by thresholding *MATH*, where methods of
+[*REF*; *REF*] are used as baselines.
+It can be seen that edges set by *MATH* are more robust.
+
+
+FIGURE
+
+
+[Proposed Planning Algorithms:] Fig.[6] shows visualizations of planning graphs
+and *MATH* produced by R-PRM, R-RRT,
+and R-RRT. It can be seen that R-PRM doesn&apos;t contain any hallucinated
+edges, while R-RRT and R-RRT maintain the visual characteristics of
+their classical counterparts (i.e., R-RRT has jagged branches with
+uniform coverage, while R-RRT has straight branches shooting out from
+the root). We implement an MPC policy *MATH* that
+replans at each timestep *MATH* using Algorithm to return
+*MATH*, and executes *MATH*.
+We again use SORB [*REF*] and SPTM [*REF*] as
+baselines. Fig.[4] shows the results. In addition to the local
+policy getting stuck, a new mode of failure for both baselines is that
+false distance estimates throw-off graph search by setting hallucinated
+shortcuts. A new baseline is *MATH*, which extends the SPTM local
+policy by using *MATH* and *MATH* from
+Sec.[2.2] to implement an MPC loop with n-step
+look-ahead. *MATH* avoids getting stuck in columns thanks to n-step
+lookahead, but still isn&apos;t sufficient for global navigation as the
+accuracy of simulated rollouts from *MATH* decreases with the number
+of timesteps.
+
+
+FIGURE
+
+
+[Refining Memory Contents:] We refine the contents of
+*MATH* by iteratively generating and executing
+*MATH*. We then retrain all model
+components only on the resulting new data that is equal in size to the
+initial unrefined *MATH*. Fig.[7] shows
+the results. When *MATH*, and *MATH* are
+used as policies, their success ratio increases significantly if they
+are trained on the optimized *MATH*. Q-value estimates trained on
+the optimized *MATH* also propagate better to goals further away.
+The scaling of *MATH* with goal-distance
+changes from an exponential trend to an approximately linear one, due to
+the inclusion of transitions from successfully executed
+*MATH*. These results highlight that
+refining memory contents improves the quality of future plans.
+
+
+Experiments in Habitat 
+
+
+FIGURE
+
+
+As shown in Fig.[8], we find that our method allows image-based
+navigation in this new domain with significantly different visuals and
+layouts (i.e., real-world apartments), action space (i.e., turn-left,
+turn-right, go-forward), and state space (i.e., single *MATH* 
+RGB images with 150 FOV). Perhaps more surprisingly, we find that
+training *MATH* only on exploration data from a single apartment
+generalizes substantially well to any unseen apartment, which directly
+allows perceptual experience retrieval and trajectory stitching when
+provided with a corresponding replay buffer. For a quantitative
+evaluation, we randomly pick two apartments, named Roxbox and Annawan.
+In both apartments, we collect an exploration dataset using a uniform
+random walk sequence of only 150k timesteps. We train the model
+components solely on data from Roxbox. We then use them to implement our
+*MATH* policy from Sec.[4.1], which we then evaluate on both apartments. For
+*MATH*, we randomly sample *MATH* pairs of
+start and goal-states in a way that the geodesic distance between them
+lies within *MATH* and *MATH* through
+rejection sampling. A policy is considered successful if it can get
+within *MATH* proximity of the goal-state. We do not plot the
+SPTM and SORB baselines, because we found that the models
+*MATH* and *MATH* that they use
+as local navigation policies achieved almost zero percent success rate
+in reaching local goals beyond *MATH* distance. We
+empirically observed that most of the time these policies get stuck in
+repetitive rotational motions without moving forward. This is most
+likely due to the difficulty of offline RL training with hindsight
+relabelling over random-walk data obtained with a much more challenging
+non-cartesian action space *MATH*.
+
+
+Experiments in Maze2D
+
+
+To test our method on a continuous control task, we perform additional
+experiments on the Maze2D benchmark. As shown in Table, we find that the same *MATH* 
+policy from sections [4.1] and [4.2] achieves strong performance, and can solve
+mazes of all three complexities.
+
+
+Discussion and Future Directions 
+
+
+[Is PALMER less expressive than standard deep Q-learning:]
+Two important premises of deep Q-learning [*REF*; *REF*]
+are: i) minimizing Bellman error through temporal-difference (TD)
+updates can restitch observed transitions in new optimal ways
+[*REF*; *REF*], ii) a neural network can learn
+to extrapolate Q-values to unobserved but close-by states in
+high-dimensional spaces (e.g. images) [*REF*]. Both arguments
+are equally valid for our approach, since it can: i) restitch
+transitions at arbitrary resolutions (i.e., anywhere from one-step
+transitions to multi-step trajectories) by virtue of sampling-based
+planning, ii) group together close-by states through *MATH*.
+Therefore, PALMER is an RL algorithm that: i) optimizes Bellman
+error through sampling-based optimal planning rather than gradient-based
+TD-updates [*REF*], ii) performs extrapolation between
+states using a perceptual-backbone *MATH* rather than a deep
+Q-network, and iii) replaces the greedy-policy
+*MATH* and value estimate *MATH* with *MATH* and *MATH* respectively.
+The key benefits of these alterations come into play when *MATH* and
+*MATH* are far apart, and these benefits are: i) the PER mechanism in
+eq. that prevents hallucinations in *MATH*, ii) global propagation
+of value estimates by virtue of employing sampling-based planning
+methods, which are known to be particularly proficient at searching
+high-dimensional state spaces across long-horizons [*REF*; *REF*].
+
+
+[Combining PALMER with standard deep Q-learning:] Our
+approach can also be flexibly combined with any traditional Q-learning
+method [*REF*; *REF*; *REF*], by using
+our proposed planning algorithms (Sec.[2.4]) as experience replay methods
+[*REF*]. This alternative approach stitches together
+*MATH* during training, and perform
+backwards TD-updates over this trajectory starting from
+*MATH* and ending at *MATH*. As suggested by
+Fig.[7], this can allow value estimates *MATH* to propagate more globally.
+Our proof-of-concept experiments identify this as a promising direction,
+and we leave a further extensive evaluation to future work.
+[Connections to contingency learning:] Contingency
+learning refers to the acquisition of knowledge of statistical
+correlations between percepts [*REF*; *REF*; *REF*].
+Following this definition, PALMER can be interpreted as a contingency
+learning framework, as the latent distance metric *MATH* captures
+statistically how likely two states are to be observed in close temporal
+proximity. The knowledge of these statistical contingencies between
+states is then used for long-horizon decision making through the
+proposed perceptual experience retrieval and planning mechanisms.
+
+
+Conclusion and Limitations 
+
+
+We presented PALMER, a long-horizon planning method that combines
+learning-based perceptual representations with classical sampling-based
+planning algorithms. Given a goal state *MATH* and reward function
+*MATH*, our method searches the contents of an offline
+replay-buffer *MATH* to stitch together a sequence of transitions
+*MATH* that reaches *MATH* while maximizing *MATH*. This results in an
+experiential framework for long-horizon planning that is significantly
+more robust and sample efficient compared to baselines.
+
+
+Our experiments show that PALMER can successfully solve long-horizon
+planning tasks from continuous high-dimensional inputs. In particular,
+we have shown that given an offline dataset of only 150k transitions
+(i.e., compared to sample complexities around the orders of magnitude
+1e6-1e7 common in RL) obtained from an entirely uniform random-walk
+(i.e., which is significantly less structured compared to on-policy
+rollouts), it allows image-based navigation between any two points in
+large-scale scans of real-world apartments.
+
+
+We believe that our memory-based planning perspective highlights a
+number of interesting questions for future research. First, which
+transitions should be kept in the replay buffer *MATH*, and which
+ones should be discarded? *MATH* cannot be infinitely expanded
+after deployment, and it is critical to distill away redundancies
+between stored experiences. Second, when the environment undergoes a
+change, which transitions in the replay buffer remain valid and can
+still be used for planning, and which ones become invalid? A mechanism
+that can answer this question can allow quick and sample-efficient
+adaptation to environmental changes. Third, how can we extend *MATH* 
+to allow more abstract associations and functional equivariances between
+states? This can improve generalization by defining a more flexible
+notion of experience retrieval that can recycle past behavior in new
+contexts and for new tasks. We leave these questions to future work.

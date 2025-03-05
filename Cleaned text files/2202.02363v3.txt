@@ -1,0 +1,585 @@
+Meta-Reinforcement Learning with Self-Modifying Networks
+
+
+Introduction
+
+
+The algorithmic shift from hand-designed to learned features
+characterizing modern Deep Learning has been transformative for
+Reinforcement Learning (RL), allowing to solve complex problems ranging
+from video games [*REF*; *REF*] to multiplayer
+contests [*REF*] or motor control
+[*REF*; *REF*]. Yet, \&quot;deep\&quot; RL has mostly
+produced specialized agents unable to cope with rapid contextual changes
+or tasks with novel or compositional structure [*REF*; *REF*; *REF*].
+The vast majority of models have relied on gradient-based optimization
+to learn static network parameters adjusted during a predefined
+curriculum, arguably preventing the emergence of online adaptivity. A
+potential solution to this challenge is to meta-learn
+[*REF*; *REF*; *REF*] computational mechanisms able
+to rapidly capture a task structure and automatically operate complex
+feedback control: Meta-Reinforcement Learning constitutes a promising
+direction to build more adaptive artificial systems [*REF*]
+and identify key neuroscience mechanisms that endow humans with their
+versatile learning abilities [*REF*].
+
+
+In this work, we draw inspiration from biological fast synaptic
+plasticity, hypothesized to orchestrate flexible cognitive functions
+according to context-dependent rules [*REF*; *REF*; *REF*; *REF*]. By
+tuning neuronal selectivity at fast time scales -- from fast neural
+signaling (milliseconds) to experience-based learning (seconds and
+beyond) -- fast plasticity can support in principle many cognitive
+faculties including motor and executive control. From a dynamical system
+perspective, fast plasticity can serve as an efficient mechanism for
+information storage and manipulation and has led to modern theories of
+working memory [*REF*; *REF*; *REF*; *REF*; *REF*].
+Despite the fact that the magnitude of the synaptic gain variations may
+be small, such modifications are capable of profoundly altering the
+network transfer function [*REF*] and constitute a plausible
+mechanism for rapidly converting reward and choice history into tuned
+neural functions [*REF*]. From a machine learning
+perspective, despite having a long history
+[*REF*; *REF*; *REF*; *REF*; *REF*],
+fast weights have most often been investigated in conjunction with
+recurrent neural activations [*REF*; *REF*; *REF*; *REF*]
+and rarely as a function of an external reward signal or of the current
+synaptic state itself. Recently, new proposals have shown that models
+with dynamic modulation related to fast weights could yield powerful
+meta-reinforcement learners [*REF*; *REF*; *REF*].
+In this work, we explore an original self-referential update rule that
+allows the model to form synaptic updates conditionally on information
+present in its own synaptic memory. Additionally, environmental reward
+is injected continually in the model as a rich feedback signal to drive
+the weight dynamics. These features endow our model with a unique
+recursive control scheme, that support the emergence of a self-contained
+reinforcement learning program.
+
+
+Contribution: We demonstrate that a neural network trained to
+continually self-modify its weights as a function of sensory information
+and its own synaptic state can produce a powerful reinforcement learning
+program. The resulting general-purpose meta-RL agent called &apos;MetODS&apos;
+(for Meta-Optimized Dynamical Synapses) is theoretically presented as a
+model-free approach performing stochastic feedback control in the policy
+space. In our experimental evaluation, we investigate the reinforcement
+learning strategies implemented by the model and demonstrate that a
+single layer with lightweight parametrization can implement a wide
+spectrum of cognitive functions, from one-shot learning to continuous
+motor-control. We hope that MetODS inspires more works around
+self-optimizing neural networks.
+
+
+The remainder of the paper is organised as follows: In Section [2] we
+introduce our mathematical formulation of the meta-RL problem, which
+motivates MetODS computational principles presented in Section
+[3]. In Section [4] we review previous
+approaches of meta-reinforcement learning and we discuss other models of
+artificial fast plasticity and their relation to associative memory. In
+Section [5] we report experimental results in multiple contexts. Finally, in Section
+[6] we summarise the main advantages of MetODS and outline future work directions.
+
+
+Background 
+
+
+Notation
+
+
+Throughout, we refer to &quot;tasks\&quot; as Markov decision processes (MDP)
+defined by the following tuple *MATH*, where
+*MATH* and *MATH* are respectively the state and action
+sets, *MATH* refers to the state transition distribution measure associating a
+probability to each tuple (state, action, new state), *MATH* is a bounded
+reward function and *MATH* is the initial state distribution. For
+simplicity, we consider finite-horizon MDP with *MATH* time-steps although
+our discussion can be extended to the infinite horizon case as well as
+partially observed MDP. We further specify notation when needed by
+subscripting symbols with the corresponding task *MATH* or time-step
+*MATH*.
+
+
+FIGURE
+
+
+Meta-Reinforcement learning as an optimal transport problem: 
+
+
+Meta-Reinforcement learning considers the problem of building a
+program that generates a distribution *MATH* of policies
+*MATH* that are \&quot;adapted\&quot; for a distribution *MATH* of
+task *MATH* with respect to a given metric *MATH*.
+For instance, *MATH* can be the expected cumulative
+reward for a task *MATH* and policy *MATH*, i.e where state transitions
+are governed by *MATH*, actions are
+sampled according to the policy *MATH*: *MATH* and initial
+state *MATH* follows the distribution *MATH*. Provided the
+existence of an optimal policy *MATH* for any task *MATH*,
+we can define the distribution measure *MATH* of these policies
+over *MATH*. Arguably, an ideal system aims at associating to any task
+*MATH* its optimal policy *MATH*, i.e, finding the transport plan
+*MATH* in the space *MATH* of coupling distributions with marginals *MATH* and
+*MATH* that maximizes *MATH*. *MATH*.
+
+
+Most generally, problem is intractable, since *MATH* is unknow or
+has no explicit form. Instead, previous approaches optimize a surrogate
+problem, by defining a parametric specialization procedure which builds
+for any task *MATH*, a sequence *MATH* of improving policies (see
+Fig.). Defining *MATH* some meta-parameters
+governing the evolution of the sequences *MATH* and
+*MATH* the distribution measure of the policy
+*MATH* after learning task *MATH* during some period *MATH*, the
+optimization problem amounts to finding the meta-parameters
+*MATH* that best adapt *MATH* over the task distribution. *MATH*.
+
+
+Equation cast meta-Reinforcement learning as the
+problem of building automatic policy control in *MATH*. We discuss below
+desirable properties of such control for which we show that our proposed
+meta-learnt synaptic rule has a good potential.
+
+
+*MATH* Efficiency: How \&quot;fast\&quot; the distribution
+*MATH* is transported towards a distribution
+of high-performing policies. Arguably, an efficient learning mechanism
+should require few interaction steps *MATH* with the environment to
+identify the task rule and adapt its policy accordingly. This can be
+seen as minimizing the agent&apos;s cumulative regret during learning
+[*REF*]. This notion is also connected to the policy
+exploration-exploitation trade-off [*REF*; *REF*], where the agent learning
+program should foster rapid discovery of policy improvements while
+retaining performance gains acquired through exploration. We show that
+our learnt synaptic update rule is able to change the agent transfer
+function drastically in a few updates, and settle to a policy when task
+structure has been identified, thus supporting one-shot learning of a
+task-contingent association rule in the Harlow task, adapting a motor
+policy in a few steps or exploring original environments quickly in the
+Maze experiment.
+
+
+*MATH* Capacity: That property defines the learner sensitivity
+to particular task structures and its ability to convert them into
+precise states in the policy space, which determines the achievable
+level of performance for a distribution of tasks *MATH*. This
+notion is linked to the sensitivity of the learner, i.e how the agent
+captures and retains statistics and structures describing a task.
+Precedent work has shown that memory-based Meta-RL models operate a
+Bayesian task regression problem [*REF*], and further
+fostering task identification through diverse regularizations
+[*REF*; *REF*; *REF*] benefited
+performance of the optimized learning strategy. Because our mechanism is
+continual, it allows for constant tracking of the environment
+information and policy update similar to memory-based models. We
+particularly test this property in the maze experiment in Section
+[5], showing that tuned online
+synaptic updates obtain the best capacity under systematic variation of
+the environment.
+
+
+*MATH* Generality: We refer here to the overall ability of the
+meta-learnt policy flow to drive *MATH* 
+towards high-performing policy regions for a diverse set of tasks
+(generic trainability) but also to how general is the resulting
+reinforcement learning program and how well it transfers to tasks unseen
+during training (transferability). In the former case. since the
+proposed synaptic mechanism is model-free, it allows for tackling
+diverse types of policy learning, from navigation to motor control.
+Arguably, to build reinforcing agents that learn in open situations, we
+should strive for generic and efficient computational mechanisms rather
+than learnt heuristics. Transferability corresponds to the ability of
+the meta-learned policy flow to generally yield improving updates even
+in unseen policy regions of the space *MATH* or conditioned by
+unseen task properties: new states, actions and transitions, new reward
+profile. etc. We show in a motor-control experiment using the Meta-World
+benchmark that meta-tuned synaptic updates are a potential candidate to
+produce a more systematic learner agnostic to environment setting and
+reward profile. The generality property remains the hardest for current
+meta-RL approaches, demonstrating the importance of building more stable
+and invariant control principles.
+
+
+MetODS: Meta-Optimized Dynamical Synapses 
+
+
+Learning reflexive weights updates
+
+
+FIGURE
+
+
+What if a neural agent could adjust the rule driving the evolution of
+*MATH* based on its own knowledge? In this
+work, we test a neural computational model that learns to compress
+experience of a task *MATH* into its dynamic weights *MATH*.
+
+
+Contrary to gradient-based rules whose analytical expression is a static
+and predefined function of activations error (*MATH*),
+we define an update rule that directly depends on the current weight
+state through a parameterized non-linear recursive scheme, making the
+expression of the update much more sensitive to weight content itself.
+*MATH*.
+
+
+This self-reflexive evolution of the synaptic configuration *MATH* 
+allows for online variation of the learning rule during adaptation for a
+given task *MATH* and opens an original repertoire of dynamics for the
+policy evolution *MATH*. Specifically, at
+every time-step *MATH*, network inference and learning consists in
+recursive applications of read and write operations that we define
+below.
+
+
+*MATH* Read-write operations: The core mechanism consists in two
+simple operations that respectively linearly project neurons activation
+*MATH* through the dynamic weights *MATH* followed by an
+element-wise non-linearity, and build a local weight update with
+element-wise weighting *MATH*: *MATH*. 
+
+
+Here, *MATH* is a matrix of *MATH*, *MATH* 
+denotes the outer-product, *MATH* is the element-wise multiplication,
+*MATH* is a non-linear activation function. The read and write
+operations are motivated by biological synaptic computation: Reading
+corresponds to the non-linear response of the neuron population to a
+specific activation pattern. Writing consists in an outer product that
+emulates a local Hebbian rule between neurons. The element-wise
+weighting *MATH* allows locally tuning synaptic plasticity at
+every connection consistent with biology
+[*REF*; *REF*] which generates a matrix update with
+potentially more than rank one as in the classic hebbian rule.
+
+
+*MATH* Recursive update: While a single iteration of these two
+operations can only retrieve a similar activation pattern (reading) or
+add unfiltered external information into weights (writing), recursively
+applying these operations offers a much more potent computational
+mechanism that mix information between current neural activation and
+previous iterates. Starting from an initial activation pattern
+*MATH* and previous weight state *MATH*,
+the model recursively applies equations for
+*MATH* on *MATH* and *MATH* such that: *MATH*. 
+
+
+Parameters *MATH* and *MATH* are scalar values learnt along with
+plasticity parameters *MATH*, and correspond to delayed
+contributions of previous patterns and synaptic states to the current
+operations. This is motivated by biological evidence of complex cascades
+of temporal modulation mechanisms over synaptic efficacy
+[*REF*; *REF*]. Finally, *MATH* are respectively used as activation for
+the next layer, and as the new synaptic state *MATH*.
+
+
+*MATH* Computational interpretation: We note that if S=1 in
+equation, the operation boils down to a simple hebbian update
+with a synapse-specific weighting *MATH*. This perspective
+makes MetODS an original form of modern Hopfield network
+[*REF*] with hetero-associative memory that can
+dynamically access and edit stored representations driven by
+observations, rewards and actions. While pattern retrieval from Hopfield
+networks has a dense litterature, our recursive scheme is an original
+proposal to learn automatic updates able to articulate representations
+across timesteps. We believe that this mechanism is particularly
+benefitial for meta-RL to filter external information with respect to
+past experience. The promising results shown in our experimental section
+suggest that such learnt updates can generate useful self-modifications
+to sequentially adapt to incoming information at runtime.
+
+
+FIGURE
+
+
+In this work, we test a single dynamic layer for MetODS and leave the
+extension of the synaptic plasticity to the full network for future
+work. In order for the model to learn a credit assignment strategy,
+state transition and previous reward information
+*MATH* are embedded into a vector
+*MATH* by a feedforward map *MATH* as in previous meta-RL
+approaches [*REF*; *REF*]. Action and advantage estimate
+are read-out by a feedforward policy map *MATH*. We meta-learn the
+plasticity and update coefficients, as well as the embedding and
+read-out function altogether: *MATH*.
+Additionally, the initial synaptic configuration *MATH* can be
+learnt, fixed a priori or sampled from a specified distribution.
+
+
+Related work 
+
+
+*MATH* Meta-Reinforcement learning has recently flourished into
+several different approaches aiming at learning high-level strategies
+for capturing task rules and structures. A direct line of work consists
+in automatically meta-learning components or parameters of the RL
+arsenal to improve over heuristic settings
+[*REF*; *REF*; *REF*]. Orthogonally, work
+building on the Turing-completeness of recurrent neural networks has
+shown that simple recurrent neural networks can be trained to store past
+information in their persistent activity state to inform current
+decision, in such a way that the network implements a form of
+reinforcement learning over each episode
+[*REF*; *REF*; *REF*]. It is believed
+that vanilla recurrent networks alone are not sufficient to meta-learn
+the efficient forms of episodic control found in biological agents
+[*REF*; *REF*]. Hence additional work has
+tried to enhance the system with a better episodic memory model
+[*REF*; *REF*; *REF*] or by
+modeling a policy as an attention module over an explicitely stored set
+of past events [*REF*]. Optimization based approaches have tried
+to cast episodic adaptation as an explicit optimization procedure either
+by treating the optimizer as a black-box system
+[*REF*; *REF*] or by learning a synaptic
+configuration such that one or a few gradient steps are sufficient to
+adapt the input/output mapping to a specific task [*REF*].
+
+
+*MATH* Artificial fast plasticity: Networks with dynamic weights
+that can adapt as a function of neural activation have shown promising
+results over regular recurrent neural networks to handle sequential data
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+However, contrary to our work, these models postulate a persistent
+neural activity orchestrating weights evolution. On the contrary, we
+show that synaptic states are the sole persistent components needed to
+perform fast adaptation. Additionally, the possibility of optimizing
+synaptic dynamics with evolutionary strategies in randomly initialized
+networks [*REF*] or through gradient descent
+[*REF*] has been demonstrated, as well as in a
+time-continuous setting [*REF*]. Recent results have
+shown that plasticity rules differentially tuned at the synapse level
+allow to dynamically edit and query networks memory
+[*REF*; *REF*]. However another
+specificity of this work is that our model synaptic rule is a function
+of reward and synaptic state, allowing to drive weight dynamics
+conditionally on both an external feedback signal and the current model
+belief.
+
+
+*MATH* Associative memory: As discussed above, efficient memory
+storage and manipulation is a crucial feature for building rapidly
+learning agents. To improve over vanilla recurrent neural network
+policies [*REF*], some models have augmented recurrent agents with
+content-addressable dictionaries able to reinstate previously encoded
+patterns given the current state
+[*REF*; *REF*; *REF*; *REF*].
+However these slot-based memory systems are subject to interference with
+incoming inputs and their memory cost grows linearly with experience.
+Contrastingly, attractor networks can be learnt to produce fast
+compression of sensory information into a fixed size tensorial
+representation [*REF*; *REF*]. One class of
+such network are Hopfield networks
+[*REF*; *REF*; *REF*; *REF*] which benefit
+from a large storage capacity [*REF*], can possibly perform
+hetero-associative concept binding [*REF*; *REF*] and
+produce fast and flexible information retrieval [*REF*].
+
+
+Experiments 
+
+
+In this section, we explore the potential of our meta-learnt synaptic
+update rule with respect to the three properties of the meta-RL problem
+exposed in section [2]. Namely, 1) efficiency, 2) capacity and 3)
+generality of the produced learning algorithm. We compare it with
+three state-of-the-art meta-RL models based on different adaptation
+mechanisms: RL *MATH* [*REF*] a memory-based algorithm based on
+training a GRU-cell to perform Reinforcement Learning within the hidden
+space of its recurrent unit, MAML [*REF*] which performs
+online gradient descent on the weights of three-layer MLP and PEARL
+[*REF*], which performs probabilistic task inference for
+conditioning policy. Details for each experimental setting are further
+discussed in S.I. and the code can be found at WEBSITE.
+
+
+Efficiency: One-shot reinforcement learning and rapid motor control 
+
+
+FIGURE
+
+
+To first illustrate that learnt synaptic dynamics can support fast
+behavioral adaptation, we use a classic experiment from the neuroscience
+literature originally presented by Harlow [*REF*] and
+recently reintroduced in artificial meta-RL in [*REF*] as well
+as a heavily-benchmarked MuJoCo directional locomotion task (see
+Fig. [1]). To behave optimally in both settings, the agent must quickly identify the task
+rule and implement a relevant policy: The Harlow task consists of five
+sequential presentations of two random variables placed on a
+one-dimensional line with random permutation of their positions that an
+agent must select by reaching the corresponding position. One value is
+associated with a positive reward and the other with a negative reward.
+The five trials are presented in alternance with periods of fixation
+where the agent should return to a neutral position between items. In
+the MuJoCo robotic Ant-dir experiment, a 4-legged agent must produce a
+locomotive policy given a random rewarded direction.
+
+
+*MATH* Harlow: Since values location are randomly permuted
+across presentations within one episode, the learner cannot develop a
+mechanistic strategy to reach high rewards based on initial position.
+Instead, to reach the maximal expected reward over the episode, the
+agent needs to perform one-shot learning of the task-contingent
+association rule during the first presentation. We found that even a
+very small network of N=20 neurons proved to be sufficient to solve the
+task perfectly. We investigated the synaptic mechanism encoding the
+agent policy. A principal component analysis reveals a policy
+differentiation with respect to the initial value choice outcome
+supported by synaptic specialization in only a few time-steps (see
+Figure-c). We can further interpret this adaptation
+in terms of sharp modifications of the Hopfield energy of the dynamic
+weights (Figure [1]-e). Finally, the largest synaptic variations
+measured by the sum of absolute synaptic variations occur for states
+that carry a non-null reward signal (see S.I). These results suggest
+that the recursive hebbian update combined with reward feedback is
+sufficient to support one-shot reinforcement learning of the task
+association rule.
+
+
+*MATH* MuJoCo Ant-dir: We trained models for performing the task
+on an episode of 200 timesteps and found that MetODS can adapt in a few
+time-steps, similar to memory-based models such as *MATH*,
+(Figure [1]-f) thanks to its continual adaptation mechanism. By design, MAML and PEARL do not
+present such a property, and they need multiple episodes before being
+able to perform adaptation correctly. We still report MAML performance
+after running its gradient adaptation at timestep t=100. We further note
+that our agent overall performance in a single episode is still superior
+to MAML performance reported in [*REF*; *REF*] when
+more episodes are accessible for training.
+
+
+Capacity: Maze exploration task 
+
+
+FIGURE
+
+
+We further tested the systematicity of MetODS learnt reinforcement
+program on a partially observable Markov decision process (POMDP): An
+agent must locate a target in a randomly generated maze while starting
+from random locations and observing a small portion of its environment
+(depicted in Figure [2]). While visual navigation has been previously
+explored in meta-RL [*REF*; *REF*; *REF*], we here focus on
+the mnemonic component of navigation by complexifying the task in two
+ways, we reduce the agent&apos;s visual field to a small size of 3x3 pix. and
+randomize the agent&apos;s position after every reward encounter. The agent
+can take discrete actions in the set *MATH* 
+which moves it accordingly by one coordinate. The agent&apos;s reward signal
+is solely received by hitting the target location, thus receiving a
+reward of *MATH*. Each time the agent hits the target, its position is
+randomly reassigned on the map (orange) and the exploration resumes
+until 100 steps are accumulated during which the agent must collect as
+much reward as possible. Note that the reward is invisible to the agent,
+and thus the agent only knows it has hit the reward location because of
+the activation of the reward input. The reduced observability of the
+environment and the sparsity of the reward signal (most of the state
+transitions yield no reward) requires the agent to perform logical
+binding between distant temporal events to navigate the maze. Again,
+this setting rules out PEARL since its latent context encoding mechanism
+erases crucial temporal dependencies between state transitions for
+efficient exploration. Despite having no particular inductive bias for
+efficient spatial exploration or path memorization, a strong policy
+emerges spontaneously from training.
+
+
+FIGURE
+
+
+*MATH* Ablation study and variations: We explored the
+contribution of the different features combined in MetODS update rule,
+showing that they all contribute to the final performance of our
+meta-learning model. First, we tested the importance of the element-wise
+tuning of plasticity in weight-based learning models and note that while
+it adversely affects MAML gradient update, it greatly improves MetODS
+performance, suggesting different forms of weights update. Second, we
+verified that augmenting recursivity depth S was beneficial to
+performance, consistently with Harlow results. Third, we noted that
+transforming the rightmost vector of the writing equation in
+with a linear projection (Linear in figure [2], see S.I for full experimental details) yields major
+improvement while non-linear (MLP) does not improve performance.
+Finally, we additionally test the capability of the learnt navigation
+skills to generalize to a larger maze size of 10 *MATH* 10 pix. unseen
+during training. We show that MetODS is able to retain its advantage
+(see figure [2] and table [3] for results).
+
+
+Generality: Motor control
+
+
+Finally, we test the generality of the reinforcement learning program
+learnt by our model for different continuous control tasks:
+
+
+MetaWorld: First, we use the dexterous manipulation benchmark
+proposed in [*REF*] using the benchmark suite [*REF*], in which
+a Sawyer robot is tasked with diverse operations. A full adaptation
+episode consists in N=10 rollouts of 500 timesteps of the same task
+across which dynamic weights are carried over. Observation consists in
+the robot&apos;s joint angles and velocities, and the actions are its joint
+torques. We compare MetODS with baseline methods in terms of
+meta-training and meta-testing success rate for 3 settings, push,
+reach and ML-10. We show in Fig. [4] the meta-training results for all the methods in
+the MetaWorld environments. Due to computational resource constraints,
+we restrict our experiment to a budget of 10M steps per run. While we
+note that our benchmark does not reflect the final performance of
+previous methods reported in [*REF*] at 300M steps, we note that
+MetODS test performance outperforms these methods early in training and
+keeps improving at 10M steps, potentially leaving room for improvement
+with additional training. (see S.I for additional discussion). Finally,
+we note that all tested approaches performed modestly on ML10 for test
+tasks, which highlights the limitation of current methods. We conjecture
+that this might be due to the absence of inductive bias for sharing
+knowledge between tasks or fostering systematic exploration of the
+environment of the tested meta-learning algorithms.
+
+
+Robot impairment: We also tested the robustness of MetODS learnt
+reinforcement programs by evaluating the agent ability to perform in a
+setting not seen during training: specifically, when partially impairing
+the agent motor capabilities. We adopt the same experimental setting as
+section [5.1] for the Ant and Cheetah robots and evaluate the performance when
+freezing one of the robots torque. We show that our model policy retains
+a better proportion of its performance compared to other approaches.
+These results suggest that fast synaptic dynamics are not only better
+suited to support fast adaptation of a motor policy in the continuous
+domain, but also implement a more robust reinforcement learning program
+when impairing the agent motor capabilities.
+
+
+FIGURE
+
+
+Discussion 
+
+
+In this work, we introduce a novel meta-RL system, MetODS, which
+leverages a self-referential weight update mechanism for rapid
+specialization at the episodic level. Our approach is generic and
+supports discrete and continuous domains, giving rise to a promising
+repertoire of skills such as one-shot adaptation, spatial navigation or
+motor coordination. MetODS demonstrates that locally tuned synaptic
+updates whose form depends directly on the network configuration can be
+meta-learnt for solving complex reinforcement learning tasks. We
+conjecture that further tuning the hyperparameters as well as combining
+MetODS with more sophisticated reinforcement learning techniques can
+boost its performance. Generally, the success of the approach provides
+evidence for the benefits of fast plasticity in artificial neural
+networks, and the exploration of self-referential networks.
+
+
+Broader Impact
+
+
+Our work explores the emergence of reinforcement-learning programs
+through fast synaptic plasticity. The proposed pieces of evidence that
+information memorization and manipulation as well as behavioral
+specialization can be supported by such computational principles 1) help
+question the functional role of such mechanisms observed in biology and
+2) reaffirms that alternative paradigms to gradient descent might exists
+for efficient artificial neural network control. Additionally, the
+proposed method is of interest for interactive machine learning systems
+that operates in quickly changing environments and under uncertainty
+(bayesian optimization, active learning and control theory). For
+instance, the meta RL approach proposed in this work could be applied to
+brain-computer interfaces for tuning controllers to rapidly drifting
+neural signals. Improving medical applications and robot control
+promises positive impact, however deeper theoretical understanding and
+careful deployment monitoring are required to avoid misuse.

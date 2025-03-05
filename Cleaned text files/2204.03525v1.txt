@@ -1,0 +1,490 @@
+Temporal Alignment for History Representation in Reinforcement Learning
+
+
+Introduction 
+
+
+Deep Reinforcement Learning (RL) algorithms have been successfully
+applied to a range of challenging domains, from video games [*REF*]
+to a computer chip design [*REF*]. These approaches use a
+Neural Network (NN) both to represent the current observation of the
+environment and to learn the agent&apos;s optimal policy, used to choose the
+next action. For instance, the state observation can be the current game
+frame or an image of the robot camera, and a Convolutional Neural
+Network (CNN) may be used to obtain a compact feature vector from it.
+
+
+However, often RL environments are only partially observable and having
+a significant representation of the past may be crucial for the agent
+[*REF*]. For instance, in the Atari 2600 Pong game, the state must be
+represented as at least two consecutive frames. In this way, the agent
+can determine both the position of the ball and the direction of its
+movement. More complex partially observable domains require a longer
+state history input to the agent. For instance, when navigating inside a
+1-st person-view 3D labyrinth, the agent obtains little information from
+the current scene observation and needs several previous frames to
+localise itself.
+
+
+A common solution to represent the observation history is based on the
+Recurrent Neural Networks (RNNs), where the RNN hidden-layer activation
+vector is input to the agent, possibly together with the current state
+observation [*REF*]. However, RL is characterized by highly nonstationary
+data, which makes training unstable [*REF*]
+and this instability is exacerbated when a recurrent network needs to be
+simultaneously trained to extract the agent&apos;s input representation. In
+this case, the network must obtain the representation of multiple
+high-dimensional input frames supervised with only the reward signal.
+This results in a long, very computationally demanding training.
+
+
+In this paper, we propose a different direction, in which the agent&apos;s
+observation history is represented using compact embeddings, which
+describe a general state of the world. Environment-specific embeddings
+are trained in parallel with the RL agent using the common
+self-supervised contrastive learning method. Being low-dimensional, the
+embeddings are input directly to train the policy, indicating the most
+important changes in the past. Intuitively, this is inspired by the
+common human behaviour: when making decisions, humans do not keep
+detailed visual information of the previous steps. For instance, while
+navigating through the halls of a building, it is sufficient to recall a
+few significant landmarks seen during the walk, e.g. specific doors or
+furniture.
+
+
+Following this idea, in this paper, we propose a Temporal Alignment for
+History Representation approach, composed of 3 iterative
+stages: experience collection, temporal alignment and policy
+optimisation. We obtain the representation by aligning past state
+observations using the pairwise cross-entropy loss function
+[*REF*; *REF*]. In more detail, we minimize the distance between the
+latent representations of temporally-close frames. This is a form of
+self-supervision, in which no additional annotation is needed for the
+representation learning, the network is trained to produce consistent
+embeddings for semantically similar input (positives), contrasting them
+with other, more distant samples (negatives)
+[*REF*; *REF*; *REF*; *REF*].
+
+
+Once the observations have been aligned, the embedding of a given frame
+is used as the semantic representation of the observation and is
+recorded in a longer history. Finally, the history is input to the
+agent together with an instantaneous observation representation,
+obtained, following [*REF*], as a stack of the last 4 frames. This
+information is now used for policy optimisation. Note that our proposed
+history representation is independent of the specific RL approach.
+However, in all our experiments we use the PPO algorithm [*REF*] for the
+policy and the value function optimisation. The 3 stages are iterated
+during training, and thus past embeddings can be modified and adapted to
+address new observations, while the agent is progressing through the
+environment.
+
+
+We summarize the contribution of this paper below. First, we use the
+pairwise cross-entropy loss function [*REF*; *REF*] to align the agent&apos;s
+past observations and to obtain low-dimensional embeddings. Second, we
+represent the state of the agent with multiple previous observations as
+embeddings, so far trained. Finally, we combine both instantaneous and
+history representation and we evaluate our method using the PPO
+algorithm on all available 49 Atari games from the Arcade Learning
+Environment (ALE) [*REF*] benchmark. Our experiments confirm that this
+combination provides a significant boost with respect to the most common
+instantaneous-only input. Specifically, we show that TempAl outperforms
+the baseline in cases, where the history can increase observability. The
+source code of the method and of all the experiments is available at
+WEBSITE.
+
+
+Related Work 
+
+
+Partially Observable Markov Decision Processes
+
+
+The goal of the agent is to maximize a cumulative reward signal and it
+interacts with the environment to achieve it. The interaction process is
+defined as a Partially Observable Markov Decision Process (POMDP)
+*MATH* [*REF*; *REF*], where *MATH* is a
+finite state space, *MATH* is a finite action space, *MATH* is the
+reward function, *MATH* is the transition function, *MATH* is
+a set of possible observations, *MATH* is a function which maps states to
+probability distributions over observations and *MATH* is a
+discount factor used to compute the cumulative discounted reward. Within
+this framework, at each step *MATH*, the environment is in some unobserved
+state *MATH*. When the agent takes an action *MATH*, the environment
+transits to the new state *MATH* with probability *MATH*, providing
+the agent with a new observation *MATH* with probability
+*MATH* and reward *MATH*.
+
+
+POMDPs are an active research area and several approaches have been
+recently proposed to address partial observability. DQN [*REF*] is
+one of the earliest deep RL models directly trained using the
+high-dimensional observation *MATH* as input (i.e., the raw pixels of the
+current frame). To deal with partial observability, the input of the
+model is composed of a stack of the 4 last grayscale frames, processed
+as 4 channels using a 2D CNN. We also use this observation
+representation which we call instantaneous to highlight the difference
+from the past observation history.
+
+
+[*REF*] replace the fully-connected (FC) layer in DQN with an LSTM
+[*REF*] layer. At each step, the model
+receives only one frame of the environment together with the LSTM
+hidden-layer value which represents the past. The idea was extended in
+[*REF*] by inferring latent belief states. To simulate reduced
+observability and demonstrate the robustness of the method, [*REF*]
+introduce the flickering Atari games, obscuring the observation with a
+certain probability at each step. These methods focus on short-term
+partial observability, such as noisy observations, and approximate the
+state with an implicitly inferred continuous history. In contrast, our
+method explicitly represents each step of the past using an
+independently trained encoder, and concatenates a sequence of steps into
+a history. Our final goal is to augment the current state representation
+with important past changes of the environment.
+
+
+Recurrent layers (e.g. LSTM or GRU [*REF*]) are a common choice for
+modern RL architectures. The A3C algorithm [*REF*] showed a high mean
+performance with an LSTM layer. R2D2 [*REF*] is specifically focused on
+processing long-history sequences (80 steps with additional 40 burn-in
+steps) using an LSTM. However, despite its widespread, RNNs have
+disadvantages within an RL framework because they increase the training
+complexity (Sec. [1]). In this paper, we propose a compact history
+representation that can be processed with much simpler networks. In our
+experiments, we use a small 1D CNN with kernel size *MATH*, which has only
+*MATH* trainable parameters. We empirically show in
+Sec. [4.4] that our proposal improves the performance for most of the environments.
+
+
+Self-supervised Learning and Metric Learning
+
+
+In this section we present related works focused on representation
+learning. In self-supervised learning (SSL), the network is trained to
+extract useful representations from data (e.g. images, videos) based on
+a pretext task without using annotation. In RL, observations are
+obtained dynamically, thus labeling them is impractical, while a
+suitable pretext task may require minimal effort. CPC [*REF*] is a
+pioneering SSL method, that was demonstrated on natural images and in
+the RL domain. For images, the method predicts the representation of a
+patch given a context obtained from other patches. For RL, the method
+predicts the representation of an observation given previous
+observations in a sequence, and the SSL loss is combined as auxiliary
+with the RL loss. Similarly, our method uses temporal positions in the
+trajectory. However, we explicitly align the latent representation
+instead of prediction, and we do not combine losses, performing each
+stage separately.
+
+
+[*REF*] have introduced the InfoNCE loss, which became a foundation for
+several popular methods. E.g., MoCo [*REF*] and SimCLR [*REF*] use
+this loss to align representations of two versions of one image,
+produced by random augmentations (cropping, color jitter etc.). Later,
+several alternative non-contrastive losses were proposed
+[*REF*; *REF*; *REF*; *REF*]. However, in our setting InfoNCE
+provides better stability, we employ it for our experiments. In parallel
+with SSL, this loss was developed for metric learning, it was introduced
+as N-pair loss [*REF*] and pairwise cross-entropy loss [*REF*]
+emphasizing the connection with the cross-entropy loss for supervised
+classification.
+
+
+Following CPC concepts, ST-DIM [*REF*] used both patch structure and
+temporal positions of observations, aligning nearby frames. The method
+was validated on several Atari games from ALE measuring if the specific
+information from the environment is encoded in the representation; the
+RL task was not considered. Recently, [*REF*] have
+shown that the self-supervision from temporal positions and from
+augmentations can improve data efficiency in RL, using BYOL [*REF*] as
+an auxiliary loss.
+
+
+SSL is widely adopted in world models. The goal of such models is to
+capture world dynamics, and it is often unreasonable to spend the model
+capacity predicting all pixel-level details. Thus, in World Models
+[*REF*], observations are initially encoded with VAE [*REF*] and
+the model operates in the resulting low-dimensional space. [*REF*] have
+utilised temporal alignment of observations to learn latent space, and
+the world model approximates dynamics in this space to address the
+exploration problem. [*REF*] extend model-based MuZero [*REF*] with
+the self-supervised consistency for nearby observations based on SimSiam
+[*REF*] loss, demonstrating the high sample efficiency. Differently
+from these works, TempAl is used in the model-free setting.
+
+
+Our representation learning process can be viewed from the metric
+learning perspective. Metric is defined as a distance between objects
+representing their specific similarity. At the same time, TempAl
+representation indicates the temporal distance between observations.
+This idea was developed in Time-Contrastive Networks
+[*REF*]. To obtain positives, one of the versions
+of the method used the temporal window as in [3.1]. The performance
+was demonstrated in a robotic imitation setting. Moreover, several prior
+works [*REF*; *REF*] used temporal coherence
+for representation learning and our method can be seen as a continuation
+of this line of research.
+
+
+Temporal Alignment and History Representation
+
+
+Temporal Alignment 
+
+
+FIGURE
+
+
+As mentioned in Sec. [1]-[2], for our self-supervised representation learning,
+we use the pairwise cross-entropy loss, which is a variant of the
+contrastive loss [*REF*]. Following the common
+formulation proposed by [*REF*]: *MATH* 
+where *MATH* is a latent-space representation of corresponding
+observation *MATH*, indexes *MATH* and *MATH* indicate a positive pair, *MATH* is
+the size of the current batch, *MATH* is a temperature hyperparameter.
+Temporally-close observations share the same general state of the
+environment, while distant observations are likely to represent
+different states. Following this assumption, we use nearby observations
+as positives. Let *MATH* be the observation of the environment at time
+step *MATH*, presented as an image. We want to learn a representation
+mapping *MATH*, *MATH* is our self-supervised
+encoder and it is based on a CNN [*REF*] followed by a FC layer
+with *MATH* normalization (Fig. [1]). We use two observations extracted from the
+same trajectory: *MATH* and *MATH*, where *MATH*. *MATH* defines
+a temporal translation window in which observations are assumed to most
+likely have the same semantic content. Small values of *MATH* (e.g.
+*MATH*) reduce the uncertainty and thus improve the stability during
+training. However, if this value is too small, positives can often be
+identical and the encoder would be trained to simply detect duplicates.
+On the other hand, larger values of *MATH* produce a higher variability, in
+which the representation learning process is forced to extract more
+abstract semantics to group similar frames. During preliminary
+experiments, we observed that the optimal value lies in the range
+*MATH* depending on the environment. On average, value *MATH* provides
+the best result, thus we use it in our experiments in
+Sec. [4.4]. However, it&apos;s possible to tune this parameter independently for each environment.
+Another parameter is the representation dimensionality
+*MATH*. We set it to *MATH* for all experiments, in considered
+cases it is sufficient. Additionally, inspired by the commonly used
+random crop augmentation in self-supervised learning [*REF*], we
+randomly shift the image vertically and horizontally by the value from
+the range *MATH*, improving the encoder robustness.
+
+
+History Representation and Policy Optimisation
+
+
+FIGURE
+
+
+Once *MATH* is updated (see Sec. [4.1]), we
+use *MATH* to represent an observation at time *MATH* and
+update the agent&apos;s policy. In more detail, we represent the agent with
+an Actor-Critic architecture approximated with a NN *MATH*. We use the
+PPO [*REF*] algorithm to optimise the policy and the value function. At
+time step *MATH*, the agent receives two types of data as input, an
+instantaneous representation *MATH* consisting of 4 concatenated
+raw-pixel, grayscale frames *MATH* 
+and a history computed with *MATH* over the past *MATH* steps:
+*MATH*. *MATH* is a low-dimensional vector (*MATH*), and the history size *MATH* can be set to
+a specific value depending on the environment (we use *MATH*), thus
+*MATH* is a low-dimensional (*MATH*) matrix which represents
+significant information about the recent agent&apos;s past trajectory.
+Importantly, in contrast with an RNN-based history representation, which
+may be prone to forgetting past information, in our proposed history
+representation *MATH*, all the past *MATH* observations are stored,
+together with their time-dependent evolution.
+
+
+The NN *MATH* consists of two branches with respect to the input:
+instantaneous and history. The instantaneous branch consists of a NN,
+introduced by [*REF*] and commonly used for Atari in several works,
+including our baseline PPO. In the history branch the input *MATH* is
+first passed through a 1D CNN with the kernel size *MATH*, then flattened
+and processed with two FC layers. In this branch, we use two
+sub-networks with described architecture, one for the policy and one for
+the value. Finally, outputs of both branches are combined using an
+average. Such a basic ensembling allows the agent to choose a suitable
+input for a concrete task. We also include ablation studies ([4.5]) with only
+the history branch. Fig. shows the full architecture of our agent.
+
+
+We highlight that the self-supervised encoder *MATH* does not share
+parameters with the RL network *MATH*, and it is not trained during
+the policy optimisation stage. Moreover, while the *MATH* encoder is
+trained in a self-supervised fashion, the CNN in *MATH*, used to
+extract representation from *MATH*, is trained using the RL reward.
+This emphasizes the complementary between the knowledge of the two
+networks, being the former based on extracting visual similarities in
+data that do not depend on the specific RL task, while the latter being
+trained as in a standard RL framework, focusing on details important for
+action selection.
+
+
+Experimental Evaluation
+
+
+Training 
+
+
+Initially, we run a random agent for a small number of steps (*MATH* of
+the total budget) storing all obtained observations. Next, we train the
+*MATH* encoder using these observations for *MATH* epochs.
+After this pretraining, the RL agent can use *MATH* to encode the
+history and it is ready for the main training loop. During it, we run
+the RL agent in several parallel environments for a predefined number of
+steps (one rollout). The actions are chosen according to the current
+policy (observation collection stage). Next, using the collected
+experience, we update *MATH* for *MATH* epochs (temporal
+alignment stage) and *MATH* for *MATH* epochs (policy
+optimisation stage). These three stages are iterated, so to adapt
+*MATH* to the observation distribution change.
+
+
+Implementation Details 
+
+
+TABLE
+
+
+The weights of *MATH* and *MATH* are initialized with a (semi-)
+orthogonal matrix, as described in [*REF*], and all the biases are
+initialized with zeros. We use one network architecture and one set of
+hyperparameters for all our experiments. We adopt the training procedure
+and the hyperparameters in [*REF*], including the total number of time
+steps equal to 10M. Our agent network architecture is similar to [*REF*],
+except for the additional history branch. Encoder *MATH* is composed
+of a CNN and a FC layer (Sec. [3.1]). Specifically, its CNN configuration is similar to
+[*REF*], except the first layer, which takes only one channel as
+input, which corresponds to one grayscale observation. In
+Tab. [1] we list all other hyperparameters.
+
+
+Pairwise cross-entropy loss makes use of batch samples as negatives and
+the sampling procedure can affect the optimization process. If
+observations are sampled from very distant parts of the trajectory,
+separating them is trivial. And vice versa: batch sampled from a small
+window makes the problem unsolvable. In all our experiments we sample
+pairs from *MATH* last rollouts, each rollout contains *MATH* steps of *MATH* 
+parallel environments.
+
+
+Environments
+
+
+We evaluate TempAl on the challenging deep RL benchmark ALE [*REF*].
+Following closely the experimental protocol of the baseline [*REF*], we
+use all 49 available classic Atari 2600 video games. In these
+environments, *MATH* is an RGB image. The action space is discrete and
+the number of actions varies in each game from 4 to 18. We apply the
+same observation pre-processing (frame downscaling, etc.) as in [*REF*].
+
+
+Results 
+
+
+FIGURE
+
+
+In all the experiments the scores are averaged over 100 episodes.
+Fig. [2] shows the relative improvement with respect to baseline [*REF*]. It is
+calculated as *MATH* where *MATH* is the final cumulative reward of our method, *MATH* 
+is the reward of a random agent, and *MATH* is the reward of the
+baseline [*REF*]. We can see that there is performance improvement in 35
+out of 49 environments. A small difference with the baseline indicates
+that the game is likely reactive and the history does not add
+information. Large negative values indicate failure cases (3
+environments), where the history input interferes with the instantaneous
+input. Finally, for 14 environments we can see a strong improvement
+(*MATH*), in these cases, the history provides a clear advantage for
+the RL algorithm.
+
+
+FIGURE
+
+
+Additionally to quantitative results, we include the visualisation of
+the resulting embeddings in Fig. [3]. We use a trajectory of the agent after training
+in &apos;MsPacman&apos; environment. Each observation is encoded with *MATH* 
+and then projected to 2D with the t-SNE [*REF*] algorithm. We can see
+that observations are perfectly aligned and the encoder successfully
+learned the target representation. Interestingly, the curves of the path
+correspond to special events during the run. The game starts with an
+initial animation where the agent cannot move, so these frames (0 and
+50) are bunched up. Similar animations are around points 700 and 800
+after losing a life. After step 400 the agent takes a bonus which allows
+attacking opponents, this creates a gap with a twist in the path. Around
+step 550 the agent was trapped and it also results in a special twist.
+
+
+It is important to note that our method requires an additional
+computational budget with respect to the baseline with only
+instantaneous input. The significant overhead comes from the temporal
+alignment stage and from producing embeddings for *MATH* during the
+policy optimisation stage. However, the encoder *MATH* does not
+depend on the goal or the reward, so in a more realistic setting, we can
+train it once for the environment and reuse it for different tasks. In
+addition, if the encoder is not updated, the embeddings can be stored
+during experience collection, neglecting the corresponding overhead
+during the policy optimisation.
+
+
+Ablation study 
+
+
+TABLE
+
+
+Most Atari environments are reactive, e.g. in &apos;Breakout&apos;, it is
+important to catch the ball precisely. In such cases, instantaneous
+input is favorable, while using only compact history may be not
+sufficient. We verify this assumption in the following experiment. We
+remove the instantaneous branch and corresponding input, and we use only
+the history branch. The only modification of hyperparameters is a bigger
+size of the FC layer *MATH*. Tab. [2] shows all the considered versions. The
+history-only method performs better than random, thus the agent was able
+to extract necessary information in every environment. In some cases the
+performance of history-only and instantaneous-only methods is similar,
+the history representation is sufficient. However, the ensemble shows
+the best result combining the advantages of both types of input.
+
+
+Conclusion
+
+
+We presented a method for history representation in RL. Our TempAl is
+based on the idea that important information about the past can be
+&quot;compressed&quot; using temporal alignment of observations. Specifically,
+this representation is learned using the common SSL approach based on
+the pairwise cross-entropy loss. The encoder and the agent are trained
+jointly and iterated through time, to adapt the history representation
+to the new observations.
+
+
+In TempAl, visual information is represented using two different
+networks: the SSL encoder *MATH* and the RL agent *MATH*. The
+latter is trained using a reward signal, so it presumably extracts
+task-specific information from the observations. On the other hand, the
+encoder *MATH* is trained using self-supervision, and thus it
+focuses on patterns that are repeated in the data stream, potentially
+leveraging a larger quantity of supervision signal. Although SSL has
+been explored in other RL and non-RL works, this is the first work to
+show how the discovered information can be exploited in the form of
+history representation.
+
+
+Broader Impact. Our approach was demonstrated on Atari games, the
+most popular RL benchmark with image observations. This benchmark allows
+to run numerous simulations quickly, thus experiments can be carried out
+with a reasonable budget. However, simple sprite-based computer
+graphics, used in these games, is only a rough proxy to real-world
+problems. On the other hand, SSL has recently enjoyed remarkable success
+in the natural image domain [*REF*; *REF*]. Our representation
+learning is based on SSL, therefore TempAl can be used in environments
+with natural observations, e.g. in robotics. Furthermore, in some cases,
+TempAl can be pretrained from an unsupervised stream of observations,
+and later the encoder can be reused for other tasks in the environment
+since it does not depend on the reward. Moreover, real-world
+environments are often partially observable, e.g. in navigation, and the
+agent would benefit from the history input. We believe that our work can
+inspire further experimentation, advancing RL to practical applications.

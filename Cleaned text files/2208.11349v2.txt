@@ -1,0 +1,214 @@
+Dynamic Memory-based Curiosity: A Bootstrap Approach for Exploration 
+
+
+Introduction 
+
+
+FIGURE 
+
+
+Despite the success of reinforcement learning (RL) on sequential decision-making tasks [*REF*; *REF*; *REF*], many current methods struggle with sparse extrinsic rewards. To cope with the sparsity, curiosity provides a representative intrinsic reward that can encourage agents to explore new states. Designing algorithms to efficiently construct curiosity can be a key component in RL systems. Previous research has shown that intrinsic rewards can help alleviate the issues resulting from the lacking of dense extrinsic rewards [*REF*; *REF*; *REF*]. 
+
+
+For human learning, curiosity motivates people to seek and retain more information through exploration in the environment [*REF*; *REF*; *REF*]. The process of arousing and satisfying curiosity can be summed up as one cycle: when a person encounters a problem, he/she will first try to solve it by retrieving information from memory. If retrieval from memory fails, he/she realizes that the current memorized information is insufficient solve the problem. A conscious awareness of information discrepancy then sparks curiosity about the problem, and curiosity stimulates the search for new information. Once the information discrepancy is eliminated, people may have no further curiosity to learn more about the current problem until another problem is encountered [*REF*; *REF*]. Human curiosity is constantly consolidated based on the dynamic memory, which consists of the encoding, storing, and retrieving information stage [*REF*]. As the curiosity fades, additional information is consolidated into the memory. The consolidation results in the forming of new dynamic memories, which depends on the hippocampus [*REF*]. 
+
+
+Many attempts have been made to build curiosity in RL, which fall into two main categories: count-based and prediction-based. However, such curiosity is very different from human curiosity, and the problem is far from solved. Taking the Random Network Distillation (RND) [*REF*] method as an example, RND initializes a random fixed target network with state embeddings, and trains another prediction network to fit the output of the target network. A random fixed target network can be regarded as a random fixed memory, so that RND cannot retain contextual knowledge about the environment [*REF*]. Without dynamically incorporating contextual information into memory, random features may not be sufficient to interpret dynamic environments. Therefore, this kind of curiosity is evaluated in a non-developmental way, which severely limits the performance of curiosity in RL. 
+
+
+In this work, to mimic human curiosity, we formalize and investigate a Dynamic Memory-based Curiosity mechanism, named DyMeCu. Inspired by the bootstrap paradigm [*REF*; *REF*; *REF*], we construct dual online learners to learn the latent state to formulate dynamic memory model (Figure). On the one hand, state information can be consolidated to the memory via the exponential moving average (EMA) [*REF*; *REF*; *REF*] of dual learners&apos; parameters. The bootstrap paradigm, on the other hand, utilizes supervised signals from memory to improve dual learners&apos; encoding ability. Furthermore, the curiosity is measured by the information gap between the dual learners, which is essentially an uncertainty estimation of given state based on dynamic memory [*REF*; *REF*; *REF*]. 
+
+
+In brief, our contribution in this paper is: 
+
+
+-  We firstly analyze the shortcomings of previous curiosity-based intrinsic reward methods, and suggest to mimic human curiosity leveraging a dynamic memory instead of a fixed one, based on the information theory. 
+
+
+-  We propose a novel and practicable intrinsic reward method for RL agents, named DyMeCu (Dynamic Memory-based Curiosity), which consists of a dynamic memory and dual online learners, and thus can measure the curiosity and consolidate the information in a feasible way. Meanwhile, different strategies are explored to further improve the performance of DyMeCu. 
+
+
+-  On multiple benchmarks including DeepMind Control Suite (DMC) [*REF*] and Atari Suite [*REF*], large-scale empirical experiments demonstrate that DyMeCu outperforms the other competitive curiosity-based methods and pre-training strategies. 
+
+
+Related Work  
+
+
+Curiosity-Based Intrinsic Reward 
+
+
+In RL, the exploration issue is a long standing challenge. Previous attempts suggest that: if there is no additional reward, exploration can be regarded as a hunt for information theoretically, which also can be viewed as the curiosity [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+One intuitive formulation of curiosity is the count-based methods, where the less visited state has more state novelty for exploration. But it can not scale to large-scale or continuous state spaces [*REF*; *REF*]. Inspired by count-based methods, RND calculates the state novelty by distilling a random fixed network (target network) into another prediction network (predictor network). The predictor network is trained to minimize the prediction error for each state and take the prediction error as the intrinsic reward. Apart from count-based methods, prediction-based methods also show competitive or better performance by modeling the environment dynamics [*REF*; *REF*; *REF*; *REF*].
+With the assumption that more visited state-action pairs will result in more accurate prediction, the intrinsic reward can be applied as the variance of predictions of ensembles or the distance between prediction states and true states, such as the Disagreement method [*REF*] and ICM [*REF*] method. There have been few attempts to design a curiosity that contains memory and effectively uses information consolidated in memory, which however is the main goal of this paper. 
+
+
+Uncertainty Estimation 
+
+
+Our work is also related to the uncertainty estimation, as uncertainty is crucial which allows an agent to discern when to exploit and when to explore its environment in RL [*REF*]. Previous intrinsic rewards can also be interpreted from the perspective of uncertainty estimation, which can evaluate curiosity by estimating the deep learning model&apos;s uncertainty (confidence). Take Disagreement as an example, instead of comparing the prediction to the ground-truth, they suggest to evaluate the uncertainty of multiple prediction models using the deep ensemble [*REF*], despite incurring additional computation. RND also claims that the distillation error can be viewed as a quantification of the uncertainty. Unlike RND, in our work, we evaluate the uncertainty of given states though measuring the information gap between dual learners which rely on dynamic memory instead of a random fixed network. 
+
+
+ALGORITHM 
+
+
+FIGURE 
+
+
+Methodology 
+
+
+In general, if an agent encounters a state with the information value *MATH* compared to its memory, then this state is worth exploring and such information value is worth consolidating to its memory dynamically [*REF*; *REF*]. In detail, the concept of information value *MATH* necessitates the formation of the dynamic memory *MATH* and a way *MATH* to consolidate information to the memory. For deep neural networks, the memory *MATH* can be embedded in the latent space and *MATH* can by the function that maps state *MATH* into memory [*REF*]. This kind of consolidating information is denoted by: *MATH*. 
+
+
+With the memory *MATH* which has been learned by *MATH* over historical states, we can measure the information value *MATH* of the next state *MATH*. According to the information theory [*REF*; *REF*; *REF*] and the concepts proposed in *REF*, the information value *MATH* of a state should (1) only depend on the memory and what can be immediately learned (i.e., *MATH*, *MATH* and *MATH*); (2) be non-negative because *MATH* is for exploring the environment; (3) decelerate in the finite time for the same state. Thus we define *MATH* as: *MATH*. 
+
+
+We can get from the definition of *MATH* as: 
+
+
+(1) If one state has been completely explored, or cannot be learned, then no more information gain can be added into the current memory, and *MATH*. Such state is no longer worth exploring. 
+
+
+(2) If *MATH*, then the larger the value of *MATH*, the more information gain can be consolidated into the memory. In other words, the larger the value of *MATH*, the memory *MATH* is less aware of the current state, such state is more worth exploring. It is such information deficiency of memory that sparks the curiosity of agents. 
+
+
+In this paper, we will focus on how to obtain and leverage the information value *MATH* for agents exploration, and the information consolidation method *MATH* in details. 
+
+
+Dynamic Memory-based Curiosity 
+
+
+In our framework, if the information in current memory cannot handle the encountered state, then the curiosity is aroused. We model the memory as a learnable neural network, but there is a dilemma that we do not have a &quot;benchmark&quot; encoded network in the parameter space to encode the encountered state accurately, since not enough supervised signal provided here. Thus it is difficult and not sound to directly define the curiosity by comparing a random encoded state with the output latent state from a dynamic memory network. We instead introduce dual online learners for state encode representations. These dual learners have the same network architecture as the memory network but with each own different parameters. In their network parameter space, the dual networks are supervised by the memory encoding ability. And then our curiosity can be defined by the gap of the encodings of the same state output by dual learners&apos; networks. The intuition of our dual learners is: if the state information has been squeezed out by the memory, then the memory can completely know and resolve the state, and the dual learners which can be seen as the two imitators to the memory are easier to get the similar encodings to the current state. In other words, if one state is little known by the memory, then the dual learners may produce quite different encodings to it, which represents the larger information value *MATH* and thus stimulates the agent to explore this state. Here, for the uniform description, we refer the encoded states and encodings to the latent states, which reflect the cognition of states by the memory and learner networks. 
+
+
+In our implementation, such kind of latent gap *MATH* will spark the curiosity as the intrinsic reward for agents exploration. After the RL agents learning, such information will be consolidated to the memory for memory better growing. In terms of the consolidation method *MATH*, it is externalized as updating the memory parameters via the exponential moving average (EMA) [*REF*; *REF*; *REF*] of the dual learners&apos; parameters. 
+
+
+From such analysis, we see the dual learners first learn based on the memory network for measure the information value for exploration, and then the memory network consolidate information gain based on dual learners in the EMA way. The memory is actually seeking for the appropriate position in the parameter space dynamically, in order that its network can better characterize the memory and cognition ability of the seen states in environments. In a word, our dynamic memory is updated in a bootstrap [*REF*] way.
+Figure [FIGURE] and algorithm [ALGORITHM] present the whole framework and pseudo-code of DyMeCu. 
+
+
+TABLE 
+
+
+-  Learning of Dual Learners: 
+
+
+Dual online learner models *MATH* and *MATH* are defined by a set of weights *MATH* and *MATH* with the same architecture as the memory network *MATH*. The memory provides the regression targets for the learning of dual learners *MATH* and *MATH*. Given a current state *MATH*, the learners transform it into the latent states *MATH* and *MATH*  respectively, and the memory network outputs *MATH*. The mean squared error (MSE) between them is: *MATH*. 
+
+
+Based on *MATH* and *MATH*, the dual learners are updated as: *MATH* where *MATH* and *MATH* represent the optimizer and learning rate. 
+
+
+-  Intrinsic Reward based on Curiosity: 
+
+
+The curiosity relies on the information value of current state. In our method, such information value can be measured by the information gap between dual learners. This information gap can also be considered following the *MATH* -Progress  [*REF*; *REF*] to form the curiosity. We obtain the intrinsic reward to agents based on the curiosity from the information value: *MATH*. 
+
+
+From another point of view, the dual-learner mechanism can be regarded as the variant of ensemble [*REF*] for uncertainty estimation.
+Compared with previous attempts which requires heavily ensembling (such as the Disagreement), our lightweight solution can previous better performance while retaining computation efficiency. 
+
+
+Overall, we can get the optimization goal for the agent: *MATH*,  where *MATH* is the discount factor and *MATH* represents parameters of policy *MATH*; *MATH* and *MATH* are the coefficients of the intrinsic reward and extrinsic reward respectively. 
+
+
+-  Consolidating Information into Memory: 
+
+
+The memory model is updated in an EMA way for sake of its stability to the old state information and the plasticity to the current new state information. In other words, the memory is dynamically growing taking the contextual environment information into account. Specifically, given a decay rate *MATH* and after each training step, the memory *MATH* can be updated as: *MATH*. 
+
+
+-  Intuitions on DyMeCu&apos;s behavior: 
+
+
+The dynamic memory-based curiosity is closer to human curiosity mechanism. It is the cognitive difference compared to the memory that stimulates our curiosity to explore the world, and then we will consolidate the cognition information to the memory dynamically. In addition, from the knowledge distillation view, such memory can also be regarded as the teacher model in Mean Teacher-based approach [*REF*].
+The memory is essentially a self-ensemble of the intermediate models of learners. The paradigm we proposed is one type of replay mechanism that is thought to play an important role in memory formation, retrieval, and consolidation [*REF*]. Moreover, we consider our way to form the memory can also be used in the continual learning to address the issue of catastrophic forgetting [*REF*]. 
+
+
+FIGURE 
+
+
+Experiments and Analysis 
+
+
+Experimental Settings 
+
+
+We evaluate our method in both pre-training and traditional RL situations utilizing two widely used benchmarks: DeepMind Control Suite (DMC) [*REF*] and Atari Suite [*REF*]. We follow the RND [*REF*] experimental settings for Atari Suite and settings of URLB [*REF*] which is the pre-training benchmark for DeepMind Control Suite. We apply PPO algorithm [*REF*] to train the agent. The hyper-parameter *MATH* was set as 0.99 in all experiments, and the implementation details and hyper-parameters can be found in the appendix. 
+
+
+DeepMind Control Suite 
+
+
+Many well-performing approaches like URLB [*REF*] use the pre-training and fine-tuning paradigm to improve sample efficiency for RL, especially in the experiment benchmark like DMC containing various domains and complex tasks. We evaluate DyMeCu on all three domains of DMC, namely Walker, Quadruped, and Jaco Arm (from easiest to hardest), and each of them has four tasks. During the pre-training phase, the agents are trained for 2 million steps with only intrinsic rewards produced by the curiosity. During the fine-tuning phase, the agents are trained for 100k steps with only extrinsic rewards. 
+
+
+Table [TABLE] reports the final scores and standard deviations of DyMeCu and other competitive methods. We compare DyMeCu with both intrinsic reward-based methods (ICM, Disagreement, RND, APT [*REF*]) and other pre-training strategies (ProtoRL [*REF*], SMM [*REF*], DIAYN [*REF*], APS [*REF*]). DyMeCu improves average performance by 18.3%, 26.6%, and 21.0% on these three domains respectively. From the quantitative results, we can see our DyMeCu achieve the new state-of-the-art across all 12 tasks, demonstrating DyMeCu&apos;s ability to improve the model performance and robustness through pre-training paradigm.
+Figure [FIGURE] plots 6 learning curves (fine-tuning phase) of DyMeCu and three competitive curiosity-based methods. All learning curves can be found in the appendix. DyMeCu shows a superior convergence speed than other methods. Meanwhile, the convergence result of DyMeCu also surpasses others significantly. DyMeCu&apos;s speed increase may sbe mainly due to the contextual state information being consolidated into memory dynamically, rather than a random fixed setting like the RND.
+Based on the dynamic memory, the exploration of agents can be much more efficient. 
+
+
+Atari Suite 
+
+
+For the Atari suite, we first record the performance of agents with both intrinsic and extrinsic rewards. The experiments conducts 100M running steps - equivalent to 400M frames and the intrinsic and extrinsic rewards coefficients are set to *MATH* and *MATH* respectively for all methods, following the setup of the previous curiosity-based methods. Table [TABLE] lists the aggregate metrics and scores of three methods trained with both intrinsic and extrinsic rewards on the Atari 26 games. Human and random scores are adopted from  *REF*. As done in previous works [*REF*; *REF*; *REF*], we normalize the episode reward as human-normalized scores (HNS) by expert human scores to account for different score scales in each game. SOTA denotes the number of games that the current method exceeds other methods and mean HNS is calculated as the average of *MATH*  of all games. From Table [TABLE], DyMeCu displays the superiority over Disagreement and ICM with its highest mean HNS and SOTA. 
+
+
+FIGURE 
+
+
+Figure [FIGURE] displays the learning curves using both intrinsic and extrinsic rewards. We compare DyMeCu with three widely-used baselines, including Disagreement, ICM and RND, on 6 random chosen Atari games. DyMeCu shows evident advantages in most games on the performance and learning speed. For example, on Jamesbond, the convergence plot reward of DyMeCu is more than three times that of other methods.
+Moreover, we also compare the performance of agents trained with only intrinsic rewards. As shown in Figure [FIGURE], of the 6 environments, DyMeCu outperforms Disagreement baseline in all environments, outperforms ICM and RND baselines both in 4 environments.
+Overall, the results in Atari Suite show that DyMeCu outperforms other curiosity-based methods, demonstrating DyMeCu&apos;s ability to generate more accurate intrinsic rewards and provide more useful information for better exploration. 
+
+
+Further Analysis on DyMeCu 
+
+
+Further analysis including ablation studies on DyMeCu are presented to give an intuition of its behavior and performance. We run the experiments across 3 random seeds and all following experiments conducts 50M running steps - equivalent to 200M frames. 
+
+
+FIGURE 
+
+
+FIGURE 
+
+
+-  Dual learners: 
+
+
+Here we explore to design the curiosity under the naive setting, that is, using one encoding network to learn to encode the latent space, and thus the curiosity-based intrinsic reward can be defined as the gap with the memory network: *MATH*. 
+
+
+The memory is updated with *MATH*. As shown in Figure [FIGURE], one-learner mechanism does not show significant advantages over other methods, whereas our dual-learner mechanism performs much better with more accurate curiosity and corresponding intrinsic rewards. 
+
+
+FIGURE 
+
+
+-  Update of memory network: 
+
+
+The memory network in DyMeCu is updated with dual learners, we additionally evaluate the performance of DyMeCu when the memory is updated using only one of the learner&apos;s parameters. The results in Table [TABLE] indicate that both learners can consolidate state information into the memory well. Combined with Figure [FIGURE], it is useful and necessary to assign and train dual learners, and then we can update the memory with dual or one-learner, while dual-learner update mechanism shows a little superior performance. 
+
+
+-  Structure of learners: 
+
+
+The bootstrap idea has been explored and used in some previous researches. The most similar one to ours is BYOL [*REF*], which uses the bootstrap method for self-supervised learning in computer vision. Furthermore, *REF* add another predictor module to the online network, and compare the output of predictor to the target network, and it is the key to generating well-performed representations [*REF*]. Similarly, in this ablation study, we also design the controlled trials, in which additional two convolution layers are added to each of dual learners. In Table [TABLE], we can find that such learnable additional module does not lead to significant improvement. Under our analysis, unlike previous work using the bootstrap method, we aim to generate the intrinsic reward by calculating the information value (i.e., information gap between dual learners) as accurate as possible, instead of better representations for downstream tasks. 
+
+
+-  Robustness to hyper-parameter *MATH*: 
+
+
+FIGURE 
+
+
+There is a concern of the updating speed of memory network in the EMA way. It is about how much and how fast to accept and consolidate the new environment information. Therefore, to further analyze the updating effect of the hyper-parameter *MATH*, we evaluate DyMeCu with different values of *MATH* in a rational interval, and we assess the agents&apos; performance in three different Atari games: Alien, Kangaroo, and Krull. For more direct and visual comparison, we normalize the episode reward of DyMeCu as baseline-normalized scores (BNS) which is calculated as the average of *MATH*  where the *MATH* is the average score of baselines. As illustrated in Figure [FIGURE], all values of the hyper-parameter *MATH* between 0.99 and 0.9999 yield satisfied performance, generally greater than twice that of the baseline average. DyMeCu shows acceptable robustness to the updating hyper-parameter. 
+
+
+Conclusion 
+
+
+To address the challenge of extrinsic rewards sparsity in RL, we propose DyMeCu to mimic human curiosity in this paper. Specifically, DyMeCu consists of a dynamic memory and dual online learners. The information gap between dual learners sparks the agent&apos;s curiosity and then formulates the intrinsic reward, and the state information can then be consolidated into the dynamic memory. Large-scale empirical experiments are conducted on multiple benchmarks, and the experimental results show that DyMeCu outperforms competing curiosity-based methods under different settings.

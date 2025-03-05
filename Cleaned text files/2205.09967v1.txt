@@ -1,0 +1,653 @@
+A Fully Controllable Agent in the Path Planning using Goal-Conditioned Reinforcement Learning
+
+
+Path planning is a method to find an optimal route from the starting point to
+the target point. It has been widely used in various fields such as
+robotics [*REF*; *REF*; *REF*], drone
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*], military service [*REF*; *REF*], and
+self-driving car [*REF*; *REF*]. Recently,
+reinforcement learning (RL) has been mainly studied for the path planning
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+To get an optimal solution, it is essential to give enough reward for an
+agent to reach the goal and to set up a specific environment. Several
+studies on learning the RL model have proposed to make an agent be
+robust in a complicated or an unknown environment for the path planning
+[*REF*; *REF*; *REF*]. However, existing
+studies have defined one single goal before the learning. That is, the
+agent&apos;s ability to search the path when completed learning can be
+limited. To make the agent reach a number of goals in a dynamic
+environment, learning a controllable agent is needed. One of the recent
+approaches for controlling the agent has a limitation in that the agent
+can only learn the behavior from trajectories that have been directly
+experienced [*REF*]. Therefore, the agent can only be under
+control in the area visited by the agent. In this paper, I focus on
+learning a fully controllable agent in the path planning using a
+goal-conditioned RL. Especially, I apply, to the goal-conditioned RL, a
+bi-directional memory editing and a sub-goals dedicated network to
+improve the ability to search the path of the agent.
+
+
+FIGURE
+
+
+In the goal-conditioned RL, the agent learns the sub-goals, part of the
+trajectory of the agent [*REF*; *REF*; *REF*; *REF*; *REF*].
+By learning the sub-goals, eventually, the agent can reach the final
+goal. This method showed good performance mainly in robotics. However,
+previous studies have focused on reaching a complicated single goal. In
+addition, the multi-goal RL model, in which the agent can perform many
+goals, has been proposed [*REF*; *REF*]. However,
+the multi-goals should also be defined before the learning. Unlike these
+studies, in this present study, I propose an RL framework in which the
+agent can perform a number of sub-goals in various scenarios. An
+important point here is that the sub-goals are not defined in advance.
+In other words, the agent completed the learning reaches the goals,
+which have never been visited by the agent in the learning.
+
+
+Fig [1] shows the examples of the training and the test environments of this study. The training
+environment has been simply set for the agent to reach the final goal.
+But the test environments have been set in a difficult way. The agent
+should go through the sub-goals and reach the target point, even if the
+starting point and the target point are set in reverse. The difficult
+missions were also given to the agent such as a round trip. In the test
+environments, an important thing is that the agent has to reach the goal
+never been visited in the learning. To perform the goals, the agent must
+be fully controlled by the sub-goals that are customized by the user.
+
+
+Meanwhile, memory editing occurs in our daily lives. [*REF*; *REF*; *REF*; *REF*].
+The memory editing helps us to get away from mental illnesses such as
+trauma [*REF*]. We can also get precise information by
+editing untidy memories [*REF*]. A recent study used
+the concept of the memory editing on goal-conditioned RL for the agent
+to reach sub-goals so that the user can control the agent
+[*REF*]. However, the agent cannot move the sub-goals in
+difficult environments. This is because the memory of the RL model is
+edited only based on one direction of the paths that are moved by the
+agent. The first purpose of the RL is to achieve the final goal. Despite
+the sub-goals, the agent can ignore the sub-goals if the sub-goals get
+in the way of the final goal. That is, the agent does not need to go
+round and round to reach the final goal. In this study, I developed the
+concept of the memory editing for the fully controllable agent in the
+path planning.
+
+
+Let&apos;s assume that we walk to the destination (See Fig [2]). From the route that
+we walked, we can learn how we reach the destination. We can remember
+intermediate stops in the route and know that the total path is the
+overall set, which consists of the intermediate stops. Further, if we
+recall our memories backward, we can also find the route back to the
+starting point. For example, in the Fig [2], when we want to return to the starting point, we know
+which action we have to perform. However, it is difficult to find an
+inverse action in a dynamic RL environment. Thus, an inverse module to
+predict the inverse action is necessary to obtain the exact knowledge to
+come back to the starting point.
+
+
+Based on the processes, in which we recall our memories and obtain
+knowledge, I utilize a bi-directional memory reminiscence and editing
+(bi-directional memory editing) to obtain various trajectories. Using
+these trajectories, the agent can learn various behaviors. Furthermore,
+I use the dedicated network for learning the sub-goals to improve
+learning efficiency. Finally, I present a reward shaping for the shorter
+path of the agent. Using these techniques, the agent can achieve various
+sub-tasks as well as the final goal in the path planning environment.
+The fully controllable agent can be useful in the environments where we
+have to consider a number of variables and we have to assume various
+scenarios. The main contributions of this article are as follows:
+- Using the bi-directional memory editing, we can obtain various
+trajectories, and can learn the agent to perform various tasks,
+based on the trajectories. The agent can be fully controlled so that
+the agent can reach any point in the path planning environment.
+- I employ the sub-goals dedicated network to improve the efficiency
+of learning the sub-goals. To distinguish the network from the
+policy network, the agent can focus on performing the various
+sub-goals.
+- I propose the reward shaping for the shorter path of the agent. In
+the path planning, it is important for the agent not only to reach
+the final goal but also to reach it within a limited time. By
+applying the reward shaping in the bi-directional memory editing,
+the agent can reach the final goal within a shorter time.
+- To the best of our knowledge, this study is the first RL methodology
+for the path planning in that the agent is fully under control.
+Therefore, the agent achieves the user-defined sub-goals such as a
+round trip in a difficult test environment. Moreover, the agent can
+move to the point that has never been reached by the agent in the
+training. By using this methodology, we can suppose and conduct
+various scenarios in the path planning.
+
+
+The rest of the paper proceeds as follows. Section 2 presents the
+background of this study. In Section 3, learning a fully controllable
+agent is proposed. To do this, I introduce the bi-directional memory
+editing and the sub-goals dedicated network. Furthermore, I propose the
+reward shaping for the shorter path of the agent. Section 4 provides the
+results of the experiment. I confirmed whether the agent can
+successfully perform the sub-goals in various scenarios. Section 5
+concludes this paper and calls for future research.
+
+
+FIGURE
+
+
+Background
+
+
+Path planning
+
+
+To get an optimal solution to reach the target point from the starting
+point, traditionally, optimization methods have been used in the path
+planning. Several studies using an A [*REF*; *REF*], a genetic algorithm
+[*REF*], and a particle swarm optimization [*REF*; *REF*; *REF*] have been proposed.
+Combining two optimization methods also has been studied [*REF*].
+
+
+FIGURE
+
+
+Recently, with the development of deep learning, studies on the path
+planning using the RL have mainly been proposed
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+They have supposed the specific scenario and set an environment to apply
+the agent in the path planning. Especially, they have applied their
+study to robotics [*REF*; *REF*; *REF*], drone
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*],
+and ship [*REF*; *REF*]. Also, they have
+focused on the one single goal of the agent to reach the target point,
+avoiding obstacles. After learning is completed, the agent could reach
+the goal; however, the agent cannot be under control in the previous
+studies. That is, the agent can only perform the predefined goal.
+
+
+In addition, learning user-defined sub-goals has been proposed
+[*REF*]. However, the agent was partially under control. The
+agent could not perform the round trip and only moved the area that was
+visited by the agent. In this study, I focus on learning the fully
+controllable agent so that the agent can perform various trips, as shown
+in Fig [1].b.
+
+
+Goal-conditioned RL
+
+
+Hindsight experience replay (HER) used the sub-goals and the pseudo
+rewards to make the RL model converge to the final policy
+[*REF*]. The reason why learning the sub-goals
+improves the performance of the RL is that the sub-goals are located on
+the route to reaching the final goal. Several studies developed the HER
+for an exploration of the agent
+[*REF*; *REF*; *REF*].
+
+
+The goal-conditional RL models excel to reach the goal through the
+intermediate sub-goals and show excellent performance on the robotics problem
+[*REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+They have focused on searching for meaningful sub-goals and improving
+the performance of the main policy network (high-level policy network).
+To reach the desired policy, it is important to induce the agent to
+reach the landmark of the sub-goals [*REF*; *REF*; *REF*; *REF*; *REF*]
+and to improve sample efficiency [*REF*; *REF*; *REF*]. The
+existing studies with learning the sub-goals are similar to this study
+in terms of generating the sub-goals and relabeling the rewards.
+
+
+However, in this study, the sample efficiency and searching for the
+valid sub-goals are not essential. By performing the bi-directional
+memory editing, we can get trajectories two times more than when
+bi-directional memory editing is not performed. Then, enough sub-goals
+can be collected for learning the sub-goals. Also, it does not matter
+the time when the sub-goals dedicated network is trained, which is
+separated from the original policy network. Whether the sub-goals are
+trained after learning the policy network or during learning the policy
+network, if sufficient trajectories are gathered, the agent can learn
+various behaviors and sub-goals. The main purpose of this study is to
+make the agent under control for performing various tasks which are not
+defined in the training environment. After learning is completed, the
+agent can achieve various user-defined sub-goals as well as the final
+goal.
+
+
+I consider a discounted, finite-horizon, goal-conditioned Markov
+decision process (MDP) defined as a tuple (*MATH*), where
+*MATH* is the set of state, *MATH* is the set of goals,
+*MATH* is set of actions, *MATH* is a dynamics
+function, *MATH* is the reward function, *MATH* is the
+discounted factor, and *MATH* is the horizon. In the goal-conditioned RL,
+the agent learns to maximize the expected discounted cumulative reward
+*MATH*, where *MATH* is the goal. The
+objective is to obtain a policy *MATH*.
+
+
+Proposed method
+
+
+Fig 2 shows the illustration of a summary of the proposed method. For the fully
+controllable agent in the path planning, I introduce three simple
+techniques. First, I propose a bi-directional memory editing to generate
+various behaviors and sub-goals of the agent. Here, to secure reverse
+trajectories, an inverse module to predict actions is used. Second, to
+improve the efficiency of learning, I utilize the sub-goals dedicated
+network separated from the policy network. Finally, I present a reward
+shaping for the shorter path of the agent.
+
+
+Bi-directional memory editing
+
+
+The memory editing is performed to generate sub-goals of the agent. The
+sub-goals are generated from the trajectories of the agent, and
+additional rewards are given to the agent. As the agent begins to
+recognize the sub-goals, the agent can achieve the sub-goals and
+greedily reach the final goal in the previous studies.
+
+
+In the path planning, it is important to allow the agent to visit a
+wider area such that the agent can visit various locations and learn the
+optimal route to reach the goal. Thus, if we can get various
+trajectories more than the trajectories that are actually visited by the
+agent, it can bring greater benefit to learning the agent&apos;s ability for
+searching the path. In addition to a forward route, the reverse route
+from the goal to the starting point can be a useful ingredient for the
+agent to learn various behaviors and sub-goals. To do this, I employ the
+reverse trajectory to generate various sub-goals and to learn the robust
+RL model by performing the bi-directional memory editing.
+
+
+First, a forward memory editing is performed, which is described in line
+21-24 in Algorithm 1. The sub-goals (*MATH*) are generated from the forward
+route, and the state of the sub-goals (*MATH*) are made. After
+that, a backward memory editing is performed, which is described in line
+25-29 in Algorithm 1. Reverse transition is
+*MATH* whereas original transition is
+*MATH*. Here, it is difficult to obtain *MATH*.
+The reason is that it is not simple to find an action to derive the
+*MATH*, when *MATH* is given. I propose to use the inverse module to
+obtain *MATH* by predicting *MATH* when *MATH* and *MATH* 
+are given. Like the forward memory editing, the sub-goals (*MATH*) and the
+state of the sub-goals (*MATH*) are generated. Finally, the
+edited memories are stored in the replay memory for the sub-goals
+(*MATH*).
+
+
+Using the bi-directional memory editing, we can obtain two routes from
+the one single route moved by the agent. Beyond being two times the
+trajectories, it means that the agent can learn various relationships
+between the actions and the sub-goals. In the path planning, the agent
+can almost only learn the route that is visited by the agent. For
+instance, as shown in Fig [1](a), the agent can almost learn the leftward and
+upward directions because of the location of the goal. However, using
+the bi-directional memory editing, the agent can learn all directions in
+various locations. Therefore, by learning a number of sub-goals and
+behaviors, the agent can reach the goals that were never visited in the
+training.
+
+
+Algorithm
+
+
+The sub-goals dedicated network
+
+
+Using the bi-directional memory editing, the agent can learn various
+behaviors and sub-goals. However, the agent at the middle of the route
+can be confused about where the agent has to go. Because the agent is
+forced to learn how to go in both directions at one point due to the
+bi-directionally edited memories. For example, in the Fig [2], if the agent is
+located near the tree, the agent learns to move both upwards and
+leftwards. If the agent is trained using the policy network, the agent
+can be confused about where the agent has to go if the agent is located
+near the tree. Because the purpose of the policy network is only to
+train the agent to reach the final goal. Actually, the agent has been
+hovering around the middle point of the environment in the experiment.
+Therefore, I employ the network for the sub-goals separately from the
+network for the final goal.
+
+
+The sub-goals dedicated network only learns the sub-goals, and the
+original policy network only learns the final goal. To do this, I also
+employ the replay memory for the sub-goals (*MATH*) in addition
+to replay memory for the final goal (*MATH*). Moreover, using the
+sub-goals dedicated network can improve the sample efficiency. In
+general, the capacity of the replay memory is limited and the replay
+memory is updated with the last transition of the agent. Thus, the agent
+mainly learns the recent transitions and gradually reaches the goal.
+However, as previously mentioned, using the bi-directional memory
+editing, we can obtain a number of sub-goals and behavior of the agent.
+Therefore, using the separated network and the replay memory, we can
+learn the agent to reach the sub-goals whenever, during or after the
+policy network learning.
+
+
+Although the agent of the policy network cannot reach the final policy,
+the agent of the sub-goals dedicated network can reach the various
+sub-goals as well as the final goal. The users can fully control the
+agent by collecting various sub-goals from the bi-directional memory
+editing and by learning the agent on the sub-goals dedicated network.
+
+
+Reward shaping for the shorter path
+
+
+In the path planning, one of the important factors is to make the agent
+reach the destination within a specific period. To improve the agent&apos;s
+ability, it is necessary to give enough rewards according to the steps
+to reach the target point. However, in this study, I focus on learning
+the sub-goals, and additional rewards are given to the agent to reach
+the sub-goals, regardless of the shortest path. Furthermore, I want to
+confirm that the agent can reach various sub-points in the environment.
+Thus, I assume that the environment of this study is a sparse reward
+environment so that the agent does not need to reach the target point in
+the shortest path. Rather, due to the exploration bonus, it is likely
+for the agent to delay the one&apos;s arrival. Therefore, we propose the
+reward shaping when the bi-directional editing is performed for the
+shorter path of the agent in the path planning. When the bi-directional
+editing is performed, the additional rewards (*MATH*) are given with the
+corresponding sub-goals. Here, the rewards are reshaped as follows:
+*MATH*: where *MATH* indicates the number of the
+shortest steps that can be possibly reached by the agent from *MATH* to
+the current sub-goal (*MATH*), and *MATH* indicates the number of
+steps of the path that is moved by the agent from *MATH* to the current
+sub-goal (*MATH*). That is, in each sub-goal, the agent gets a penalty by
+the number of steps to reach the sub-goal point. If the agent reaches
+the sub-goal in the shortest path, the agent does not receive any
+penalty. Otherwise, the agent receives a penalty depending on the number
+of steps to reach the sub-goal points.
+
+
+Learning a fully controllable agent in the path planning
+
+
+Fig 2 shows the summary of the proposed method. The inverse module predicts the action
+of when *MATH* and *MATH* are given in the bi-directional memory
+editing. The sub-goals from two trajectories are generated. At this
+time, the reward shaping for the shorter path is performed. Then, the
+transitions are stored in the replay memory for the sub-goals
+(*MATH*). The sub-goals dedicated network is trained
+independently with the policy network, whereas the policy network is
+only trained for the final policy. After learning is completed, in the
+various scenarios, the agent gets the sub-goals that are defined by the
+users and tried to achieve the sub-goals as well as the final goal.
+
+
+Algorithm 1 shows the procedure in the proposed method in detail. The
+simulation stage is similar to the other RL methods except for the
+inverse module to obtain *MATH* by predict *MATH* when
+*MATH* and *MATH* are given. In the bi-directional memory editing, the
+reverse transition *MATH* is obtained
+using the inverse module and various sub-goals are generated and stored
+in the memory *MATH*. In the learning stage, optimize the policy
+network *MATH* for the final goal and optimize the sub-goals
+dedicated network *MATH* for the sub-goals. In fact, it does not
+matter to learn the goals dedicated network separately after learning
+the policy network is completed, if the number of the edited memories is
+enough.
+
+
+Experiments
+
+
+Experimental setting
+
+
+In the experiments, I wanted to confirm that the agent can be fully
+controlled by the sub-goals and that the agent can achieve various
+sub-goals, which were never visited by the agent in the learning. Thus,
+the training environment was constructed in a simpler way, while the
+test environment in a difficult way. I assumed a number of scenarios to
+test the agent&apos;s ability of the path searching. Furthermore, I wanted to
+show the effect of the reward shaping for the shorter path.
+
+
+Fig [1] shows the first environment. The goal of the agent was set to reach the target point in
+a simple two-dimensional (2D) grid environment. The reward was 0 except
+for the agent reaching the target point (+30). The RL model was
+performed for a total of 10,000 episodes. In the test environment, I set
+a total of 26 scenarios. In each scenario, several sub-goals were given
+to the agent. At first, a sub-goal nearest the current location of the
+agent was given to the agent. Then, if the agent reaches the sub-goal,
+the next sub-goal nearest the current location was given. Also, if the
+agent could not reach the given sub-goal, the next sub-goal nearest the
+current location was given. In various scenarios, I observed whether the
+agent reaches various sub-goals and successfully performs difficult
+missions such as a round trip. Moreover, I compared with and without the
+reward shaping for the shorter path in the proposed method. In each
+scenario, I calculated the number of steps to reach the target point.
+
+
+Fig [3] shows the second environment. The environment is the &apos;key-door domain&apos;. The environment
+has a total of 4 stages and the agent should go through the bonus point
+(key) to clear the stage (door). Even though the agent reaches the
+target point (door), if the agent could not pass the bonus point (key),
+the agent cannot jump up to the next stage. The reward was set +10 for a
+bonus point, -10 for a penalty point, and +100 for the goal, when the
+agent goes through these points, respectively. This environment was
+difficult because of the condition that the agent must pass the bonus
+point to clear each stage and that the environment was defined as the
+sparse reward setting. The RL model performed for a total of 50,000
+episodes. In the test environment, I set the two scenarios. In each
+stage, two sub-goals, defined by the user, the bonus point, and the
+goal, were given to the agent as the sub-goals in an order.
+
+
+FIGURE
+
+
+Base architecture of the RL model
+
+
+Self-imitation learning (SIL) is an on-policy algorithm to exploit
+valuable past decisions from the replay memory [*REF*]. In the
+learning stage, the transitions are sampled, and they are trained by the
+policy network. At this time, if the transitions of the past are not
+valuable compared to the current value, the transitions are not
+exploited. That is, the SIL imitates valuable behaviors of the agent in
+the past. The authors combined the SIL and the on-policy RL model
+[*REF*; *REF*] and proposed the following off-policy actor-critic loss:
+*MATH* where *MATH*; *MATH* and *MATH* are the policy network and the value network,
+respectively, parameterized by *MATH*. The value loss is controlled by
+*MATH*. From the *MATH* operator in the loss, the
+transition, in which the current value is larger than the past return,
+is trained by the policy network and the value network.
+
+
+The reason why that the SIL is used in the study is that the
+exploitation of valuable transition is needed. In fact, in the study,
+the off-policy RL model is necessary to utilize the replay memory
+[*REF*; *REF*; *REF*]. However, in the
+path planning, to reach the target point, various routes can be
+obtained. Accordingly, I utilize the off-policy actor-critic RL model to
+get an effect of both the on-policy and the off-policy. The final RL
+architecture in this study is the combination of the SIL and the
+actor-critic network (ASIL).
+
+
+In addition, I utilized the random network distillation (RND), which is
+widely used as an exploration bonus method [*REF*]. The
+RND uses two networks: a fixed and random initialized network (target
+network), and a predictor network trained using the output of the target
+network. The exploration bonus is given as a difference between the
+outputs of the two networks. If the agent visits a specific point
+continually, the exploration bonus is gradually decreased. Otherwise, if
+the agent visits a novel space, a large exploration bonus will be given
+to the agent.
+
+
+FIGURE
+
+
+Simple 2D grid environment
+
+
+Fig [4] shows the visualization of the path that is moved by the agent of the policy
+network without (a) and with (b) learning the sub-goals. A color change
+from blue to red means that the agent has visited more often. When the
+policy network did not learn the sub-goals, the agent of the policy
+network easily reached the target point, and the agent mostly moved only
+between the starting point and the target point. That is, the agent
+mostly moved the left and top areas in the environment because of the
+location of the target point.
+
+
+FIGURES
+
+
+In addition, if the policy network was trained on the sub-goals using
+the bi-directional memory editing, the agent of the policy network could
+not reach the target point, as shown in Fig [4].b. At a specific
+point, if the agent is trained to go in various directions by the
+sub-goals, the agent of the policy network was confused about where it
+has to go. Then, the agent would fail to reach the final goal. In the
+experiment, the agent just moved to the right area in the environment.
+This case was repeated every time the network was trained. Notably, in
+the experiment, the agent of the policy network without learning the
+sub-goals always could reach the final goal. In the test environment,
+the agent of the policy network, which learns the sub-goals using
+bi-directional editing, also failed to reach the sub-goals, as shown in
+Fig 6.a. The agent even left the environment as soon as the agent departed, as shown
+in Fig 6.a.(left). This is because the agent of the policy
+network mainly moved to the right area in the environment due to the
+confusion.
+
+
+When the sub-goals dedicated network was trained using the forward
+directional memory editing only, the agent failed to reach the
+sub-goals, as shown in Fig 6.b. It was observed that the agent tried to move in the
+left direction. The reason is that the agent of the policy network
+mainly moved to the leftward and the upward direction, and the agent is
+trained using the one-directional trajectories.
+
+
+Fig 5 shows the result of learning the sub-goals in the test environments without (top)
+and with (bottom) the reward shaping for the shorter path. The agent was
+trained from the sub-goals dedicated network using the trajectories,
+which were collected from the agent of the policy network. In the test
+environment, I set the sub-goals difficultly, even though all the points
+including the starting point and the target point were set inversely.
+The agent successfully reached all the sub-goals and the target points
+in the experiment, as shown in Fig 5.a. That is, the
+agent was able to be fully controlled by the sub-goals, in various
+scenarios. The agent reached the sub-goals that had never been visited
+by the agent of the policy network. Interestingly, in extremely hard
+environments (round trip tasks), as shown in Fig 5.b, the agent
+departed from the starting point and went through the sub-goals, and
+then the agent turned halfway point and came back to the starting point.
+
+
+FIGURE
+
+
+In addition, with the reward shaping for the shorter path, the agent
+reached the target point faster than without the reward shaping, as
+shown in Fig 5. With a visual inspection, we can observe that the agent with the reward
+shaping reached the sub-goals located diagonally with a shorter distance
+from the current location. Moreover, the difference between the number
+of steps to reach the target point with and without the reward shaping
+was significant.
+
+
+To strongly confirm the performance difference between without and with
+the reward shaping of the proposed method, I additionally constructed 20
+scenarios. Fig 7 shows the route of the agent with and without the reward shaping in each
+scenario. The number in each figure indicates the number of steps to
+reach the target point. In all scenarios, the agent went through the
+sub-goals and reached the final goal. It can be seen that the agent was
+able to be fully under control by the sub-goals. Moreover, except for
+three scenarios, the scenario 14, 15, and 16, the agent with the reward
+shaping reached the target point much faster in all scenarios. This
+characteristic was salient in complex environments such as the scenario
+1 and 2. The average of the steps with the reward shaping was 338.25 and
+the average of the steps without the reward shaping was 411.45. It was
+confirmed that the rewards shaping can shorten the number of steps to
+arrive at the destination by 21.6.
+
+
+Key-door domain
+
+
+The agent of the (ASIL + RND) reached the final stage within 50,000
+episodes only one time out of 10 trials in the &apos;key-door domain&apos;
+environment. It was a very difficult environment to clear. This was
+because of the condition to clear each stage and the sparseness of the
+reward. I assumed the two scenarios in the test environment. Two
+sub-goals were imposed on the agent differently in each stage. The bonus
+point and the goal point are also given as the sub-goals. The agent was
+enforced to reach the sub-goals at first and after that, the agent was
+encouraged to reach the bonus point and the target point.
+
+
+FIGURE
+
+
+Fig 8.a shows the
+visualization of the path of the agent, success case of learning the
+desired policy. If the policy network converges to the desired policy,
+the agent of the network showed a clear path to the goal of Stage 4.
+However, in the experiment, the agent of the policy network almost
+failed to reach the final stage in the training environment within
+50,000 episodes. Fig 8.b shows the visualization of the path of the agent,
+when the agent of the policy network failed to learn the desired policy.
+The agent could reach Stage 4, but the agent failed to clear the stage.
+In contrast, the agent of the sub-goals dedicated network was able to
+reach the goal in the final stage, going through the sub-goals and the
+bonus point in the two scenarios as shown in Fig 8.c, d,
+even though the agent of the policy network failed, as shown in Fig
+8.b. This result means that learning the sub-goals can improve the ability of the agent
+to reach the final goal, just like in previous studies. Unlike the
+previous study, I set the mission for the agent&apos;s performance to the
+sub-goals dedicated network in order to apply in the path planning
+problem, in which the ability to move in various directions is
+necessary. Indeed, in the experiments, the last 300 episodes of the
+policy network were enough to learn the sub-goals dedicated network so
+that the agent could be under control. We do not need to collect a
+number of trajectories to learn the agent in the path planning, if we
+utilize the proposed method.
+
+
+However, the agent of the sub-goals dedicated network did not show the
+shortest path whereas the agent of the policy network showed the almost
+shortest path. Furthermore, like a previous study [*REF*],
+sometimes, the agent that learned the sub-goals was confused when the
+bonus point was near the current location of the agent. The reason is
+that the agent was trained to go through the bonus point, at first, to
+clear each stage. That is, the agent was enforced to move to the
+sub-goals in learning the sub-goals, and the agent was also encouraged
+to move to the bonus point and the target point. When the agent was near
+the bonus point, the agent could get a larger reward, although the agent
+did not reach the sub-goals. The agent was partially able to be
+controllable in a complex environment with various variables that have a
+great deal of influence on the agent. These remaining issues call for
+further studies.
+
+
+Conclusion
+
+
+In this paper, I propose a novel RL framework within which the agent can
+be under control in the path planning environment so that the agent can
+reach various sub-goals. The agent that completed the learning can
+perform the difficult missions such as a round trip, even the agent can
+reach an unknown area. Therefore, the bi-directional memory editing and
+the sub-goals dedicated network were presented on the goal-conditioned
+RL. From the bi-directional memory editing, we can obtain various
+sub-goals and behaviors of the agent such that the agent can be more
+robust in the test environment. In addition, using the sub-goals
+dedicated network, the agent can perform several behaviors that are
+directed by different sub-goals at one point. It was confirmed that the
+agent can be fully controlled and can achieve various sub-goals that are
+customized by the users in the test environment. Furthermore, the
+proposed reward shaping for the shorter path can improve the ability of
+the path planning.
+
+
+However, in a complex environment with various variables such as the
+key-door domain, the agent was confused about whether to select the
+sub-goals or the bonus point. Although a fully controllable agent is
+useful in the path planning, various variables such as an obstacle and
+the limited number of steps in an environmental setting should be
+considered. Further, the reward shaping cannot guarantee the optimal
+path. Future studies are required for a fully controllable agent for the
+path planning. I expect that this study would be applied and studied in
+a variety of domains with a fully controllable agent in various
+scenarios.

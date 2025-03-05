@@ -1,0 +1,470 @@
+What Should I Know? Using Meta-gradient Descent for Predictive Feature Discovery in a Single Stream of Experience
+
+
+Making Sense of the World Through Predictions
+
+
+It has long been suggested that predictions of future experience can
+provide useful and intuitive features to support
+decision-making --- particularly in partially-observable or non-Markovian
+environments [*REF*; *REF*; *REF*]. It
+is certainly true for biological agents: humans and many animals build
+predictive sensorimotor models of their world. These predictions of
+experience form the basis for biological perception [*REF*; *REF*; *REF*]. A
+principled and well understood way of making temporally extended
+predictions in computational reinforcement learning is by estimating
+many value functions. Value functions predict the long-term expected
+accumulation of a signal in a given state [*REF*], and can
+predict not only reward, but any signal available to an agent via its
+senses [*REF*]. Prior works have used these General Value
+Function (GVF) estimates as features to adapt the control interfaces of
+bionic limbs [*REF*], design reflexive control systems
+for robots [*REF*] and living cats
+[*REF*], and to inform industrial welding systems of
+estimated weld quality [*REF*]. In this paper, we explore how an
+agent can independently choose GVFs in order to augment its observations
+in order to construct it&apos;s own agent-state: an approximation of state
+from the agent&apos;s subjective perspective.
+
+
+An open challenge when using GVF estimates as input features is
+determining what aspects of an agent&apos;s experience to predict. Of all the
+possible predictions an agent could make, which subset of GVFs are most
+useful to inform and support decision making? This choice is often made
+by the system designer [*REF*; *REF*; *REF*; *REF*].
+However, recent work has explored how an agent might independently
+specify its own GVFs. In [*REF*] an agent randomly
+selects the parameters that define what aspect of the environment is
+being estimated. After a period of learning, the agent replaces a subset
+of its GVFs based on their learning progress.
+
+
+Determining which GVFs to replace is a core challenge for such
+generate-and-test approaches: A GVF may be accurate and have low
+prediction error, but just because a prediction is well estimated does
+not mean that it is useful as a predictive feature for control
+[*REF* -prediction]. Examining a learned prediction estimate without
+considering its use --- as is done in generate-and-test for GVF
+specification --- inherently limits the ability of an agent to choose
+useful predictive features.
+
+
+An alternative to random selection of GVFs is to parameterise the
+specification of a GVF and perform meta-gradient descent. By taking the
+gradient of a control learner&apos;s error with respect to a GVF&apos;s
+meta-parameters, what each prediction is about can be incrementally
+updated based on feedback from the control learner. Although not used
+for learning predictive inputs, recent work has shown early success in
+using meta-gradient descent as a means of learning meta-parameters that
+specify GVFs [*REF*] for use as auxiliary tasks [*REF*].
+
+
+When used as auxiliary tasks, GVF estimates themselves are not directly
+used in decision-making, but rather as regularisers for the control
+agent&apos;s artificial neural network. In this auxiliary task setting, the
+parameters that determine what is being predicted and the parameters
+that are used to select actions are explicitly kept and learned
+independent of one another. We propose meta update where the core RL
+update of a control learner directly influences what an agent is
+predicting.
+
+
+Meta-Learning General Value Functions
+
+
+In this manuscript, we integrate the discovery and use of GVFs for
+reinforcement learning control problems. We present a fully
+self-supervised approach, using meta-gradient descent to autonomously
+discover GVFs that are useful as predictive features for control. We do
+so by parameterising the functions that determine what aspect of the
+environment a GVF prediction is about, and constructing a loss that
+shapes the predictions based on the control agent&apos;s learning process.
+The resulting learning process can be successfully implemented
+incrementally and online. By this process, we enable agents to
+independently specify GVFs to be used directly as features by a control
+learner to solve two partially-observable problems. In doing so, we are
+providing a new solution to a long standing problem in using GVFs as
+predictive input features.
+
+
+FIGURE
+
+
+Our meta-learning process (Figure [2]) operates on an agent structured in three
+parts: 1) a value-based control unit that learns weights *MATH* for
+an action-value function; 2) a collection of GVFs that each learn
+weights *MATH* to output prediction vector *MATH* 
+(Figure [4]); and 3) a set of meta-weights *MATH* that parameterize each
+GVF&apos;s learning rule (the right half of Figure [4]).
+
+
+The control unit is a typical Q-learning agent, although it learns a
+value function over the agent-state *MATH*, which is constructed
+from the observations *MATH* and a vector of GVF predictions
+*MATH*, rather than observation alone: *MATH*. The action-value
+function *MATH* may be learned by any relevant
+RL algorithm. We define the loss function *MATH*, where: *MATH*.
+
+
+GVFs may use any reinforcement learning method for learning, but their
+structure is defined by three functions of the current state[^3]: the
+cumulant or target *MATH*, the discount or termination signal *MATH*, and
+the policy *MATH* (see chapter 4 in [*REF*]). The cumulant
+function *MATH* determines the current target *MATH*: in classic
+RL, the cumulant simply singles out the current reward *MATH*. The
+discount factor *MATH* determines how far into the future the
+signal-of-interest should be attended to. While in simple RL approaches
+it is generally a fixed value, in GVFs it can be any function of the
+current state *MATH*. The policy allows each GVF to
+condition its prediction on specific behaviours, and is used to compute
+the importance-sampling correction against the behaviour policy *MATH*:
+*MATH*. The output of a GVF is determined not only by the current weights
+*MATH* but also the functions that define its update
+procedure. We will use *MATH* to refer to the
+collective parameters that define the GVF structure, disambiguating with
+superscripts when necessary: *MATH*.
+
+
+During execution of our meta-learning process, each time-step contains
+an action and learning phase. First, the agent receives an observation
+from the environment *MATH*, which is used to compute the GVF
+state *MATH*. For each GVF *MATH*, the
+prediction value *MATH* is calculated as a function of the GVF state
+*MATH* and prediction weights *MATH*: *MATH*. The vector of GVF
+predictions, along with the current observation, is transformed into the
+agent-state using a fixed function (see Equation) where *MATH* may include eg: state
+aggregation, tile coding, artificial neural net. The policy unit *MATH* 
+uses *MATH* to determine the next action. Once the action is executed and *MATH* received,
+the learning phase begins.
+
+
+The key to our meta-learning method is that the Q-learning error, as
+noted earlier (see Equation  and illustrated with the read lines in
+Figure [4]), is a function of not only the value function weights *MATH*, but also the
+agent-state vector *MATH*. As the agent-state is constructed from
+the GVF predictions, which in turn are are adjusted according to the
+meta-weights *MATH*, we can use the control agent&apos;s
+loss function *MATH* to update the meta-weights. For
+the *MATH* th GVF, meta-weights *MATH* are adjusted: *MATH*.
+Once the meta-weights have been updated, each GVF computes the current
+*MATH*, *MATH*, and *MATH*, updates its predictions weights
+*MATH*. Finally, updated agent-state *MATH* is
+computed and used by the control agent to update its Q-learning weights
+*MATH*. Pseudocode is provided in Appendix [8].
+
+
+Can An Agent Learn What To Predict?
+
+
+Using the meta process we introduced, can an agent find useful GVFs for
+use as predictive input features? We first evaluate meta specification
+of GVFs on a partially observable control problem, Monsoon World (Figure
+[5]). We choose to introduce this problem as it is a minimal, clear example of a
+situation where temporal abstraction is neccessary to solve the problem.
+This enables us to assess in a clear way whether meta-gradient descent
+(MGD) is capable of specifying useful predictions, and precisely examine
+what predictions the agent chooses to learn.
+
+
+In Monsoon World, there are two seasons: monsoon and drought. The
+underlying season determines whether the agent receives reward for its
+chosen action, however the underlying season is not directly observable.
+Although the agent cannot directly observe seasons, it can observe the
+result of a given action: something impacted by the seasons. The agent
+tends to a field by choosing to either water, or not water their farm.
+Watering the field during a drought will result in a reward of 1;
+watering the field during monsoon season does not produce growth and
+results in a reward of 0, and vice versa during a monsoon. If the agent
+chooses the right action corresponding to the underlying season, a
+reward of 1 can be obtained on each time-step. Regardless of the action
+chosen by the agent, time progresses.
+
+
+This monsoon world problem can be solved, and an optimal policy found,
+if the agent reliably estimates how long until watering produces a
+particular result. This can be done by learning echo GVFs (c.f.
+[*REF*]). Echo GVFs estimate the time to an event using a
+state-conditioned discount and cumulant. In plain terms, the two GVF&apos;s
+that when learned provide estimates that solve the problem can be
+described as &quot;How long until watering produces growth&quot;? or &quot;How long
+until not watering produces growth&quot;? Indirectly, these capture the time
+until either the monsoon or drought. These two predictions can be
+described as off-policy estimates: predictions that are conditioned on
+a particular behaviour. Given the agent has two actions where *MATH* is
+not watering and *MATH* is watering, we can describe the policy &quot;if the
+agent waters&quot; as a deterministic policy *MATH*. The signal of
+interest is, *MATH*. Similarly, a state-dependent discounting function terminates the
+accumulation, *MATH. Off-policy GVFs can be estimated online, incrementally, while the agent
+is engaging in behaviours that do not strictly match the target policies
+of the prediction [*REF*]. Having constructed the aforementioned GVFs, an
+agent can express what is hidden from its observation stream: how long
+until the next season. While no information was given about the season,
+by relating what is sensed by the agent with the actions that were
+taken, the agent is able to learn about the seasons indirectly.
+
+
+Learning to Specify GVFs in Monsoon World
+
+
+GVF estimates can resolve the partial observability of monsoon world.
+Through MGD, can an agent find similar predictions? We compare three
+different agent configurations (Figure [7]): 1) a baseline agent that only receives
+environmental observations as inputs (in blue), 2) an agent that in
+addition to the environmental observations, two inputs that capture
+underlying seasons (&apos;oracle&apos;, in orange), and 3) an agent that has two
+GVFs whose cumulants and policies are learned through meta-gradient
+descent (in black).
+
+
+FIGURE
+
+
+Learning by MGD to specify GVFs introduces two additional sets of
+meta-weights to initialise: weights *MATH* that
+specify the policy a prediction is condition on, and weights
+*MATH* that determine the signal of interest from
+the environment that is being learnt about. Target policies are
+initialised to an equiprobable weighting of actions, and are passed
+through a Softmax activation function *MATH* so that
+their sum is between \[1, 0\]. The cumulant meta-weights
+*MATH* are initialised to -5, and a sigmoid
+activation is applied such that *MATH*.
+We pass the cumulant meta-weights through a sigmoid to bound the
+cumulant between \[0,1\]. The meta-weights are updated each time-step
+incrementally. We apply an L2 regulariser to the meta-loss with
+*MATH*. The control learner is a linear Q-learner. Additional
+experiment details are in Appendix A.
+
+
+In Figure [7], we plot the average reward per time-step
+during the final 100 time-steps during which we evaluate agent
+performance given greedy behaviour. While the agents deterministically
+follow their policy during the evaluation phase, learning still occurs
+during the evaluation phase: updates are made to the GVFs, which affect
+the input observations to the control agent (in the case of the MGD
+agent), and the control learner continues to update its action-value
+function. This continued learning accounts for irregularity in the
+oscillations.
+
+
+The policy learnt using only environment observations is roughly
+equivalent to equiprobably choosing an action: the learned policy is no
+better than a coin-toss (Figure [7],
+depicted in blue). This is as expected, given observations alone are
+insufficient to determine the optimal action on a given time-step. When
+the underlying season is provided as input (depicted in orange), the
+learned policy is approximately optimal. By augmenting environmental
+observations with predictive features that estimate the time to each
+season, an agent is able to solve the problem. Using meta-gradient
+descent, the agent was able to select its own predictive features
+without any prior knowledge of the domain. Using meta-gradient descent,
+the agent is able to solve the task with performance on-par with the
+hand-crafted solution without being given what to predict.
+
+
+FIGURE
+
+
+If an agent can find GVFs to solve monsoon world, what are the useful
+predictions the agent found? Do they relate to our expert&apos;s GVFs? In
+Figure [8], the value-estimates on the final 10
+time-steps of each run are presented, as well as the meta-weights for
+the cumulants (Figure [9]) and policies (Figure [10]). We
+found that two distinct types of policy and cumulant were learned for
+each of the two GVFs. In one of the 30 independent trials, the agent
+failed to solve the problem, and we depict the learned meta-weights of
+this failed trial independently. The third column illustrates how
+different the relationship of the two value estimates are in this
+failure case (from both successful and expert-specified GVFs).
+
+
+Over the course of successful runs, GVFs found by MGD do not look
+exactly like the echo GVFs introduced in Section. Some characteristics are similar: i.e., one
+of the policies approaches *MATH*; however, the other
+policy *MATH* looks quite different from the
+deterministic policies. Even when the value estimates output by the
+self-supervised GVFs are similar to those from expert-specified GVFs,
+the cumulant and policies can be quite different.
+
+
+For the best parameter settings in our sweep, one of 30 independent
+trials failed, achieving an average reward per-step of 0.5 (note this
+performance is similar to that of the agent with only environmental
+observations). For this failed run, the learned policy and cumulant do
+not fit the categorisations of cumulants or policies learned in
+successful trials. Importantly, the learned value estimates presented to
+the control agent as features do not share the same cyclic values that
+capture the underlying seasons of the environment. From this failed run,
+we can see that simply adding any prediction does not enable the agent
+to solve the problem: in successful trials, the policies and cumulants
+learned by MGD are meaningful and specific to the environment. These
+specific cumulants and policies are what enable the agents to solve the
+problem.
+
+
+The policies and cumulants found through meta-gradient descent make
+sense when comparing to predictions chosen by domain experts.
+Importantly, Not just any prediction will do: we observed that
+successful runs can be categorised into particular policies and
+cumulants learned, and that the run that was unable to improve upon
+random behaviour learned a policy and cumulant that falls outside of the
+
+
+Learning to Specify GVFs in Frost Hollow
+
+
+The previous example explored whether using MGD an agent could learn to
+specify predictions in order to resolve the partial-observability of its
+environment. In this section, we add two additional complications: 1)
+instead of a linear control agent, we use a more complex function
+approximator; and 2) we use a domain where the reward is sparse, thus
+complicating the GVF specification process. Frost Hollow (depicted in
+Figure [12]) [*REF*; *REF*] was first proposed as a
+joint-action problem where two agents attempt to cooperatively solve a
+control problem: a prediction agent passes a cue to a control agent
+based on a learned prediction; using this cue as an additional input,
+the control agent takes an action. Frost Hollow was designed as an
+environment where predictive inputs are used to augment a
+control-agent&apos;s inputs, making it well suited for assessing whether via
+MGD an agent can independently choose what GVFs to learn in order to
+improve performance on a control task.
+
+
+FIGURE
+
+
+While simple, Frost Hollow poses a difficult learning problem. The
+reward is sparse: an agent can only observe a reward after successfully
+accumulating heat and dodging regular hazards. It takes at a minimum 50
+time-steps, or 5 successive cycles of dodging the hazard successfully,
+before the agent can acquire a single reward. While the hazard itself is
+observable to the agent when active, the agent must pre-emptively take
+shelter before the hazard&apos;s onset in order to avoid losing its
+accumulated heat. All of this must be learnt from a sparse reward
+signal. Learning an additional GVF and using its estimate as an
+additional predictive feature can enable both humans, and value-based
+agents to successfully gain reward
+[*REF*; *REF*].
+
+
+In the frost-hollow setting, the control agent receives a single
+on-policy prediction as an additional input feature: the GVF is
+conditioned on the agent&apos;s behaviour rather than a policy specified by
+MGD. The discount *MATH* is a constant valued *MATH*, following
+[*REF*]. We compare the meta-gradient learning process
+to two baselines: 1) where the control agent receives a expert defined
+GVF, as specified in [*REF*]; and where an agent that
+receives only the environment observations --- no additional predictive
+features or information. In this setting we use a DQN agent for the
+control learner [*REF*] adapted from Dopamine
+[*REF*]. We train all agents for 249 000 time-steps, and
+evaluate their performance on the final 1000 time-steps. During the
+evaluation phase the *MATH* is set to 0.01, limiting non-greedy
+actions. All reported results are averaged over 30 independent trials.
+See Appendix B for additional experiment details.
+
+
+In Figure [14], we report the average cumulative reward
+during the final evaluation steps. If an agent is deterministically
+following the optimal policy during the evaluation phase, the maximum
+possible cumulative reward is 50. In [*REF*], the best
+performing agent with a highly specialised representation was able to
+achieve a cumulative reward of around 40; however, many of the agents
+with hand-selected predictions introduced in [*REF*]
+received a cumulative reward of approximately 30.
+
+
+In our experiments, the baseline agent without any additional
+predictions achieves an average cumulative reward of 7. By adding an
+additional predictive input feature that is specified by MGD, we are
+able to achieve an average cumulative reward of 18.7. Interestingly, the
+MGD agent learned to specify a cumulant that is different from those
+chosen in [*REF*]. Successful runs learn a cumulant that
+predominantly weights the accumulated heat, input 8 (as depicted in
+Figure [16]). In Figure [16] we report the average meta-weights
+specifying the cumulant over the course of the entire experiment. In
+[*REF*], the expert chosen prediction is of the oncoming
+hazard: input 7. There is a logic to the prediction selected by MGD: the
+heat an agent accumulates is directly related to reward --- reward is
+recieved after an agent acquires 12 heat. Moreover, the heat accumulated
+is indirectly related to the hazard: if the agent is unprotected before
+the hazard, it should anticipate a drop in it&apos;s accumulated heat. By
+predicting accumulated heat, the agent is dually capturing information
+about both the sparse reward signal and the original aspect of the
+environment that the expertly defined prediction sought to predict.
+
+
+Interestingly, the baseline agent which used an expert-specified
+prediction performed less well than the MGD agent, receiving an average
+cumulative reward of 3.3. This is a revealing example: while the
+expert-specified GVF was well suited to the tabular setting explored in
+prior work [*REF*], its effectiveness as a predictive
+feature did not generalise to the function approximation setting. This
+highlights a challenge that we believe is present across domains and
+environmental settings. What predictive features might be useful to an
+agent is not only influenced by the environment, but also differences in
+state construction and the underlying learning method. Together, these
+factors all influence what GVFs may be useful for decision-making.
+
+
+Limitations &amp; Future Work 
+
+
+In this paper we demonstrate for the first time that end-to-end learning
+of GVFs used as predictive inputs is possible. Moreover, we demonstrate
+this within the setting that GVFs were originally proposed: continual
+life-long learning. This has been an open challenge in GVF research
+since their introduction 10 years ago. However, this paper is not the
+final word on MGD discovery of GVFs. Assessing how well the method
+presented scales in environments with non-stationarity, or greater
+observational complexity is important future work. In this paper, we
+decided to fix the discount *MATH* --- the time-horizon over which a
+prediction is estimated. Previous work has enabled GVFs to be learned
+over many timescales at once, enabling inference over arbitrary horizons
+[*REF*]. Future work could explore how Sherstan et al.&apos;s
+*MATH* -net formulation could improve the scalability and flexibilty of
+the meta-learning process we introduce. This paper makes progress in
+enabling agents to choose what to predict. How an agent may decide the
+number of predictions to learn remains an important open question.
+Similarly, how an agent might incrementally increase its capacity by
+adding new predictions during life-long learning remains to be explored.
+One possibility is to arrange predictions in multiple layers, similar to
+GVF networks: [*REF*]. Questions regarding GVF structure
+and scale are exciting open frontiers, and this manuscript provides a
+foundation that enables such questions to be asked in future work.
+
+
+Conclusion
+
+
+In this paper we introduced a process that enables agents to meta-learn
+the specifications of predictions in the form of GVFs. This process
+enabled agents to learn what aspects of the environment to predict while
+also learning the predictions themselves and learning how to use said
+predictions to inform action-selection. This meta-learning process was
+able to be implemented in an online, incremental fashion, making it
+possible for long-lived continual learning agents to self-supervise the
+specification and learning of their own GVFs. We found that an agent
+with no prior knowledge of the environment was able to select
+predictions that yielded performance equitable to, or better than agents
+using expertly chosen predictive features. Even in an environment with a
+sparse reward, an agent was still able to learn to specify useful
+predictions to use as additional features based on the control-learner&apos;s
+error. In sum total, this work provides an important step-change in the
+design of agents that use predictive knowledge.
+
+
+It has long been suggested that predictions of future experience in the
+form of GVFs can provide useful features to support decision-making in
+computational reinforcement learning. Requiring system designers to re
+specify the GVFs for every permutation of an agent and its environment
+is a burden for applications of predictive features, and yet it is still
+the norm in both research and applied settings. Fundamentally, the
+requirement of designers to hand-specify GVFs prevents the development
+of fully independent and autonomous agents. Moreover, this has inhibited
+the application of GVFs, especially in long-lived continual learning
+domains that may exhibit non-stationarity. In this paper, we contributed
+a meta-gradient descent processes by which agents were able to find GVFs
+that improved decision-making relative to environment observations alone
+In doing so, we provide a research path for resolving an open challenge
+in the GVF literature that has existed for over a decade.

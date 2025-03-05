@@ -1,0 +1,775 @@
+Co-design of Embodied Neural Intelligence via Constrained Evolution
+
+
+Introduction
+
+
+Creating autonomous moving agents (e.g., robots, creatures) is a
+significant open problem with applications ranging from robotics to
+animation [*REF*]. Their manual creation and motion design
+offer a high level of control but do not scale and are prone to errors.
+Automatic generation does not always lead to desired morphology and
+topology. Moreover, having the agents react to the environment requires
+the design of behavioral policies. Recent approaches focused on the
+automatic design of behavior policies, and significant advances have
+been achieved with the help of deep reinforcement learning (DeepRL)
+combined with motion simulation and fine-designed reward/objective
+function in physics-based environments [*REF*; *REF*; *REF*].
+
+
+While a large body of related work has addressed virtual agent behavior
+and control policy design, the co-design of a virtual agent shape and
+its corresponding control policy is an open research problem. While
+structural and behavioral co-design is the natural way for living forms,
+it is a challenging computational problem because the search space is
+ample and changes with each new agent&apos;s configuration. Existing
+algorithms optimizing the agent and its controller either use simple
+configurations (e.g., 2D space, voxels) [*REF*], or they
+often lead to structures that deviate from the initial design
+considerably. However, it is essential to balance the optimized
+structure, and the initial structure as the uncontrolled optimization
+may lead to a significantly different shape from the user&apos;s
+expectations. However, it is not necessary to optimize the agent by
+exploring different structures as the subtle changes of the initial
+design can increase its performance. We need a new optimization method
+to search space efficiently and constrain the morphology within the
+designer&apos;s expectations.
+
+
+Our first key observation comes from evolutionary algorithms that
+address the wide variability of forms and their
+adaptation [*REF*]. Recent advancements in DeepRL have
+provided us with ways to learn a single, universal behavior policy for a
+wide range of physical structures, resulting in less memory footprint
+and efficient behavior learning in large-scale
+settings [*REF*]. Therefore, using universal DeepRL
+frameworks have the potential to provide an efficient way to explore the
+large solution space and design evolution-based methods. Our second key
+observation comes from the high variation that the evolutionary design
+often causes. This is often undesirable and providing user constraints
+over the way the agents evolve has the potential to control the agent&apos;s
+shape and prune the search space significantly.
+
+
+We propose a novel evolution-based method that can optimize the 3D
+physical parameters of an agent and its corresponding controller
+simultaneously within a user-defined boundary. Our work aims to generate
+various agents with similar physics attributes within the range of user
+inputs and a universal controller for them to walk in the given
+environment. The user input defines the range of the body part&apos;s length,
+radius, and range of joints&apos; angle affecting the agents&apos; kinematic and
+physics attributes. Our evolution-based method creates new agents based
+on the user-given template agent and optimizes their performance by
+generation. For each generation, we perform a training phase first to
+train a policy net with Proximal Policy Optimization (PPO) to control
+agents&apos; motion in this generation. Our method builds on the recent work
+of *REF*   that allows for learning of a universal
+controller over a modular robot design space. We designed a Multiple
+Layer Perceptron (MLP)/multi-head self-attention-based policy that can
+control all the agents with a single deep neural network. After the
+training phase, we measure the agents&apos; performance and create a new
+generation by selecting high-performance agents and merging their
+attributes represented as genes. Through this evolution, we could
+quickly produce agents with high performance with several generations
+and achieve performance much higher than randomly generated agents
+higher than the template agent. The user controls what and how much can
+be modified through evolution, leading to agents that vary slightly from
+the original design but achieve significantly better performance. An
+example in Fig. shows the original design (a) and its
+performance. When the body changes are not allowed, our algorithm
+evolves a new, better-performing agent (b). Enabling the body
+modifications improves the performance even more (c), and allowing
+mutations causes more significant alterations to the original design,
+increasing the performance even more (d). The same agent then evolves
+while its body shape is fixed (g-k).
+
+
+We claim the following contributions: 1) an evolution-based optimization
+that produces agent structure that holds the design requirement and fits
+the given task, 2) our method is fast as we train one generation of
+agents at a time instead of a single agent 2) a universal policy can
+control various agents for a specific task, and 3) user control over the
+allowable agent&apos;s modifications.
+
+
+FIGURE
+
+
+Related Work
+
+
+We related our work to procedural modeling, physics-based animation,
+(deep) reinforcement learning for agent motion synthesis, and co-design
+of structure and behavior.
+
+
+Procedural models generate a model by executing a code, and the
+procedural rules and their parameters define a class of generated
+objects. Procedural animation automatically generates animation
+sequences that provide a diverse series of actions than could otherwise
+be created using predefined motion clips. A seminal example is the work
+of *REF*   who introduced a simple reactive control of
+procedural agents that faithfully recreates complex motion patterns of
+flocks of birds and schools of fish. Similar approaches have been widely
+applied to crowd simulation (e.g., [*REF*; *REF*; *REF*]).
+However, procedural animation is unsuitable for low-level agent control,
+and its common problem is the low level of control.
+
+
+Physics-based animation represents the agents as interconnected
+rigid bodies with mass and moment of inertia controlled by joint torques
+or muscle models [*REF*]. As the control mechanism of an agent
+greatly affects the motion quality, the choice of control method is
+important depending on the task. *REF*   compared the
+difference across torque control, PD controller, and muscle base
+control.
+
+
+Depending on an appropriate control method, many methods work on the
+control policy to synthesize realistic locomotion. One approach utilizes
+motion equations or implicit constraints to optimize the locomotion
+generated physics-based gaits by numerically integrating equations of
+motion [*REF*]. *REF*   developed a periodic
+control method with cyclic control graph [*REF*] that
+applies a contact-invariant optimization to produce symmetry and
+periodicity fully automatically. The design of a physics-based
+controller remains challenging as it relies on the appropriate design of
+the agent and the task-specific objective functions assigned to it.
+
+
+An alternative approach is learning to synthesize motions from a motion
+dataset or reference motion clips [*REF*; *REF*; *REF*; *REF*; *REF*; *REF*].
+One example is the real-time interactive controller based on human
+motion data that predicts the forces in a short
+window [*REF*] and the simulation of a 3D full-body biped
+locomotion by modulating continuously and seamlessly
+trajectory [*REF*]. *REF*   applied joint
+inverse optimization to learn the motion style from the database.
+
+
+Deep Reinforcement Learning (DeepRL) provides a control policy for
+agents automatically. Deep reinforcement has been proven effective in
+diverse, challenging tasks, such as using a finite state machine (FSM)
+to guide the learning target of RL and drives a 2D biped walking on
+different terrains [*REF*]. *REF*   encouraged
+low-energy and symmetric motions in loss functions, and
+*REF*   address the symmetry from the structure of
+policy network, data duplication, and loss function and they also handle
+different types of robots or terrains. One of the drawbacks is the loss
+of direct control of the learning target because the implicit function
+does not provide a clear learning target for the agent. Combining motion
+data has the potential to address this issue by giving an imitation
+target. With the assistance of motion reference, the learning process
+can discard huge meaningless motion and dramatically reduce the
+exploration of action space. *REF*   enables the learning of
+challenging motion tasks by imitating motion data or video frames
+directly [*REF*]. *REF*   handle different shape
+variations of a virtual character. However, the learning from the
+unstructured motion database or the inaccuracy in the motion reference
+can make the learning of policy difficult. A fully automated approach
+based on adversarial imitation learning was introduced in [*REF*]
+to address this problem by generating new motion clips. Recently,
+*REF*   combined adversarial imitation learning and unsupervised
+RL techniques to develop skill embeddings that produce life-like
+behaviors for virtual characters. The characters learn versatile and
+reusable physically simulated skills. One limitation
+of [*REF*; *REF*] is the need for a well-designed
+character in terms of density, length, and joint properties to perform
+the given task. Our work addresses this problem by combining RL and
+evolution.
+
+
+Co-optimizing design and behavior attempts to optimize behavior or
+function and shape simultaneously. The seminal work of
+*REF*   uses genetic algorithms [*REF*; *REF*] to evolve
+3D creatures by using physics-based simulation, neural networks, genetic
+algorithms, and competition. Evolution has also been used to design the
+shape of robots [*REF*; *REF*] and neural graph
+evolution has been applied to design robots in [*REF*]. Our
+work is inspired by the recent work (RoboGrammar) [*REF*]
+that uses graph search to optimize procedural robots for various
+terrains. RoboGrammar uses a set of well-tuned fixed body attributes
+(length, density, control parameters), while our method evolves the body
+attributes of the virtual agents. Close to our work
+is [*REF*] that uses co-design via evolution to
+co-optimizing the design and control of 2D grid-based soft robots. This
+method works in 2D on a fixed set of agent parts and trains each agent
+individually, while our approach uses group training that significantly
+shortens training. This is inspired by *REF*  , which
+controls different agents with one universal controller. We designed our
+universal controller with an MLP network instead of the self-attention
+layer as it is faster to train and provides similar results. Our
+controller handles agents with the same topology but different body
+attributes. The second work [*REF*] evolves the agent&apos;s
+structure by mutations and sampling without merging the parents&apos; genes
+to reproduce the children and does not provide freedom of control over
+the agent&apos;s design during evolution.
+
+
+Overview 
+
+
+The input to our method (see Fig. a) is an agent that was either provided by the
+user or generated randomly. The user can also define constraints that
+guide the changes in the agent form. Examples of the constraints (marked
+schematically as yellow arrows) are the ranges of the allowed changes in
+the length of the body, the width of legs, etc. Our method improves the
+performance of the physically simulated agent within the constraints via
+evolution and ensures the result does not deviate from users&apos;
+expectations. The constraints do not need to be tuned carefully.
+
+
+The input agent is trained (Fig. b) by the Proximal Policy Optimization (PPO)
+in a physics-based environment as a simulated robot with a rigid body,
+collision detection, shape, and motors to perform a task. The output of
+this training is used as a baseline for evaluating the performance of
+the following stages of the algorithm. The learned policy is transferred
+into the agent&apos;s generation (Fig. d) as a start policy that accelerates the
+following generations&apos; training with encoded motion prior.
+
+
+The algorithm then enters into the co-design phase of evolution. The
+system creates several hundreds of variants of the agent by randomly
+sampling the allowed ranges of the parameters of the input agent
+(Fig. c). The initial generation of agents is
+trained with the universal PPO, which significantly accelerates the
+training time and allows training on a single GPU. The trained agents
+are sorted according to their fitness, and the top agents are selected
+(Fig. e). The selected agents undergo crossover and
+mutation to generate a new generation (Fig. f), and the new generation is trained by
+bootstrapping with the policy from the parent generation. During the
+evolution, the agent keeps improving their attributes. The entire
+algorithm stops either when the improvement is insignificant or when the
+user decides that the output is satisfactory.
+
+
+Agent Description 
+
+
+Our agent description can be used in DeepRL frameworks, flexible
+supports physics-based simulation, and allows for a fast definition or
+user constraints.
+
+
+Shape 
+
+
+FIGURE
+
+
+The agent is represented as a directed acyclic graph
+*MATH* with vertices *MATH* and edges
+*MATH*. Each *MATH* corresponds to a node that
+connect different parts of the agents and each *MATH* is a joint that
+corresponds to connecting two parts (nodes *MATH* and *MATH*) of the
+agent&apos;s body (see Fig. [1]).
+
+
+Each agent consists of two building blocks: body parts are denoted by
+the upper index  *MATH*, and legs with the foot are denoted by  *MATH* and  *MATH* 
+for the left and right leg, respectively. The acyclic graph is a tree
+with the root being always the node  *MATH*. An example in
+Fig. [1] shows an agent with two pairs of legs and a body with four body parts. An
+additional index further distinguishes each leg, e.g., the third vertex
+on the second left leg from the torso has index  *MATH* (indexed
+from zero).
+
+
+While the topology of the agent is described by the graph  *MATH*,
+the geometry is captured by additional data stored in each graph
+vertex  *MATH* that is called agent&apos;s attributes. Each body part is
+represented as a generalized cylinder (a capsule), and we store its
+local coordinate system, orientation, radius, and length. The edges also
+store the rotation axis and rotation range.
+
+
+FIGURE 
+
+
+The user constraints (right image) are defined as the ranges of
+motion, length, radius, etc. Note that the ranges may be asymmetrical. A
+global constraint defines how much the evolution can change the
+attributes as a whole.
+
+
+Physics Simulation and Movement 
+
+
+The physics of the motion of each agent is simulated with rigid body
+dynamics. Additionally to the geometric attributes, each edge  *MATH* also
+stores physics attributes: stiffness, damping, friction, and mass
+density. Each body part also stores its mass, derived from the density
+and volume. The movement simulation is performed using the Isaac
+Gym [*REF*] which runs parallel physics simulation with
+multiple environments on GPU. The agent&apos;s topology, geometry, and
+attributes are stored as a &apos;MJCF&apos; file interpreted by the Isaac Gym. The
+simulation engine has various parameters. We enable the agent&apos;s
+collision with the environment and self-collision.
+
+
+The agent&apos;s movement is given by the torque *MATH* applied to each joint
+over time. There are two methods to control the joint of an agent. The
+first option (direct control) applies the torque directly to each
+joint, and the actual torque value is provided by the policy network
+described in the next Sect. [5]. The torque control is fast, but it can be noisy
+and unstable as the torque is sampled from a policy given distribution.
+The second option (PD) uses Proportional Derivative (PD) controller
+that works as an intermediate between the control policy and the torque.
+The control policy specifies the target position for the joint, and the
+PD provides the torque. This control method provides stable motion as
+the PD controller can reduce the motion jittering. We use both options
+in our method and refer to them as PD and direct torque control.
+
+
+Generation
+
+
+We generate the agents either manually or randomly. The manual
+description is performed by writing the agent description into a text
+file that is then visualized by the system. The random generation
+creates the description automatically. It is a two-step process that
+starts by generating body parts and then attaching legs. The random
+generation may lead to non-realistic configurations, such as legs inside
+the body, and they need manual verification for consistency.
+
+
+Deep RL Model Representation 
+
+
+FIGURE
+
+
+The DeepRL generates a control policy that produces the locomotion for
+each agent. The learned control policy should be robust across the
+entire generation. Moreover, we need to train a large number of agents,
+so the control policy should be able to train rapidly.
+
+
+The agent&apos;s description and attribute values become the DeepRL framework
+states optimized towards the desired behavior. We use Proximal Policy
+Optimization (PPO), which is an Actor-Critic-based RL
+algorithm [*REF*]. The Critic estimates the value
+function and suggests a possible policy distribution, while the Actor
+updates the policy distribution in the suggested direction. Our
+universal controller is trained with PPO with advantages computed with
+Generalized Advantage Estimation (*MATH*) [*REF*]. The
+controller receives the state of a agent  *MATH* at the time *MATH*, and it
+outputs an action *MATH* for each joint that leads to the state
+*MATH*. The action *MATH* is either the torque *MATH* applied
+directly to each joint or a position of a PD controller that then
+computes the required torque (Sect. [4.2]).
+
+
+States and Actions
+
+
+The state of the agent *MATH* at time *MATH* is
+(Fig.): *MATH* where *MATH* is the agent&apos;s morphology, *MATH* denotes the perceptive
+representation, and the global representation is denoted by *MATH*. In
+the following text, we will not specify the time *MATH*, unless needed.
+
+
+The morphology representation *MATH* consists of
+*MATH* where *MATH* includes the physics attributes of a body: length,
+radius, and density. The spatial data *MATH* includes the initial
+direction of the body computed from *MATH* attributes in &apos;MJCF&apos; file
+and the initial local position. The values of *MATH* contain the
+attributes of the joints attached to the body, such as the rotation axis
+and the rotation range of the joint. The morphology representation  *MATH* 
+does not change during the simulation and training, and it changes only
+after evolution when the new generation is reproduced
+(Sect. [6]). Therefore, this part is a constant input to the policy network. The
+network can then decide on different agents based on their morphology
+attributes.
+
+
+The perceptive representation *MATH* stores the dynamics information that
+changes at each time step *MATH*  *MATH* where the transform
+attributes *MATH* include the local position, local rotation
+represented as a quaternion, and the joint position. The physics
+attributes *MATH* include linear velocity, angular velocity, and
+joint velocity. Actions from the previous time step of each joint are
+also used. The last parameter is the action *MATH* that specifies the
+target position of the PD controller or direct torques for each joint.
+The actual value of actions is sampled from Gaussian distributions given
+by a control policy. We use hinge joints for each agent, specified as
+the 1D rotation angle *MATH* that are normalized based on their joint
+rotation ranges. Finally, the global description  *MATH* contains
+information that indicates the overall behavior of the agent, i.e.,
+distance to the target point, heading direction, and the up vector of
+the torso.
+
+
+Network Architecture
+
+
+The Actor and the Critic in the PPO algorithm are modeled with a deep
+neural network (see Fig ). The Actor network is a control policy *MATH* 
+that maps the given state  *MATH* to the Gaussian distributions over actions
+*MATH*, which takes a mean *MATH* 
+from the output of the deep neural network and a diagonal covariance
+matrix *MATH* specified by a vector of learnable
+parameters  *MATH*. The mean is specified by a fully-connected
+network with three hidden layers with sizes *MATH* and the
+Exponential Linear Unit (ELU) [*REF*] as activation function,
+followed by a linear layer as outputs. The values of covariance matrix
+*MATH* are learnable parameters
+and they are updated as a part of the deep neural network with gradient
+descent. The Critic network  *MATH* is modeled as a separate network
+with the same architecture as the Actor network, except that the output
+size is one, indicating the value of the given state.
+
+
+Rewards
+
+
+The reward function *MATH* evaluates an agent&apos;s performance, e.g.,
+encouraging the agent to walk forward over flat terrain. It attempts to
+maintain a constant moving speed towards a target distance, and the
+agent should be able to keep stable locomotion without flipping or
+deviating from the target direction. It also minimizes energy
+consumption. The rewards function is a sum of multiple task objectives
+*MATH* where *MATH* is the pose reward that encourages the agent to maintain a stable initial pose
+during the movement, *MATH* is the velocity reward, *MATH*  denotes the
+efficiency reward, and *MATH* is the alive reward.
+
+
+The pose reward *MATH* maintains the heading direction of the agent&apos;s
+body aligned with the target direction *MATH* as the agent walks
+along the *MATH* -axis. The up direction of the head should point to the
+up-axis *MATH* to prevent the agent swinging its body or flipping:
+*MATH* and the weights *MATH* and *MATH*. The heading
+reward  *MATH* is computed as *MATH* where *MATH* is the projection of heading vector
+of the head to the target direction, *MATH* is the threshold of
+getting the maximum heading reward. We apply the same equation to the up
+stable reward  *MATH*, except that the aligning vector points up and we
+use a different threshold of *MATH* that has been established
+experimentally.
+
+
+The velocity reward *MATH* encourages the agent to move forward along the
+*MATH* where *MATH* is the walking distance along *MATH* -axis at the time step *MATH* and
+*MATH*.
+
+
+The efficient reward *MATH* encourages the agent to perform
+energy-efficient actions at each time by penalizing high torques or
+joint close to extreme position to have smoother locomotion.
+*MATH* where the weights are *MATH* and  *MATH*.
+The action cost *MATH* penalizes high
+torque action given by the control policy or joint position closer to
+the range limitation in the PD control. The energy cost
+*MATH* prevents the agent from taking high-energy consumption actions by avoiding high joint
+velocity *MATH*.
+
+
+The joint-at-limit reward *MATH* prevents the agent from not
+utilizing all joints by penalizing the joint stuck at the limit position
+*MATH* where *MATH* is the normalized joint position,
+*MATH* is the threshold to receive the penalty and
+*MATH* is the weight.
+
+
+The alive reward *MATH* is set to zero when the agent leaves the scene.
+
+
+Training
+
+
+Our control policy is trained with proximal-policy optimization
+(PPO) [*REF*] on GPU-based parallel environment Isaac
+Gym [*REF*]. The trained policy is used to evaluate the
+performance of a variant based on the evaluation method in the previous
+section.
+
+
+The training is performed first for the template input agent
+(Fig. a) and then for each generation during the
+evolution (Fig. d). Both training stages proceed episodically
+that start at an initial state  *MATH* of each agent, which is randomly
+sampled from a given range to enhance the generalization of the policy
+network. The experience tuples *MATH* are sampled in
+parallel at each time step *MATH* by sampling actions *MATH* from control
+policy *MATH* with a given state *MATH*. The experience tuples are stored
+in the replay buffer for the training iteration later. Each episode is
+simulated within a maximum number of steps, or it can be terminated by
+some specific conditions like flipping or wrong walking direction. After
+the replay buffer is filled with experience tuples, several training
+iterations are performed to update the Actor network (policy network)
+and the Critic network (value network). The learning rate  *MATH* is
+dynamically adapted to the KL-divergence  *MATH* between the new and old
+policy *MATH* where *MATH* is the minimum learning rate
+allowed during the training, *MATH* is the maximum learning
+rate, and  *MATH* is a hyper-parameter that controls the
+update of learning rate based on the distance between old policy and the
+new policy during policy update iteration.
+
+
+The surrogate loss *MATH* and the value loss *MATH* are
+clipped within the range defined by the clipping ratio *MATH*.
+
+
+Single-agent training
+
+
+We train the initial (template) agent
+(Fig. b) to complete the task until the reward Eqn
+reaches maximum or does not change significantly. The result provides
+the baseline policy, the baseline reward value, and the initial
+locomotion.
+
+
+Generation Training
+
+
+Generation training attempts to optimize a whole generation of agents
+for evolution. The input to the generation training is the template
+agent policy. Since each generation of agents shares the same structure,
+the control policy of the template agent is reused via transfer
+learning. Then, the descendants could quickly inherit the locomotion
+experience from the previous generation, which in effect, increases the
+speed of training (to one-fifth in our experiments).
+
+
+FIGURE
+
+
+The generation includes *MATH* variants trained in parallel (shown in
+Fig [2]) each in its environment. At each time step *MATH*, the universal control
+policy takes the states *MATH* of an agent *MATH* and outputs its
+actions  *MATH*. The experiences are sampled and stored in the replay
+buffer. The experience tuples sampled from different variants are
+randomly sampled for the policy update phase. This training part is
+inspired by metamorph [*REF*] that trains a universal
+controller with a transformer base structure for robots with different
+morphology. In our case, we use a simple fully-connected network,
+providing good performance and training speed.
+
+
+Evolution 
+
+
+Each trained group of agents (Fig. [2])
+produces a set of variants of agents with different body attributes
+altogether with their reward function. The goal is to choose the best
+variants of agents and create a new generation while ensuring that their
+most beneficial traits propagate and possibly improve in the next
+generation.
+
+
+Let *MATH* denote the *MATH* th generation with
+variants of agents  *MATH*. Each agent has a list of attributes *MATH* 
+that we call its gene. The next generation *MATH* is produced via
+selection, crossover, and mutation [*REF*; *REF*].
+
+
+Selection:
+
+
+We sort all variants *MATH* in the actual generation *MATH* according to
+their reward and select the top *MATH*  *MATH* agent variants. This
+initial set becomes the seed of the new generation  *MATH*.
+
+
+Crossover:
+
+
+The seed of the new generation is expanded to the number of variants *MATH* 
+by crossover. We take the genes *MATH* and *MATH* of two randomly
+agent variants *MATH* and *MATH* from the seed set. We use a random
+crossover that takes an attribute *MATH* and swaps it
+with  *MATH* with the 50% probability. This process is repeated until
+a new generation *MATH* with *MATH* variants has been created.
+
+
+Mutation:
+
+
+Each attribute can be mutated by altering its value by a random value
+*MATH*. The overall probability of mutation is set
+to  *MATH*  [*REF*].
+
+
+The user-defined constraints:
+
+
+(Sect. [4.1]) make some attributes fixed, and they will not be affected by the
+mutation and crossover. Moreover, the values of attributes will not go
+out of the range of the user-defined constraint limits.
+
+
+Some attributes can be linked (for example, pair of symmetric legs or
+body parts belong to the same group (torso body)), and they will always
+be treated as a fixed group. When one of them is swapped, the other will
+be as well. If one value is changed, the others will be changed by the
+same value.
+
+
+Implementation and Results
+
+
+Implementation
+
+
+We use Python to develop the agent generator and all the components in
+our evolution system. Isaac Gym [*REF*] was used for the
+physics simulation of the robot, and we implemented the PPO optimization
+in Python. The neural network is based on Pytorch version 1.8.1. The
+computation, including deep neural network training, physics simulation,
+and rendering, runs on a single Nvidia GeForce RTX 3090. The baseline
+agent is trained for 500 epochs with 900 parallel environments, and the
+entire training takes approximately 10 minutes. The agent generation
+training with the universal controller is trained for 35 epochs and 150
+variants. Each variant runs on six parallel environments. The training
+for each generation takes around 60 seconds. The overall evolution of
+the 50 generations takes around 40 minutes to 60 minutes, depending on
+the complexity of the agent and the environment. The main limitation is
+the size of the GPU memory.
+
+
+Results
+
+
+We designed and randomly generated several agents to test the effect of
+the evolution on the agent co-design. All results are summarized in
+Tab. [1], and details of each body part are in the
+Appendix. Please note this paper has the accompanying video that shows
+the results from this paper.
+
+
+TABLE
+
+
+The first example in Fig. shows the effect of the evolution on the changes
+and reward function of an agent. The baseline agent is trained to walk
+with the state-of-the-art PPO training (a), and we then use the
+evolutionary algorithm to improve its performance while changing its
+attributes to complete the same task. The reward function value for the
+baseline agent is 473, and it improves through the evolution after the
+first generation to 132% (b), the fifth generation 166% (c), 15-th
+generation 184% (d), 25-th generation 199% (e), and 35-th generation to
+228% (f). We then take the same agent and fix its body shape so it
+cannot change through evolution. The agent is trained from the baseline
+leading to the new reward after the first generation to 121% (g), the
+fifth generation 192% (h), 15-th generation 226% (i), 25-th generation
+245% (j), and 35-th generation to 253% (k).
+
+
+The experiment in Fig. [3] studies the effect of globally increasing the
+range of allowed changes. The baseline input agent has been trained,
+leading to the reward function value of 470. We then run the
+evolutionary co-design, allowing the global change attributes by
+*MATH* and *MATH*. While the reward is increasing to 132, and 151%
+of the baseline design, the structure of the agent has also changed
+significantly.
+
+
+FIGURE
+
+
+Figures [4]-[6] show three agents with increasing complexity
+evolved by allowing *MATH* of global attributes changes. The
+snapshots of the motion are taken after the same time, showing the
+traveled distance for comparison. The simple agent improved to 153% of
+the baseline model, the medium to 161%, and the complex one to 155%.
+
+
+FIGURES
+
+
+Another example in Fig. [7] shows the effect of the restricted control of the
+evolution. We fixed the torso (Fig. [7](a) during the evolution by not allowing any
+changes in the agent. While the body remains the same, the legs and
+their control were allowed to change by 40%, leading to the improvement
+of 162%. Fig. [7] b) shows the same agent where only the torso can
+evolve, and the legs remain fixed. This limits the motion, and the
+improvement was only 127% of the baseline.
+
+
+FIGURE 
+
+
+While the above-mentioned examples were generated with the PD control,
+the accompanying video shows that our evolutionary algorithm handles the
+direct torque control from the PPO.
+
+
+We tested the effect of the mutation on the convergence of the reward
+function. We trained the baseline agent from
+Fig. with and without the mutation. The progress of
+both reward functions in Fig. [8] shows that the mutation has a positive effect
+on the reward function leading to faster convergence and about 9% higher
+reward (2,171 vs. 1992).
+
+
+FIGURE
+
+
+The reward functions through the 30 generations of the evolution for
+figures in this paper are shown in Fig. [9]. The reward function increases most if no
+constraints are imposed on the model, or if the model has high
+complexity allowing for more changes.
+
+
+FIGURE
+
+
+We attempted to provide some insight into the traits that affect the
+overall performance of the agents. We analyzed the data from the
+Appendix that show all number of changes for agents from
+Figs. [4], [5], [6], and [7]. The overall tendency allowing the agents to perform better is diminishing
+their weight. The control parameters play an important role in the
+locomotion as its global changes are relatively higher than the others.
+The statistics show that the increase in the body&apos;s average length also
+helps improve performance. This is especially true for the legs,
+indicating that longer legs are beneficial. Moreover, stiffness and the
+max effort tend to increase through the evolution as they provide a
+faster response to the target joint position, and they increase the
+maximum torque. An exception is an agent in Fig. [7] that
+could not evolve its legs, leading to decreased damping and the max
+effort.
+
+
+Conclusions, Limitations, and Future Work
+
+
+We have introduced a novel approach that improves the state-of-the-art
+DeepRL training by adding evolutionary changes to the agent&apos;s
+parameters. While the agent&apos;s topology remains the same, the genetic
+algorithm explores the space of the agent&apos;s attributes and attempts to
+improve its performance to complete the given task. Our approach has two
+main advantages. First, it allows for user control of the evolving
+parts. Second, it uses a universal policy and transfer learning that
+enables us to train a whole generation of agents on a single GPU. This
+significantly shortens the training time of the evolutionary algorithm
+to 1 minute per generation. We have shown various examples of agents
+trained with varying shapes and parameters, showing that the performance
+improved by tens of percent even after just a few generations.
+
+
+Our approach has several limitations. First, we used Isaac Gym and PPO
+as our simulation and RL training baseline. While this is a fair choice,
+both RL algorithms and physics engine include many parameters that need
+to be carefully tuned, and they may have a negative effect on the
+training. We have carefully used precisely the same parameters when
+comparing the results, but we noted, for example, that using
+self-collision detection for complex agents changes the results
+significantly. The second limitation is the improvement of evolutionary
+requires the template agent is able to perform the task to provide an
+initial control policy. If the template agent fails the task, the
+descendants will not benefit from the pre-trained policy.
+
+
+There are many possible avenues for future work. First, it would be
+interesting to study how many and what parameters are suitable for the
+user. We showed several ways of controlling the shape and its evolution,
+but the actual user intent and feedback would be worthy of its research
+project. Second, the space that needs to be explored during the
+evolution is vast, and it is evident that our approach is leading only
+to a limited set of solutions. Future work could use several solutions
+and see what makes them different. Another important problem to study in
+the future is to answer the question of what makes the design perform
+better. It could be achieved by tracking the values of attributes and
+seeing how they relate to the performance. However, the relation is very
+unlikely straightforward, and the parameters may affect each other.
+Obvious future work is studying more complex tasks and environments.
